@@ -276,12 +276,19 @@ class PolicyOptimizer:
         current_cost: float = 0.0,
         iteration_history: list[SingleAgentIterationRecord] | None = None,
         events: list[dict[str, Any]] | None = None,
+        # New unified naming
+        simulation_trace: str | None = None,
+        sample_seed: int = 0,
+        sample_cost: int = 0,
+        mean_cost: int = 0,
+        cost_std: int = 0,
+        # Deprecated parameters (backward compatibility)
         best_seed_output: str | None = None,
-        worst_seed_output: str | None = None,
+        worst_seed_output: str | None = None,  # noqa: ARG002 - deprecated, ignored
         best_seed: int = 0,
-        worst_seed: int = 0,
+        worst_seed: int = 0,  # noqa: ARG002 - deprecated, ignored
         best_seed_cost: int = 0,
-        worst_seed_cost: int = 0,
+        worst_seed_cost: int = 0,  # noqa: ARG002 - deprecated, ignored
         cost_breakdown: dict[str, int] | None = None,
         cost_rates: dict[str, Any] | None = None,
         debug_callback: DebugCallback | None = None,
@@ -300,12 +307,11 @@ class PolicyOptimizer:
             llm_model: Model identifier for tracking.
             current_cost: Current policy's cost.
             iteration_history: Full iteration records for context.
-            best_seed_output: Verbose output from best performing seed.
-            worst_seed_output: Verbose output from worst performing seed.
-            best_seed: Best performing seed number.
-            worst_seed: Worst performing seed number.
-            best_seed_cost: Cost from best seed.
-            worst_seed_cost: Cost from worst seed.
+            simulation_trace: Tick-by-tick event log from representative sample.
+            sample_seed: Seed used for the representative sample.
+            sample_cost: Cost from the representative sample.
+            mean_cost: Mean cost across all samples.
+            cost_std: Standard deviation of costs.
             cost_breakdown: Breakdown of costs by type (delay, collateral, etc).
             cost_rates: Cost rate configuration from simulation.
             debug_callback: Optional callback for debug logging during retries.
@@ -315,22 +321,29 @@ class PolicyOptimizer:
                 - Incoming liquidity events TO the agent
                 - Agent-specific state changes and costs
                 This enforces agent isolation: Agent X never sees Agent Y's data.
+            best_seed_output: Deprecated, use simulation_trace.
+            best_seed: Deprecated, use sample_seed.
+            best_seed_cost: Deprecated, use sample_cost.
 
         Returns:
             OptimizationResult with new policy or None if failed.
         """
+        # Handle deprecated parameter names (backward compatibility)
+        effective_trace = simulation_trace or best_seed_output
+        effective_seed = sample_seed if sample_seed != 0 else best_seed
+        effective_cost = sample_cost if sample_cost != 0 else best_seed_cost
         validation_errors: list[str] = []
         total_tokens = 0
         start_time = time.monotonic()
 
         # CRITICAL: If raw events are provided, filter them by agent
         # This enforces agent isolation: Agent X never sees Agent Y's data
-        effective_best_seed_output = best_seed_output
-        if events is not None and best_seed_output is None:
+        effective_simulation_trace = effective_trace
+        if events is not None and effective_trace is None:
             # Filter events to only show target agent's data
             filtered_events = filter_events_for_agent(agent_id, events)
             if filtered_events:
-                effective_best_seed_output = format_filtered_output(
+                effective_simulation_trace = format_filtered_output(
                     agent_id, filtered_events, include_tick_headers=True
                 )
 
@@ -347,12 +360,11 @@ class PolicyOptimizer:
                 current_policy=current_policy,
                 current_metrics=current_metrics,
                 iteration_history=iteration_history,
-                best_seed_output=effective_best_seed_output,
-                worst_seed_output=worst_seed_output,
-                best_seed=best_seed,
-                worst_seed=worst_seed,
-                best_seed_cost=best_seed_cost,
-                worst_seed_cost=worst_seed_cost,
+                simulation_trace=effective_simulation_trace,
+                sample_seed=effective_seed,
+                sample_cost=effective_cost,
+                mean_cost=mean_cost,
+                cost_std=cost_std,
                 cost_breakdown=cost_breakdown,
                 cost_rates=cost_rates,
                 agent_id=agent_id,
@@ -367,7 +379,7 @@ class PolicyOptimizer:
             prompt += f"\n\n{policy_section}"
 
             # NOTE: Simulation events are already included in the single-agent context
-            # via best_seed_output and worst_seed_output (Section 4: SIMULATION OUTPUT).
+            # via simulation_trace (Section 4: SIMULATION OUTPUT).
             # Adding _build_simulation_section() here would DUPLICATE the events.
 
             # Add validation errors for retry

@@ -111,13 +111,20 @@ class TestSingleAgentContext:
         assert context.cost_rates == {}
         assert context.current_policy == {}
         assert context.current_metrics == {}
+        # New unified naming
+        assert context.simulation_trace is None
+        assert context.sample_seed == 0
+        assert context.sample_cost == 0
+        assert context.mean_cost == 0
+        assert context.cost_std == 0
+        assert context.ticks_per_day == 100
+        # Deprecated aliases still work
         assert context.best_seed_output is None
         assert context.worst_seed_output is None
         assert context.best_seed == 0
         assert context.worst_seed == 0
         assert context.best_seed_cost == 0
         assert context.worst_seed_cost == 0
-        assert context.ticks_per_day == 100
 
     def test_stores_agent_id(self) -> None:
         """Agent ID is stored correctly."""
@@ -148,12 +155,12 @@ class TestSingleAgentContext:
             current_policy={"parameters": {"threshold": 5.0}},
             current_metrics={"total_cost_mean": 800},
             iteration_history=history,
-            best_seed_output="[Tick 0] Start...",
-            worst_seed_output="[Tick 0] Failed...",
-            best_seed=42,
-            worst_seed=17,
-            best_seed_cost=700,
-            worst_seed_cost=1200,
+            # New unified naming
+            simulation_trace="[Tick 0] Start...",
+            sample_seed=42,
+            sample_cost=700,
+            mean_cost=750,
+            cost_std=100,
             cost_breakdown={"delay": 500, "collateral": 300},
             cost_rates={"delay_per_tick": 100},
             ticks_per_day=50,
@@ -163,9 +170,15 @@ class TestSingleAgentContext:
         assert context.current_iteration == 2
         assert context.current_policy == {"parameters": {"threshold": 5.0}}
         assert len(context.iteration_history) == 1
-        assert context.best_seed == 42
+        assert context.sample_seed == 42
+        assert context.sample_cost == 700
+        assert context.simulation_trace == "[Tick 0] Start..."
         assert context.cost_breakdown == {"delay": 500, "collateral": 300}
         assert context.ticks_per_day == 50
+        # Deprecated aliases still work
+        assert context.best_seed == 42
+        assert context.best_seed_cost == 700
+        assert context.best_seed_output == "[Tick 0] Start..."
 
     def test_iteration_history_list_independent(self) -> None:
         """Each instance has independent iteration_history list."""
