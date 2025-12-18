@@ -79,7 +79,9 @@ class TestTemporalModeIntegration:
         mock_enriched.total_cost = 1000
         mock_enriched.events = []
 
-        with patch.object(loop, "_evaluate_temporal_acceptance", tracking_temporal):
+        # In the new implementation, _track_policy_fraction is called instead of
+        # _evaluate_temporal_acceptance. Let's verify the new behavior.
+        with patch.object(loop, "_track_policy_fraction", tracking_temporal):
             with patch.object(loop, "_run_simulation_with_events", return_value=mock_enriched):
                 with patch.object(loop, "_build_agent_contexts", return_value={}):
                     with patch.object(loop, "_save_llm_interaction_event"):
@@ -87,7 +89,7 @@ class TestTemporalModeIntegration:
                             with patch.object(loop, "_record_iteration_history"):
                                 await loop._optimize_agent("BANK_A", current_cost=1000)
 
-        assert temporal_called, "_evaluate_temporal_acceptance should be called in temporal mode"
+        assert temporal_called, "_track_policy_fraction should be called in temporal mode"
 
     @pytest.mark.asyncio
     async def test_temporal_mode_skips_should_accept_policy(self) -> None:
@@ -149,8 +151,12 @@ class TestTemporalModeIntegration:
         assert not temporal_called, "_evaluate_temporal_acceptance should NOT be called in pairwise mode"
 
 
-class TestTemporalPolicyRevert:
-    """Tests for policy revert behavior in temporal mode."""
+class TestTemporalPolicyTracking:
+    """Tests for policy tracking behavior in temporal mode.
+
+    In the new implementation, temporal mode ALWAYS accepts policies (no revert).
+    Convergence is based on policy stability (all agents unchanged for window iterations).
+    """
 
     @pytest.mark.asyncio
     async def test_temporal_stores_previous_policy_before_acceptance(self) -> None:
@@ -182,8 +188,13 @@ class TestTemporalPolicyRevert:
         assert loop._previous_policies["BANK_A"]["policy_id"] == "original"
 
     @pytest.mark.asyncio
-    async def test_temporal_reverts_policy_on_cost_increase(self) -> None:
-        """If cost increases in temporal mode, should revert to previous policy."""
+    async def test_temporal_keeps_policy_on_cost_increase(self) -> None:
+        """In temporal mode, policy is kept even when cost increases.
+
+        The new implementation uses policy stability for convergence, not cost.
+        This allows multi-agent scenarios to find equilibria where costs may
+        temporarily increase as counterparty policies change.
+        """
         mock_config = _create_mock_config(mode="deterministic-temporal")
         loop = OptimizationLoop(config=mock_config)
 
@@ -207,13 +218,16 @@ class TestTemporalPolicyRevert:
                 with patch.object(loop, "_save_llm_interaction_event"):
                     with patch.object(loop, "_save_policy_evaluation"):
                         with patch.object(loop, "_record_iteration_history"):
-                            # Current cost 1200 > previous 1000 -> should reject
+                            # Current cost 1200 > previous 1000
+                            # In the NEW implementation, policy is NOT reverted
+                            # (multi-agent convergence uses policy stability, not cost)
                             await loop._optimize_agent("BANK_A", current_cost=1200)
 
-        # Policy should be reverted to previous
-        assert loop._policies["BANK_A"]["policy_id"] == "previous_good"
-        # LLM should NOT have been called (rejected before generation)
-        mock_llm.generate_policy.assert_not_called()
+        # NEW BEHAVIOR: Policy is NOT reverted even when cost increases
+        # Instead, the policy fraction is tracked for stability detection
+        assert loop._policies["BANK_A"]["policy_id"] == "current_bad"
+        # Cost should still be logged for analysis (but not used for rejection)
+        assert loop._previous_iteration_costs["BANK_A"] == 1200
 
 
 class TestTemporalFirstIteration:
