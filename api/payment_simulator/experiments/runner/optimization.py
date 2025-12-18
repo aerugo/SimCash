@@ -1540,11 +1540,9 @@ class OptimizationLoop:
             cost = enriched.total_cost
             total_costs.append(cost)
 
-            # Extract per-agent costs (use total_cost as proxy for now)
-            # In full implementation, would track per-agent separately
+            # Extract per-agent costs from enriched result
             for agent_id in self.optimized_agents:
-                # Divide evenly for multi-agent scenarios
-                agent_cost = cost // len(self.optimized_agents)
+                agent_cost = enriched.per_agent_costs.get(agent_id, 0)
                 per_agent_totals[agent_id].append(agent_cost)
 
             # Collect bootstrap sample result for verbose logging
