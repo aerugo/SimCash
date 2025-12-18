@@ -1925,29 +1925,12 @@ class OptimizationLoop:
         # Get agent context from current evaluation (includes best/worst seed)
         agent_context = self._current_agent_contexts.get(agent_id)
 
-        # Get BootstrapLLMContext for initial simulation output (Stream 1)
-        bootstrap_llm_context = self._bootstrap_llm_contexts.get(agent_id)
-
-        # Build combined output with initial simulation (Stream 1) + best seed (Stream 2)
-        # This provides the LLM with the full simulation context for optimization
+        # INV-12: LLM Context Identity - All modes show only best_seed_output
+        # This ensures identical context format across bootstrap, pairwise, and temporal.
+        # The initial simulation stream was removed as it's stale after iteration 1
+        # and creates inconsistency with deterministic modes.
         combined_best_output: str | None = None
-        if bootstrap_llm_context and bootstrap_llm_context.initial_simulation_output:
-            initial_header = (
-                "=== INITIAL SIMULATION (Historical Data Source) ===\n"
-                f"Cost: ${bootstrap_llm_context.initial_simulation_cost / 100:.2f}\n\n"
-            )
-            initial_section = (
-                initial_header + bootstrap_llm_context.initial_simulation_output
-            )
-            if agent_context and agent_context.best_seed_output:
-                combined_best_output = (
-                    initial_section
-                    + "\n\n=== BEST BOOTSTRAP SAMPLE ===\n"
-                    + agent_context.best_seed_output
-                )
-            else:
-                combined_best_output = initial_section
-        elif agent_context and agent_context.best_seed_output:
+        if agent_context and agent_context.best_seed_output:
             combined_best_output = agent_context.best_seed_output
 
         # Build cost breakdown dict for LLM context
