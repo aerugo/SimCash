@@ -118,3 +118,8 @@ markers = [
     "integration: integration tests requiring real database files",
     "unit: unit tests with mocked dependencies",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

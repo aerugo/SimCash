@@ -28,6 +28,7 @@ def generate_iteration_table(
     """Generate LaTeX table for iteration-by-iteration results.
 
     Creates a table showing agent costs and liquidity fractions per iteration.
+    Baseline iteration (-1) is displayed as "Baseline" in the table.
 
     Args:
         results: List of AgentIterationResult from DataProvider
@@ -61,12 +62,16 @@ def generate_iteration_table(
     # Data rows
     for iteration in sorted(iterations.keys()):
         for r in sorted(iterations[iteration], key=lambda x: x["agent_id"]):
+            # Display "Baseline" for iteration -1, otherwise show the iteration number
+            iter_display = "Baseline" if r.get("is_baseline", False) or r["iteration"] == -1 else str(r["iteration"])
+            # For baseline, show "---" for Accepted column since it's the starting point
+            accepted_display = "---" if r.get("is_baseline", False) or r["iteration"] == -1 else ("Yes" if r["accepted"] else "No")
             row = format_table_row([
-                str(r["iteration"]),
+                iter_display,
                 escape_latex(r["agent_id"]),
                 format_money(r["cost"]),
                 format_percent(r["liquidity_fraction"]),
-                "Yes" if r["accepted"] else "No",
+                accepted_display,
             ])
             rows.append(row)
 
