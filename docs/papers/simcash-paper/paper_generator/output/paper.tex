@@ -290,9 +290,9 @@ Table~\ref{tab:exp1_summary} shows consistent convergence across all three passe
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 14 & 0.0\% & 15.1\% & \$0.00 & \$25.10 & \$25.10 \\
-        2 & 5 & 75.0\% & 16.0\% & \$75.00 & \$26.00 & \$101.00 \\
-        3 & 5 & 0.0\% & 15.1\% & \$0.00 & \$25.10 & \$25.10 \\
+        1 & 14 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+        2 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+        3 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
         \hline
     \end{tabular}
 \end{table}
@@ -380,9 +380,9 @@ appropriately reflecting the underlying variance.
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 7 & 16.5\% & 11.0\% & \$164.40 & \$130.85 & \$295.25 \\
-        2 & 5 & 8.0\% & 20.0\% & \$81.44 & \$199.20 & \$280.64 \\
-        3 & 7 & 9.4\% & 14.0\% & \$93.99 & \$141.99 & \$235.98 \\
+        1 & 7 & 16.5\% & 11.5\% & \$164.40 & \$126.95 & \$291.35 \\
+        2 & 5 & 5.0\% & 10.0\% & \$65.58 & \$172.11 & \$237.69 \\
+        3 & 7 & 9.2\% & 12.0\% & \$92.07 & \$128.27 & \$220.34 \\
         \hline
     \end{tabular}
 \end{table}
@@ -451,9 +451,9 @@ incentives lead to cooperative equilibrium rather than exploitation.
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 7 & 18.0\% & 10.0\% & \$137.97 & \$129.99 & \$267.96 \\
-        2 & 5 & 0.0\% & 0.0\% & \$120.00 & \$120.00 & \$240.00 \\
-        3 & 5 & 19.0\% & 0.0\% & \$138.99 & \$120.00 & \$258.99 \\
+        1 & 7 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+        2 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+        3 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
         \hline
     \end{tabular}
 \end{table}
@@ -492,13 +492,13 @@ The observed equilibria closely align with game-theoretic predictions:
 
 \begin{itemize}
     \item \textbf{Experiment 1 (Asymmetric)}: BANK\_A converged to mean liquidity
-    25.0\% while BANK\_B maintained 15.4\%. The
-    9.6\% difference reflects the predicted free-rider equilibrium
+    0.0\% while BANK\_B maintained 20.0\%. The
+    20.0\% difference reflects the predicted free-rider equilibrium
     where the bank with lower delay costs under-provides liquidity.
 
     \item \textbf{Experiment 3 (Symmetric)}: Both banks converged to similar
-    liquidity levels (12.3\% vs 3.3\%), with only
-    9.0\% difference. This symmetric outcome confirms
+    liquidity levels (20.0\% vs 20.0\%), with only
+    0.0\% difference. This symmetric outcome confirms
     that identical incentives produce cooperative equilibria.
 \end{itemize}
 
@@ -522,8 +522,8 @@ Our results suggest that:
     strategic liquidity hoarding
 \end{itemize}
 
-The total equilibrium cost of \$50.40 in Experiment 1 compared to
-\$255.65 in Experiment 3 demonstrates the efficiency implications of
+The total equilibrium cost of \$20.00 in Experiment 1 compared to
+\$39.96 in Experiment 3 demonstrates the efficiency implications of
 different cost structures.
 
 \subsection{Methodological Contributions}
@@ -548,7 +548,7 @@ into their strategic reasoning capabilities:
 \begin{enumerate}
     \item \textbf{Policy Optimization}: Agents effectively explored the
     continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from 25.0\% to 15.4\%.
+    to optimal values ranging from 0.0\% to 20.0\%.
 
     \item \textbf{Counterparty Modeling}: The asymmetric equilibria demonstrate
     implicit opponent modeling---BANK\_A's low liquidity strategy only works
@@ -683,17 +683,17 @@ programmatically from the experiment databases to ensure consistency.
         \hline
         Exp & Pass & Iters & A Liq & B Liq & A Cost & B Cost & Total \\
         \hline
-        Exp1 & 1 & 14 & 0.0\% & 15.1\% & \$0.00 & \$25.10 & \$25.10 \\
-         & 2 & 5 & 75.0\% & 16.0\% & \$75.00 & \$26.00 & \$101.00 \\
-         & 3 & 5 & 0.0\% & 15.1\% & \$0.00 & \$25.10 & \$25.10 \\
+        Exp1 & 1 & 14 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+         & 2 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+         & 3 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
         \hline
-        Exp2 & 1 & 7 & 16.5\% & 11.0\% & \$164.40 & \$130.85 & \$295.25 \\
-         & 2 & 5 & 8.0\% & 20.0\% & \$81.44 & \$199.20 & \$280.64 \\
-         & 3 & 7 & 9.4\% & 14.0\% & \$93.99 & \$141.99 & \$235.98 \\
+        Exp2 & 1 & 7 & 16.5\% & 11.5\% & \$164.40 & \$126.95 & \$291.35 \\
+         & 2 & 5 & 5.0\% & 10.0\% & \$65.58 & \$172.11 & \$237.69 \\
+         & 3 & 7 & 9.2\% & 12.0\% & \$92.07 & \$128.27 & \$220.34 \\
         \hline
-        Exp3 & 1 & 7 & 18.0\% & 10.0\% & \$137.97 & \$129.99 & \$267.96 \\
-         & 2 & 5 & 0.0\% & 0.0\% & \$120.00 & \$120.00 & \$240.00 \\
-         & 3 & 5 & 19.0\% & 0.0\% & \$138.99 & \$120.00 & \$258.99 \\
+        Exp3 & 1 & 7 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+         & 2 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+         & 3 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
         \hline
     \end{tabular}
 \end{table}
@@ -703,9 +703,9 @@ programmatically from the experiment databases to ensure consistency.
 
 \begin{itemize}
     \item \textbf{Mean iterations to convergence}: 6.7
-    \item \textbf{Experiment 1 mean total cost}: \$50.40
-    \item \textbf{Experiment 2 mean total cost}: \$270.62
-    \item \textbf{Experiment 3 mean total cost}: \$255.65
+    \item \textbf{Experiment 1 mean total cost}: \$20.00
+    \item \textbf{Experiment 2 mean total cost}: \$249.79
+    \item \textbf{Experiment 3 mean total cost}: \$39.96
 \end{itemize}
 
 All 9 passes achieved convergence to stable equilibria, demonstrating
