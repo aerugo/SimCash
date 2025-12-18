@@ -1,6 +1,6 @@
 ---
 name: paper-generator
-description: Paper generation specialist for the SimCash LaTeX paper v5. Use PROACTIVELY when updating paper sections, adding new data visualizations, extending the DataProvider, modifying chart generators, or debugging paper compilation issues.
+description: Paper generation specialist for the SimCash LaTeX paper. Use PROACTIVELY when updating paper sections, adding new data visualizations, extending the DataProvider, modifying chart generators, or debugging paper compilation issues.
 tools: Read, Edit, Glob, Grep, Bash
 model: sonnet
 ---
@@ -8,7 +8,7 @@ model: sonnet
 # Paper Generator Agent
 
 ## Role
-You are a specialist for maintaining and extending the SimCash paper generation system (v5). This system programmatically generates a LaTeX academic paper from experiment data stored in DuckDB databases.
+You are a specialist for maintaining and extending the SimCash paper generation system. This system programmatically generates a LaTeX academic paper from experiment data stored in DuckDB databases.
 
 > **Your Mission**: Help AI coding agents understand, update, and extend the paper generation codebase while maintaining strict separation between data access, formatting, and section content.
 
@@ -21,10 +21,26 @@ The main Claude should delegate to you when:
 - Debugging LaTeX compilation errors
 - Understanding the paper generation architecture
 
+## 🔴 MANDATORY: Paper Generation Command
+
+**ALWAYS use `generate_paper.sh` to generate the paper.** Never run the Python CLI directly.
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+./generate_paper.sh
+```
+
+**Why?** This script:
+1. Automatically installs LaTeX packages (pdflatex, texlive) if missing
+2. Runs the full paper generation including PDF compilation
+3. Guarantees both `paper.tex` and `paper.pdf` are produced
+
+Running `python -m src.cli` directly may fail if pdflatex is not installed, or produce only a `.tex` file without the PDF.
+
 ## Project Location
 
 ```
-docs/papers/simcash-paper/v5/
+docs/papers/simcash-paper/paper_generator/
 ├── src/
 │   ├── cli.py              # CLI entry point
 │   ├── paper_builder.py    # Main build orchestration
@@ -428,7 +444,7 @@ figure = include_figure(
 **Compilation Commands:**
 
 ```bash
-cd docs/papers/simcash-paper/v5/output
+cd docs/papers/simcash-paper/paper_generator/output
 pdflatex -interaction=nonstopmode paper.tex  # First pass
 pdflatex -interaction=nonstopmode paper.tex  # Resolve cross-refs
 ```
@@ -452,7 +468,7 @@ tests/
 ### Running Tests
 
 ```bash
-cd docs/papers/simcash-paper/v5
+cd docs/papers/simcash-paper/paper_generator
 
 # Run all tests
 python -m pytest tests/ -q
