@@ -1,54 +1,72 @@
 #!/bin/bash
 # Generate SimCash paper with PDF compilation
 #
-# This script checks for pdflatex and generates the paper.
-# If pdflatex is not installed, it provides platform-specific instructions.
+# This script automatically installs tectonic if no LaTeX compiler is found,
+# then generates the paper with PDF output.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check for pdflatex and provide platform-specific installation instructions
-if ! command -v pdflatex &> /dev/null; then
-    echo "Error: pdflatex not found."
+# Function to install tectonic
+install_tectonic() {
+    echo "Installing tectonic (lightweight LaTeX compiler, ~70MB)..."
     echo ""
 
-    # Detect OS and provide appropriate instructions
-    case "$(uname -s)" in
-        Darwin)
-            echo "On macOS, install MacTeX using Homebrew:"
-            echo "  brew install --cask mactex"
-            echo ""
-            echo "After installation, you may need to restart your terminal"
-            echo "or add /Library/TeX/texbin to your PATH:"
-            echo "  export PATH=\"/Library/TeX/texbin:\$PATH\""
-            ;;
-        Linux)
-            echo "On Debian/Ubuntu, install texlive:"
-            echo "  sudo apt-get update && sudo apt-get install -y \\"
-            echo "      texlive-latex-base \\"
-            echo "      texlive-latex-recommended \\"
-            echo "      texlive-latex-extra \\"
-            echo "      texlive-fonts-recommended \\"
-            echo "      cm-super"
-            echo ""
-            echo "On Fedora/RHEL:"
-            echo "  sudo dnf install texlive-scheme-medium"
-            echo ""
-            echo "On Arch Linux:"
-            echo "  sudo pacman -S texlive-core texlive-latexextra"
-            ;;
-        *)
-            echo "Please install a LaTeX distribution with pdflatex."
-            echo "Common options: TeX Live, MiKTeX"
-            ;;
-    esac
+    # Create local bin directory for tectonic
+    LOCAL_BIN="$SCRIPT_DIR/.bin"
+    mkdir -p "$LOCAL_BIN"
 
+    # Download tectonic to local bin directory
+    if (cd "$LOCAL_BIN" && curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh); then
+        echo ""
+        echo "Tectonic installed successfully to $LOCAL_BIN"
+
+        # Add to PATH for this session
+        export PATH="$LOCAL_BIN:$PATH"
+
+        # Verify installation
+        if command -v tectonic &> /dev/null; then
+            return 0
+        fi
+    fi
+
+    echo "Error: Failed to install tectonic automatically."
     echo ""
-    echo "Alternatively, generate LaTeX only (no PDF):"
-    echo "  uv run python -m src.cli --config config.yaml --output-dir output/ --skip-pdf"
-    exit 1
+    echo "Please install manually:"
+    echo "  curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh"
+    echo ""
+    echo "Or via cargo:"
+    echo "  cargo install tectonic"
+    return 1
+}
+
+# Add local bin to PATH if it exists (from previous install)
+if [ -d "$SCRIPT_DIR/.bin" ]; then
+    export PATH="$SCRIPT_DIR/.bin:$PATH"
+fi
+
+# Check for LaTeX compiler, auto-install tectonic if missing
+if ! command -v tectonic &> /dev/null && ! command -v pdflatex &> /dev/null; then
+    echo "No LaTeX compiler found."
+    echo ""
+
+    # Auto-install tectonic
+    if ! install_tectonic; then
+        echo ""
+        echo "Alternatively, generate LaTeX only (no PDF):"
+        echo "  uv run python -m src.cli --config config.yaml --output-dir output/ --skip-pdf"
+        exit 1
+    fi
+    echo ""
+fi
+
+# Show which compiler will be used
+if command -v tectonic &> /dev/null; then
+    echo "Using tectonic for PDF compilation"
+elif command -v pdflatex &> /dev/null; then
+    echo "Using pdflatex for PDF compilation"
 fi
 
 # Generate paper with PDF compilation
