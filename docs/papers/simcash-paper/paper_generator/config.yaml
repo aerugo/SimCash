@@ -9,13 +9,13 @@ databases:
   exp3: data/exp3.db
 
 # Experiment passes - explicit run_ids for each pass
-# These are the runs used in the v4 paper analysis
+# Updated 2025-12-18 with fresh runs for reproducibility validation
 experiments:
   exp1:
     name: "2-Period Deterministic Nash Equilibrium"
     passes:
-      1: "exp1-20251216-233551-55f475"  # 16 iterations, gradual free-rider
-      2: "exp1-20251217-004551-624d09"  # 7 iterations, immediate recognition
+      1: "exp1-20251216-233551-55f475"  # 7 iterations
+      2: "exp1-20251217-004551-624d09"  # 7 iterations
       3: "exp1-20251217-011413-2cd7d6"  # 7 iterations
 
   exp2:
