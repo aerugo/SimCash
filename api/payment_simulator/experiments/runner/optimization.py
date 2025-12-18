@@ -1923,29 +1923,12 @@ class OptimizationLoop:
         # Get agent context from current evaluation (includes best/worst seed)
         agent_context = self._current_agent_contexts.get(agent_id)
 
-        # Get BootstrapLLMContext for initial simulation output (Stream 1)
-        bootstrap_llm_context = self._bootstrap_llm_contexts.get(agent_id)
-
-        # Build combined output with initial simulation (Stream 1) + best seed (Stream 2)
-        # This provides the LLM with the full simulation context for optimization
+        # INV-12: LLM Context Identity - All modes show only best_seed_output
+        # This ensures identical context format across bootstrap, pairwise, and temporal.
+        # The initial simulation stream was removed as it's stale after iteration 1
+        # and creates inconsistency with deterministic modes.
         combined_best_output: str | None = None
-        if bootstrap_llm_context and bootstrap_llm_context.initial_simulation_output:
-            initial_header = (
-                "=== INITIAL SIMULATION (Historical Data Source) ===\n"
-                f"Cost: ${bootstrap_llm_context.initial_simulation_cost / 100:.2f}\n\n"
-            )
-            initial_section = (
-                initial_header + bootstrap_llm_context.initial_simulation_output
-            )
-            if agent_context and agent_context.best_seed_output:
-                combined_best_output = (
-                    initial_section
-                    + "\n\n=== BEST BOOTSTRAP SAMPLE ===\n"
-                    + agent_context.best_seed_output
-                )
-            else:
-                combined_best_output = initial_section
-        elif agent_context and agent_context.best_seed_output:
+        if agent_context and agent_context.best_seed_output:
             combined_best_output = agent_context.best_seed_output
 
         # Build cost breakdown dict for LLM context
@@ -2014,6 +1997,8 @@ class OptimizationLoop:
         try:
             # Use PolicyOptimizer if available (provides rich context)
             if self._policy_optimizer is not None and agent_context is not None:
+                # INV-12: All modes show ONE simulation trace only
+                # worst_seed_output is not passed - variance is in statistics
                 opt_result = await self._policy_optimizer.optimize(
                     agent_id=agent_id,
                     current_policy=current_policy,
@@ -2024,8 +2009,8 @@ class OptimizationLoop:
                     current_cost=float(current_cost),
                     iteration_history=self._agent_iteration_history.get(agent_id),
                     events=collected_events,  # Pass events for agent isolation filtering
-                    best_seed_output=combined_best_output,  # Includes initial sim (Stream 1) + best (Stream 2)
-                    worst_seed_output=agent_context.worst_seed_output,
+                    best_seed_output=combined_best_output,  # INV-12: Single simulation trace
+                    worst_seed_output=None,  # INV-12: Not shown - variance in stats
                     best_seed=agent_context.best_seed,
                     worst_seed=agent_context.worst_seed,
                     best_seed_cost=agent_context.best_seed_cost,
@@ -2334,14 +2319,74 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         )
         self._llm_client.set_system_prompt(dynamic_prompt)
 
-        try:
-            # Generate new policy via LLM
-            # Use simpler context for temporal mode
-            current_metrics = {
-                "total_cost_mean": current_cost,
-                "iteration": self._current_iteration,
+        # INV-12: LLM Context Identity - Temporal mode MUST provide simulation
+        # context to the LLM, just like bootstrap and pairwise modes do.
+        # Get agent context from current evaluation (populated by _evaluate_policies)
+        agent_context = self._current_agent_contexts.get(agent_id)
+
+        # Build simulation output for LLM (same as deterministic-pairwise fallback)
+        # Temporal mode has no bootstrap initial simulation, so just use best_seed_output
+        combined_best_output: str | None = None
+        if agent_context and agent_context.best_seed_output:
+            combined_best_output = agent_context.best_seed_output
+
+        # Build cost breakdown from enriched results
+        cost_breakdown: dict[str, int] | None = None
+        collected_events: list[dict[str, Any]] | None = None
+        if self._current_enriched_results:
+            # Aggregate cost breakdown (for single sample, this is just the sample's breakdown)
+            total_delay = sum(
+                r.cost_breakdown.delay_cost for r in self._current_enriched_results
+            )
+            total_overdraft = sum(
+                r.cost_breakdown.overdraft_cost for r in self._current_enriched_results
+            )
+            total_deadline = sum(
+                r.cost_breakdown.deadline_penalty
+                for r in self._current_enriched_results
+            )
+            total_eod = sum(
+                r.cost_breakdown.eod_penalty for r in self._current_enriched_results
+            )
+            num_samples = len(self._current_enriched_results)
+            cost_breakdown = {
+                "delay_cost": total_delay // num_samples,
+                "overdraft_cost": total_overdraft // num_samples,
+                "deadline_penalty": total_deadline // num_samples,
+                "eod_penalty": total_eod // num_samples,
             }
 
+            # Extract events for agent isolation filtering
+            collected_events = []
+            for result in self._current_enriched_results:
+                for event in result.event_trace:
+                    collected_events.append(
+                        {
+                            "tick": event.tick,
+                            "event_type": event.event_type,
+                            **event.details,
+                        }
+                    )
+
+        # Build current metrics dict
+        current_metrics = {
+            "total_cost_mean": current_cost,
+            "iteration": self._current_iteration,
+        }
+        if agent_context:
+            current_metrics["best_seed_cost"] = agent_context.best_seed_cost
+            current_metrics["worst_seed_cost"] = agent_context.worst_seed_cost
+            current_metrics["cost_std"] = agent_context.cost_std
+
+        try:
+            # Generate new policy via LLM with full simulation context
+            # Guard: only call optimize if we have agent context with simulation output
+            if agent_context is None:
+                # No context available - skip LLM optimization
+                self._accepted_changes[agent_id] = True
+                return
+
+            # INV-12: All modes show ONE simulation trace only
             opt_result = await self._policy_optimizer.optimize(
                 agent_id=agent_id,
                 current_policy=current_policy,
@@ -2351,14 +2396,14 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 llm_model=self._config.llm.model,
                 current_cost=float(current_cost),
                 iteration_history=self._agent_iteration_history.get(agent_id),
-                events=None,  # Temporal mode doesn't use event trace
-                best_seed_output=None,
-                worst_seed_output=None,
-                best_seed=None,
-                worst_seed=None,
-                best_seed_cost=None,
-                worst_seed_cost=None,
-                cost_breakdown=None,
+                events=collected_events,  # INV-12: Pass events for agent isolation
+                best_seed_output=combined_best_output,  # INV-12: Single simulation trace
+                worst_seed_output=None,  # INV-12: Not shown - variance in stats
+                best_seed=agent_context.best_seed,
+                worst_seed=agent_context.worst_seed,
+                best_seed_cost=agent_context.best_seed_cost,
+                worst_seed_cost=agent_context.worst_seed_cost,
+                cost_breakdown=cost_breakdown,
                 cost_rates=self._cost_rates,
                 debug_callback=None,
             )

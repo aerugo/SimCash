@@ -47,20 +47,51 @@ opt_result = await self._policy_optimizer.optimize(
 - [x] Created development plan
 - [x] Proposed INV-12: LLM Context Identity
 
-**Next Steps**:
-1. Create Phase 1 detailed plan
-2. Define LLMContextBuilderProtocol
-3. Define LLMAgentContext dataclass
-4. Write failing tests
+### 2025-12-18 - Implementation Complete
+
+**Key Fixes Implemented**:
+
+1. **Temporal mode now receives simulation context** (commit ba70321)
+   - `_optimize_agent_temporal()` now uses `_current_agent_contexts` like other modes
+   - Passes `best_seed_output` from `AgentSimulationContext` to `PolicyOptimizer`
+
+2. **Bootstrap mode simplified to single trace** (commit 19e537d)
+   - Removed "INITIAL SIMULATION" header from bootstrap output
+   - Bootstrap now shows only best sample trace, not best+worst
+
+3. **All modes unified to pass worst_seed_output=None** (commit 998c339)
+   - Changed `_optimize_agent()` to pass `worst_seed_output=None`
+   - Changed `_optimize_agent_temporal()` to pass `worst_seed_output=None`
+   - Variance is captured in statistics (mean, std, N samples), not in showing multiple traces
+
+**INV-12 Verification**:
+```
+All modes provide identical simulation context:
+  bootstrap:              best_seed_output ✓, worst_seed_output=None ✓
+  deterministic-pairwise: best_seed_output ✓, worst_seed_output=None ✓
+  deterministic-temporal: best_seed_output ✓, worst_seed_output=None ✓
+```
+
+**Tests Added**:
+- `test_temporal_context.py` - 3 tests verifying temporal mode context
+- `test_unified_context.py` - 3 tests verifying unified context across modes
+
+All 6 tests pass.
 
 ---
 
 ## Phase Progress
 
 ### Phase 1: Protocol and Data Types
-**Status**: Pending
-**Started**:
-**Completed**:
+**Status**: Complete (simplified approach)
+**Started**: 2025-12-18
+**Completed**: 2025-12-18
+
+**Note**: Instead of creating new Protocol/dataclass abstractions, we fixed the existing code
+to ensure all three modes pass identical context to PolicyOptimizer. The simplified approach:
+- Uses existing `AgentSimulationContext` dataclass
+- All modes already populate `_current_agent_contexts` via `_evaluate_policies()`
+- Fix was ensuring all modes USE this context consistently
 
 ---
 
@@ -88,9 +119,11 @@ opt_result = await self._policy_optimizer.optimize(
 ### Created
 - `docs/plans/unified-llm-context-builder/development-plan.md` - Development plan
 - `docs/plans/unified-llm-context-builder/work_notes.md` - This file
+- `api/tests/experiments/runner/test_temporal_context.py` - Tests for temporal mode context
+- `api/tests/experiments/runner/test_unified_context.py` - Tests for unified context across modes
 
 ### Modified
-(None yet)
+- `api/payment_simulator/experiments/runner/optimization.py` - Fixed context passing in both optimization methods
 
 ---
 
