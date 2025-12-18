@@ -12,6 +12,9 @@ __pycache__/
 htmlcov/
 .coverage
 
+# Local binaries (tectonic auto-installed by generate_paper.sh)
+.bin/
+
 # LaTeX auxiliary files (but NOT .tex and .pdf)
 *.aux
 *.log
