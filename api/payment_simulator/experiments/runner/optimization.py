@@ -64,6 +64,7 @@ from payment_simulator.experiments.runner.bootstrap_support import (
     InitialSimulationResult,
     SimulationResult,
 )
+from payment_simulator.experiments.runner.policy_stability import PolicyStabilityTracker
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
 from payment_simulator.experiments.runner.statistics import compute_cost_statistics
@@ -342,6 +343,11 @@ class OptimizationLoop:
         # Previous policies for revert capability in temporal mode
         # If cost increases, we revert to the previous policy
         self._previous_policies: dict[str, dict[str, Any]] = {}
+
+        # Policy stability tracker for multi-agent convergence detection
+        # Tracks initial_liquidity_fraction history per agent
+        # Used by deterministic-temporal mode for convergence detection
+        self._stability_tracker = PolicyStabilityTracker()
 
         # Load scenario config once
         self._scenario_dict: dict[str, Any] | None = None
@@ -793,10 +799,27 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents:
                 await self._optimize_agent(agent_id, per_agent_costs.get(agent_id, 0))
 
+            # Check multi-agent convergence for temporal mode
+            # This is based on policy stability (all agents unchanged for stability_window)
+            if self._config.evaluation.is_deterministic_temporal:
+                if self._check_multiagent_convergence():
+                    # Override convergence state for proper reporting
+                    self._convergence._converged_by_stability = True
+                    break
+
         # Get final cost
         final_cost = self._iteration_history[-1] if self._iteration_history else 0
         converged = self._convergence.is_converged
-        convergence_reason = self._convergence.convergence_reason or "max_iterations"
+
+        # Determine convergence reason
+        # For temporal mode, check policy stability first
+        if (
+            self._config.evaluation.is_deterministic_temporal
+            and self._check_multiagent_convergence()
+        ):
+            convergence_reason = "policy_stability"
+        else:
+            convergence_reason = self._convergence.convergence_reason or "max_iterations"
 
         # Record experiment end event
         self._state_provider.record_event(
@@ -2250,17 +2273,24 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 )
 
     async def _optimize_agent_temporal(self, agent_id: str, current_cost: int) -> None:
-        """Optimize agent using temporal (cross-iteration) comparison.
+        """Optimize agent using temporal mode with policy stability tracking.
 
-        Temporal mode compares cost_N vs cost_{N-1} instead of old_policy vs new_policy.
-        This is simpler and matches game-like learning where agents only see historical outcomes.
+        In multi-agent temporal mode, policies are always accepted (no cost-based
+        rejection). Convergence is detected when ALL agents' initial_liquidity_fraction
+        has been stable for stability_window iterations.
+
+        This approach accounts for the fact that the cost landscape changes as
+        counterparty policies evolve. A policy that was "optimal" given the old
+        counterparty policy may not be optimal after the counterparty changes.
 
         Flow:
-        1. Compare current_cost to previous iteration's cost
-        2. If cost increased (and not first iteration): Reject, revert to previous policy
-        3. If cost decreased or first iteration: Accept, generate new policy via LLM
+        1. Store current policy for history tracking
+        2. Track current policy's initial_liquidity_fraction for stability detection
+        3. Generate new policy via LLM (if constraints available)
+        4. Always accept the new policy
 
-        This runs fewer simulations than pairwise mode (1 vs 3 per iteration).
+        Convergence is checked separately via _check_multiagent_convergence() after
+        all agents have been optimized for an iteration.
 
         Args:
             agent_id: Agent to optimize.
@@ -2271,50 +2301,21 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             agent_id, self._create_default_policy(agent_id)
         )
 
-        # Step 1: Evaluate temporal acceptance (compare to previous iteration)
-        should_accept = self._evaluate_temporal_acceptance(agent_id, current_cost)
-
-        if not should_accept:
-            # Cost increased - reject and revert to previous policy
-            previous_policy = self._previous_policies.get(agent_id)
-            if previous_policy:
-                self._policies[agent_id] = previous_policy
-
-            # Record rejection in history
-            self._record_iteration_history(
-                agent_id=agent_id,
-                policy=current_policy,
-                cost=current_cost,
-                was_accepted=False,
-            )
-
-            # Log rejection if verbose
-            if self._verbose_logger and self._verbose_config.rejections:
-                from payment_simulator.experiments.runner.verbose import RejectionDetail
-
-                self._verbose_logger.log_rejection(
-                    RejectionDetail(
-                        agent_id=agent_id,
-                        proposed_policy=current_policy,
-                        rejection_reason="cost_increased_vs_previous_iteration",
-                        old_cost=self._previous_iteration_costs.get(agent_id, 0),
-                        new_cost=current_cost,
-                    )
-                )
-
-            # Don't generate new policy - just revert
-            self._accepted_changes[agent_id] = False
-            return
-
-        # Step 2: Store current policy before generating new one (for potential revert)
+        # Step 1: Store current policy for history (even though we always accept)
         self._previous_policies[agent_id] = current_policy.copy()
 
-        # Step 3: Skip LLM if no constraints
+        # Step 2: Track the policy fraction for stability detection
+        self._track_policy_fraction(agent_id, current_policy)
+
+        # Step 3: Log cost for analysis (but don't use for acceptance)
+        self._previous_iteration_costs[agent_id] = current_cost
+
+        # Step 4: Skip LLM if no constraints
         if self._constraints is None:
             self._accepted_changes[agent_id] = True
             return
 
-        # Step 4: Lazy initialize LLM client
+        # Step 5: Lazy initialize LLM client
         if self._llm_client is None:
             from payment_simulator.experiments.runner.llm_client import (
                 ExperimentLLMClient,
@@ -2374,7 +2375,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             # Save LLM interaction event for audit
             self._save_llm_interaction_event(agent_id)
 
-            # Step 5: Accept the new policy
+            # Step 6: Always accept the new policy
             self._record_iteration_history(
                 agent_id=agent_id,
                 policy=new_policy,
@@ -2383,6 +2384,10 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             )
             self._policies[agent_id] = new_policy
             self._accepted_changes[agent_id] = True
+
+            # Step 7: Update stability tracker with the NEW policy's fraction
+            # (We already tracked the current policy earlier, now update with new)
+            self._track_policy_fraction(agent_id, new_policy)
 
             # Log policy change if verbose
             if self._verbose_logger and self._verbose_config.policy:
@@ -2606,6 +2611,48 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             self._previous_iteration_costs[agent_id] = current_cost
 
         return accepted
+
+    def _track_policy_fraction(self, agent_id: str, policy: dict[str, Any]) -> None:
+        """Extract and track initial_liquidity_fraction from policy.
+
+        Records the fraction for the current iteration to enable multi-agent
+        convergence detection based on policy stability.
+
+        Args:
+            agent_id: Agent identifier.
+            policy: Policy dict containing parameters.
+        """
+        # Extract fraction with default of 0.5
+        parameters = policy.get("parameters", {})
+        fraction = parameters.get("initial_liquidity_fraction", 0.5)
+
+        # Record to stability tracker
+        self._stability_tracker.record_fraction(
+            agent_id=agent_id,
+            iteration=self._current_iteration,
+            fraction=fraction,
+        )
+
+    def _check_multiagent_convergence(self) -> bool:
+        """Check if all agents have converged based on policy stability.
+
+        Uses the stability_window from convergence config to determine
+        how many consecutive iterations of unchanged initial_liquidity_fraction
+        are required for convergence.
+
+        In multi-agent scenarios, convergence requires ALL agents to have
+        stable policies simultaneously - this indicates a potential equilibrium
+        where no agent wants to unilaterally change their strategy.
+
+        Returns:
+            True if all optimized agents are stable for stability_window iterations.
+        """
+        stability_window = self._config.convergence.stability_window
+
+        return self._stability_tracker.all_agents_stable(
+            agents=list(self._config.optimized_agents),
+            window=stability_window,
+        )
 
     def _evaluate_policy_with_seed(
         self, policy: dict[str, Any], agent_id: str, seed: int
