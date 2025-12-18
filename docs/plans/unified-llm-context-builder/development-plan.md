@@ -12,22 +12,38 @@ Unify the LLM context building across all evaluation modes (bootstrap, determini
 
 ### Current Behavior
 
-| Mode | Simulation Output | Result |
-|------|-------------------|--------|
-| `bootstrap` | Full 3-stream context (initial, best, worst) | Works well (Exp2: 11%/11%) |
-| `deterministic-temporal` | `None` for all streams | Fails (Exp1: 80%/40% vs expected 0%/20%) |
-| `deterministic-pairwise` | `None` for all streams | Unknown |
+| Mode | Context Building | Simulation Output | LLM Visibility |
+|------|------------------|-------------------|----------------|
+| `bootstrap` | `_build_agent_contexts()` with `BootstrapLLMContext` | 3 streams (initial, best, worst) | ✅ Full |
+| `deterministic-pairwise` | `_build_agent_contexts()` BUT no `BootstrapLLMContext` | Only `best_seed_output` from single sim | ⚠️ Partial |
+| `deterministic-temporal` | `_optimize_agent_temporal()` bypasses all | `None` for everything | ❌ None |
 
-### Root Cause
+### Root Causes (Two Issues)
 
-In `optimization.py` line 2357:
+**Issue 1**: `_initial_sim_result` only set for bootstrap mode (line 721-724):
 ```python
-# Temporal mode doesn't use event trace
-best_seed_output=None,
-worst_seed_output=None,
+if self._config.evaluation.mode == "bootstrap":
+    self._initial_sim_result = self._run_initial_simulation()
 ```
 
-The LLM cannot learn strategic dynamics (e.g., incoming payments can cover outgoing) without seeing simulation output.
+This means `BootstrapLLMContext.initial_simulation_output` is never populated for deterministic modes.
+
+**Issue 2**: `_optimize_agent_temporal()` bypasses context building entirely (line 2356-2365):
+```python
+opt_result = await self._policy_optimizer.optimize(
+    ...
+    events=None,  # Temporal mode doesn't use event trace
+    best_seed_output=None,
+    worst_seed_output=None,
+    ...
+)
+```
+
+### Impact
+
+The LLM cannot learn strategic dynamics (e.g., incoming payments can cover outgoing) without seeing simulation output. This explains:
+- Exp2 (bootstrap): A=11%, B=11% → Matches Castro ✅
+- Exp1 (temporal): A=80%, B=40% → Inverted from Castro ❌
 
 ## Critical Invariants to Respect
 
@@ -69,37 +85,65 @@ Deterministic-Temporal Mode:
 ### Unified Context Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    LLMContextBuilderProtocol                    │
-│  build_context(agent_id, simulation_results) → LLMAgentContext  │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-                ┌───────────────┴───────────────┐
-                │                               │
-                ▼                               ▼
-┌───────────────────────────┐   ┌───────────────────────────────┐
-│   BootstrapContextBuilder │   │   DeterministicContextBuilder │
-│   (N samples: best/worst) │   │   (1 sample: single seed)     │
-└───────────────────────────┘   └───────────────────────────────┘
-                │                               │
-                └───────────┬───────────────────┘
-                            │
-                            ▼
-                ┌───────────────────────────┐
-                │     LLMAgentContext       │
-                │  - simulation_output      │  ← SAME for all modes
-                │  - cost_breakdown         │  ← SAME for all modes
-                │  - iteration_history      │  ← SAME for all modes
-                │  - mode_specific_metadata │  ← Different per mode
-                └───────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      LLMContextBuilderProtocol                          │
+│  build_context(agent_id, enriched_results, iteration) → LLMAgentContext │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+         ┌───────────────────────────┼───────────────────────────┐
+         │                           │                           │
+         ▼                           ▼                           ▼
+┌─────────────────┐    ┌──────────────────────┐    ┌──────────────────────┐
+│  Bootstrap      │    │  Deterministic       │    │  Deterministic       │
+│  ContextBuilder │    │  Pairwise Builder    │    │  Temporal Builder    │
+│  (N samples)    │    │  (1 sample)          │    │  (1 sample)          │
+└────────┬────────┘    └──────────┬───────────┘    └──────────┬───────────┘
+         │                        │                           │
+         │ ┌──────────────────────┴───────────────────────────┘
+         │ │
+         ▼ ▼
+┌───────────────────────────────────────────────────────────────┐
+│                      LLMAgentContext                          │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  SHARED (identical across modes):                       │  │
+│  │  - simulation_output: str  ← format_filtered_output()   │  │
+│  │  - cost_breakdown: dict[str, int]                       │  │
+│  │  - iteration_history: list[IterationRecord]             │  │
+│  │  - current_cost: int                                    │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  MODE-SPECIFIC (evaluation metadata):                   │  │
+│  │  Bootstrap:                                             │  │
+│  │    - best_seed, worst_seed, best_seed_output, ...       │  │
+│  │    - num_samples, mean_cost, cost_std                   │  │
+│  │  Deterministic-Pairwise:                                │  │
+│  │    - scenario_seed, policy_accepted, delta_cost         │  │
+│  │  Deterministic-Temporal:                                │  │
+│  │    - scenario_seed, iteration_cost_history              │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────┘
 ```
+
+### What Each Mode Provides (Target State)
+
+| Field | Bootstrap | Det-Pairwise | Det-Temporal |
+|-------|-----------|--------------|--------------|
+| `simulation_output` | ✅ best sample events | ✅ single sim events | ✅ single sim events |
+| `cost_breakdown` | ✅ averaged | ✅ single | ✅ single |
+| `iteration_history` | ✅ full | ✅ full | ✅ full |
+| `mode_metadata.best_seed` | ✅ | - | - |
+| `mode_metadata.worst_seed` | ✅ | - | - |
+| `mode_metadata.num_samples` | ✅ N | ✅ 1 | ✅ 1 |
+| `mode_metadata.scenario_seed` | - | ✅ | ✅ |
+| `mode_metadata.policy_accepted` | - | ✅ (per iteration) | - |
 
 ### Key Design Decisions
 
 1. **Protocol-based abstraction**: Define `LLMContextBuilderProtocol` that all modes implement
 2. **Shared formatting**: All modes use the same `format_filtered_output()` for simulation events
-3. **Mode-specific metadata only**: Bootstrap adds best/worst comparison; deterministic adds seed info
-4. **Single entry point**: `_optimize_agent()` receives context from unified builder, never raw None
+3. **Simulation output is NEVER None**: All modes must provide simulation visibility
+4. **Mode-specific metadata only**: Bootstrap adds best/worst comparison; pairwise adds acceptance; temporal adds cross-iteration
+5. **Single entry point**: Remove `_optimize_agent_temporal()` - use unified `_optimize_agent()` for all modes
 
 ## Phase Overview
 
