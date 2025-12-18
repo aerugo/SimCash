@@ -149,8 +149,8 @@ class TestSingleAgentContextBuilder:
 
         assert "HIGH COLLATERAL COSTS" in prompt
 
-    def test_includes_best_seed_output(self) -> None:
-        """Verbose simulation output from best seed is included."""
+    def test_includes_simulation_trace(self) -> None:
+        """Simulation trace from representative sample is included."""
         from payment_simulator.ai_cash_mgmt.prompts.context_types import (
             SingleAgentContext,
         )
@@ -161,21 +161,22 @@ class TestSingleAgentContextBuilder:
         context = SingleAgentContext(
             agent_id="BANK_A",
             current_iteration=1,
-            best_seed=42,
-            best_seed_cost=11200,
-            best_seed_output="[Tick 0] Posted collateral...",
+            sample_seed=42,
+            sample_cost=11200,
+            simulation_trace="[Tick 0] Posted collateral...",
         )
         builder = SingleAgentContextBuilder(context)
 
         prompt = builder.build()
 
-        assert "Best Performing Seed" in prompt
+        # Should have simulation output section with trace
+        assert "SIMULATION OUTPUT" in prompt
         assert "#42" in prompt
         assert "$11,200" in prompt
         assert "Posted collateral" in prompt
 
-    def test_includes_worst_seed_output(self) -> None:
-        """Verbose simulation output from worst seed is included."""
+    def test_no_worst_seed_section_after_inv12(self) -> None:
+        """INV-12: Worst seed section should not exist - only one trace shown."""
         from payment_simulator.ai_cash_mgmt.prompts.context_types import (
             SingleAgentContext,
         )
@@ -186,18 +187,18 @@ class TestSingleAgentContextBuilder:
         context = SingleAgentContext(
             agent_id="BANK_A",
             current_iteration=1,
-            worst_seed=17,
-            worst_seed_cost=14800,
-            worst_seed_output="[Tick 3] Failed to settle...",
+            sample_seed=42,
+            sample_cost=11200,
+            simulation_trace="[Tick 0] Event log...",
         )
         builder = SingleAgentContextBuilder(context)
 
         prompt = builder.build()
 
-        assert "Worst Performing Seed" in prompt
-        assert "#17" in prompt
-        assert "$14,800" in prompt
-        assert "Failed to settle" in prompt
+        # INV-12: Worst seed section was removed for consistency across modes
+        assert "Worst Performing Seed" not in prompt
+        # But simulation output should still be present
+        assert "SIMULATION OUTPUT" in prompt
 
     def test_includes_iteration_history_table(self) -> None:
         """Iteration history table is included."""
@@ -473,7 +474,7 @@ class TestContextSize:
     """Tests to ensure context is substantial."""
 
     def test_context_with_history_is_substantial(self) -> None:
-        """Context with history should be substantial (10k+ chars)."""
+        """Context with history should be substantial (5k+ chars)."""
         from payment_simulator.ai_cash_mgmt.prompts.context_types import (
             SingleAgentContext,
             SingleAgentIterationRecord,
@@ -503,12 +504,12 @@ class TestContextSize:
             current_policy={"parameters": {"threshold": 4.5}},
             current_metrics={"total_cost_mean": 14500, "settlement_rate_mean": 1.0},
             iteration_history=history,
-            best_seed=42,
-            best_seed_cost=14000,
-            worst_seed=17,
-            worst_seed_cost=15500,
-            best_seed_output="[Tick 0] Started...\n" * 50,
-            worst_seed_output="[Tick 0] Failed...\n" * 50,
+            # New unified naming
+            sample_seed=42,
+            sample_cost=14000,
+            simulation_trace="[Tick 0] Started...\n" * 50,
+            mean_cost=14500,
+            cost_std=500,
             cost_breakdown={"delay": 6000, "collateral": 4000, "overdraft": 2000},
             cost_rates={"delay_per_tick": 100, "collateral_rate": 0.01},
         )
@@ -516,5 +517,5 @@ class TestContextSize:
 
         prompt = builder.build()
 
-        # Should be substantial - aim for 10k+ chars with full context
+        # Should be substantial - aim for 5k+ chars with full context
         assert len(prompt) > 5000
