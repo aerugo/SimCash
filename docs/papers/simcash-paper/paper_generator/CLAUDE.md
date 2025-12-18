@@ -48,7 +48,10 @@ When AI agents work on the paper, they face a fundamental challenge: the source 
 │  STEP 3: Regenerate and verify                                  │
 │  ─────────────────────────────────────────────────────────────  │
 │  cd docs/papers/simcash-paper/paper_generator                   │
-│  python -m src.cli --config config.yaml --output-dir output/    │
+│  ./generate_paper.sh                                            │
+│                                                                 │
+│  ALWAYS use generate_paper.sh - it ensures pdflatex is          │
+│  installed and produces both paper.tex AND paper.pdf.           │
 │                                                                 │
 │  Then read output/paper.tex again to verify your changes.       │
 └─────────────────────────────────────────────────────────────────┘
@@ -562,7 +565,25 @@ uv sync --extra dev
 uv sync --extra dev
 ```
 
-### Running the Paper Generator
+### 🔴 MANDATORY: Running the Paper Generator
+
+**ALWAYS use `generate_paper.sh` to generate the paper.** This script ensures:
+1. LaTeX packages (pdflatex, texlive) are installed
+2. The full paper generation runs including PDF compilation
+3. Consistent output across environments
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+
+# RECOMMENDED: Generate complete paper with PDF
+./generate_paper.sh
+```
+
+**Why not run the Python CLI directly?** The `generate_paper.sh` script handles LaTeX dependency installation automatically. Running `python -m src.cli` directly may fail if pdflatex is not installed, or produce only a `.tex` file without the PDF.
+
+### Alternative: CLI Options (Advanced)
+
+If you need fine-grained control, you can use the Python CLI directly (but ensure pdflatex is installed first):
 
 ```bash
 cd docs/papers/simcash-paper/paper_generator
