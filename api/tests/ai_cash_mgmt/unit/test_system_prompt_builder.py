@@ -610,3 +610,152 @@ This is line 3 with special chars: $100, 50%."""
         # Both should contain the marker
         assert "ORDER_TEST_MARKER" in prompt1
         assert "ORDER_TEST_MARKER" in prompt2
+
+
+# =============================================================================
+# Test Group 9: Tree Type Filtering
+# =============================================================================
+
+
+class TestTreeTypeFiltering:
+    """Tests for tree type filtering based on constraints.
+
+    When tree types don't have allowed actions in constraints, they should
+    not be mentioned in the system prompt to prevent the LLM from generating
+    invalid policies with those tree types.
+    """
+
+    def test_policy_architecture_excludes_unused_trees(self) -> None:
+        """Policy architecture section doesn't mention trees without allowed actions."""
+        # Only payment_tree enabled
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+        )
+        prompt = build_system_prompt(constraints)
+
+        # payment_tree should be mentioned
+        assert "payment_tree" in prompt
+
+        # Trees without actions should NOT be mentioned in Tree Types section
+        # Find the Tree Types section and check what's there
+        tree_types_section = prompt.split("### Tree Types")[1].split("###")[0]
+        assert "strategic_collateral_tree" not in tree_types_section
+        assert "end_of_tick_collateral_tree" not in tree_types_section
+        assert "bank_tree" not in tree_types_section
+
+    def test_policy_architecture_includes_all_enabled_trees(self) -> None:
+        """Policy architecture section includes all enabled tree types."""
+        constraints = ScenarioConstraints(
+            allowed_actions={
+                "payment_tree": ["Release"],
+                "bank_tree": ["NoAction"],
+                "strategic_collateral_tree": ["PostCollateral"],
+            },
+        )
+        prompt = build_system_prompt(constraints)
+
+        # Find the Tree Types section
+        tree_types_section = prompt.split("### Tree Types")[1].split("###")[0]
+
+        # All enabled trees should be mentioned
+        assert "payment_tree" in tree_types_section
+        assert "bank_tree" in tree_types_section
+        assert "strategic_collateral_tree" in tree_types_section
+
+        # Disabled tree should NOT be mentioned
+        assert "end_of_tick_collateral_tree" not in tree_types_section
+
+    def test_error_examples_exclude_unused_trees_single_tree(self) -> None:
+        """Error examples don't reference trees when only one tree is enabled.
+
+        When only one tree type is enabled, ERROR 2 (wrong action for tree)
+        isn't relevant because there's no confusion possible.
+        """
+        # Only payment_tree enabled
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+        )
+        prompt = build_system_prompt(constraints)
+
+        # ERROR 2 should not appear when only one tree is enabled
+        # (no confusion possible between tree types)
+        error_section = prompt.split("## Common Errors to Avoid")[1]
+        assert "ERROR 2" not in error_section
+
+    def test_error_examples_contextual_to_enabled_trees(self) -> None:
+        """Error examples use enabled tree types when showing ERROR 2."""
+        constraints = ScenarioConstraints(
+            allowed_actions={
+                "payment_tree": ["Release", "Hold"],
+                "strategic_collateral_tree": ["PostCollateral", "HoldCollateral"],
+            },
+        )
+        prompt = build_system_prompt(constraints)
+
+        # ERROR 2 should appear with contextual examples
+        error_section = prompt.split("## Common Errors to Avoid")[1]
+        assert "ERROR 2" in error_section
+        assert "strategic_collateral_tree" in error_section
+
+    def test_error_examples_use_bank_tree_when_enabled(self) -> None:
+        """Error examples use bank_tree in examples when enabled with payment_tree."""
+        constraints = ScenarioConstraints(
+            allowed_actions={
+                "payment_tree": ["Release", "Hold"],
+                "bank_tree": ["NoAction", "SetReleaseBudget"],
+            },
+        )
+        prompt = build_system_prompt(constraints)
+
+        # ERROR 2 should appear with bank_tree examples
+        error_section = prompt.split("## Common Errors to Avoid")[1]
+        assert "ERROR 2" in error_section
+        assert "bank_tree" in error_section
+
+    def test_evaluation_flow_filtered_by_enabled_trees(self) -> None:
+        """Evaluation flow only mentions enabled tree types."""
+        # Only payment_tree enabled
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+        )
+        prompt = build_system_prompt(constraints)
+
+        # Find the Evaluation Flow section
+        eval_section = prompt.split("### Evaluation Flow")[1].split("##")[0]
+
+        # Should mention payment tree
+        assert "Payment tree" in eval_section or "payment" in eval_section.lower()
+
+        # Should NOT mention bank tree or collateral trees
+        assert "Bank tree" not in eval_section
+        assert "Collateral" not in eval_section
+
+    def test_evaluation_flow_includes_all_enabled_trees(self) -> None:
+        """Evaluation flow mentions all enabled tree types."""
+        constraints = ScenarioConstraints(
+            allowed_actions={
+                "payment_tree": ["Release"],
+                "bank_tree": ["NoAction"],
+                "strategic_collateral_tree": ["PostCollateral"],
+            },
+        )
+        prompt = build_system_prompt(constraints)
+
+        # Find the Evaluation Flow section
+        eval_section = prompt.split("### Evaluation Flow")[1].split("##")[0]
+
+        # Should mention all enabled tree types
+        assert "Bank tree" in eval_section
+        assert "Collateral" in eval_section
+        assert "Payment tree" in eval_section
+
+    def test_empty_constraints_provides_generic_guidance(self) -> None:
+        """Empty constraints provide generic tree guidance."""
+        constraints = ScenarioConstraints()
+        prompt = build_system_prompt(constraints)
+
+        # Should still have tree architecture section
+        assert "Policy Tree Architecture" in prompt
+
+        # Should have generic guidance
+        assert "scenario constraints" in prompt.lower() or "defined by" in prompt.lower()
