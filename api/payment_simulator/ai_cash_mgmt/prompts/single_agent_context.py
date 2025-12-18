@@ -75,8 +75,7 @@ class SingleAgentContextBuilder:
             self._build_current_state_summary(),
             self._build_cost_analysis(),
             self._build_optimization_guidance(),
-            self._build_initial_simulation_section(),
-            self._build_bootstrap_samples_section(),
+            self._build_bootstrap_samples_section(),  # Now builds simulation output section
             self._build_iteration_history_section(),
             self._build_parameter_trajectory_section(),
             self._build_final_instructions(),
@@ -101,11 +100,10 @@ TABLE OF CONTENTS:
 1. Current State Summary
 2. Cost Analysis
 3. Optimization Guidance
-4. Initial Simulation (Baseline)
-5. Bootstrap Samples (Best/Worst Seeds)
-6. Full Iteration History
-7. Parameter Trajectories
-8. Final Instructions
+4. Simulation Output
+5. Full Iteration History
+6. Parameter Trajectories
+7. Final Instructions
 """.strip()
 
     def _build_current_state_summary(self) -> str:
@@ -132,12 +130,10 @@ TABLE OF CONTENTS:
 | Metric | Value |
 |--------|-------|
 | **Mean Total Cost** | ${m.get('total_cost_mean', 0):,.0f}{cost_delta} |
-| **Cost Std Dev** | ±${m.get('total_cost_std', 0):,.0f} |
-| **Risk-Adjusted Cost** | ${m.get('risk_adjusted_cost', 0):,.0f} |
+| **Cost Std Dev** | ±${self.context.cost_std:,.0f} |
+| **Sample Cost** | ${self.context.sample_cost:,} (Seed #{self.context.sample_seed}) |
 | **Settlement Rate** | {m.get('settlement_rate_mean', 0) * 100:.1f}% |
 | **Failure Rate** | {m.get('failure_rate', 0) * 100:.0f}% |
-| **Best Seed** | {f"#{self.context.best_seed} (${self.context.best_seed_cost:,})" if self.context.best_seed_cost is not None else "N/A"} |
-| **Worst Seed** | {f"#{self.context.worst_seed} (${self.context.worst_seed_cost:,})" if self.context.worst_seed_cost is not None else "N/A"} |
 
 ### Current Policy Parameters ({agent_label})
 
@@ -283,56 +279,36 @@ TABLE OF CONTENTS:
         return "\n".join(sections)
 
     def _build_bootstrap_samples_section(self) -> str:
-        """Build the bootstrap samples section with best/worst seed logs."""
-        sections = ["## 5. BOOTSTRAP SAMPLES (BEST/WORST SEEDS)", ""]
+        """Build the simulation output section with the representative trace."""
+        sections = ["## 4. SIMULATION OUTPUT", ""]
         sections.append(
-            "These are bootstrap samples from the current policy evaluation. "
-            "They show the range of outcomes under different random seeds."
+            "This is the tick-by-tick event trace from the representative simulation sample. "
+            "Analyze what decisions led to the observed costs."
         )
         sections.append("")
 
-        # Best seed output (bootstrap sample)
-        if self.context.best_seed_output:
+        # Simulation trace (the single representative sample)
+        if self.context.simulation_trace:
+            cost_str = f", Cost: ${self.context.sample_cost:,}" if self.context.sample_cost else ""
             sections.extend(
                 [
-                    f"### Best Performing Bootstrap Sample (Seed #{self.context.best_seed}, "
-                    f"Cost: ${self.context.best_seed_cost:,})" if self.context.best_seed_cost is not None else
-                    f"### Best Performing Bootstrap Sample (Seed #{self.context.best_seed})",
+                    f"### Simulation Trace (Seed #{self.context.sample_seed}{cost_str})",
                     "",
-                    "This bootstrap sample shows the OPTIMAL outcome. "
-                    "Analyze what conditions led to low cost.",
+                    "Analyze this trace to understand what happened during the simulation:",
+                    "- Which payments were released vs held?",
+                    "- Where did costs accrue (delays, overdrafts, collateral)?",
+                    "- What conditions triggered different decisions?",
                     "",
-                    "<best_seed_output>",
+                    "<simulation_trace>",
                     "```",
-                    self.context.best_seed_output,
+                    self.context.simulation_trace,
                     "```",
-                    "</best_seed_output>",
+                    "</simulation_trace>",
                     "",
                 ]
             )
-
-        # Worst seed output (bootstrap sample)
-        if self.context.worst_seed_output:
-            sections.extend(
-                [
-                    f"### Worst Performing Bootstrap Sample (Seed #{self.context.worst_seed}, "
-                    f"Cost: ${self.context.worst_seed_cost:,})" if self.context.worst_seed_cost is not None else
-                    f"### Worst Performing Bootstrap Sample (Seed #{self.context.worst_seed})",
-                    "",
-                    "This bootstrap sample shows a PROBLEMATIC outcome. "
-                    "Identify failure patterns and edge cases.",
-                    "",
-                    "<worst_seed_output>",
-                    "```",
-                    self.context.worst_seed_output,
-                    "```",
-                    "</worst_seed_output>",
-                    "",
-                ]
-            )
-
-        if not self.context.best_seed_output and not self.context.worst_seed_output:
-            sections.append("*No bootstrap sample output available for this iteration.*")
+        else:
+            sections.append("*No simulation trace available for this iteration.*")
 
         return "\n".join(sections)
 
@@ -342,7 +318,7 @@ TABLE OF CONTENTS:
         CRITICAL: Only shows THIS agent's policy history and changes.
         """
         agent_label = self.context.agent_id or "Agent"
-        sections = ["## 6. FULL ITERATION HISTORY", ""]
+        sections = ["## 5. FULL ITERATION HISTORY", ""]
 
         if not self.context.iteration_history:
             sections.append("*No previous iterations.*")
@@ -444,7 +420,7 @@ TABLE OF CONTENTS:
             return ""
 
         agent_label = self.context.agent_id or "Agent"
-        sections = ["## 7. PARAMETER TRAJECTORIES", ""]
+        sections = ["## 6. PARAMETER TRAJECTORIES", ""]
 
         # Get all parameter names from this agent's history
         all_params: set[str] = set()
@@ -517,7 +493,7 @@ continue optimizing from the current best policy.
 """
 
         return f"""
-## 8. FINAL INSTRUCTIONS
+## 7. FINAL INSTRUCTIONS
 
 Based on the above analysis, generate an improved policy for **{agent_label}** that:
 
@@ -528,8 +504,8 @@ Based on the above analysis, generate an improved policy for **{agent_label}** t
 {rejected_warning}{best_context}
 ### What to Consider:
 
-- **Best seed analysis**: What made seed #{self.context.best_seed} perform well?
-- **Worst seed analysis**: What went wrong in seed #{self.context.worst_seed}?
+- **Simulation trace analysis**: What decisions in seed #{self.context.sample_seed} drove costs?
+- **Cost breakdown**: Which cost types (delay, collateral, overdraft) dominate?
 - **REJECTED policies**: Why did they fail? What changes should you avoid?
 - **Parameter trends**: Which parameters correlate with cost improvements?
 - **Trade-offs**: Balance delay costs vs collateral costs vs overdraft costs
@@ -553,13 +529,20 @@ def build_single_agent_context(
     current_policy: dict[str, Any],
     current_metrics: dict[str, Any],
     iteration_history: list[SingleAgentIterationRecord] | None = None,
-    initial_simulation_output: str | None = None,
+    # New unified naming
+    simulation_trace: str | None = None,
+    sample_seed: int = 0,
+    sample_cost: int = 0,
+    mean_cost: int = 0,
+    cost_std: int = 0,
+    # Deprecated parameters (backward compatibility)
+    initial_simulation_output: str | None = None,  # noqa: ARG001 - deprecated
     best_seed_output: str | None = None,
-    worst_seed_output: str | None = None,
+    worst_seed_output: str | None = None,  # noqa: ARG001 - deprecated
     best_seed: int = 0,
-    worst_seed: int = 0,
+    worst_seed: int = 0,  # noqa: ARG001 - deprecated
     best_seed_cost: int = 0,
-    worst_seed_cost: int = 0,
+    worst_seed_cost: int = 0,  # noqa: ARG001 - deprecated
     cost_breakdown: dict[str, int] | None = None,
     cost_rates: dict[str, Any] | None = None,
     agent_id: str | None = None,
@@ -576,16 +559,17 @@ def build_single_agent_context(
         current_policy: Current policy for THIS agent only.
         current_metrics: Aggregated metrics from current iteration.
         iteration_history: List of previous iteration records for THIS agent only.
-        initial_simulation_output: Verbose output from initial baseline simulation.
-        best_seed_output: Verbose tick-by-tick output from best bootstrap sample.
-        worst_seed_output: Verbose tick-by-tick output from worst bootstrap sample.
-        best_seed: Best performing seed number.
-        worst_seed: Worst performing seed number.
-        best_seed_cost: Cost from best seed.
-        worst_seed_cost: Cost from worst seed.
+        simulation_trace: Tick-by-tick event log from representative sample.
+        sample_seed: Seed used for the representative sample.
+        sample_cost: Cost from the representative sample.
+        mean_cost: Mean cost across all samples.
+        cost_std: Standard deviation of costs.
         cost_breakdown: Breakdown of costs by type.
         cost_rates: Cost rate configuration.
         agent_id: Identifier for this agent (e.g., "BANK_A").
+        best_seed_output: Deprecated, use simulation_trace.
+        best_seed: Deprecated, use sample_seed.
+        best_seed_cost: Deprecated, use sample_cost.
 
     Returns:
         Complete extended context prompt string for single agent.
@@ -598,19 +582,22 @@ def build_single_agent_context(
         ...     agent_id="BANK_A",
         ... )
     """
+    # Handle deprecated parameter names (backward compatibility)
+    effective_trace = simulation_trace or best_seed_output
+    effective_seed = sample_seed if sample_seed != 0 else best_seed
+    effective_cost = sample_cost if sample_cost != 0 else best_seed_cost
+
     context = SingleAgentContext(
         agent_id=agent_id,
         current_iteration=current_iteration,
         current_policy=current_policy,
         current_metrics=current_metrics,
         iteration_history=iteration_history or [],
-        initial_simulation_output=initial_simulation_output,
-        best_seed_output=best_seed_output,
-        worst_seed_output=worst_seed_output,
-        best_seed=best_seed,
-        worst_seed=worst_seed,
-        best_seed_cost=best_seed_cost,
-        worst_seed_cost=worst_seed_cost,
+        simulation_trace=effective_trace,
+        sample_seed=effective_seed,
+        sample_cost=effective_cost,
+        mean_cost=mean_cost,
+        cost_std=cost_std,
         cost_breakdown=cost_breakdown or {},
         cost_rates=cost_rates or {},
     )

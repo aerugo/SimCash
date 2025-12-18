@@ -86,13 +86,18 @@ class TestVerboseConfig:
         """any property returns True if any flag is enabled."""
         from payment_simulator.experiments.runner import VerboseConfig
 
+        # Default config has simulations=True, so any is True
         config = VerboseConfig()
+        assert config.any is True  # simulations defaults to True
+
+        # With all flags explicitly off, any is False
+        config = VerboseConfig(simulations=False)
         assert config.any is False
 
-        config = VerboseConfig(policy=True)
+        config = VerboseConfig(policy=True, simulations=False)
         assert config.any is True
 
-        config = VerboseConfig(debug=True)
+        config = VerboseConfig(debug=True, simulations=False)
         assert config.any is True
 
     def test_backward_compat_all_alias(self) -> None:
@@ -164,7 +169,8 @@ class TestVerboseLogger:
 
         output = StringIO()
         console = Console(file=output, force_terminal=False, no_color=True)
-        config = VerboseConfig()  # All disabled
+        # Explicitly disable simulations (defaults to True for transparency)
+        config = VerboseConfig(simulations=False)  # All disabled
         logger = VerboseLogger(config, console=console)
 
         logger.log_iteration_start(1, 10000)

@@ -459,9 +459,13 @@ class TestDatabaseStateProviderWithData:
 
 
 def _castro_available() -> bool:
-    """Check if castro module is available."""
+    """Check if castro module with state_provider is available.
+
+    Note: A test 'castro' directory exists in tests/castro but that's not
+    the real castro package. We need to check for the actual submodule.
+    """
     try:
-        import castro  # noqa: F401
+        from castro.state_provider import ExperimentStateProvider  # noqa: F401
 
         return True
     except ImportError:

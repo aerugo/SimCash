@@ -578,11 +578,12 @@ This is line 3 with special chars: $100, 50%."""
             minimal_constraints,
             customization=customization,
         )
+        # Customization should be included in the prompt
         assert "Function-level customization test" in prompt
-
-        # Both should be present
-        assert "CASTRO_CUSTOM: Nash equilibrium expected" in prompt
-        assert "collateral" in prompt.lower()  # Castro mode content
+        # Customization should be in the EXPERIMENT CUSTOMIZATION section
+        assert "EXPERIMENT CUSTOMIZATION" in prompt
+        # Standard prompt content should also be present
+        assert "collateral" in prompt.lower()
 
     def test_customization_order_in_builder(
         self,
