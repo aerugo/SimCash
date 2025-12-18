@@ -33,11 +33,12 @@ class AgentIterationResult(TypedDict):
     All monetary values are in cents (integer) to maintain precision.
 
     Attributes:
-        iteration: 1-indexed iteration number
+        iteration: Iteration number (-1 for baseline, 0+ for iterations)
         agent_id: Agent identifier ("BANK_A" or "BANK_B")
         cost: Total cost for this iteration in cents (NOT dollars)
         liquidity_fraction: Initial liquidity as fraction (0.0 to 1.0)
         accepted: Whether this policy proposal was accepted
+        is_baseline: Whether this is the baseline (initial) state
     """
 
     iteration: int
@@ -45,6 +46,7 @@ class AgentIterationResult(TypedDict):
     cost: int
     liquidity_fraction: float
     accepted: bool
+    is_baseline: bool
 
 
 class BootstrapStats(TypedDict):
@@ -143,17 +145,20 @@ class DataProvider(Protocol):
     """
 
     def get_iteration_results(
-        self, exp_id: str, pass_num: int
+        self, exp_id: str, pass_num: int, include_baseline: bool = True
     ) -> list[AgentIterationResult]:
         """Get per-agent costs for all iterations of an experiment pass.
 
         Args:
             exp_id: Experiment identifier ("exp1", "exp2", "exp3")
             pass_num: Pass number (1, 2, or 3)
+            include_baseline: If True, include baseline (iteration -1) with
+                50% liquidity and cost from old_cost of first iteration
 
         Returns:
             List of results ordered by (iteration, agent_id).
             Each result contains cost in cents (not dollars).
+            Includes baseline iteration (-1) if include_baseline=True.
 
         Raises:
             ValueError: If exp_id or pass_num is invalid
@@ -354,7 +359,7 @@ class DatabaseDataProvider:
         return self._run_id_cache[cache_key]
 
     def get_iteration_results(
-        self, exp_id: str, pass_num: int
+        self, exp_id: str, pass_num: int, include_baseline: bool = True
     ) -> list[AgentIterationResult]:
         """Get per-agent costs for all iterations.
 
@@ -364,6 +369,8 @@ class DatabaseDataProvider:
         Args:
             exp_id: Experiment identifier
             pass_num: Pass number
+            include_baseline: If True, include baseline (iteration -1) with
+                50% liquidity and cost from old_cost of first iteration
 
         Returns:
             List of AgentIterationResult dicts with costs in cents
@@ -376,6 +383,7 @@ class DatabaseDataProvider:
             SELECT
                 iteration,
                 agent_id,
+                old_cost,
                 new_cost AS cost,
                 CAST(
                     json_extract(
@@ -391,16 +399,40 @@ class DatabaseDataProvider:
             [run_id],
         ).fetchall()
 
-        return [
-            AgentIterationResult(
-                iteration=row[0],
-                agent_id=row[1],
-                cost=row[2],
-                liquidity_fraction=row[3],
-                accepted=row[4],
+        results: list[AgentIterationResult] = []
+
+        # Add baseline iteration (-1) with 50% liquidity and old_cost from first iteration
+        if include_baseline and result:
+            # Get the minimum iteration number (first iteration)
+            min_iter = min(row[0] for row in result)
+            first_iter_rows = [row for row in result if row[0] == min_iter]
+
+            for row in first_iter_rows:
+                results.append(
+                    AgentIterationResult(
+                        iteration=-1,  # Baseline iteration
+                        agent_id=row[1],
+                        cost=row[2],  # old_cost represents baseline cost
+                        liquidity_fraction=0.5,  # Baseline is always 50%
+                        accepted=True,  # Baseline is the starting point
+                        is_baseline=True,
+                    )
+                )
+
+        # Add regular iterations
+        for row in result:
+            results.append(
+                AgentIterationResult(
+                    iteration=row[0],
+                    agent_id=row[1],
+                    cost=row[3],  # new_cost
+                    liquidity_fraction=row[4],
+                    accepted=row[5],
+                    is_baseline=False,
+                )
             )
-            for row in result
-        ]
+
+        return results
 
     def get_final_bootstrap_stats(
         self, exp_id: str, pass_num: int
