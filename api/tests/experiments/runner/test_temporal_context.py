@@ -70,12 +70,9 @@ def _create_agent_context(agent_id: str = "BANK_A") -> AgentSimulationContext:
     """Create a mock AgentSimulationContext with simulation output."""
     return AgentSimulationContext(
         agent_id=agent_id,
-        best_seed=42,
-        best_seed_cost=1000,
-        best_seed_output="[tick 0] PolicyDecision: action=Release, tx_id=tx1\n[tick 1] Settlement: amount=$100.00",
-        worst_seed=99,
-        worst_seed_cost=2000,
-        worst_seed_output="[tick 0] PolicyDecision: action=Hold, tx_id=tx1\n[tick 1] DelayCost: amount=$50.00",
+        sample_seed=42,
+        sample_cost=1000,
+        simulation_trace="[tick 0] PolicyDecision: action=Release, tx_id=tx1\n[tick 1] Settlement: amount=$100.00",
         mean_cost=1500,
         cost_std=500,
     )
@@ -138,9 +135,9 @@ class TestTemporalModeReceivesSimulationContext:
         mock_optimizer.optimize.assert_called_once()
         call_kwargs = mock_optimizer.optimize.call_args.kwargs
 
-        # INV-12: best_seed_output MUST be provided (not None)
-        assert call_kwargs.get("best_seed_output") is not None, (
-            "INV-12 VIOLATION: Temporal mode must provide best_seed_output to LLM. "
+        # INV-12: simulation_trace MUST be provided (not None)
+        assert call_kwargs.get("simulation_trace") is not None, (
+            "INV-12 VIOLATION: Temporal mode must provide simulation_trace to LLM. "
             "The LLM cannot optimize without seeing simulation results."
         )
 
@@ -207,7 +204,7 @@ class TestTemporalModeReceivesSimulationContext:
         call_kwargs = mock_optimizer.optimize.call_args.kwargs
 
         # Events should be passed for agent isolation filtering
-        # (This is secondary to best_seed_output but still important)
+        # (This is secondary to simulation_trace but still important)
         assert call_kwargs.get("cost_breakdown") is not None, (
             "Temporal mode should pass cost_breakdown for detailed LLM analysis"
         )
@@ -253,10 +250,10 @@ class TestTemporalModeReceivesSimulationContext:
         call_kwargs = mock_optimizer.optimize.call_args.kwargs
 
         # The key fields that pairwise mode provides should also be in temporal
-        best_output = call_kwargs.get("best_seed_output")
+        sim_trace = call_kwargs.get("simulation_trace")
 
-        # Best seed output should contain the actual simulation trace
-        assert best_output is not None
-        assert "PolicyDecision" in best_output or "Settlement" in best_output, (
-            "best_seed_output should contain simulation events like pairwise mode"
+        # Simulation trace should contain the actual simulation events
+        assert sim_trace is not None
+        assert "PolicyDecision" in sim_trace or "Settlement" in sim_trace, (
+            "simulation_trace should contain simulation events like pairwise mode"
         )

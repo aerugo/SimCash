@@ -62,13 +62,11 @@ class SingleAgentContext:
         current_policy: Current policy for THIS agent only.
         current_metrics: Aggregated metrics from current iteration.
         iteration_history: List of previous iteration records for THIS agent only.
-        initial_simulation_output: Verbose output from initial simulation (baseline).
-        best_seed_output: Verbose tick-by-tick output from best bootstrap sample.
-        worst_seed_output: Verbose tick-by-tick output from worst bootstrap sample.
-        best_seed: Best performing seed number.
-        worst_seed: Worst performing seed number.
-        best_seed_cost: Total cost from best seed.
-        worst_seed_cost: Total cost from worst seed.
+        simulation_trace: Tick-by-tick event log from representative sample (shown to LLM).
+        sample_seed: Seed used for the representative sample.
+        sample_cost: Cost from the representative sample.
+        mean_cost: Mean cost across all samples.
+        cost_std: Standard deviation of costs.
         cost_breakdown: Breakdown of costs by type (delay, collateral, etc).
         cost_rates: Cost rate configuration from simulation.
         ticks_per_day: Number of ticks per simulation day.
@@ -88,13 +86,48 @@ class SingleAgentContext:
     current_policy: dict[str, Any] = field(default_factory=dict)
     current_metrics: dict[str, Any] = field(default_factory=dict)
     iteration_history: list[SingleAgentIterationRecord] = field(default_factory=list)
-    initial_simulation_output: str | None = None
-    best_seed_output: str | None = None
-    worst_seed_output: str | None = None
-    best_seed: int = 0
-    worst_seed: int = 0
-    best_seed_cost: int = 0
-    worst_seed_cost: int = 0
+    # New unified naming
+    simulation_trace: str | None = None
+    sample_seed: int = 0
+    sample_cost: int = 0
+    mean_cost: int = 0
+    cost_std: int = 0
     cost_breakdown: dict[str, int] = field(default_factory=dict)
     cost_rates: dict[str, Any] = field(default_factory=dict)
     ticks_per_day: int = 100
+
+    # Deprecated aliases for backward compatibility
+    @property
+    def best_seed_output(self) -> str | None:
+        """Deprecated: Use simulation_trace instead."""
+        return self.simulation_trace
+
+    @property
+    def worst_seed_output(self) -> str | None:
+        """Deprecated: No longer used - returns None."""
+        return None
+
+    @property
+    def best_seed(self) -> int:
+        """Deprecated: Use sample_seed instead."""
+        return self.sample_seed
+
+    @property
+    def worst_seed(self) -> int:
+        """Deprecated: No longer used - returns sample_seed."""
+        return self.sample_seed
+
+    @property
+    def best_seed_cost(self) -> int:
+        """Deprecated: Use sample_cost instead."""
+        return self.sample_cost
+
+    @property
+    def worst_seed_cost(self) -> int:
+        """Deprecated: No longer used - returns sample_cost."""
+        return self.sample_cost
+
+    @property
+    def initial_simulation_output(self) -> str | None:
+        """Deprecated: No longer used - initial simulation removed."""
+        return None

@@ -223,8 +223,11 @@ class TestEnrichedBootstrapContextBuilderFunctionality:
 
         assert isinstance(context, AgentSimulationContext)
         assert context.agent_id == "TEST_AGENT"
+        # Best sample (lowest cost) is seed 67890 with cost 800
+        assert context.sample_seed == 67890
+        assert context.sample_cost == 800
+        # Deprecated aliases still work for backward compatibility
         assert context.best_seed == 67890
-        assert context.worst_seed == 11111
 
     def test_costs_are_integer_cents(self, sample_enriched_results: list) -> None:
         """All costs in context should be integer cents (INV-1)."""
@@ -253,9 +256,13 @@ class TestEnrichedBootstrapContextBuilderFunctionality:
 
 
 def _castro_available() -> bool:
-    """Check if castro module is available."""
+    """Check if castro module with bootstrap_context is available.
+
+    Note: A test 'castro' directory exists in tests/castro but that's not
+    the real castro package. We need to check for the actual submodule.
+    """
     try:
-        import castro  # noqa: F401
+        from castro.bootstrap_context import EnrichedBootstrapContextBuilder  # noqa: F401
 
         return True
     except ImportError:
@@ -381,11 +388,11 @@ class TestPerAgentCostTracking:
             f"got {context_b.mean_cost}"
         )
 
-    def test_best_worst_seed_cost_reflects_agent_specific_cost(self) -> None:
-        """best_seed_cost and worst_seed_cost should be per-agent.
+    def test_sample_seed_cost_reflects_agent_specific_cost(self) -> None:
+        """sample_seed and sample_cost should be per-agent.
 
-        When identifying best/worst seeds, the costs should be
-        the specific agent's costs, not total simulation costs.
+        When identifying the representative sample (best performing),
+        the cost should be the specific agent's cost, not total simulation cost.
         """
         from payment_simulator.ai_cash_mgmt.bootstrap import (
             EnrichedBootstrapContextBuilder,
@@ -423,23 +430,23 @@ class TestPerAgentCostTracking:
             per_agent_costs={"BANK_A": 200, "BANK_B": 300},
         )
 
-        # For BANK_A: Best=seed 111 (cost 100), Worst=seed 222 (cost 200)
+        # For BANK_A: Best=seed 111 (cost 100) - used as representative sample
         builder_a = EnrichedBootstrapContextBuilder([sample1, sample2], "BANK_A")
         context_a = builder_a.build_agent_context()
 
-        assert context_a.best_seed == 111, "BANK_A best seed should be 111 (cost 100)"
-        assert context_a.best_seed_cost == 100
-        assert context_a.worst_seed == 222, "BANK_A worst seed should be 222 (cost 200)"
-        assert context_a.worst_seed_cost == 200
+        assert context_a.sample_seed == 111, "BANK_A sample_seed should be 111 (best cost 100)"
+        assert context_a.sample_cost == 100
+        # Deprecated alias still works
+        assert context_a.best_seed == 111
 
-        # For BANK_B: Best=seed 222 (cost 300), Worst=seed 111 (cost 500)
+        # For BANK_B: Best=seed 222 (cost 300) - used as representative sample
         builder_b = EnrichedBootstrapContextBuilder([sample1, sample2], "BANK_B")
         context_b = builder_b.build_agent_context()
 
-        assert context_b.best_seed == 222, "BANK_B best seed should be 222 (cost 300)"
-        assert context_b.best_seed_cost == 300
-        assert context_b.worst_seed == 111, "BANK_B worst seed should be 111 (cost 500)"
-        assert context_b.worst_seed_cost == 500
+        assert context_b.sample_seed == 222, "BANK_B sample_seed should be 222 (best cost 300)"
+        assert context_b.sample_cost == 300
+        # Deprecated alias still works
+        assert context_b.best_seed == 222
 
     def test_backward_compatibility_without_per_agent_costs(self) -> None:
         """Results without per_agent_costs should still work (fallback to total).

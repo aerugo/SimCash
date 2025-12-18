@@ -31,34 +31,63 @@ if TYPE_CHECKING:
 
 @dataclass
 class AgentSimulationContext:
-    """Context data for a single agent from bootstrap samples.
+    """Context data for a single agent from simulation samples.
 
-    Aggregates statistics and verbose output for a specific agent
-    across all bootstrap samples.
+    Aggregates statistics and the simulation trace for a specific agent.
+    Used by all evaluation modes (bootstrap, deterministic-pairwise, deterministic-temporal).
 
     All costs are integer cents (INV-1 compliance).
 
     Attributes:
         agent_id: Agent identifier (e.g., "BANK_A").
-        best_seed: Seed that produced lowest cost for this agent.
-        best_seed_cost: Cost at best seed (integer cents).
-        best_seed_output: Filtered verbose output from best seed.
-        worst_seed: Seed that produced highest cost for this agent.
-        worst_seed_cost: Cost at worst seed (integer cents).
-        worst_seed_output: Filtered verbose output from worst seed.
+        sample_seed: Seed used for the representative sample.
+        sample_cost: Cost from the representative sample (integer cents).
+        simulation_trace: Tick-by-tick event log from the sample (shown to LLM).
         mean_cost: Mean cost across all samples (integer cents).
-        cost_std: Standard deviation of costs.
+        cost_std: Standard deviation of costs (0 for single-sample modes).
+
+    Note:
+        For bootstrap mode, sample_seed/sample_cost are from the best-performing sample.
+        For deterministic modes, there's only one sample so it's the single result.
     """
 
     agent_id: str
-    best_seed: int
-    best_seed_cost: int
-    best_seed_output: str | None
-    worst_seed: int
-    worst_seed_cost: int
-    worst_seed_output: str | None
+    sample_seed: int
+    sample_cost: int
+    simulation_trace: str | None
     mean_cost: int
     cost_std: int
+
+    # Deprecated aliases for backward compatibility
+    @property
+    def best_seed(self) -> int:
+        """Deprecated: Use sample_seed instead."""
+        return self.sample_seed
+
+    @property
+    def best_seed_cost(self) -> int:
+        """Deprecated: Use sample_cost instead."""
+        return self.sample_cost
+
+    @property
+    def best_seed_output(self) -> str | None:
+        """Deprecated: Use simulation_trace instead."""
+        return self.simulation_trace
+
+    @property
+    def worst_seed(self) -> int:
+        """Deprecated: No longer used - returns sample_seed."""
+        return self.sample_seed
+
+    @property
+    def worst_seed_cost(self) -> int:
+        """Deprecated: No longer used - returns sample_cost."""
+        return self.sample_cost
+
+    @property
+    def worst_seed_output(self) -> str | None:
+        """Deprecated: No longer used - returns None."""
+        return None
 
 
 class EnrichedBootstrapContextBuilder:
@@ -223,7 +252,7 @@ class EnrichedBootstrapContextBuilder:
         """Build context compatible with prompt system.
 
         Creates AgentSimulationContext from enriched bootstrap results,
-        including formatted event traces for best and worst samples.
+        using the best-performing sample as the representative trace.
 
         Uses per-agent costs when available for accurate per-agent reporting.
 
@@ -235,17 +264,14 @@ class EnrichedBootstrapContextBuilder:
         mean_cost = int(statistics.mean(costs))
         std_cost = int(statistics.stdev(costs)) if len(costs) > 1 else 0
 
+        # Use best sample as the representative trace
         best = self.get_best_result()
-        worst = self.get_worst_result()
 
         return AgentSimulationContext(
             agent_id=self._agent_id,
-            best_seed=best.seed,
-            best_seed_cost=self._get_agent_cost(best),
-            best_seed_output=self.format_event_trace_for_llm(best),
-            worst_seed=worst.seed,
-            worst_seed_cost=self._get_agent_cost(worst),
-            worst_seed_output=self.format_event_trace_for_llm(worst),
+            sample_seed=best.seed,
+            sample_cost=self._get_agent_cost(best),
+            simulation_trace=self.format_event_trace_for_llm(best),
             mean_cost=mean_cost,
             cost_std=std_cost,
         )

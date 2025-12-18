@@ -61,12 +61,9 @@ def _create_agent_context(agent_id: str = "BANK_A") -> AgentSimulationContext:
     """Create AgentSimulationContext with simulation output."""
     return AgentSimulationContext(
         agent_id=agent_id,
-        best_seed=42,
-        best_seed_cost=1000,
-        best_seed_output="[tick 0] PolicyDecision: action=Release\n[tick 1] Settlement: amount=$100.00",
-        worst_seed=99,
-        worst_seed_cost=2000,
-        worst_seed_output="[tick 0] PolicyDecision: action=Hold\n[tick 1] DelayCost: cost=$50.00",
+        sample_seed=42,
+        sample_cost=1000,
+        simulation_trace="[tick 0] PolicyDecision: action=Release\n[tick 1] Settlement: amount=$100.00",
         mean_cost=1500,
         cost_std=500,
     )
@@ -138,22 +135,22 @@ class TestUnifiedContextAcrossModes:
         await loop._optimize_agent("BANK_A", current_cost=1000)
 
         call_kwargs = mock_optimizer.optimize.call_args.kwargs
-        best_output = call_kwargs.get("best_seed_output")
+        sim_trace = call_kwargs.get("simulation_trace")
 
         # INV-12: Should NOT contain initial simulation header
-        assert best_output is not None
-        assert "INITIAL SIMULATION" not in best_output, (
+        assert sim_trace is not None
+        assert "INITIAL SIMULATION" not in sim_trace, (
             "INV-12 VIOLATION: Bootstrap mode should not include 'INITIAL SIMULATION' section. "
-            "All modes should show only best_seed_output for consistency."
+            "All modes should show only simulation_trace for consistency."
         )
-        assert "BEST BOOTSTRAP SAMPLE" not in best_output, (
+        assert "BEST BOOTSTRAP SAMPLE" not in sim_trace, (
             "INV-12 VIOLATION: Bootstrap mode should not include 'BEST BOOTSTRAP SAMPLE' header. "
             "Just show the events directly like deterministic modes."
         )
 
     @pytest.mark.asyncio
     async def test_all_modes_produce_same_output_format(self) -> None:
-        """All three modes should produce identical best_seed_output format.
+        """All three modes should produce identical simulation_trace format.
 
         INV-12: The simulation output formatting should be identical across modes.
         """
@@ -198,7 +195,7 @@ class TestUnifiedContextAcrossModes:
                 await loop._optimize_agent("BANK_A", current_cost=1000)
 
             call_kwargs = mock_optimizer.optimize.call_args.kwargs
-            outputs[mode] = call_kwargs.get("best_seed_output")
+            outputs[mode] = call_kwargs.get("simulation_trace")
 
         # All outputs should be identical
         bootstrap_output = outputs["bootstrap"]
@@ -217,11 +214,11 @@ class TestUnifiedContextAcrossModes:
         )
 
     @pytest.mark.asyncio
-    async def test_no_worst_seed_output_passed_to_optimizer(self) -> None:
-        """INV-12: All modes should pass worst_seed_output=None.
+    async def test_only_simulation_trace_passed_to_optimizer(self) -> None:
+        """INV-12: All modes pass simulation_trace only (no deprecated fields).
 
-        We only show ONE simulation trace (best_seed_output). The worst sample
-        is redundant - variance is captured in statistics (mean, std).
+        We only show ONE simulation trace. The old best_seed_output and
+        worst_seed_output parameters are deprecated.
         """
         modes = ["bootstrap", "deterministic-pairwise", "deterministic-temporal"]
 
@@ -231,7 +228,6 @@ class TestUnifiedContextAcrossModes:
 
             loop._constraints = mock_config.get_constraints()
 
-            # Agent context has worst_seed_output populated
             agent_context = _create_agent_context("BANK_A")
             loop._current_agent_contexts = {"BANK_A": agent_context}
             loop._current_enriched_results = []
@@ -261,10 +257,11 @@ class TestUnifiedContextAcrossModes:
                 await loop._optimize_agent("BANK_A", current_cost=1000)
 
             call_kwargs = mock_optimizer.optimize.call_args.kwargs
-            worst_output = call_kwargs.get("worst_seed_output")
 
-            assert worst_output is None, (
-                f"INV-12 VIOLATION: {mode} mode should NOT pass worst_seed_output. "
-                f"All modes show only ONE simulation trace. Got: {worst_output[:50]}..."
-                if worst_output else ""
+            # New fields should be present
+            assert "simulation_trace" in call_kwargs, (
+                f"INV-12 VIOLATION: {mode} mode should pass simulation_trace."
+            )
+            assert call_kwargs["simulation_trace"] is not None, (
+                f"INV-12 VIOLATION: {mode} mode should have non-None simulation_trace."
             )
