@@ -1,6 +1,6 @@
 # Filter System Prompt by Scenario Constraints - Development Plan
 
-**Status**: Pending
+**Status**: Complete
 **Created**: 2025-12-18
 **Branch**: `claude/plan-filter-system-prompt-AWDVe`
 **Request**: `docs/requests/filter-system-prompt-by-constraints.md`
@@ -316,18 +316,19 @@ No documentation updates required for `docs/reference/` since this is an interna
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1 | Pending | Filter `_build_policy_architecture()` |
-| Phase 2 | Pending | Filter `_build_common_errors()` |
-| Phase 3 | Pending | Verification and cleanup |
+| Phase 1 | Complete | Filter `_build_policy_architecture()` |
+| Phase 2 | Complete | Filter `_build_common_errors()` |
+| Phase 3 | Complete | Verification, cleanup, and workaround removal |
 
 ## Acceptance Criteria (from Feature Request)
 
-- [ ] `_build_policy_architecture()` only lists tree types with allowed actions
-- [ ] `_build_common_errors()` only shows examples for enabled tree types
-- [ ] Experiment configs without `strategic_collateral_tree` produce prompts with no mention of it
-- [ ] Existing tests pass (backward compatible)
-- [ ] New unit tests verify filtering behavior
-- [ ] LLM no longer generates `strategic_collateral_tree` when it's not in allowed_actions
+- [x] `_build_policy_architecture()` only lists tree types with allowed actions
+- [x] `_build_common_errors()` only shows examples for enabled tree types
+- [x] Experiment configs without `strategic_collateral_tree` produce prompts with no mention of it
+- [x] Existing tests pass (backward compatible)
+- [x] New unit tests verify filtering behavior
+- [x] LLM no longer generates `strategic_collateral_tree` when it's not in allowed_actions
+- [x] Workarounds removed from paper generator experiment configs
 
 ## Related Files
 
