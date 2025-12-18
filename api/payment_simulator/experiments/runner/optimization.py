@@ -1999,6 +1999,8 @@ class OptimizationLoop:
         try:
             # Use PolicyOptimizer if available (provides rich context)
             if self._policy_optimizer is not None and agent_context is not None:
+                # INV-12: All modes show ONE simulation trace only
+                # worst_seed_output is not passed - variance is in statistics
                 opt_result = await self._policy_optimizer.optimize(
                     agent_id=agent_id,
                     current_policy=current_policy,
@@ -2009,8 +2011,8 @@ class OptimizationLoop:
                     current_cost=float(current_cost),
                     iteration_history=self._agent_iteration_history.get(agent_id),
                     events=collected_events,  # Pass events for agent isolation filtering
-                    best_seed_output=combined_best_output,  # Includes initial sim (Stream 1) + best (Stream 2)
-                    worst_seed_output=agent_context.worst_seed_output,
+                    best_seed_output=combined_best_output,  # INV-12: Single simulation trace
+                    worst_seed_output=None,  # INV-12: Not shown - variance in stats
                     best_seed=agent_context.best_seed,
                     worst_seed=agent_context.worst_seed,
                     best_seed_cost=agent_context.best_seed_cost,
@@ -2386,6 +2388,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 self._accepted_changes[agent_id] = True
                 return
 
+            # INV-12: All modes show ONE simulation trace only
             opt_result = await self._policy_optimizer.optimize(
                 agent_id=agent_id,
                 current_policy=current_policy,
@@ -2396,8 +2399,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 current_cost=float(current_cost),
                 iteration_history=self._agent_iteration_history.get(agent_id),
                 events=collected_events,  # INV-12: Pass events for agent isolation
-                best_seed_output=combined_best_output,  # INV-12: Pass simulation output
-                worst_seed_output=agent_context.worst_seed_output,
+                best_seed_output=combined_best_output,  # INV-12: Single simulation trace
+                worst_seed_output=None,  # INV-12: Not shown - variance in stats
                 best_seed=agent_context.best_seed,
                 worst_seed=agent_context.worst_seed,
                 best_seed_cost=agent_context.best_seed_cost,
