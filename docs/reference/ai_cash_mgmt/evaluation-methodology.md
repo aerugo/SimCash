@@ -307,33 +307,40 @@ Iteration N:
 
 ### Deterministic-Temporal
 
-Compares cost **across iterations** (also called "greedy hill climbing"):
+Uses **policy stability** for multi-agent convergence:
 
 ```
 Iteration N:
   seed = derive_iteration_seed(N, agent_id)
 
-  1. Run current policy with seed → cost_N
-  2. First iteration: Always accept (no baseline)
-     Subsequent: Compare cost_N vs cost_{N-1}
-     - Accept if cost_N <= cost_{N-1}
-     - Reject if cost_N > cost_{N-1} → revert policy
-  3. If accepted, LLM generates new_policy for N+1
+  For each agent:
+    1. Run current policy with seed → cost_N
+    2. Track agent's initial_liquidity_fraction in stability tracker
+    3. LLM generates new_policy
+    4. Always accept new_policy (no cost-based rejection)
+
+  After all agents optimized:
+    5. Check multi-agent convergence:
+       - If ALL agents' initial_liquidity_fraction unchanged for
+         stability_window iterations → CONVERGED
+       - Else continue to iteration N+1
 ```
 
-**Statistical Basis**: This mode assumes iteration seeds vary (different scenarios each iteration), so comparing across iterations provides variety. The policy must perform well on **new** scenarios, not just the old one.
+**Convergence Criterion**: Policy stability, not cost. All agents must have the same `initial_liquidity_fraction` for `stability_window` (default 5) consecutive iterations.
 
-**Cost**: 1 simulation per iteration (more efficient).
+**Cost**: 1 simulation per iteration (efficient).
 
-**Trade-off**: Temporal mode is faster but doesn't control for seed-to-seed variance. A policy might be rejected because iteration N happened to have a harder scenario than N-1, not because the policy is worse. For truly deterministic scenarios (no variance), this trade-off doesn't apply.
+**Why Policy Stability?**: In multi-agent scenarios, the cost landscape changes as counterparty policies evolve. A policy that was "optimal" for Agent A given Agent B's old policy may become suboptimal when Agent B changes. Cost-based rejection would cause oscillation. Policy stability indicates the LLM has converged on its best answer given the counterparty's current policy.
+
+**Multi-Agent Equilibrium**: Convergence when ALL agents are stable approximates a Nash equilibrium - no agent wants to unilaterally change their strategy.
 
 ### When to Use Each Mode
 
-| Mode | Best For | Simulations/Iteration |
-|------|----------|----------------------|
-| `bootstrap` | Stochastic scenarios, statistical rigor | N samples × 2 |
-| `deterministic-pairwise` | Deterministic scenarios, precise comparison | 3 |
-| `deterministic-temporal` | Deterministic scenarios, fast iteration | 1 |
+| Mode | Best For | Simulations/Iteration | Convergence |
+|------|----------|----------------------|-------------|
+| `bootstrap` | Stochastic scenarios, statistical rigor | N samples × 2 | Cost improvement |
+| `deterministic-pairwise` | Single-agent deterministic, precise comparison | 3 | Cost improvement |
+| `deterministic-temporal` | Multi-agent deterministic, equilibrium finding | 1 | Policy stability |
 
 ---
 
