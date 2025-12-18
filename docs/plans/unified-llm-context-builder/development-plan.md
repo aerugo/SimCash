@@ -14,21 +14,13 @@ Unify the LLM context building across all evaluation modes (bootstrap, determini
 
 | Mode | Context Building | Simulation Output | LLM Visibility |
 |------|------------------|-------------------|----------------|
-| `bootstrap` | `_build_agent_contexts()` with `BootstrapLLMContext` | 3 streams (initial, best, worst) | ✅ Full |
-| `deterministic-pairwise` | `_build_agent_contexts()` BUT no `BootstrapLLMContext` | Only `best_seed_output` from single sim | ⚠️ Partial |
-| `deterministic-temporal` | `_optimize_agent_temporal()` bypasses all | `None` for everything | ❌ None |
+| `bootstrap` | `BootstrapLLMContext` + `AgentSimulationContext` | 3 streams (initial, best, worst) | ✅ Full |
+| `deterministic-pairwise` | `AgentSimulationContext.best_seed_output` | 1 stream (single sim events) | ✅ Works |
+| `deterministic-temporal` | `_optimize_agent_temporal()` bypasses all | `None` for everything | ❌ Broken |
 
-### Root Causes (Two Issues)
+### Root Cause (Single Issue)
 
-**Issue 1**: `_initial_sim_result` only set for bootstrap mode (line 721-724):
-```python
-if self._config.evaluation.mode == "bootstrap":
-    self._initial_sim_result = self._run_initial_simulation()
-```
-
-This means `BootstrapLLMContext.initial_simulation_output` is never populated for deterministic modes.
-
-**Issue 2**: `_optimize_agent_temporal()` bypasses context building entirely (line 2356-2365):
+**`_optimize_agent_temporal()` bypasses context building entirely** (line 2356-2365):
 ```python
 opt_result = await self._policy_optimizer.optimize(
     ...
@@ -38,6 +30,14 @@ opt_result = await self._policy_optimizer.optimize(
     ...
 )
 ```
+
+Note: `deterministic-pairwise` works correctly. It uses `AgentSimulationContext.best_seed_output` via the fallback in `_optimize_agent()` (lines 1950-1951):
+```python
+elif agent_context and agent_context.best_seed_output:
+    combined_best_output = agent_context.best_seed_output
+```
+
+`bootstrap` mode adds additional streams via `BootstrapLLMContext` (initial simulation + best/worst comparison), but deterministic-pairwise provides adequate simulation visibility for LLM optimization.
 
 ### Impact
 
