@@ -14,9 +14,10 @@ description: "2-Period Deterministic Nash Equilibrium"
 scenario: ./exp1_2period.yaml
 
 # Evaluation settings
-# Use deterministic mode since the scenario has no stochastic elements
+# Use deterministic-temporal mode for multi-agent policy stability convergence
+# This lets the LLM decide when to stop exploring rather than cost-based rejection
 evaluation:
-  mode: deterministic
+  mode: deterministic-temporal
   num_samples: 50  # For statistical rigor
   ticks: 2  # Only 2 ticks in scenario
 
@@ -72,9 +73,11 @@ prompt_customization:
     The KEY DECISION in this scenario is: What fraction of the liquidity pool
     should be allocated at the START of the day?
 
-    IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
-    The payment_tree should remain a simple Release action - the real optimization
-    is in how much liquidity to commit upfront.
+    IMPORTANT CONSTRAINTS:
+    1. Focus your optimization ONLY on the `initial_liquidity_fraction` parameter (0.0 to 1.0)
+    2. DO NOT modify payment_tree - keep it as a simple Release action
+    3. DO NOT modify strategic_collateral_tree - it should remain as HoldCollateral
+    4. The ONLY thing you should change is initial_liquidity_fraction
 
     With a hard liquidity constraint (no overdraft allowed), you must have
     sufficient balance to settle each payment. Incoming payments from the

@@ -136,8 +136,8 @@ TABLE OF CONTENTS:
 | **Risk-Adjusted Cost** | ${m.get('risk_adjusted_cost', 0):,.0f} |
 | **Settlement Rate** | {m.get('settlement_rate_mean', 0) * 100:.1f}% |
 | **Failure Rate** | {m.get('failure_rate', 0) * 100:.0f}% |
-| **Best Seed** | #{self.context.best_seed} (${self.context.best_seed_cost:,}) |
-| **Worst Seed** | #{self.context.worst_seed} (${self.context.worst_seed_cost:,}) |
+| **Best Seed** | {f"#{self.context.best_seed} (${self.context.best_seed_cost:,})" if self.context.best_seed_cost is not None else "N/A"} |
+| **Worst Seed** | {f"#{self.context.worst_seed} (${self.context.worst_seed_cost:,})" if self.context.worst_seed_cost is not None else "N/A"} |
 
 ### Current Policy Parameters ({agent_label})
 
@@ -296,7 +296,8 @@ TABLE OF CONTENTS:
             sections.extend(
                 [
                     f"### Best Performing Bootstrap Sample (Seed #{self.context.best_seed}, "
-                    f"Cost: ${self.context.best_seed_cost:,})",
+                    f"Cost: ${self.context.best_seed_cost:,})" if self.context.best_seed_cost is not None else
+                    f"### Best Performing Bootstrap Sample (Seed #{self.context.best_seed})",
                     "",
                     "This bootstrap sample shows the OPTIMAL outcome. "
                     "Analyze what conditions led to low cost.",
@@ -315,7 +316,8 @@ TABLE OF CONTENTS:
             sections.extend(
                 [
                     f"### Worst Performing Bootstrap Sample (Seed #{self.context.worst_seed}, "
-                    f"Cost: ${self.context.worst_seed_cost:,})",
+                    f"Cost: ${self.context.worst_seed_cost:,})" if self.context.worst_seed_cost is not None else
+                    f"### Worst Performing Bootstrap Sample (Seed #{self.context.worst_seed})",
                     "",
                     "This bootstrap sample shows a PROBLEMATIC outcome. "
                     "Identify failure patterns and edge cases.",
