@@ -1366,7 +1366,8 @@ class OptimizationLoop:
         # Derive purpose from evaluation mode if not specified
         if purpose is None:
             eval_mode = self._config.evaluation.mode
-            purpose = "eval" if eval_mode == "deterministic" else "bootstrap"
+            # All deterministic modes (deterministic-temporal, deterministic-pairwise) use "eval"
+            purpose = "eval" if eval_mode.startswith("deterministic") else "bootstrap"
 
         # Run simulation using unified method
         result = self._run_simulation(
@@ -1490,8 +1491,8 @@ class OptimizationLoop:
         eval_mode = self._config.evaluation.mode
         num_samples = self._config.evaluation.num_samples or 1
 
-        if eval_mode == "deterministic" or num_samples <= 1:
-            # Single simulation - deterministic mode
+        if eval_mode.startswith("deterministic") or num_samples <= 1:
+            # Single simulation - deterministic mode (temporal or pairwise)
             # Use iteration seed for consistency with _evaluate_policy_pair
             # (INV-9: Policy Evaluation Identity - displayed cost must match acceptance cost)
             iteration_idx = self._current_iteration - 1  # 0-indexed
@@ -1656,9 +1657,9 @@ class OptimizationLoop:
         eval_mode = self._config.evaluation.mode
 
         for sample_idx in range(num_samples):
-            # For deterministic mode, use master_seed directly
+            # For deterministic mode (temporal or pairwise), use master_seed directly
             # This ensures consistency with _evaluate_policies
-            if eval_mode == "deterministic" or num_samples == 1:
+            if eval_mode.startswith("deterministic") or num_samples == 1:
                 seed = self._config.master_seed
             else:
                 seed = self._derive_sample_seed(sample_idx)
@@ -1700,8 +1701,8 @@ class OptimizationLoop:
         iteration_idx = self._current_iteration - 1
         num_samples = self._config.evaluation.num_samples or 1
 
-        # Handle deterministic mode (single sample)
-        if self._config.evaluation.mode == "deterministic" or num_samples <= 1:
+        # Handle deterministic mode (temporal or pairwise) - single sample
+        if self._config.evaluation.mode.startswith("deterministic") or num_samples <= 1:
             # Use iteration seed directly
             seed = self._seed_matrix.get_iteration_seed(iteration_idx, agent_id)
 
@@ -2113,7 +2114,8 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             )
 
             # Determine mode and mode-specific fields for persistence
-            is_deterministic = self._config.evaluation.mode == "deterministic"
+            # Both deterministic-temporal and deterministic-pairwise are "deterministic" for storage
+            is_deterministic = self._config.evaluation.mode.startswith("deterministic")
             evaluation_mode = "deterministic" if is_deterministic else "bootstrap"
 
             # Persist policy evaluation with ACTUAL costs and extended metrics
