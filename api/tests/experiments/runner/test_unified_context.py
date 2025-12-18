@@ -215,3 +215,56 @@ class TestUnifiedContextAcrossModes:
             f"Pairwise: {pairwise_output}\n"
             f"Temporal: {temporal_output}"
         )
+
+    @pytest.mark.asyncio
+    async def test_no_worst_seed_output_passed_to_optimizer(self) -> None:
+        """INV-12: All modes should pass worst_seed_output=None.
+
+        We only show ONE simulation trace (best_seed_output). The worst sample
+        is redundant - variance is captured in statistics (mean, std).
+        """
+        modes = ["bootstrap", "deterministic-pairwise", "deterministic-temporal"]
+
+        for mode in modes:
+            mock_config = _create_config(mode)
+            loop = OptimizationLoop(config=mock_config)
+
+            loop._constraints = mock_config.get_constraints()
+
+            # Agent context has worst_seed_output populated
+            agent_context = _create_agent_context("BANK_A")
+            loop._current_agent_contexts = {"BANK_A": agent_context}
+            loop._current_enriched_results = []
+
+            if mode == "bootstrap":
+                bootstrap_llm_context = _create_bootstrap_llm_context("BANK_A")
+                loop._bootstrap_llm_contexts = {"BANK_A": bootstrap_llm_context}
+
+            loop._cost_rates = {"delay_rate": 100}
+            loop._policies = {"BANK_A": {"initial_liquidity_fraction": 0.5}}
+            loop._current_iteration = 1
+
+            mock_llm_client = MagicMock()
+            loop._llm_client = mock_llm_client
+
+            mock_optimizer = MagicMock()
+            mock_opt_result = MagicMock()
+            mock_opt_result.new_policy = {"initial_liquidity_fraction": 0.3}
+            mock_opt_result.validation_errors = []
+            mock_optimizer.optimize = AsyncMock(return_value=mock_opt_result)
+            mock_optimizer.get_system_prompt = MagicMock(return_value="System prompt")
+            loop._policy_optimizer = mock_optimizer
+
+            if mode == "deterministic-temporal":
+                await loop._optimize_agent_temporal("BANK_A", current_cost=1000)
+            else:
+                await loop._optimize_agent("BANK_A", current_cost=1000)
+
+            call_kwargs = mock_optimizer.optimize.call_args.kwargs
+            worst_output = call_kwargs.get("worst_seed_output")
+
+            assert worst_output is None, (
+                f"INV-12 VIOLATION: {mode} mode should NOT pass worst_seed_output. "
+                f"All modes show only ONE simulation trace. Got: {worst_output[:50]}..."
+                if worst_output else ""
+            )
