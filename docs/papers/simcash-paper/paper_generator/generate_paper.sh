@@ -14,15 +14,17 @@ install_tectonic() {
     echo "Installing tectonic (lightweight LaTeX compiler, ~70MB)..."
     echo ""
 
-    # Use the official tectonic installer
-    if curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh; then
-        echo ""
-        echo "Tectonic installed successfully!"
+    # Create local bin directory for tectonic
+    LOCAL_BIN="$SCRIPT_DIR/.bin"
+    mkdir -p "$LOCAL_BIN"
 
-        # Add to PATH for this session if installed to ~/.cargo/bin
-        if [ -f "$HOME/.cargo/bin/tectonic" ]; then
-            export PATH="$HOME/.cargo/bin:$PATH"
-        fi
+    # Download tectonic to local bin directory
+    if (cd "$LOCAL_BIN" && curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh); then
+        echo ""
+        echo "Tectonic installed successfully to $LOCAL_BIN"
+
+        # Add to PATH for this session
+        export PATH="$LOCAL_BIN:$PATH"
 
         # Verify installation
         if command -v tectonic &> /dev/null; then
@@ -39,6 +41,11 @@ install_tectonic() {
     echo "  cargo install tectonic"
     return 1
 }
+
+# Add local bin to PATH if it exists (from previous install)
+if [ -d "$SCRIPT_DIR/.bin" ]; then
+    export PATH="$SCRIPT_DIR/.bin:$PATH"
+fi
 
 # Check for LaTeX compiler, auto-install tectonic if missing
 if ! command -v tectonic &> /dev/null && ! command -v pdflatex &> /dev/null; then
