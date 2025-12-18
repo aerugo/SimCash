@@ -8,21 +8,6 @@ We are writing a paper to demonstrate how SimCash can reproduce the three experi
 
 ---
 
-## Key Change from v4: Automated Paper Generation
-
-**v5 uses a programmatic paper generation system** located at:
-
-```
-docs/papers/simcash-paper/paper_generator/
-```
-
-This eliminates manual work that was required in v4:
-- ✅ **Charts**: Automatically generated from database queries
-- ✅ **Tables**: Automatically generated with correct values
-- ✅ **Results text**: Data-driven, no manual transcription
-- ✅ **Confidence intervals**: Computed and formatted automatically
-- ✅ **LaTeX compilation**: Single command generates PDF
-
 **What you DO manually**:
 - Run the 3 passes of experiments
 - Update `config.yaml` with new run_ids
