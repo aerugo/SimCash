@@ -6,12 +6,14 @@ Usage:
 A config.yaml file is REQUIRED. The config explicitly maps experiment passes
 to specific run_ids, ensuring reproducible paper generation.
 
-By default, the CLI generates paper.tex and compiles it to PDF using pdflatex.
+By default, the CLI generates paper.tex and compiles it to PDF using tectonic
+(lightweight, ~70MB) with pdflatex as fallback.
 """
 
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -19,8 +21,42 @@ from src.config import load_config
 from src.paper_builder import build_paper
 
 
-def compile_pdf(tex_path: Path) -> Path | None:
-    """Compile LaTeX file to PDF using pdflatex.
+def compile_pdf_tectonic(tex_path: Path) -> Path | None:
+    """Compile LaTeX file to PDF using tectonic.
+
+    Tectonic is a modern, lightweight TeX engine (~70MB) that automatically
+    downloads required packages on first use.
+
+    Args:
+        tex_path: Path to .tex file
+
+    Returns:
+        Path to generated PDF, or None if compilation failed
+    """
+    output_dir = tex_path.parent
+    pdf_path = tex_path.with_suffix(".pdf")
+
+    result = subprocess.run(
+        ["tectonic", "-o", str(output_dir), str(tex_path)],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print("tectonic compilation failed:")
+        # Show stderr (tectonic outputs errors there)
+        if result.stderr:
+            for line in result.stderr.split("\n")[-20:]:
+                print(f"  {line}")
+        return None
+
+    if pdf_path.exists():
+        return pdf_path
+    return None
+
+
+def compile_pdf_pdflatex(tex_path: Path) -> Path | None:
+    """Compile LaTeX file to PDF using pdflatex (fallback).
 
     Runs pdflatex twice to resolve cross-references.
 
@@ -51,6 +87,44 @@ def compile_pdf(tex_path: Path) -> Path | None:
 
     if pdf_path.exists():
         return pdf_path
+    return None
+
+
+def compile_pdf(tex_path: Path) -> Path | None:
+    """Compile LaTeX file to PDF using tectonic or pdflatex.
+
+    Tries tectonic first (lightweight, ~70MB), falls back to pdflatex.
+
+    Args:
+        tex_path: Path to .tex file
+
+    Returns:
+        Path to generated PDF, or None if compilation failed
+    """
+    # Try tectonic first (faster, smaller dependency)
+    if shutil.which("tectonic"):
+        print("Compiling PDF with tectonic...")
+        pdf_path = compile_pdf_tectonic(tex_path)
+        if pdf_path:
+            return pdf_path
+        print("tectonic failed, trying pdflatex...")
+
+    # Fall back to pdflatex
+    if shutil.which("pdflatex"):
+        print("Compiling PDF with pdflatex...")
+        return compile_pdf_pdflatex(tex_path)
+
+    # Neither available
+    print("Error: No LaTeX compiler found.")
+    print("")
+    print("Install tectonic (recommended, lightweight ~70MB):")
+    print("  curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh")
+    print("")
+    print("Or install via cargo:")
+    print("  cargo install tectonic")
+    print("")
+    print("Alternatively, install pdflatex (larger, ~2-4GB):")
+    print("  See generate_paper.sh for platform-specific instructions")
     return None
 
 

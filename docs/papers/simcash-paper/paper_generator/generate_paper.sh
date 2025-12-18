@@ -1,54 +1,50 @@
 #!/bin/bash
 # Generate SimCash paper with PDF compilation
 #
-# This script checks for pdflatex and generates the paper.
-# If pdflatex is not installed, it provides platform-specific instructions.
+# This script checks for tectonic (preferred) or pdflatex and generates the paper.
+# If neither is installed, it provides installation instructions.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check for pdflatex and provide platform-specific installation instructions
-if ! command -v pdflatex &> /dev/null; then
-    echo "Error: pdflatex not found."
+# Check for LaTeX compiler and provide installation instructions if missing
+if ! command -v tectonic &> /dev/null && ! command -v pdflatex &> /dev/null; then
+    echo "Error: No LaTeX compiler found."
     echo ""
+    echo "Install tectonic (recommended, lightweight ~70MB):"
+    echo "  curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh"
+    echo ""
+    echo "Or install via cargo:"
+    echo "  cargo install tectonic"
+    echo ""
+    echo "Alternatively, install pdflatex (larger, ~2-4GB):"
 
-    # Detect OS and provide appropriate instructions
+    # Detect OS and provide appropriate pdflatex instructions
     case "$(uname -s)" in
         Darwin)
-            echo "On macOS, install MacTeX using Homebrew:"
             echo "  brew install --cask mactex"
-            echo ""
-            echo "After installation, you may need to restart your terminal"
-            echo "or add /Library/TeX/texbin to your PATH:"
-            echo "  export PATH=\"/Library/TeX/texbin:\$PATH\""
             ;;
         Linux)
-            echo "On Debian/Ubuntu, install texlive:"
-            echo "  sudo apt-get update && sudo apt-get install -y \\"
-            echo "      texlive-latex-base \\"
-            echo "      texlive-latex-recommended \\"
-            echo "      texlive-latex-extra \\"
-            echo "      texlive-fonts-recommended \\"
-            echo "      cm-super"
-            echo ""
-            echo "On Fedora/RHEL:"
-            echo "  sudo dnf install texlive-scheme-medium"
-            echo ""
-            echo "On Arch Linux:"
-            echo "  sudo pacman -S texlive-core texlive-latexextra"
+            echo "  sudo apt-get install texlive-latex-base texlive-latex-recommended texlive-latex-extra"
             ;;
         *)
-            echo "Please install a LaTeX distribution with pdflatex."
-            echo "Common options: TeX Live, MiKTeX"
+            echo "  Install TeX Live or MiKTeX"
             ;;
     esac
 
     echo ""
-    echo "Alternatively, generate LaTeX only (no PDF):"
+    echo "Or generate LaTeX only (no PDF):"
     echo "  uv run python -m src.cli --config config.yaml --output-dir output/ --skip-pdf"
     exit 1
+fi
+
+# Show which compiler will be used
+if command -v tectonic &> /dev/null; then
+    echo "Using tectonic for PDF compilation"
+elif command -v pdflatex &> /dev/null; then
+    echo "Using pdflatex for PDF compilation"
 fi
 
 # Generate paper with PDF compilation
