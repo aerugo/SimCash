@@ -15,6 +15,36 @@ cd docs/papers/simcash-paper/paper_generator
 uv sync --extra dev
 ```
 
+### Run Missing Experiments
+
+The `run_missing_experiments.py` script automatically runs any experiments that have empty `run_id` values in `config.yaml`:
+
+```bash
+cd docs/papers/simcash-paper/paper_generator
+
+# Run all missing experiments
+python run_missing_experiments.py config.yaml
+
+# Preview what would run (dry run)
+python run_missing_experiments.py config.yaml --dry-run
+```
+
+**Key features:**
+- **Parallel execution**: Different experiments (exp1, exp2, exp3) run in parallel
+- **Sequential passes**: Passes for the same experiment run sequentially (to avoid database locks)
+- **Auto-update config**: Updates `config.yaml` with run_ids as experiments complete
+- **Live output**: All experiment output streams to terminal with prefixes like `[exp1:P3]`
+
+**Example workflow:**
+```bash
+# 1. Set empty run_ids in config.yaml for experiments you want to (re-)run
+# 2. Run missing experiments
+python run_missing_experiments.py config.yaml
+
+# 3. Generate the paper
+./generate_paper.sh
+```
+
 ### Generate the Paper
 
 **A `config.yaml` file is REQUIRED** for paper generation. The config explicitly maps experiment passes to specific run_ids, ensuring reproducible paper generation and preventing issues with database ordering or incomplete experiment runs.
