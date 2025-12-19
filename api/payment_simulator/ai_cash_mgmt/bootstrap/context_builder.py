@@ -185,10 +185,13 @@ class EnrichedBootstrapContextBuilder:
             return f"(No events for {self._agent_id})"
 
         # Use the SINGLE SOURCE OF TRUTH for verbose output
+        # CRITICAL: Pass filter_agent for agent isolation - prevents leaking
+        # other agents' balances in LLM context
         return format_tick_range_as_text(
             provider=provider,
             tick_events_by_tick=events_by_tick,
             agent_ids=[self._agent_id],
+            filter_agent=self._agent_id,
         )
 
     def format_event_trace_for_llm(
