@@ -242,14 +242,23 @@ Examples:
 
     config_dir = config_path.parent
 
-    # Find api directory (navigate up to find it)
-    api_dir = config_dir
-    while api_dir.name != "SimCash" and api_dir.parent != api_dir:
-        api_dir = api_dir.parent
-    api_dir = api_dir / "api"
+    # Find api directory - paper_generator is at docs/papers/simcash-paper/paper_generator
+    # So api is at ../../../../api relative to config_dir
+    api_dir = (config_dir / ".." / ".." / ".." / ".." / "api").resolve()
 
-    if not (api_dir / ".venv" / "bin" / "payment-sim").exists():
-        print(f"Error: payment-sim not found at {api_dir}", file=sys.stderr)
+    # Fallback: search upward for SimCash/api
+    if not api_dir.exists():
+        search_dir = config_dir
+        while search_dir.parent != search_dir:
+            if (search_dir / "api" / ".venv" / "bin" / "payment-sim").exists():
+                api_dir = search_dir / "api"
+                break
+            search_dir = search_dir.parent
+
+    payment_sim = api_dir / ".venv" / "bin" / "payment-sim"
+    if not payment_sim.exists():
+        print(f"Error: payment-sim not found at {payment_sim}", file=sys.stderr)
+        print(f"Searched in: {api_dir}", file=sys.stderr)
         print("Make sure you've run 'uv sync' in the api directory", file=sys.stderr)
         return 1
 
