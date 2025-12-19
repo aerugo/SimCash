@@ -537,3 +537,217 @@ class DatabaseStateProvider:
             registers[register_key] = register_value
 
         return registers
+
+
+class BootstrapEventStateProvider:
+    """StateProvider adapter for BootstrapEvent lists.
+
+    Provides minimal StateProvider implementation for formatting bootstrap
+    events. Only implements methods needed by output formatting functions.
+
+    Since bootstrap events don't include full simulation state (like queue
+    contents, agent balances), this adapter returns sensible defaults for
+    most queries. The primary use case is to enable pretty-formatting of
+    bootstrap event traces for LLM context.
+
+    Attributes:
+        _events: List of BootstrapEvent objects.
+        _agent_id: Agent ID being evaluated.
+        _event_dicts: Cached dict representations of events.
+        _balance_cache: Cache of agent balances extracted from events.
+
+    Example:
+        >>> from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import BootstrapEvent
+        >>> events = [
+        ...     BootstrapEvent(tick=0, event_type="Arrival", details={"tx_id": "123", ...}),
+        ...     BootstrapEvent(tick=1, event_type="RtgsImmediateSettlement", details={...}),
+        ... ]
+        >>> provider = BootstrapEventStateProvider(events, "BANK_A")
+        >>> balance = provider.get_agent_balance("BANK_A")
+    """
+
+    def __init__(
+        self,
+        events: list[Any],  # List of BootstrapEvent
+        agent_id: str,
+        opening_balance: int = 0,
+    ) -> None:
+        """Initialize the state provider.
+
+        Args:
+            events: List of BootstrapEvent objects from bootstrap evaluation.
+            agent_id: ID of the agent being evaluated.
+            opening_balance: Starting balance for the agent (cents).
+        """
+        self._events = events
+        self._agent_id = agent_id
+        self._opening_balance = opening_balance
+        self._event_dicts = [self._to_dict(e) for e in events]
+        self._balance_cache: dict[str, int] = {}
+        self._tx_cache: dict[str, TransactionDetails] = {}
+
+        # Pre-populate balance and transaction caches from events
+        self._build_caches()
+
+    def _to_dict(self, event: Any) -> dict[str, Any]:
+        """Convert a BootstrapEvent to a dict.
+
+        Args:
+            event: BootstrapEvent object.
+
+        Returns:
+            Dict representation with tick, event_type, and merged details.
+        """
+        return {
+            "tick": event.tick,
+            "event_type": event.event_type,
+            **event.details,
+        }
+
+    def _build_caches(self) -> None:
+        """Build caches from events for efficient lookups."""
+        # Track balance changes from settlement events
+        running_balance: dict[str, int] = {}
+
+        for event in self._event_dicts:
+            event_type = event.get("event_type")
+
+            # Track balance from settlement events
+            if event_type == "RtgsImmediateSettlement":
+                sender = event.get("sender")
+                receiver = event.get("receiver")
+
+                # Update sender's balance if we have the data
+                if sender == self._agent_id:
+                    balance_after = event.get("sender_balance_after")
+                    if balance_after is not None:
+                        running_balance[sender] = balance_after
+
+                # Receiver gets incoming funds
+                if receiver == self._agent_id:
+                    amount = event.get("amount", 0)
+                    current = running_balance.get(receiver, self._opening_balance)
+                    running_balance[receiver] = current + amount
+
+            # Track transactions from arrival events
+            if event_type == "Arrival":
+                tx_id = event.get("tx_id")
+                if tx_id:
+                    self._tx_cache[tx_id] = TransactionDetails(
+                        tx_id=tx_id,
+                        sender_id=event.get("sender_id", ""),
+                        receiver_id=event.get("receiver_id", ""),
+                        amount=event.get("amount", 0),
+                        remaining_amount=event.get("amount", 0),
+                        priority=event.get("priority", 5),
+                        deadline_tick=event.get("deadline_tick", 0),
+                        status="pending",
+                        is_divisible=event.get("is_divisible", False),
+                    )
+
+        self._balance_cache = running_balance
+
+    def get_transaction_details(self, tx_id: str) -> TransactionDetails | None:
+        """Get transaction details by ID.
+
+        Returns cached transaction details if available, None otherwise.
+        """
+        return self._tx_cache.get(tx_id)
+
+    def get_agent_balance(self, agent_id: str) -> int:
+        """Get agent's balance from cached values or opening balance."""
+        return self._balance_cache.get(agent_id, self._opening_balance)
+
+    def get_agent_unsecured_cap(self, agent_id: str) -> int:
+        """Get agent's credit limit.
+
+        Bootstrap events don't include credit limit data, so return 0.
+        """
+        return 0
+
+    def get_agent_queue1_contents(self, agent_id: str) -> list[str]:
+        """Get list of transaction IDs in agent's internal queue.
+
+        Bootstrap events don't track queue contents, so return empty list.
+        """
+        return []
+
+    def get_rtgs_queue_contents(self) -> list[str]:
+        """Get list of transaction IDs in RTGS central queue.
+
+        Bootstrap events don't track queue contents, so return empty list.
+        """
+        return []
+
+    def get_agent_collateral_posted(self, agent_id: str) -> int:
+        """Get collateral posted by agent.
+
+        Bootstrap events don't track collateral, so return 0.
+        """
+        return 0
+
+    def get_agent_accumulated_costs(self, agent_id: str) -> AccumulatedCosts:
+        """Get accumulated costs for agent from events.
+
+        Scans CostAccrual events to build cost breakdown.
+        """
+        total_liquidity = 0
+        total_delay = 0
+        total_collateral = 0
+        total_penalty = 0
+        total_split_friction = 0
+
+        for event in self._event_dicts:
+            if event.get("event_type") == "CostAccrual":
+                if event.get("agent_id") == agent_id:
+                    costs = event.get("costs", {})
+                    total_liquidity += costs.get("liquidity_cost", 0)
+                    total_delay += costs.get("delay_cost", 0)
+                    total_collateral += costs.get("collateral_cost", 0)
+                    total_penalty += costs.get("penalty_cost", 0)
+                    total_split_friction += costs.get("split_friction_cost", 0)
+
+        return AccumulatedCosts(
+            liquidity_cost=total_liquidity,
+            delay_cost=total_delay,
+            collateral_cost=total_collateral,
+            penalty_cost=total_penalty,
+            split_friction_cost=total_split_friction,
+            deadline_penalty=total_penalty,
+            total_cost=total_liquidity + total_delay + total_collateral + total_penalty + total_split_friction,
+        )
+
+    def get_queue1_size(self, agent_id: str) -> int:
+        """Get size of agent's internal queue.
+
+        Bootstrap events don't track queue contents, so return 0.
+        """
+        return 0
+
+    def get_queue2_size(self, agent_id: str) -> int:
+        """Get size of agent's RTGS queue.
+
+        Bootstrap events don't track queue contents, so return 0.
+        """
+        return 0
+
+    def get_transactions_near_deadline(self, within_ticks: int) -> list[NearDeadlineTransaction]:
+        """Get transactions approaching their deadline.
+
+        Bootstrap events don't track transaction state, so return empty list.
+        """
+        return []
+
+    def get_overdue_transactions(self) -> list[OverdueTransaction]:
+        """Get all currently overdue transactions.
+
+        Bootstrap events don't track overdue state, so return empty list.
+        """
+        return []
+
+    def get_event_dicts(self) -> list[dict[str, Any]]:
+        """Get the cached list of event dicts.
+
+        Useful for passing to format_events_as_text() after filtering.
+        """
+        return self._event_dicts

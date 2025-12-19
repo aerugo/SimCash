@@ -7,9 +7,12 @@ This ensures they can NEVER diverge - if new output sections are added,
 both modes automatically get them.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from payment_simulator.cli.execution.state_provider import StateProvider
+
+if TYPE_CHECKING:
+    from rich.console import Console
 
 
 def display_tick_verbose_output(
@@ -24,6 +27,7 @@ def display_tick_verbose_output(
     total_cost: int = 0,
     event_filter: Any = None,
     quiet: bool = False,
+    custom_console: "Console | None" = None,
 ) -> dict[str, int]:
     """Display all verbose output sections for a tick.
 
@@ -42,6 +46,9 @@ def display_tick_verbose_output(
         total_cost: Total cost accrued this tick (for conditional display)
         event_filter: Optional filter to apply to events
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output. If None,
+                        uses the default stderr console. This enables capturing
+                        output as a string for LLM context.
 
     Returns:
         Updated prev_balances dict for next tick
@@ -98,42 +105,44 @@ def display_tick_verbose_output(
     # SECTION 1: ARRIVALS (detailed)
     # ═══════════════════════════════════════════════════════════
     if num_arrivals > 0:
-        log_transaction_arrivals(provider, display_events)
+        log_transaction_arrivals(provider, display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 1.5: NEAR-DEADLINE WARNINGS (early warning system)
     # ═══════════════════════════════════════════════════════════
-    log_transactions_near_deadline(provider, within_ticks=2, current_tick=tick_num)
+    log_transactions_near_deadline(
+        provider, within_ticks=2, current_tick=tick_num, custom_console=custom_console
+    )
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2: POLICY DECISIONS
     # ═══════════════════════════════════════════════════════════
-    log_policy_decisions(display_events)
+    log_policy_decisions(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2.5: AGENT MEMORY UPDATES (Phase 4.5: State Registers)
     # ═══════════════════════════════════════════════════════════
-    log_state_register_events(display_events)
+    log_state_register_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2.6: BUDGET OPERATIONS (Phase 3.3: Bank-Level Budgets)
     # ═══════════════════════════════════════════════════════════
-    log_budget_operations(display_events)
+    log_budget_operations(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2.7: PRIORITY ESCALATION (Phase 5: Dynamic Priority)
     # ═══════════════════════════════════════════════════════════
-    log_priority_escalation_events(display_events)
+    log_priority_escalation_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2.8: POLICY REPRIORITIZATIONS (Phase 4: Overdue Handling)
     # ═══════════════════════════════════════════════════════════
-    log_transaction_reprioritized_events(display_events)
+    log_transaction_reprioritized_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 2.9: TARGET2 LSM EVENTS (Phase 0-3: TARGET2 Alignment)
     # ═══════════════════════════════════════════════════════════
-    log_target2_events(display_events)
+    log_target2_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3: SETTLEMENTS (detailed with mechanisms)
@@ -146,31 +155,36 @@ def display_tick_verbose_output(
         filter_agent = getattr(event_filter, "agent_id", None) if event_filter else None
         # PHASE 5 FIX: Pass num_settlements to ensure header matches summary
         log_settlement_details(
-            provider, display_events, tick_num, num_settlements, filter_agent=filter_agent
+            provider,
+            display_events,
+            tick_num,
+            num_settlements,
+            filter_agent=filter_agent,
+            custom_console=custom_console,
         )
 
     # Visual separator: Transaction flow → Settlement mechanisms
-    log_section_separator()
+    log_section_separator(custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 3.5: QUEUED TRANSACTIONS (RTGS)
     # ═══════════════════════════════════════════════════════════
-    log_queued_rtgs(display_events)
+    log_queued_rtgs(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 4: LSM CYCLE VISUALIZATION
     # ═══════════════════════════════════════════════════════════
-    log_lsm_cycle_visualization(display_events)
+    log_lsm_cycle_visualization(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5: COLLATERAL ACTIVITY
     # ═══════════════════════════════════════════════════════════
-    log_collateral_activity(provider, display_events)
+    log_collateral_activity(provider, display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.25: SCENARIO EVENTS
     # ═══════════════════════════════════════════════════════════
-    log_scenario_events(display_events)
+    log_scenario_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.5: OVERDUE TRANSACTION EVENTS
@@ -178,28 +192,28 @@ def display_tick_verbose_output(
     # Log when transactions become overdue
     for event in display_events:
         if event.get("event_type") == "TransactionWentOverdue":
-            log_transaction_went_overdue_event(event)
+            log_transaction_went_overdue_event(event, custom_console=custom_console)
 
     # Log when overdue transactions are settled
     for event in display_events:
         if event.get("event_type") == "OverdueTransactionSettled":
-            log_overdue_transaction_settled_event(event)
+            log_overdue_transaction_settled_event(event, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.6: OVERDUE TRANSACTIONS SUMMARY
     # ═══════════════════════════════════════════════════════════
-    log_overdue_transactions_summary(provider)
+    log_overdue_transactions_summary(provider, custom_console=custom_console)
 
     # Visual separator: Settlement mechanisms → Financial overview
-    log_section_separator()
+    log_section_separator(custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.7: AGENT FINANCIAL STATS (comprehensive table)
     # ═══════════════════════════════════════════════════════════
-    log_agent_financial_stats_table(provider, agent_ids)
+    log_agent_financial_stats_table(provider, agent_ids, custom_console=custom_console)
 
     # Visual separator: Financial overview → Agent queue details
-    log_section_separator()
+    log_section_separator(custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 6: AGENT STATES (detailed queues)
@@ -219,26 +233,26 @@ def display_tick_verbose_output(
         )
 
         if balance_change != 0 or queue1_size > 0 or agent_in_rtgs:
-            log_agent_state(provider, agent_id, balance_change)
+            log_agent_state(provider, agent_id, balance_change, custom_console=custom_console)
 
         updated_balances[agent_id] = current_balance
 
     # Visual separator: Agent states → Cost tracking
-    log_section_separator()
+    log_section_separator(custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 6.5: COST ACCRUAL EVENTS
     # ═══════════════════════════════════════════════════════════
-    log_cost_accrual_events(display_events)
+    log_cost_accrual_events(display_events, custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 7: COST BREAKDOWN
     # ═══════════════════════════════════════════════════════════
     if total_cost > 0:
-        log_cost_breakdown(provider, agent_ids)
+        log_cost_breakdown(provider, agent_ids, custom_console=custom_console)
 
     # Visual separator: Cost details → Tick summary
-    log_section_separator()
+    log_section_separator(custom_console=custom_console)
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 8: TICK SUMMARY
@@ -249,11 +263,12 @@ def display_tick_verbose_output(
         num_settlements,
         num_lsm_releases,
         total_queued,
+        custom_console=custom_console,
     )
 
     # ═══════════════════════════════════════════════════════════
     # SECTION 9: END OF DAY EVENT (if present)
     # ═══════════════════════════════════════════════════════════
-    log_end_of_day_event(display_events, quiet=quiet)
+    log_end_of_day_event(display_events, quiet=quiet, custom_console=custom_console)
 
     return updated_balances
