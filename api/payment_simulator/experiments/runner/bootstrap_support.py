@@ -49,6 +49,8 @@ class SimulationResult:
         cost_breakdown: Breakdown of costs by type (delay, overdraft, etc.).
         settlement_rate: Fraction of transactions settled (0.0 to 1.0).
         avg_delay: Average settlement delay in ticks.
+        verbose_output: Formatted verbose output string for LLM context.
+            Uses the same pretty formatting as CLI run/replay modes.
 
     Example:
         >>> from payment_simulator.experiments.runner.bootstrap_support import (
@@ -86,6 +88,7 @@ class SimulationResult:
     cost_breakdown: CostBreakdown
     settlement_rate: float
     avg_delay: float
+    verbose_output: str | None = None
 
 
 @dataclass(frozen=True)

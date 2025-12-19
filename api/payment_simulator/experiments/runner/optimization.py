@@ -56,6 +56,8 @@ from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
     filter_events_for_agent,
     format_filtered_output,
 )
+from payment_simulator.cli.execution.state_provider import OrchestratorStateProvider
+from payment_simulator.cli.output import format_tick_range_as_text
 from payment_simulator.config import SimulationConfig
 from payment_simulator.config.policy_config_builder import StandardPolicyConfigBuilder
 from payment_simulator.config.scenario_config_builder import StandardScenarioConfigBuilder
@@ -591,6 +593,32 @@ class OptimizationLoop:
             settlement_rate = 1.0
             avg_delay = 0.0
 
+        # 5.5. Capture verbose output using the same formatting as CLI run/replay
+        # This happens BEFORE the orchestrator is discarded, so we can use its state
+        verbose_output: str | None = None
+        try:
+            # Group events by tick for tick-by-tick formatting
+            events_by_tick: dict[int, list[dict[str, Any]]] = {}
+            for event in all_events:
+                tick = event.get("tick", 0)
+                if tick not in events_by_tick:
+                    events_by_tick[tick] = []
+                events_by_tick[tick].append(event)
+
+            # Create StateProvider from orchestrator (while it's still alive)
+            provider = OrchestratorStateProvider(orch)
+
+            # Format using the SINGLE SOURCE OF TRUTH for verbose output
+            verbose_output = format_tick_range_as_text(
+                provider=provider,
+                tick_events_by_tick=events_by_tick,
+                agent_ids=list(self.optimized_agents),
+            )
+        except Exception:
+            # If pretty formatting fails, fall back to None
+            # The old _format_events_for_llm is kept as fallback in InitialSimulationResult
+            verbose_output = None
+
         # 6. Persist if appropriate
         # INV-11: Use SimulationPersistenceProvider for unified persistence
         # Primary simulations persist by default; bootstrap samples only with flag
@@ -687,6 +715,7 @@ class OptimizationLoop:
             ),
             settlement_rate=settlement_rate,
             avg_delay=avg_delay,
+            verbose_output=verbose_output,
         )
 
     async def run(self) -> OptimizationResult:
@@ -1254,9 +1283,12 @@ class OptimizationLoop:
             for agent_id in self.optimized_agents
         }
 
-        # Build verbose output for LLM context (Stream 1)
-        # Format events into human-readable output for LLM consumption
-        verbose_output = self._format_events_for_llm(list(result.events))
+        # Use verbose output from SimulationResult (pretty-formatted by format_tick_range_as_text)
+        # Fall back to old formatting if pretty formatting is not available
+        verbose_output = result.verbose_output
+        if verbose_output is None:
+            # Fallback: use legacy formatting
+            verbose_output = self._format_events_for_llm(list(result.events))
 
         return InitialSimulationResult(
             events=result.events,
