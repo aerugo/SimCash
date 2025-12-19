@@ -519,6 +519,69 @@ class ExperimentConfig:
         """
         return replace(self, master_seed=seed)
 
+    @classmethod
+    def from_stored_dict(cls, data: dict[str, Any]) -> ExperimentConfig:
+        """Reconstruct ExperimentConfig from stored config dict.
+
+        This is used for experiment continuation - reconstructing the config
+        from the JSON stored in the database.
+
+        Args:
+            data: Dictionary stored in database (from _save_experiment_start).
+
+        Returns:
+            ExperimentConfig instance.
+
+        Raises:
+            KeyError: If required fields are missing.
+        """
+        # Parse evaluation config
+        eval_data = data.get("evaluation", {})
+        evaluation = EvaluationConfig(
+            mode=eval_data.get("mode", "bootstrap"),
+            num_samples=eval_data.get("num_samples", 10),
+            ticks=eval_data.get("ticks", 100),
+        )
+
+        # Parse convergence config
+        conv_data = data.get("convergence", {})
+        convergence = ConvergenceConfig(
+            max_iterations=conv_data.get("max_iterations", 50),
+            stability_threshold=conv_data.get("stability_threshold", 0.05),
+            stability_window=conv_data.get("stability_window", 5),
+            improvement_threshold=conv_data.get("improvement_threshold", 0.01),
+        )
+
+        # Parse LLM config
+        llm_data = data.get("llm", {})
+        llm = LLMConfig(
+            model=llm_data.get("model", "anthropic:claude-sonnet-4-5"),
+            temperature=llm_data.get("temperature", 0.0),
+            max_retries=llm_data.get("max_retries", 3),
+            timeout_seconds=llm_data.get("timeout_seconds", 120),
+            thinking_budget=llm_data.get("thinking_budget"),
+            reasoning_effort=llm_data.get("reasoning_effort"),
+            system_prompt=llm_data.get("system_prompt"),
+        )
+
+        # Parse output config (none for continuation - handled by repository)
+        output: OutputConfig | None = None
+
+        return cls(
+            name=data.get("name", "unknown"),
+            description=data.get("description", ""),
+            scenario_path=Path(data.get("scenario_path", "")),
+            evaluation=evaluation,
+            convergence=convergence,
+            llm=llm,
+            optimized_agents=tuple(data.get("optimized_agents", [])),
+            constraints_module=data.get("constraints_module", ""),
+            output=output,
+            master_seed=data.get("master_seed", 42),
+            policy_constraints=None,  # Not stored, will reload from module if needed
+            prompt_customization=None,  # Not stored
+        )
+
     def with_llm_overrides(
         self,
         model: str | None = None,

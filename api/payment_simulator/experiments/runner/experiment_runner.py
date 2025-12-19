@@ -116,6 +116,11 @@ class GenericExperimentRunner:
 
         # Initialize repository if output configured
         self._repository: ExperimentRepository | None = None
+
+        # Continuation mode attributes (set by continue_from_database)
+        self._is_continuation: bool = False
+        self._continuation_iterations: list[Any] = []
+
         if config.output and config.output.database:
             self._init_repository()
 
@@ -141,7 +146,7 @@ class GenericExperimentRunner:
 
         from payment_simulator.experiments.persistence import ExperimentRecord
 
-        # Convert config to dict for storage
+        # Convert config to dict for storage (complete for continuation support)
         config_dict = {
             "name": self._config.name,
             "description": self._config.description,
@@ -156,8 +161,20 @@ class GenericExperimentRunner:
                 "max_iterations": self._config.convergence.max_iterations,
                 "stability_threshold": self._config.convergence.stability_threshold,
                 "stability_window": self._config.convergence.stability_window,
+                "improvement_threshold": self._config.convergence.improvement_threshold,
             },
             "optimized_agents": list(self._config.optimized_agents),
+            "constraints_module": self._config.constraints_module,
+            # LLM config for continuation
+            "llm": {
+                "model": self._config.llm.model,
+                "temperature": self._config.llm.temperature,
+                "max_retries": self._config.llm.max_retries,
+                "timeout_seconds": self._config.llm.timeout_seconds,
+                "thinking_budget": self._config.llm.thinking_budget,
+                "reasoning_effort": self._config.llm.reasoning_effort,
+                "system_prompt": self._config.llm.system_prompt,
+            },
         }
 
         record = ExperimentRecord(
@@ -249,6 +266,83 @@ class GenericExperimentRunner:
             return provider
         return None
 
+    def get_current_state(self) -> ExperimentState:
+        """Get current experiment state.
+
+        Returns:
+            ExperimentState snapshot of current progress.
+        """
+        return ExperimentState(
+            experiment_name=self._config.name,
+            current_iteration=self._current_iteration,
+            is_converged=False,
+            convergence_reason=None,
+        )
+
+    @classmethod
+    def continue_from_database(
+        cls,
+        run_id: str,
+        repository: ExperimentRepository,
+        verbose_config: VerboseConfig | None = None,
+        config_dir: Path | None = None,
+    ) -> GenericExperimentRunner:
+        """Create a runner to continue an interrupted experiment.
+
+        Loads the experiment state from the database and creates a runner
+        configured to resume from the last completed iteration.
+
+        Args:
+            run_id: Run ID of the experiment to continue.
+            repository: ExperimentRepository instance (keeps connection open).
+            verbose_config: Optional verbose logging configuration.
+            config_dir: Directory for resolving relative paths. If None, uses cwd.
+
+        Returns:
+            GenericExperimentRunner configured to continue the experiment.
+
+        Raises:
+            ValueError: If experiment not found, already completed, or has no iterations.
+        """
+        from payment_simulator.experiments.config import ExperimentConfig
+
+        # Load continuation state
+        continuation_state = repository.get_continuation_state(run_id)
+        if continuation_state is None:
+            # Check if it exists but is completed
+            experiment = repository.load_experiment(run_id)
+            if experiment is None:
+                msg = f"Experiment not found: {run_id}"
+                raise ValueError(msg)
+            msg = f"Experiment already completed: {run_id}"
+            raise ValueError(msg)
+
+        experiment_record, iterations = continuation_state
+
+        if not iterations:
+            msg = f"No iterations found for experiment: {run_id}. Cannot continue."
+            raise ValueError(msg)
+
+        # Reconstruct ExperimentConfig from stored config dict
+        config = ExperimentConfig.from_stored_dict(experiment_record.config)
+
+        # Create runner with SAME run_id (not generating new)
+        runner = cls(
+            config=config,
+            verbose_config=verbose_config,
+            run_id=run_id,  # Use existing run_id
+            config_dir=config_dir,
+        )
+
+        # Store reference to repository (for saving completion)
+        runner._repository = repository
+
+        # Mark as continuation mode
+        runner._is_continuation = True
+        runner._continuation_iterations = iterations
+
+        return runner
+
     async def run(self) -> ExperimentResult:
         """Run experiment to completion.
 
@@ -270,8 +364,9 @@ class GenericExperimentRunner:
 
         start_time = time.time()
 
-        # Save experiment record at start
-        self._save_experiment_start()
+        # Only save experiment record at start if NOT a continuation
+        if not self._is_continuation:
+            self._save_experiment_start()
 
         # Create optimization loop with config directory for relative path resolution,
         # verbose config for logging, run_id for consistency, and repository for persistence
@@ -283,6 +378,11 @@ class GenericExperimentRunner:
             repository=self._repository,
             persist_bootstrap=self._persist_bootstrap,
         )
+
+        # If this is a continuation, restore state from iterations
+        if self._is_continuation and self._continuation_iterations:
+            last_iteration = max(r.iteration for r in self._continuation_iterations)
+            self._loop.restore_state(self._continuation_iterations, last_iteration)
 
         # Run optimization
         opt_result = await self._loop.run()
@@ -304,17 +404,4 @@ class GenericExperimentRunner:
             convergence_reason=opt_result.convergence_reason,
             final_costs=opt_result.per_agent_costs,
             total_duration_seconds=duration,
-        )
-
-    def get_current_state(self) -> ExperimentState:
-        """Get current experiment state.
-
-        Returns:
-            ExperimentState snapshot of current progress.
-        """
-        return ExperimentState(
-            experiment_name=self._config.name,
-            current_iteration=self._current_iteration,
-            is_converged=False,
-            convergence_reason=None,
         )

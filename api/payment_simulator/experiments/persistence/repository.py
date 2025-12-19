@@ -965,3 +965,83 @@ class ExperimentRepository:
         )
 
         return DatabaseStateProvider(self, run_id)
+
+    # =========================================================================
+    # Continuation Support
+    # =========================================================================
+
+    def is_incomplete(self, run_id: str) -> bool:
+        """Check if an experiment is incomplete (can be continued).
+
+        An experiment is incomplete if it exists but has no completed_at timestamp.
+
+        Args:
+            run_id: Run identifier to check.
+
+        Returns:
+            True if experiment exists and is incomplete, False otherwise.
+        """
+        result = self._conn.execute(
+            """
+            SELECT completed_at FROM experiments WHERE run_id = ?
+            """,
+            [run_id],
+        ).fetchone()
+
+        if result is None:
+            return False  # Experiment doesn't exist
+
+        return result[0] is None  # Incomplete if completed_at is NULL
+
+    def get_last_iteration(self, run_id: str) -> IterationRecord | None:
+        """Get the last (highest numbered) iteration for an experiment.
+
+        Used for continuation to find the point to resume from.
+
+        Args:
+            run_id: Run identifier.
+
+        Returns:
+            IterationRecord for the highest iteration number, or None if no iterations.
+        """
+        result = self._conn.execute(
+            """
+            SELECT run_id, iteration, costs_per_agent, accepted_changes,
+                   policies, timestamp
+            FROM experiment_iterations
+            WHERE run_id = ?
+            ORDER BY iteration DESC
+            LIMIT 1
+            """,
+            [run_id],
+        ).fetchone()
+
+        if result is None:
+            return None
+
+        return self._row_to_iteration_record(result)
+
+    def get_continuation_state(
+        self, run_id: str
+    ) -> tuple[ExperimentRecord, list[IterationRecord]] | None:
+        """Load all state needed to continue an experiment.
+
+        Returns the experiment record and all iteration records for continuation.
+        This is a convenience method that combines load_experiment and get_iterations.
+
+        Args:
+            run_id: Run identifier.
+
+        Returns:
+            Tuple of (ExperimentRecord, list[IterationRecord]) or None if not found
+            or already completed.
+        """
+        experiment = self.load_experiment(run_id)
+        if experiment is None:
+            return None
+
+        if experiment.completed_at is not None:
+            return None  # Already completed, cannot continue
+
+        iterations = self.get_iterations(run_id)
+        return (experiment, iterations)

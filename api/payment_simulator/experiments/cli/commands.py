@@ -724,6 +724,165 @@ def run(
         raise typer.Exit(1) from e
 
 
+@experiment_app.command("continue")
+def continue_experiment(
+    run_id: Annotated[
+        str,
+        typer.Argument(help="Run ID of interrupted experiment to continue"),
+    ],
+    db: Annotated[
+        Path,
+        typer.Option("--db", "-d", help="Path to database file"),
+    ] = DEFAULT_DB_PATH,
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Enable all verbose output"),
+    ] = False,
+    verbose_iterations: Annotated[
+        bool,
+        typer.Option("--verbose-iterations", help="Show iteration starts"),
+    ] = False,
+    verbose_bootstrap: Annotated[
+        bool,
+        typer.Option("--verbose-bootstrap", help="Show bootstrap evaluations"),
+    ] = False,
+    verbose_llm: Annotated[
+        bool,
+        typer.Option("--verbose-llm", help="Show LLM call details"),
+    ] = False,
+    verbose_policy: Annotated[
+        bool,
+        typer.Option("--verbose-policy", help="Show policy changes"),
+    ] = False,
+) -> None:
+    """Continue an interrupted experiment from its last completed iteration.
+
+    Loads the experiment state from the database and resumes execution
+    from iteration N+1, where N is the last completed iteration. Uses
+    the same seeds, configuration, and policies from the original run.
+
+    Note: Bootstrap mode continuation is not currently supported.
+
+    Examples:
+        # Continue an interrupted experiment
+        payment-sim experiment continue exp1-20251209-143022-a1b2c3
+
+        # Continue with verbose output
+        payment-sim experiment continue exp1-20251209-143022-a1b2c3 --verbose
+
+        # Continue from specific database
+        payment-sim experiment continue exp1-20251209-143022-a1b2c3 --db results/custom.db
+    """
+    # Check database exists
+    if not db.exists():
+        console.print(f"[red]Database not found: {db}[/red]")
+        raise typer.Exit(1)
+
+    # Open repository
+    try:
+        repo = ExperimentRepository(db)
+    except Exception as e:
+        console.print(f"[red]Failed to open database: {e}[/red]")
+        raise typer.Exit(1) from e
+
+    # Check if experiment can be continued
+    experiment = repo.load_experiment(run_id)
+    if experiment is None:
+        console.print(f"[red]Experiment not found: {run_id}[/red]")
+        repo.close()
+        raise typer.Exit(1)
+
+    if experiment.completed_at is not None:
+        console.print(f"[yellow]Experiment already completed: {run_id}[/yellow]")
+        console.print(f"  Completed at: {experiment.completed_at}")
+        console.print(f"  Iterations: {experiment.num_iterations}")
+        console.print(f"  Converged: {experiment.converged}")
+        if experiment.convergence_reason:
+            console.print(f"  Reason: {experiment.convergence_reason}")
+        repo.close()
+        raise typer.Exit(1)
+
+    # Get last iteration
+    last_iter = repo.get_last_iteration(run_id)
+    if last_iter is None:
+        console.print(
+            f"[red]No iterations found for experiment: {run_id}. Cannot continue.[/red]"
+        )
+        repo.close()
+        raise typer.Exit(1)
+
+    # Check for bootstrap mode (not supported for continuation)
+    eval_mode = experiment.config.get("evaluation", {}).get("mode", "deterministic")
+    if eval_mode == "bootstrap":
+        console.print(
+            "[red]Error: Bootstrap mode continuation is not currently supported.[/red]"
+        )
+        console.print(
+            "  Bootstrap mode requires the initial simulation's transaction history,"
+        )
+        console.print("  which is not persisted. Please start a new experiment.")
+        repo.close()
+        raise typer.Exit(1)
+
+    # Build verbose config
+    verbose_config = build_verbose_config(
+        verbose=verbose,
+        verbose_iterations=verbose_iterations if verbose_iterations else None,
+        verbose_bootstrap=verbose_bootstrap if verbose_bootstrap else None,
+        verbose_llm=verbose_llm if verbose_llm else None,
+        verbose_policy=verbose_policy if verbose_policy else None,
+    )
+
+    # Import runner
+    from payment_simulator.experiments.runner import GenericExperimentRunner
+
+    try:
+        console.print(f"[cyan]Continuing experiment: {run_id}[/cyan]")
+        console.print(f"  Resuming from iteration: {last_iter.iteration}")
+        conv_config = experiment.config.get("convergence", {})
+        max_iters = conv_config.get("max_iterations", 50)
+        console.print(f"  Max iterations: {max_iters}")
+        console.print()
+
+        # Create runner in continuation mode
+        runner = GenericExperimentRunner.continue_from_database(
+            run_id=run_id,
+            repository=repo,
+            verbose_config=verbose_config,
+            config_dir=Path.cwd(),
+        )
+
+        # Run continuation
+        import asyncio
+
+        result = asyncio.run(runner.run())
+
+        # Display results
+        console.print()
+        console.print("[green]Experiment completed![/green]")
+        console.print(f"  Total iterations: {result.num_iterations}")
+        console.print(f"  Converged: {result.converged}")
+        if result.convergence_reason:
+            console.print(f"  Reason: {result.convergence_reason}")
+
+        # Show costs (in dollars from cents)
+        if result.final_costs:
+            console.print("  Final costs:")
+            for agent_id, cost in result.final_costs.items():
+                console.print(f"    {agent_id}: ${cost / 100:.2f}")
+
+    except ValueError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        repo.close()
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error continuing experiment: {e}[/red]")
+        repo.close()
+        raise typer.Exit(1) from e
+
+    repo.close()
+
+
 @experiment_app.command("policy-evolution")
 def policy_evolution(
     run_id: Annotated[

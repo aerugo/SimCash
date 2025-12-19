@@ -477,6 +477,87 @@ class OptimizationLoop:
         """
         return self._simulation_ids.copy()
 
+    # =========================================================================
+    # Continuation Support
+    # =========================================================================
+
+    def restore_state(
+        self,
+        iterations: list[Any],
+        last_iteration: int,
+    ) -> None:
+        """Restore optimization state from iteration records.
+
+        Used for continuing an interrupted experiment. Restores policies,
+        iteration history, and current position to resume from the next iteration.
+
+        Note: This does NOT restore bootstrap mode state (initial simulation,
+        bootstrap samples). Bootstrap mode continuation is not currently supported.
+
+        Args:
+            iterations: List of IterationRecord objects from the database.
+            last_iteration: The iteration number to resume from (will start at N+1).
+
+        Raises:
+            ValueError: If no iterations provided or last_iteration is invalid.
+        """
+        if not iterations:
+            msg = "Cannot restore state: no iteration records provided"
+            raise ValueError(msg)
+
+        if last_iteration < 1:
+            msg = f"Invalid last_iteration: {last_iteration}. Must be >= 1."
+            raise ValueError(msg)
+
+        # Build iteration history from all iterations
+        self._iteration_history = []
+        iteration_costs_map: dict[int, dict[str, int]] = {}
+
+        for record in iterations:
+            iteration_costs_map[record.iteration] = record.costs_per_agent
+
+        # Populate iteration history in order
+        for i in sorted(iteration_costs_map.keys()):
+            costs = iteration_costs_map[i]
+            total_cost = sum(costs.values())
+            self._iteration_history.append(total_cost)
+
+        # Find the record with the highest iteration number
+        last_record = max(iterations, key=lambda r: r.iteration)
+
+        # Restore policies from last iteration
+        self._policies = dict(last_record.policies)
+
+        # Set current iteration (will be incremented to N+1 in run loop)
+        # The run loop does self._current_iteration += 1 at the start
+        self._current_iteration = last_record.iteration
+
+        # Calculate best cost and track best policies
+        if self._iteration_history:
+            self._best_cost = min(self._iteration_history)
+            # Find iteration with best cost to get corresponding policies
+            for record in iterations:
+                total = sum(record.costs_per_agent.values())
+                if total == self._best_cost:
+                    self._best_policies = dict(record.policies)
+                    break
+
+        # Feed iteration history to convergence detector
+        for cost in self._iteration_history:
+            self._convergence.record_metric(float(cost))
+
+        # Record continuation event in state provider
+        self._state_provider.record_event(
+            iteration=last_iteration,
+            event_type="experiment_continued",
+            event_data={
+                "continued_from_iteration": last_iteration,
+                "restored_policies": list(self._policies.keys()),
+                "iteration_history_length": len(self._iteration_history),
+                "best_cost": self._best_cost,
+            },
+        )
+
     def _generate_simulation_id(self, purpose: str) -> str:
         """Generate a unique simulation ID.
 
