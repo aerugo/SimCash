@@ -28,6 +28,7 @@ def display_tick_verbose_output(
     event_filter: Any = None,
     quiet: bool = False,
     custom_console: "Console | None" = None,
+    filter_agent: str | None = None,
 ) -> dict[str, int]:
     """Display all verbose output sections for a tick.
 
@@ -49,6 +50,9 @@ def display_tick_verbose_output(
         custom_console: Optional custom console to use for output. If None,
                         uses the default stderr console. This enables capturing
                         output as a string for LLM context.
+        filter_agent: Optional agent ID for agent isolation. When set, hides
+                      sensitive information (like balances) of other agents.
+                      CRITICAL for LLM context to prevent information leakage.
 
     Returns:
         Updated prev_balances dict for next tick
@@ -151,15 +155,20 @@ def display_tick_verbose_output(
         e.get("event_type") in ["LsmBilateralOffset", "LsmCycleSettlement"]
         for e in display_events
     ):
-        # Extract filter_agent for incoming liquidity notifications
-        filter_agent = getattr(event_filter, "agent_id", None) if event_filter else None
+        # Determine filter_agent for agent isolation:
+        # 1. Use explicit filter_agent parameter if provided (for LLM context)
+        # 2. Fall back to event_filter.agent_id if available (legacy support)
+        # CRITICAL: This controls which agent's data is visible (agent isolation)
+        effective_filter_agent = filter_agent
+        if effective_filter_agent is None and event_filter is not None:
+            effective_filter_agent = getattr(event_filter, "agent_id", None)
         # PHASE 5 FIX: Pass num_settlements to ensure header matches summary
         log_settlement_details(
             provider,
             display_events,
             tick_num,
             num_settlements,
-            filter_agent=filter_agent,
+            filter_agent=effective_filter_agent,
             custom_console=custom_console,
         )
 
@@ -210,7 +219,10 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     # SECTION 5.7: AGENT FINANCIAL STATS (comprehensive table)
     # ═══════════════════════════════════════════════════════════
-    log_agent_financial_stats_table(provider, agent_ids, custom_console=custom_console)
+    # CRITICAL: When filter_agent is set (LLM context), only show target agent's stats
+    # This prevents leaking other agents' balances
+    display_agent_ids = [filter_agent] if filter_agent else agent_ids
+    log_agent_financial_stats_table(provider, display_agent_ids, custom_console=custom_console)
 
     # Visual separator: Financial overview → Agent queue details
     log_section_separator(custom_console=custom_console)
@@ -219,7 +231,7 @@ def display_tick_verbose_output(
     # SECTION 6: AGENT STATES (detailed queues)
     # ═══════════════════════════════════════════════════════════
     updated_balances = {}
-    for agent_id in agent_ids:
+    for agent_id in display_agent_ids:
         current_balance = provider.get_agent_balance(agent_id)
         balance_change = current_balance - prev_balances.get(agent_id, current_balance)
 
@@ -249,7 +261,7 @@ def display_tick_verbose_output(
     # SECTION 7: COST BREAKDOWN
     # ═══════════════════════════════════════════════════════════
     if total_cost > 0:
-        log_cost_breakdown(provider, agent_ids, custom_console=custom_console)
+        log_cost_breakdown(provider, display_agent_ids, custom_console=custom_console)
 
     # Visual separator: Cost details → Tick summary
     log_section_separator(custom_console=custom_console)
@@ -257,7 +269,7 @@ def display_tick_verbose_output(
     # ═══════════════════════════════════════════════════════════
     # SECTION 8: TICK SUMMARY
     # ═══════════════════════════════════════════════════════════
-    total_queued = sum(provider.get_queue1_size(aid) for aid in agent_ids)
+    total_queued = sum(provider.get_queue1_size(aid) for aid in display_agent_ids)
     log_tick_summary(
         num_arrivals,
         num_settlements,
