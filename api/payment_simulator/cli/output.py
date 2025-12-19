@@ -766,8 +766,11 @@ def log_settlement_details(
             c.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
 
             # Show balance audit trail if available
+            # CRITICAL: Only show sender's balance when no filter or sender is the target agent
+            # This prevents leaking other agents' balances in LLM context (agent isolation invariant)
             if balance_before is not None and balance_after is not None:
-                c.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
+                if filter_agent is None or filter_agent == sender:
+                    c.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
 
             # Show incoming liquidity notification if filter_agent matches receiver
             if filter_agent is not None:
@@ -2613,6 +2616,7 @@ def format_events_as_text(
     tick: int,
     agent_ids: list[str],
     prev_balances: dict[str, int] | None = None,
+    filter_agent: str | None = None,
 ) -> str:
     """Format events as plain text using same logic as verbose terminal output.
 
@@ -2629,6 +2633,9 @@ def format_events_as_text(
         agent_ids: List of all agent IDs
         prev_balances: Previous tick's balances (for calculating changes).
                        If None, defaults to empty dict.
+        filter_agent: Optional agent ID for agent isolation. When set, hides
+                      sensitive information (like balances) of other agents.
+                      CRITICAL for LLM context to prevent information leakage.
 
     Returns:
         Formatted string representation of tick events, suitable for LLM consumption.
@@ -2689,6 +2696,7 @@ def format_events_as_text(
         num_settlements=num_settlements,
         num_lsm_releases=num_lsm_releases,
         custom_console=text_console,
+        filter_agent=filter_agent,
     )
 
     return buffer.getvalue()
@@ -2698,6 +2706,7 @@ def format_tick_range_as_text(
     provider: StateProvider,
     tick_events_by_tick: dict[int, list[dict[str, Any]]],
     agent_ids: list[str],
+    filter_agent: str | None = None,
 ) -> str:
     """Format events from multiple ticks as plain text for LLM consumption.
 
@@ -2708,6 +2717,9 @@ def format_tick_range_as_text(
         provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         tick_events_by_tick: Dict mapping tick number -> list of events
         agent_ids: List of all agent IDs
+        filter_agent: Optional agent ID for agent isolation. When set, hides
+                      sensitive information (like balances) of other agents.
+                      CRITICAL for LLM context to prevent information leakage.
 
     Returns:
         Formatted string representation of all ticks, suitable for LLM consumption.
@@ -2731,6 +2743,7 @@ def format_tick_range_as_text(
             tick=tick,
             agent_ids=agent_ids,
             prev_balances=prev_balances,
+            filter_agent=filter_agent,
         )
         parts.append(tick_text)
 
