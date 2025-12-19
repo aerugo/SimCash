@@ -22,12 +22,17 @@ The `run_missing_experiments.py` script automatically runs any experiments that 
 ```bash
 cd docs/papers/simcash-paper/paper_generator
 
-# Run all missing experiments
-python run_missing_experiments.py config.yaml
+# Run all missing experiments (using uv environment)
+uv run python run_missing_experiments.py config.yaml
 
 # Preview what would run (dry run)
-python run_missing_experiments.py config.yaml --dry-run
+uv run python run_missing_experiments.py config.yaml --dry-run
+
+# Or if you have the venv activated:
+python run_missing_experiments.py config.yaml
 ```
+
+> **Note**: The script requires the `payment-simulator` package from `api/`. Make sure you've run `uv sync --extra dev` first to install all dependencies.
 
 **Key features:**
 - **Parallel execution**: Different experiments (exp1, exp2, exp3) run in parallel
@@ -39,7 +44,7 @@ python run_missing_experiments.py config.yaml --dry-run
 ```bash
 # 1. Set empty run_ids in config.yaml for experiments you want to (re-)run
 # 2. Run missing experiments
-python run_missing_experiments.py config.yaml
+uv run python run_missing_experiments.py config.yaml
 
 # 3. Generate the paper
 ./generate_paper.sh
