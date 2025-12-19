@@ -27,6 +27,18 @@ if TYPE_CHECKING:
 console = Console(stderr=True)
 
 
+def _get_console(custom_console: Console | None = None) -> Console:
+    """Get the console to use for output.
+
+    Args:
+        custom_console: Optional custom console to use. If None, uses module default.
+
+    Returns:
+        Console to use for output.
+    """
+    return custom_console if custom_console is not None else console
+
+
 def output_json(data: Any, indent: int | None = 2) -> None:
     """Output JSON to stdout (machine-readable).
 
@@ -110,22 +122,28 @@ def create_progress(description: str = "Processing...") -> Progress:
 # Verbose Mode Logging
 # ============================================================================
 
-def log_tick_start(tick: int) -> None:
+def log_tick_start(tick: int, custom_console: Console | None = None) -> None:
     """Log start of tick (verbose mode).
 
     Args:
         tick: Tick number
+        custom_console: Optional custom console to use for output.
     """
-    console.print(f"\n[bold cyan]═══ Tick {tick} ═══[/bold cyan]")
+    c = _get_console(custom_console)
+    c.print(f"\n[bold cyan]═══ Tick {tick} ═══[/bold cyan]")
 
 
-def log_section_separator() -> None:
+def log_section_separator(custom_console: Console | None = None) -> None:
     """Log a visual separator between major sections within a tick.
 
     Uses a lighter style than tick headers to create visual hierarchy
     without being too noisy.
+
+    Args:
+        custom_console: Optional custom console to use for output.
     """
-    console.print("\n[dim]" + "─" * 70 + "[/dim]\n")
+    c = _get_console(custom_console)
+    c.print("\n[dim]" + "─" * 70 + "[/dim]\n")
 
 
 def log_arrivals(count: int, details: str = "") -> None:
@@ -171,7 +189,7 @@ def log_lsm_activity(bilateral: int = 0, cycles: int = 0) -> None:
 
 
 def log_agent_state(
-    provider: StateProvider, agent_id: str, balance_change: int = 0, quiet: bool = False
+    provider: StateProvider, agent_id: str, balance_change: int = 0, quiet: bool = False, custom_console: Console | None = None
 ) -> None:
     """Log agent state with detailed queue contents (UNIFIED for live & replay).
 
@@ -191,9 +209,12 @@ def log_agent_state(
         agent_id: Agent identifier
         balance_change: Balance change since last tick (cents)
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     # Get agent state from provider
     balance = provider.get_agent_balance(agent_id)
@@ -233,7 +254,7 @@ def log_agent_state(
 
         credit_str = f" | Credit: {util_str}"
 
-    console.print(f"  {agent_id}: {balance_str}{change_str}{credit_str}")
+    c.print(f"  {agent_id}: {balance_str}{change_str}{credit_str}")
 
     # Queue 1 (internal)
     if queue1_contents:
@@ -243,17 +264,17 @@ def log_agent_state(
             if tx:
                 total_value += tx.get("remaining_amount", 0)
 
-        console.print(f"     Queue 1 ({len(queue1_contents)} transactions, ${total_value / 100:,.2f} total):")
+        c.print(f"     Queue 1 ({len(queue1_contents)} transactions, ${total_value / 100:,.2f} total):")
         for tx_id in queue1_contents:
             tx = provider.get_transaction_details(tx_id)
             if tx:
                 priority_str = f"P:{tx['priority']}"
-                console.print(
+                c.print(
                     f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
                     f"${tx['remaining_amount'] / 100:,.2f} | {priority_str} | "
                     f"⏰ Tick {tx['deadline_tick']}"
                 )
-        console.print()
+        c.print()
 
     # Queue 2 (RTGS) - filter for this agent's transactions
     agent_rtgs_txs = []
@@ -269,24 +290,24 @@ def log_agent_state(
             if tx:
                 total_value += tx.get("remaining_amount", 0)
 
-        console.print(f"     Queue 2 - RTGS ({len(agent_rtgs_txs)} transactions, ${total_value / 100:,.2f}):")
+        c.print(f"     Queue 2 - RTGS ({len(agent_rtgs_txs)} transactions, ${total_value / 100:,.2f}):")
         for tx_id in agent_rtgs_txs:
             tx = provider.get_transaction_details(tx_id)
             if tx:
-                console.print(
+                c.print(
                     f"     • TX {tx_id[:8]} → {tx['receiver_id']}: "
                     f"${tx['remaining_amount'] / 100:,.2f} | P:{tx['priority']} | "
                     f"⏰ Tick {tx['deadline_tick']}"
                 )
-        console.print()
+        c.print()
 
     # Collateral
     if collateral and collateral > 0:
-        console.print(f"     Collateral Posted: ${collateral / 100:,.2f}")
-        console.print()
+        c.print(f"     Collateral Posted: ${collateral / 100:,.2f}")
+        c.print()
 
 
-def log_agent_financial_stats_table(provider: StateProvider, agent_ids: list[str], quiet: bool = False) -> None:
+def log_agent_financial_stats_table(provider: StateProvider, agent_ids: list[str], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display comprehensive financial stats for all agents.
 
     Shows a unified view of all financial metrics for each agent:
@@ -303,13 +324,15 @@ def log_agent_financial_stats_table(provider: StateProvider, agent_ids: list[str
         provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         agent_ids: List of agent IDs to display
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
 
-    console.print()
-    console.print("[bold cyan]💰 Agent Financial Stats[/bold cyan]")
-    console.print()
+    c = _get_console(custom_console)
+    c.print()
+    c.print("[bold cyan]💰 Agent Financial Stats[/bold cyan]")
+    c.print()
 
     for agent_id in agent_ids:
         balance = provider.get_agent_balance(agent_id)
@@ -357,31 +380,31 @@ def log_agent_financial_stats_table(provider: StateProvider, agent_ids: list[str
             headroom_str = f"[green]{headroom_pct:.1f}%[/green]"
 
         # Display agent stats
-        console.print(f"[bold]{agent_id}[/bold]")
-        console.print(f"  Balance:            {balance_str}")
-        console.print(f"  Credit Limit:       ${unsecured_cap / 100:,.2f}" if unsecured_cap > 0 else "  Credit Limit:       None")
+        c.print(f"[bold]{agent_id}[/bold]")
+        c.print(f"  Balance:            {balance_str}")
+        c.print(f"  Credit Limit:       ${unsecured_cap / 100:,.2f}" if unsecured_cap > 0 else "  Credit Limit:       None")
         if credit_used > 0:
-            console.print(f"  Credit Used:        [yellow]${credit_used / 100:,.2f}[/yellow]")
-        console.print(f"  Available Liquidity: ${available_liquidity / 100:,.2f}")
-        console.print(f"  Headroom:           {headroom_str}")
+            c.print(f"  Credit Used:        [yellow]${credit_used / 100:,.2f}[/yellow]")
+        c.print(f"  Available Liquidity: ${available_liquidity / 100:,.2f}")
+        c.print(f"  Headroom:           {headroom_str}")
         if collateral > 0:
-            console.print(f"  Posted Collateral:  [magenta]${collateral / 100:,.2f}[/magenta]")
+            c.print(f"  Posted Collateral:  [magenta]${collateral / 100:,.2f}[/magenta]")
         if len(queue1_contents) > 0:
-            console.print(f"  Queue 1:            {len(queue1_contents)} txs, ${queue1_value / 100:,.2f} total")
+            c.print(f"  Queue 1:            {len(queue1_contents)} txs, ${queue1_value / 100:,.2f} total")
         if total_cost > 0:
-            console.print(f"  Total Costs:        [red]${total_cost / 100:,.2f}[/red]")
+            c.print(f"  Total Costs:        [red]${total_cost / 100:,.2f}[/red]")
             # Show cost breakdown
             if costs.get("liquidity_cost", 0) > 0:
-                console.print(f"    • Liquidity:      ${costs['liquidity_cost'] / 100:,.2f}")
+                c.print(f"    • Liquidity:      ${costs['liquidity_cost'] / 100:,.2f}")
             if costs.get("collateral_cost", 0) > 0:
-                console.print(f"    • Collateral:     ${costs['collateral_cost'] / 100:,.2f}")
+                c.print(f"    • Collateral:     ${costs['collateral_cost'] / 100:,.2f}")
             if costs.get("delay_cost", 0) > 0:
-                console.print(f"    • Delay:          ${costs['delay_cost'] / 100:,.2f}")
+                c.print(f"    • Delay:          ${costs['delay_cost'] / 100:,.2f}")
             if costs.get("split_friction_cost", 0) > 0:
-                console.print(f"    • Split Friction: ${costs['split_friction_cost'] / 100:,.2f}")
+                c.print(f"    • Split Friction: ${costs['split_friction_cost'] / 100:,.2f}")
             if costs.get("deadline_penalty", 0) > 0:
-                console.print(f"    • Deadline Miss:  ${costs['deadline_penalty'] / 100:,.2f}")
-        console.print()
+                c.print(f"    • Deadline Miss:  ${costs['deadline_penalty'] / 100:,.2f}")
+        c.print()
 
 
 def log_costs(cost: int) -> None:
@@ -394,7 +417,13 @@ def log_costs(cost: int) -> None:
         console.print(f"💰 [yellow]Costs accrued: ${cost / 100:,.2f}[/yellow]")
 
 
-def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int) -> None:
+def log_tick_summary(
+    arrivals: int,
+    settlements: int,
+    lsm: int,
+    queued: int,
+    custom_console: Console | None = None,
+) -> None:
     """Log tick summary line (verbose mode).
 
     Args:
@@ -402,7 +431,9 @@ def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int) -> 
         settlements: Settlements this tick
         lsm: LSM releases this tick
         queued: Total queued transactions
+        custom_console: Optional custom console to use for output.
     """
+    c = _get_console(custom_console)
     parts = [
         f"[cyan]{arrivals} in[/cyan]",
         f"[green]{settlements} settled[/green]",
@@ -412,8 +443,8 @@ def log_tick_summary(arrivals: int, settlements: int, lsm: int, queued: int) -> 
     if queued > 0:
         parts.append(f"[yellow]{queued} queued[/yellow]")
 
-    console.print()
-    console.print(f"  Summary: {' | '.join(parts)}")
+    c.print()
+    c.print(f"  Summary: {' | '.join(parts)}")
 
 
 # ============================================================================
@@ -562,7 +593,12 @@ def log_event_chronological(event: dict[str, Any], tick: int, quiet: bool = Fals
 # Enhanced Verbose Mode - Detailed Transaction/Event Logging
 # ============================================================================
 
-def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_transaction_arrivals(
+    provider: StateProvider,
+    events: list[dict[str, Any]],
+    quiet: bool = False,
+    custom_console: Console | None = None,
+) -> None:
     """Log detailed transaction arrivals (verbose mode).
 
     For each arrival event, shows:
@@ -576,6 +612,7 @@ def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any
         provider: StateProvider instance (for querying transaction details if needed)
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         📥 3 transaction(s) arrived:
@@ -585,12 +622,13 @@ def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any
     if quiet:
         return
 
+    c = _get_console(custom_console)
     arrival_events = [e for e in events if e.get("event_type") == "Arrival"]
     if not arrival_events:
         return
 
-    console.print()
-    console.print(f"📥 [cyan]{len(arrival_events)} transaction(s) arrived:[/cyan]")
+    c.print()
+    c.print(f"📥 [cyan]{len(arrival_events)} transaction(s) arrived:[/cyan]")
 
     for event in arrival_events:
         tx_id = event["tx_id"][:8]  # Truncate for readability
@@ -622,8 +660,8 @@ def log_transaction_arrivals(provider: StateProvider, events: list[dict[str, Any
 
         amount_str = f"${amount / 100:,.2f}"
 
-        console.print(f"   • TX {tx_id}: {sender} → {receiver}")
-        console.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
+        c.print(f"   • TX {tx_id}: {sender} → {receiver}")
+        c.print(f"     {amount_str} | {priority_str} | ⏰ Tick {deadline}")
 
 
 def log_settlement_details(
@@ -633,6 +671,7 @@ def log_settlement_details(
     num_settlements: int | None = None,
     quiet: bool = False,
     filter_agent: str | None = None,
+    custom_console: Console | None = None,
 ) -> None:
     """Log detailed settlements showing how each transaction settled.
 
@@ -652,6 +691,7 @@ def log_settlement_details(
         quiet: Suppress output if True
         filter_agent: If specified, show incoming liquidity notifications when this agent
                       is the receiver of a settlement
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         ✅ 5 transaction(s) settled:
@@ -666,6 +706,8 @@ def log_settlement_details(
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     # Categorize settlements by mechanism (using new specific event types)
     rtgs_immediate = [e for e in events if e.get("event_type") == "RtgsImmediateSettlement"]
@@ -688,13 +730,13 @@ def log_settlement_details(
         return
 
     # Display header with total settlements
-    console.print()
-    console.print(f"✅ [green]{total} transaction(s) settled:[/green]")
-    console.print()
+    c.print()
+    c.print(f"✅ [green]{total} transaction(s) settled:[/green]")
+    c.print()
 
     # RTGS immediate settlements (new specific event type)
     if rtgs_immediate:
-        console.print(f"   [green]RTGS Immediate ({len(rtgs_immediate)}):[/green]")
+        c.print(f"   [green]RTGS Immediate ({len(rtgs_immediate)}):[/green]")
         for event in rtgs_immediate:
             full_tx_id = event.get("tx_id", "unknown")
             tx_id = full_tx_id[:8]
@@ -721,22 +763,22 @@ def log_settlement_details(
                 priority_str = f"P:{priority} LOW"
 
             # Show basic settlement info with priority
-            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
+            c.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
 
             # Show balance audit trail if available
             if balance_before is not None and balance_after is not None:
-                console.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
+                c.print(f"     [dim]Balance: ${balance_before/100:,.2f} → ${balance_after/100:,.2f}[/dim]")
 
             # Show incoming liquidity notification if filter_agent matches receiver
             if filter_agent is not None:
                 incoming = calculate_incoming_liquidity(event, filter_agent)
                 if incoming > 0:
-                    console.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
-        console.print()
+                    c.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
+        c.print()
 
     # Queue 2 liquidity releases (new specific event type)
     if queue_releases:
-        console.print(f"   [yellow]Queue 2 Releases ({len(queue_releases)}):[/yellow]")
+        c.print(f"   [yellow]Queue 2 Releases ({len(queue_releases)}):[/yellow]")
         for event in queue_releases:
             full_tx_id = event.get("tx_id", "unknown")
             tx_id = full_tx_id[:8]
@@ -762,26 +804,26 @@ def log_settlement_details(
             else:
                 priority_str = f"P:{priority} LOW"
 
-            console.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
-            console.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
+            c.print(f"   • TX {tx_id}: {sender} → {receiver} | ${amount / 100:,.2f} | {priority_str}")
+            c.print(f"     [dim]Queued for {wait_ticks} tick(s) | Released: {reason}[/dim]")
 
             # Show incoming liquidity notification if filter_agent matches receiver
             if filter_agent is not None:
                 incoming = calculate_incoming_liquidity(event, filter_agent)
                 if incoming > 0:
-                    console.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
-        console.print()
+                    c.print(f"     [cyan]↳ 💰 {filter_agent} receives ${incoming / 100:,.2f}[/cyan]")
+        c.print()
 
     # LSM bilateral offsets
     if lsm_bilateral:
-        console.print(f"   [magenta]LSM Bilateral Offset ({len(lsm_bilateral)}):[/magenta]")
+        c.print(f"   [magenta]LSM Bilateral Offset ({len(lsm_bilateral)}):[/magenta]")
         for event in lsm_bilateral:
             # FIX Discrepancy #12: Use tx_ids list (Rust FFI format), not tx_id_a/tx_id_b
             tx_ids = event.get("tx_ids", [])
             tx_a = tx_ids[0][:8] if len(tx_ids) > 0 and tx_ids[0] else "unknown"
             tx_b = tx_ids[1][:8] if len(tx_ids) > 1 and tx_ids[1] else "unknown"
             amount = event.get("amount", 0)
-            console.print(
+            c.print(
                 f"   • TX {tx_a} ⟷ TX {tx_b}: ${amount / 100:,.2f}"
             )
 
@@ -790,12 +832,12 @@ def log_settlement_details(
                 net_change = calculate_lsm_net_change(event, filter_agent)
                 if net_change != 0:
                     sign = "+" if net_change > 0 else ""
-                    console.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
-        console.print()
+                    c.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
+        c.print()
 
     # LSM cycles
     if lsm_cycles:
-        console.print(f"   [magenta]LSM Cycle ({len(lsm_cycles)}):[/magenta]")
+        c.print(f"   [magenta]LSM Cycle ({len(lsm_cycles)}):[/magenta]")
         for event in lsm_cycles:
             agent_ids = event.get("agent_ids", [])
             tx_amounts = event.get("tx_amounts", [])
@@ -803,7 +845,7 @@ def log_settlement_details(
 
             if agent_ids:
                 cycle_str = " → ".join(agent_ids) + f" → {agent_ids[0]}"
-                console.print(f"   • Cycle: {cycle_str}")
+                c.print(f"   • Cycle: {cycle_str}")
 
                 # Show each transaction with sender/receiver if we have the data
                 tx_ids = event.get("tx_ids", [])
@@ -812,9 +854,9 @@ def log_settlement_details(
                     if i < len(agent_ids):
                         sender = agent_ids[i]
                         receiver = agent_ids[(i + 1) % len(agent_ids)]
-                        console.print(f"     - {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
+                        c.print(f"     - {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
                     else:
-                        console.print(f"     - TX {tx_id[:8]}: ${amount / 100:,.2f}")
+                        c.print(f"     - TX {tx_id[:8]}: ${amount / 100:,.2f}")
 
                 # Show liquidity metrics if available
                 total_value = event.get("total_value", 0)
@@ -823,15 +865,15 @@ def log_settlement_details(
                     liquidity_saved = total_value - max_net_outflow
                     if liquidity_saved > 0:
                         efficiency = (liquidity_saved / total_value) * 100
-                        console.print(f"     [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
+                        c.print(f"     [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
 
                 # Show net liquidity change if filter_agent is involved
                 if filter_agent is not None:
                     net_change = calculate_lsm_net_change(event, filter_agent)
                     if net_change != 0:
                         sign = "+" if net_change > 0 else ""
-                        console.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
-        console.print()
+                        c.print(f"     [cyan]↳ 💰 {filter_agent} net change: {sign}${net_change / 100:,.2f}[/cyan]")
+        c.print()
 
 
 def log_agent_queues_detailed(orch: Any, agent_id: str, balance: int, balance_change: int, quiet: bool = False) -> None:
@@ -944,7 +986,11 @@ def log_agent_queues_detailed(orch: Any, agent_id: str, balance: int, balance_ch
         console.print()
 
 
-def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_policy_decisions(
+    events: list[dict[str, Any]],
+    quiet: bool = False,
+    custom_console: Console | None = None,
+) -> None:
     """Log policy decisions made this tick (verbose mode).
 
     Shows submit/hold/drop/split decisions with reasoning.
@@ -952,6 +998,7 @@ def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> N
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🎯 Policy Decisions (5):
@@ -965,6 +1012,7 @@ def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> N
     if quiet:
         return
 
+    c = _get_console(custom_console)
     policy_events = [
         e for e in events
         if e.get("event_type") in ["PolicySubmit", "PolicyHold", "PolicyDrop", "PolicySplit"]
@@ -973,8 +1021,8 @@ def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> N
     if not policy_events:
         return
 
-    console.print()
-    console.print(f"🎯 [blue]Policy Decisions ({len(policy_events)}):[/blue]")
+    c.print()
+    c.print(f"🎯 [blue]Policy Decisions ({len(policy_events)}):[/blue]")
 
     # Group by agent
     by_agent: dict[str, list[dict[str, Any]]] = {}
@@ -985,32 +1033,33 @@ def log_policy_decisions(events: list[dict[str, Any]], quiet: bool = False) -> N
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   [bold]{agent_id}:[/bold]")
+        c.print(f"   [bold]{agent_id}:[/bold]")
         for event in agent_events:
             event_type = event.get("event_type")
             tx_id = event.get("tx_id", "unknown")[:8]
 
             if event_type == "PolicySubmit":
-                console.print(f"   • [green]SUBMIT[/green]: TX {tx_id}")
+                c.print(f"   • [green]SUBMIT[/green]: TX {tx_id}")
             elif event_type == "PolicyHold":
                 reason = event.get("reason", "no reason")
-                console.print(f"   • [yellow]HOLD[/yellow]: TX {tx_id} - {reason}")
+                c.print(f"   • [yellow]HOLD[/yellow]: TX {tx_id} - {reason}")
             elif event_type == "PolicyDrop":
                 reason = event.get("reason", "no reason")
-                console.print(f"   • [red]DROP[/red]: TX {tx_id} - {reason}")
+                c.print(f"   • [red]DROP[/red]: TX {tx_id} - {reason}")
             elif event_type == "PolicySplit":
                 num_splits = event.get("num_splits", 0)
-                console.print(f"   • [magenta]SPLIT[/magenta]: TX {tx_id} → {num_splits} children")
-        console.print()
+                c.print(f"   • [magenta]SPLIT[/magenta]: TX {tx_id} → {num_splits} children")
+        c.print()
 
 
-def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log collateral post/withdraw events with financial impact analysis (verbose mode).
 
     Args:
         provider: StateProvider for querying agent financial state
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         💰 Collateral Activity (2):
@@ -1025,6 +1074,8 @@ def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     collateral_events = [
         e for e in events
         if e.get("event_type") in ["CollateralPost", "CollateralWithdraw", "CollateralTimerWithdrawn", "CollateralTimerBlocked"]
@@ -1033,8 +1084,8 @@ def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]
     if not collateral_events:
         return
 
-    console.print()
-    console.print(f"💰 [yellow]Collateral Activity ({len(collateral_events)}):[/yellow]")
+    c.print()
+    c.print(f"💰 [yellow]Collateral Activity ({len(collateral_events)}):[/yellow]")
 
     # Group by agent
     by_agent: dict[str, list[dict[str, Any]]] = {}
@@ -1045,7 +1096,7 @@ def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   [bold]{agent_id}:[/bold]")
+        c.print(f"   [bold]{agent_id}:[/bold]")
 
         # Get agent's current financial state for context
         # Initialize defaults for type checker (these are only used when balance is not None)
@@ -1079,70 +1130,71 @@ def log_collateral_activity(provider: StateProvider, events: list[dict[str, Any]
             if event_type == "CollateralPost":
                 reason = event.get("reason", "no reason")
                 new_total = event.get("new_total", 0)
-                console.print(f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
+                c.print(f"   • [green]POSTED[/green]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
 
                 # Financial impact explanation
                 if balance is not None:
                     limit_increase = int(amount * (1 - haircut))
                     new_headroom = headroom + limit_increase
-                    console.print(f"     💡 Expands allowed limit by ${limit_increase / 100:,.2f} ({int(haircut * 100)}% haircut), increasing headroom to ${new_headroom / 100:,.2f}")
+                    c.print(f"     💡 Expands allowed limit by ${limit_increase / 100:,.2f} ({int(haircut * 100)}% haircut), increasing headroom to ${new_headroom / 100:,.2f}")
 
             elif event_type == "CollateralWithdraw":
                 reason = event.get("reason", "no reason")
                 new_total = event.get("new_total", 0)
-                console.print(f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
+                c.print(f"   • [yellow]WITHDRAWN[/yellow]: ${amount / 100:,.2f} - {reason} | New Total: ${new_total / 100:,.2f}")
 
                 # Financial impact explanation
                 if balance is not None:
                     limit_decrease = int(amount * (1 - haircut))
                     new_headroom = headroom - limit_decrease
-                    console.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
+                    c.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
                     if new_headroom > 0:
-                        console.print(f"     ✅ Withdrawal safe - agent has ${new_headroom / 100:,.2f} surplus collateral")
+                        c.print(f"     ✅ Withdrawal safe - agent has ${new_headroom / 100:,.2f} surplus collateral")
 
             elif event_type == "CollateralTimerWithdrawn":
                 original_reason = event.get("original_reason", "unknown")
                 posted_at_tick = event.get("posted_at_tick", "?")
                 new_total = event.get("new_total", 0)
-                console.print(f"   • [cyan]AUTO-WITHDRAWN (timer)[/cyan]: ${amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
-                console.print(f"     New Total: ${new_total / 100:,.2f}")
+                c.print(f"   • [cyan]AUTO-WITHDRAWN (timer)[/cyan]: ${amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
+                c.print(f"     New Total: ${new_total / 100:,.2f}")
 
                 # Financial impact explanation with TARGET2 policy context
                 if balance is not None:
                     limit_decrease = int(amount * (1 - haircut))
                     new_headroom = headroom - limit_decrease
 
-                    console.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
+                    c.print(f"     💡 Reduces allowed limit by ${limit_decrease / 100:,.2f}, remaining headroom: ${new_headroom / 100:,.2f}")
 
                     if using_collateralized_credit:
-                        console.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${unsecured_cap / 100:,.2f} base limit)")
-                        console.print("     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
+                        c.print(f"     ℹ️  Agent is using collateralized credit (${credit_used / 100:,.2f} vs ${unsecured_cap / 100:,.2f} base limit)")
+                        c.print("     ✅ Withdrawal permitted per TARGET2 policy: remaining collateral still covers overdraft")
                     else:
-                        console.print("     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
+                        c.print("     ✅ Withdrawal safe - agent has positive balance or is within base credit limit")
 
             elif event_type == "CollateralTimerBlocked":
                 requested_amount = event.get("requested_amount", 0)
                 reason = event.get("reason", "unknown")
                 original_reason = event.get("original_reason", "unknown")
                 posted_at_tick = event.get("posted_at_tick", "?")
-                console.print(f"   • [red]TIMER BLOCKED[/red]: Attempted ${requested_amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
-                console.print(f"     ⛔ Reason: {reason}")
+                c.print(f"   • [red]TIMER BLOCKED[/red]: Attempted ${requested_amount / 100:,.2f} - Originally posted at tick {posted_at_tick} ({original_reason})")
+                c.print(f"     ⛔ Reason: {reason}")
 
                 # Financial impact explanation
                 if balance is not None and reason == "NoHeadroom":
-                    console.print(f"     💡 Current headroom: ${headroom / 100:,.2f}")
-                    console.print("     ℹ️  Withdrawal would violate Invariant I2 (Withdrawal Headroom Protection)")
-                    console.print(f"     ℹ️  Remaining collateral must still cover current overdraft of ${credit_used / 100:,.2f}")
+                    c.print(f"     💡 Current headroom: ${headroom / 100:,.2f}")
+                    c.print("     ℹ️  Withdrawal would violate Invariant I2 (Withdrawal Headroom Protection)")
+                    c.print(f"     ℹ️  Remaining collateral must still cover current overdraft of ${credit_used / 100:,.2f}")
 
-        console.print()
+        c.print()
 
 
-def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log scenario event executions (verbose mode).
 
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🎬 Scenario Events (3):
@@ -1154,6 +1206,8 @@ def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> No
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     scenario_events = [
         e for e in events
         if e.get("event_type") == "ScenarioEventExecuted"
@@ -1162,8 +1216,8 @@ def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> No
     if not scenario_events:
         return
 
-    console.print()
-    console.print(f"🎬 [magenta]Scenario Events ({len(scenario_events)}):[/magenta]")
+    c.print()
+    c.print(f"🎬 [magenta]Scenario Events ({len(scenario_events)}):[/magenta]")
 
     for event in scenario_events:
         scenario_type = event.get("scenario_event_type", "Unknown")
@@ -1182,7 +1236,7 @@ def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> No
             from_agent = details.get("from_agent", "?")
             to_agent = details.get("to_agent", "?")
             amount = details.get("amount", 0)
-            console.print(f"   • [cyan]DirectTransfer:[/cyan] {from_agent} → {to_agent} (${amount / 100:,.2f})")
+            c.print(f"   • [cyan]DirectTransfer:[/cyan] {from_agent} → {to_agent} (${amount / 100:,.2f})")
 
         elif scenario_type == "custom_transaction_arrival":
             from_agent = details.get("from_agent", "?")
@@ -1190,43 +1244,43 @@ def log_scenario_events(events: list[dict[str, Any]], quiet: bool = False) -> No
             amount = details.get("amount", 0)
             priority = details.get("priority", 5)
             tx_id = details.get("tx_id", "?")
-            console.print(f"   • [green]CustomTransactionArrival:[/green] {from_agent} → {to_agent} (${amount / 100:,.2f})")
-            console.print(f"     Priority: {priority}, TX: {tx_id}")
+            c.print(f"   • [green]CustomTransactionArrival:[/green] {from_agent} → {to_agent} (${amount / 100:,.2f})")
+            c.print(f"     Priority: {priority}, TX: {tx_id}")
 
         elif scenario_type == "CollateralAdjustment":
             agent_id = details.get("agent", "?")
             delta = details.get("delta", 0)
             sign = "+" if delta >= 0 else ""
-            console.print(f"   • [yellow]CollateralAdjustment:[/yellow] {agent_id} {sign}${delta / 100:,.2f} collateral")
+            c.print(f"   • [yellow]CollateralAdjustment:[/yellow] {agent_id} {sign}${delta / 100:,.2f} collateral")
 
         elif scenario_type == "GlobalArrivalRateChange":
             multiplier = details.get("multiplier", 1.0)
-            console.print(f"   • [blue]GlobalArrivalRateChange:[/blue] All arrival rates × {multiplier:.2f}")
+            c.print(f"   • [blue]GlobalArrivalRateChange:[/blue] All arrival rates × {multiplier:.2f}")
 
         elif scenario_type == "AgentArrivalRateChange":
             agent_id = details.get("agent", "?")
             multiplier = details.get("multiplier", 1.0)
-            console.print(f"   • [blue]AgentArrivalRateChange:[/blue] {agent_id} arrival rate × {multiplier:.2f}")
+            c.print(f"   • [blue]AgentArrivalRateChange:[/blue] {agent_id} arrival rate × {multiplier:.2f}")
 
         elif scenario_type == "CounterpartyWeightChange":
             agent_id = details.get("agent", "?")
             counterparty = details.get("counterparty", "?")
             new_weight = details.get("new_weight", 0.0)
-            console.print(f"   • [green]CounterpartyWeightChange:[/green] {agent_id} → {counterparty} weight = {new_weight:.2f}")
+            c.print(f"   • [green]CounterpartyWeightChange:[/green] {agent_id} → {counterparty} weight = {new_weight:.2f}")
 
         elif scenario_type == "DeadlineWindowChange":
             agent_id = details.get("agent", "?")
             new_window = details.get("new_window", 0)
-            console.print(f"   • [yellow]DeadlineWindowChange:[/yellow] {agent_id} deadline window = {new_window} ticks")
+            c.print(f"   • [yellow]DeadlineWindowChange:[/yellow] {agent_id} deadline window = {new_window} ticks")
 
         else:
             # Generic fallback for unknown event types
-            console.print(f"   • [dim]{scenario_type}:[/dim] {details}")
+            c.print(f"   • [dim]{scenario_type}:[/dim] {details}")
 
-    console.print()
+    c.print()
 
 
-def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: bool = False) -> None:
+def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log detailed cost breakdown by agent and type (UNIFIED for live & replay).
 
     Replaces both old log_cost_breakdown() and log_cost_breakdown_from_db().
@@ -1243,6 +1297,7 @@ def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: boo
         provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
         agent_ids: List of agent identifiers
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         💰 Costs Accrued This Tick: $125.50
@@ -1258,6 +1313,8 @@ def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: boo
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     total_cost = 0
     agent_costs = []
@@ -1282,28 +1339,28 @@ def log_cost_breakdown(provider: StateProvider, agent_ids: list[str], quiet: boo
     if total_cost == 0:
         return
 
-    console.print()
-    console.print(f"💰 [yellow]Costs Accrued This Tick: ${total_cost / 100:,.2f}[/yellow]")
-    console.print()
+    c.print()
+    c.print(f"💰 [yellow]Costs Accrued This Tick: ${total_cost / 100:,.2f}[/yellow]")
+    c.print()
 
     for agent_id, costs, agent_total in agent_costs:
-        console.print(f"   {agent_id}: ${agent_total / 100:,.2f}")
+        c.print(f"   {agent_id}: ${agent_total / 100:,.2f}")
 
         if costs.get("liquidity_cost", 0) > 0:
-            console.print(f"   • Liquidity: ${costs['liquidity_cost'] / 100:,.2f}")
+            c.print(f"   • Liquidity: ${costs['liquidity_cost'] / 100:,.2f}")
         if costs.get("delay_cost", 0) > 0:
-            console.print(f"   • Delay: ${costs['delay_cost'] / 100:,.2f}")
+            c.print(f"   • Delay: ${costs['delay_cost'] / 100:,.2f}")
         if costs.get("collateral_cost", 0) > 0:
-            console.print(f"   • Collateral: ${costs['collateral_cost'] / 100:,.2f}")
+            c.print(f"   • Collateral: ${costs['collateral_cost'] / 100:,.2f}")
         if costs.get("penalty_cost", 0) > 0:
-            console.print(f"   • Penalty: ${costs['penalty_cost'] / 100:,.2f}")
+            c.print(f"   • Penalty: ${costs['penalty_cost'] / 100:,.2f}")
         if costs.get("split_friction_cost", 0) > 0:
-            console.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
+            c.print(f"   • Split: ${costs['split_friction_cost'] / 100:,.2f}")
 
-        console.print()
+        c.print()
 
 
-def log_queued_rtgs(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_queued_rtgs(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log transactions entering Queue 2 (RTGS central queue) (verbose mode).
 
     Shows when transactions are queued in the RTGS system due to insufficient
@@ -1312,6 +1369,7 @@ def log_queued_rtgs(events: list[dict[str, Any]], quiet: bool = False) -> None:
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         📋 2 transaction(s) queued in RTGS:
@@ -1321,24 +1379,26 @@ def log_queued_rtgs(events: list[dict[str, Any]], quiet: bool = False) -> None:
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     queued_events = [e for e in events if e.get("event_type") == "QueuedRtgs"]
     if not queued_events:
         return
 
-    console.print()
-    console.print(f"📋 [yellow]{len(queued_events)} transaction(s) queued in RTGS:[/yellow]")
+    c.print()
+    c.print(f"📋 [yellow]{len(queued_events)} transaction(s) queued in RTGS:[/yellow]")
 
     for event in queued_events:
         tx_id = event.get("tx_id", "unknown")[:8]
         sender_id = event.get("sender_id", "unknown")
         # Note: QueuedRtgs event doesn't include receiver/amount in current Rust implementation
         # We'd need to query the transaction details for full info
-        console.print(f"   • TX {tx_id}: {sender_id} | Insufficient balance")
+        c.print(f"   • TX {tx_id}: {sender_id} | Insufficient balance")
 
-    console.print()
+    c.print()
 
 
-def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log individual cost accrual events (verbose mode).
 
     Shows when costs are accrued by agents in real-time, providing visibility
@@ -1347,6 +1407,7 @@ def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         💰 Cost Accruals (3):
@@ -1359,12 +1420,14 @@ def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     cost_events = [e for e in events if e.get("event_type") == "CostAccrual"]
     if not cost_events:
         return
 
-    console.print()
-    console.print(f"💰 [yellow]Cost Accruals ({len(cost_events)}):[/yellow]")
+    c.print()
+    c.print(f"💰 [yellow]Cost Accruals ({len(cost_events)}):[/yellow]")
 
     for event in cost_events:
         agent_id = event.get("agent_id", "unknown")
@@ -1373,7 +1436,7 @@ def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -
         # Calculate total from components
         total = costs.get("total", 0)
 
-        console.print(f"   {agent_id}: ${total / 100:,.2f}")
+        c.print(f"   {agent_id}: ${total / 100:,.2f}")
 
         # Show non-zero cost components
         components = []
@@ -1389,11 +1452,11 @@ def log_cost_accrual_events(events: list[dict[str, Any]], quiet: bool = False) -
             components.append(f"Split: ${costs['split_friction_cost'] / 100:,.2f}")
 
         if components:
-            console.print(f"   • {' | '.join(components)}")
-        console.print()
+            c.print(f"   • {' | '.join(components)}")
+        c.print()
 
 
-def log_end_of_day_event(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_end_of_day_event(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log structured EndOfDay event (verbose mode).
 
     Shows the EndOfDay event as a structured notification before the detailed
@@ -1402,12 +1465,15 @@ def log_end_of_day_event(events: list[dict[str, Any]], quiet: bool = False) -> N
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🌙 End of Day 0 - 95 settled, 5 unsettled, $125.50 in penalties
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     eod_events = [e for e in events if e.get("event_type") == "EndOfDay"]
     if not eod_events:
@@ -1418,21 +1484,22 @@ def log_end_of_day_event(events: list[dict[str, Any]], quiet: bool = False) -> N
         unsettled_count = event.get("unsettled_count", 0)
         total_penalties = event.get("total_penalties", 0)
 
-        console.print()
-        console.print(
+        c.print()
+        c.print(
             f"🌙 [cyan]End of Day {day}[/cyan] - "
             f"{unsettled_count} unsettled, "
             f"${total_penalties / 100:,.2f} in penalties"
         )
-        console.print()
+        c.print()
 
 
-def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Visualize LSM cycles showing circular payment chains (verbose mode).
 
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🔄 LSM Cycles (2):
@@ -1452,6 +1519,8 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     lsm_bilateral = [e for e in events if e.get("event_type") == "LsmBilateralOffset"]
     lsm_cycles = [e for e in events if e.get("event_type") == "LsmCycleSettlement"]
 
@@ -1459,15 +1528,15 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
     if total_cycles == 0:
         return
 
-    console.print()
-    console.print(f"🔄 [magenta]LSM Cycles ({total_cycles}):[/magenta]")
-    console.print()
+    c.print()
+    c.print(f"🔄 [magenta]LSM Cycles ({total_cycles}):[/magenta]")
+    c.print()
 
     cycle_num = 1
 
     # Bilateral offsets
     for event in lsm_bilateral:
-        console.print(f"   Cycle {cycle_num} (Bilateral):")
+        c.print(f"   Cycle {cycle_num} (Bilateral):")
 
         # Get all information from event (no orchestrator lookup needed)
         tx_id_a = event.get("tx_id_a", "")
@@ -1477,9 +1546,9 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
         amount_a = event.get("amount_a", 0)
         amount_b = event.get("amount_b", 0)
 
-        console.print(f"   {agent_a} ⇄ {agent_b}")
-        console.print(f"   • {agent_a}→{agent_b}: TX {tx_id_a[:8]} (${amount_a / 100:,.2f})")
-        console.print(f"   • {agent_b}→{agent_a}: TX {tx_id_b[:8]} (${amount_b / 100:,.2f})")
+        c.print(f"   {agent_a} ⇄ {agent_b}")
+        c.print(f"   • {agent_a}→{agent_b}: TX {tx_id_a[:8]} (${amount_a / 100:,.2f})")
+        c.print(f"   • {agent_b}→{agent_a}: TX {tx_id_b[:8]} (${amount_b / 100:,.2f})")
 
         # Calculate offset vs liquidity breakdown
         total_value = amount_a + amount_b
@@ -1488,18 +1557,18 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
         if net > 0:
             # Determine direction
             if amount_a > amount_b:
-                console.print(f"   💫 Net Settlement: {agent_a} → {agent_b}: ${net / 100:,.2f}")
+                c.print(f"   💫 Net Settlement: {agent_a} → {agent_b}: ${net / 100:,.2f}")
             else:
-                console.print(f"   💫 Net Settlement: {agent_b} → {agent_a}: ${net / 100:,.2f}")
+                c.print(f"   💫 Net Settlement: {agent_b} → {agent_a}: ${net / 100:,.2f}")
 
         # Show liquidity saved
         if total_value > 0:
             offset_amount = total_value - net  # Amount netted out (smaller of the two)
             liquidity_saved = offset_amount
             efficiency = (liquidity_saved / total_value) * 100
-            console.print(f"   [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
+            c.print(f"   [green]✨ Saved: ${liquidity_saved / 100:,.2f} ({efficiency:.1f}%)[/green]")
 
-        console.print()
+        c.print()
         cycle_num += 1
 
     # Multilateral cycles
@@ -1513,13 +1582,13 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
 
         num_agents = len(agent_ids) if agent_ids else len(tx_ids)
 
-        console.print(f"   Cycle {cycle_num} (Multilateral - {num_agents} agents):")
+        c.print(f"   Cycle {cycle_num} (Multilateral - {num_agents} agents):")
 
         # Display cycle information from event data
         if agent_ids and tx_amounts:
             # Show cycle: A → B → C → A
             cycle_str = " → ".join(agent_ids)
-            console.print(f"   {cycle_str}")
+            c.print(f"   {cycle_str}")
 
             # Show each transaction in cycle with sender/receiver
             for i, tx_id in enumerate(tx_ids):
@@ -1527,61 +1596,61 @@ def log_lsm_cycle_visualization(events: list[dict[str, Any]], quiet: bool = Fals
                     sender = agent_ids[i]
                     receiver = agent_ids[(i + 1) % len(agent_ids)]
                     amount = tx_amounts[i]
-                    console.print(f"   • {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
+                    c.print(f"   • {sender}→{receiver}: TX {tx_id[:8]} (${amount / 100:,.2f})")
         elif tx_ids:
             # Minimal display if agent_ids/amounts not available
-            console.print(f"   {len(tx_ids)} transactions in cycle")
+            c.print(f"   {len(tx_ids)} transactions in cycle")
             for tx_id in tx_ids:
-                console.print(f"   • TX {tx_id[:8]}")
+                c.print(f"   • TX {tx_id[:8]}")
 
         # Show liquidity metrics if available
-        console.print()
+        c.print()
         if total_value > 0:
-            console.print(f"   [cyan]💰 Gross Value: ${total_value / 100:,.2f}[/cyan]")
+            c.print(f"   [cyan]💰 Gross Value: ${total_value / 100:,.2f}[/cyan]")
 
             if max_net_outflow is not None and max_net_outflow > 0:
-                console.print(f"   [yellow]💫 Max Liquidity Used: ${max_net_outflow / 100:,.2f}[/yellow]")
+                c.print(f"   [yellow]💫 Max Liquidity Used: ${max_net_outflow / 100:,.2f}[/yellow]")
 
                 liquidity_saved = total_value - max_net_outflow
                 if liquidity_saved > 0:
                     efficiency = (liquidity_saved / total_value) * 100
-                    console.print(
+                    c.print(
                         f"   [green]✨ Liquidity Saved: ${liquidity_saved / 100:,.2f} "
                         f"({efficiency:.1f}%)[/green]"
                     )
 
         # Show net positions if available
         if net_positions:
-            console.print()
-            console.print("   Net Positions:")
+            c.print()
+            c.print("   Net Positions:")
             # Show in cycle order if we have agent_ids
             if agent_ids:
                 for agent_id in agent_ids[:-1]:  # Exclude duplicate last agent
                     if agent_id in net_positions:
                         net_pos = net_positions[agent_id]
                         if net_pos > 0:
-                            console.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
+                            c.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
                         elif net_pos < 0:
-                            console.print(
+                            c.print(
                                 f"   • {agent_id}: [red]-${abs(net_pos) / 100:,.2f}[/red] "
                                 "(outflow - used liquidity)"
                             )
                         else:
-                            console.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
+                            c.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
             else:
                 # Fallback: show all net positions
                 for agent_id, net_pos in sorted(net_positions.items()):
                     if net_pos > 0:
-                        console.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
+                        c.print(f"   • {agent_id}: [green]+${net_pos / 100:,.2f}[/green] (inflow)")
                     elif net_pos < 0:
-                        console.print(
+                        c.print(
                             f"   • {agent_id}: [red]-${abs(net_pos) / 100:,.2f}[/red] "
                             "(outflow - used liquidity)"
                         )
                     else:
-                        console.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
+                        c.print(f"   • {agent_id}: [dim]$0.00[/dim] (net zero)")
 
-        console.print()
+        c.print()
         cycle_num += 1
 
 
@@ -1825,7 +1894,8 @@ def log_transactions_near_deadline(
     provider: StateProvider,
     within_ticks: int,
     current_tick: int,
-    quiet: bool = False
+    quiet: bool = False,
+    custom_console: Console | None = None
 ) -> None:
     """Display transactions approaching deadline (early warning).
 
@@ -1834,16 +1904,19 @@ def log_transactions_near_deadline(
         within_ticks: Number of ticks ahead to check (e.g., 2)
         current_tick: Current tick number
         quiet: If True, suppress output
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     transactions = provider.get_transactions_near_deadline(within_ticks)
     if not transactions:
         return
 
-    console.print()
-    console.print("[yellow]⚠️  Transactions Near Deadline (within 2 ticks):[/yellow]")
+    c.print()
+    c.print("[yellow]⚠️  Transactions Near Deadline (within 2 ticks):[/yellow]")
 
     for tx in sorted(transactions, key=lambda t: t['deadline_tick']):
         ticks_until = tx['ticks_until_deadline']
@@ -1851,7 +1924,7 @@ def log_transactions_near_deadline(
 
         warning = "🔴 NEXT TICK!" if ticks_until <= 1 else "⚠️"
 
-        console.print(
+        c.print(
             f"  {warning} TX {tx['tx_id'][:8]}... | "
             f"{tx['sender_id']} → {tx['receiver_id']} | "
             f"${remaining / 100:,.2f} | "
@@ -1861,23 +1934,27 @@ def log_transactions_near_deadline(
 
 def log_overdue_transactions_summary(
     provider: StateProvider,
-    quiet: bool = False
+    quiet: bool = False,
+    custom_console: Console | None = None
 ) -> None:
     """Display summary of all overdue transactions with costs.
 
     Args:
         provider: StateProvider instance
         quiet: If True, suppress output
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     overdue_txs = provider.get_overdue_transactions()
     if not overdue_txs:
         return
 
-    console.print()
-    console.print("[red]🔥 Overdue Transactions:[/red]")
+    c.print()
+    c.print("[red]🔥 Overdue Transactions:[/red]")
 
     total_overdue_cost = 0
 
@@ -1890,80 +1967,86 @@ def log_overdue_transactions_summary(
 
         total_overdue_cost += total_cost
 
-        console.print(
+        c.print(
             f"  🔥 TX {tx['tx_id'][:8]}... | "
             f"{tx['sender_id']} → {tx['receiver_id']} | "
             f"${remaining / 100:,.2f} | "
             f"Overdue: {ticks_overdue} tick{'s' if ticks_overdue != 1 else ''}"
         )
-        console.print(
+        c.print(
             f"     💸 Costs: Penalty ${deadline_penalty / 100:,.2f} + "
             f"Delay ${delay_cost / 100:,.2f} = "
             f"[bold red]${total_cost / 100:,.2f}[/bold red]"
         )
 
     if total_overdue_cost > 0:
-        console.print(f"\n  [bold red]Total Overdue Cost: ${total_overdue_cost / 100:,.2f}[/bold red]")
+        c.print(f"\n  [bold red]Total Overdue Cost: ${total_overdue_cost / 100:,.2f}[/bold red]")
 
 
-def log_transaction_went_overdue_event(event: dict, quiet: bool = False) -> None:
+def log_transaction_went_overdue_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log when a transaction becomes overdue.
 
     Args:
         event: TransactionWentOverdue event dict
         quiet: If True, suppress output
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
 
-    console.print(
+    c = _get_console(custom_console)
+
+    c.print(
         f"\n[red]❌ Transaction Went Overdue:[/red] TX {event['tx_id'][:8]}..."
     )
-    console.print(
+    c.print(
         f"   {event['sender_id']} → {event['receiver_id']} | "
         f"${event['remaining_amount'] / 100:,.2f}"
     )
-    console.print(
+    c.print(
         f"   Deadline: Tick {event['deadline_tick']} | "
         f"Current: Tick {event['tick']} | "
         f"[red]{event['ticks_overdue']} tick{'s' if event['ticks_overdue'] != 1 else ''} late[/red]"
     )
-    console.print(
+    c.print(
         f"   💸 Deadline Penalty Charged: [bold red]${event['deadline_penalty_cost'] / 100:,.2f}[/bold red]"
     )
 
 
-def log_overdue_transaction_settled_event(event: dict, quiet: bool = False) -> None:
+def log_overdue_transaction_settled_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log when an overdue transaction is finally settled.
 
     Args:
         event: OverdueTransactionSettled event dict
         quiet: If True, suppress output
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
 
-    console.print(
+    c = _get_console(custom_console)
+
+    c.print(
         f"\n[green]✅ Overdue Transaction Settled:[/green] TX {event['tx_id'][:8]}..."
     )
-    console.print(
+    c.print(
         f"   {event['sender_id']} → {event['receiver_id']} | "
         f"${event['settled_amount'] / 100:,.2f}"
     )
-    console.print(
+    c.print(
         f"   Was overdue for: [red]{event['total_ticks_overdue']} tick{'s' if event['total_ticks_overdue'] != 1 else ''}[/red] "
         f"(Deadline: {event['deadline_tick']}, Overdue since: {event['overdue_since_tick']})"
     )
 
     total_cost = event['deadline_penalty_cost'] + event['estimated_delay_cost']
-    console.print(
+    c.print(
         f"   💸 Total Cost: Penalty ${event['deadline_penalty_cost'] / 100:,.2f} + "
         f"Delay ${event['estimated_delay_cost'] / 100:,.2f} = "
         f"[bold red]${total_cost / 100:,.2f}[/bold red]"
     )
 
 
-def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log priority escalation events (Phase 5: Dynamic Priority Escalation).
 
     Displays when transaction priorities are boosted due to approaching deadlines.
@@ -1973,6 +2056,7 @@ def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = F
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         📈 Priority Escalations (2):
@@ -1982,12 +2066,14 @@ def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = F
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     escalation_events = [e for e in events if e.get("event_type") == "PriorityEscalated"]
     if not escalation_events:
         return
 
-    console.print()
-    console.print(f"📈 [cyan]Priority Escalations ({len(escalation_events)}):[/cyan]")
+    c.print()
+    c.print(f"📈 [cyan]Priority Escalations ({len(escalation_events)}):[/cyan]")
 
     for event in escalation_events:
         tx_id = event.get("tx_id", "unknown")[:8]
@@ -2004,12 +2090,12 @@ def log_priority_escalation_events(events: list[dict[str, Any]], quiet: bool = F
         else:
             urgency_str = f"{ticks_left} ticks until deadline"
 
-        console.print(
+        c.print(
             f"   • TX {tx_id}: {original} → {escalated} (+{boost} boost, {urgency_str})"
         )
 
 
-def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log transaction reprioritization events (Phase 4: Overdue Handling).
 
     Displays when policy explicitly changes a transaction's priority.
@@ -2019,6 +2105,7 @@ def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bo
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🔄 Policy Reprioritizations (2):
@@ -2029,12 +2116,14 @@ def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bo
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     reprioritize_events = [e for e in events if e.get("event_type") == "TransactionReprioritized"]
     if not reprioritize_events:
         return
 
-    console.print()
-    console.print(f"🔄 [magenta]Policy Reprioritizations ({len(reprioritize_events)}):[/magenta]")
+    c.print()
+    c.print(f"🔄 [magenta]Policy Reprioritizations ({len(reprioritize_events)}):[/magenta]")
 
     # Group by agent
     by_agent: dict[str, list[dict[str, Any]]] = {}
@@ -2045,7 +2134,7 @@ def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bo
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   [bold]{agent_id}:[/bold]")
+        c.print(f"   [bold]{agent_id}:[/bold]")
         for event in agent_events:
             tx_id = event.get("tx_id", "unknown")[:8]
             old_priority = event.get("old_priority", 0)
@@ -2059,13 +2148,13 @@ def log_transaction_reprioritized_events(events: list[dict[str, Any]], quiet: bo
             else:
                 direction_str = "→"
 
-            console.print(
+            c.print(
                 f"   • TX {tx_id}: {old_priority} {direction_str} {new_priority}"
             )
-        console.print()
+        c.print()
 
 
-def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log state register update events (Phase 4.5: Policy micro-memory).
 
     Displays when agents update their memory registers, showing how policy
@@ -2074,6 +2163,7 @@ def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False)
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         🧠 Agent Memory Updates (3):
@@ -2086,6 +2176,8 @@ def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False)
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     state_events = [
         e for e in events
@@ -2102,8 +2194,8 @@ def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False)
     if not state_events:
         return
 
-    console.print()
-    console.print(f"🧠 [cyan]Agent Memory Updates ({len(state_events)}):[/cyan]")
+    c.print()
+    c.print(f"🧠 [cyan]Agent Memory Updates ({len(state_events)}):[/cyan]")
 
     # Group by agent
     by_agent: dict[str, list[dict[str, Any]]] = {}
@@ -2114,7 +2206,7 @@ def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False)
         by_agent[agent_id].append(event)
 
     for agent_id, agent_events in by_agent.items():
-        console.print(f"   [bold]{agent_id}:[/bold]")
+        c.print(f"   [bold]{agent_id}:[/bold]")
         for event in agent_events:
             register_key = event.get("register_key", "unknown")
             old_value = event.get("old_value", 0.0)
@@ -2127,21 +2219,21 @@ def log_state_register_events(events: list[dict[str, Any]], quiet: bool = False)
 
             # Color based on reason
             if reason == "eod_reset":
-                console.print(f"   • [dim]{display_key}: {old_value} → {new_value} ([yellow]EOD reset[/yellow])[/dim]")
+                c.print(f"   • [dim]{display_key}: {old_value} → {new_value} ([yellow]EOD reset[/yellow])[/dim]")
             elif new_value > old_value:
-                console.print(f"   • [green]{display_key}: {old_value} → {new_value}[/green] ({reason})")
+                c.print(f"   • [green]{display_key}: {old_value} → {new_value}[/green] ({reason})")
             elif new_value < old_value:
-                console.print(f"   • [yellow]{display_key}: {old_value} → {new_value}[/yellow] ({reason})")
+                c.print(f"   • [yellow]{display_key}: {old_value} → {new_value}[/yellow] ({reason})")
             else:
-                console.print(f"   • {display_key}: {old_value} → {new_value} ({reason})")
+                c.print(f"   • {display_key}: {old_value} → {new_value} ({reason})")
 
             # Phase 4.6: Show decision path if available (policy transparency)
             if decision_path:
-                console.print(f"     [dim]Path: {decision_path}[/dim]")
-        console.print()
+                c.print(f"     [dim]Path: {decision_path}[/dim]")
+        c.print()
 
 
-def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> None:
+def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Log budget operations (Phase 3.3: Bank-Level Budgets).
 
     Displays when agents set their release budgets, showing adaptive
@@ -2150,6 +2242,7 @@ def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> 
     Args:
         events: List of events from get_tick_events()
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
 
     Example Output:
         💰 Release Budget Updates (2):
@@ -2164,6 +2257,8 @@ def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> 
     if quiet:
         return
 
+    c = _get_console(custom_console)
+
     budget_events = [
         e for e in events
         if e.get("event_type") == "BankBudgetSet"
@@ -2172,8 +2267,8 @@ def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> 
     if not budget_events:
         return
 
-    console.print()
-    console.print(f"💰 [cyan]Release Budget Updates ({len(budget_events)}):[/cyan]")
+    c.print()
+    c.print(f"💰 [cyan]Release Budget Updates ({len(budget_events)}):[/cyan]")
 
     for event in budget_events:
         agent_id = event.get("agent_id", "unknown")
@@ -2181,10 +2276,10 @@ def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> 
         focus_counterparties = event.get("focus_counterparties")
         max_per_counterparty = event.get("max_per_counterparty")
 
-        console.print(f"   [bold]{agent_id}:[/bold]")
+        c.print(f"   [bold]{agent_id}:[/bold]")
 
         # Always show max release value
-        console.print(f"   • [green]Max Release:[/green] ${max_value/100:,.2f}")
+        c.print(f"   • [green]Max Release:[/green] ${max_value/100:,.2f}")
 
         # Show focus counterparties if specified
         if focus_counterparties:
@@ -2192,13 +2287,13 @@ def log_budget_operations(events: list[dict[str, Any]], quiet: bool = False) -> 
                 focus_str = ", ".join(focus_counterparties)
             else:
                 focus_str = str(focus_counterparties)
-            console.print(f"   • [yellow]Focus:[/yellow] {focus_str}")
+            c.print(f"   • [yellow]Focus:[/yellow] {focus_str}")
 
         # Show max per counterparty if specified
         if max_per_counterparty is not None:
-            console.print(f"   • [yellow]Max per Counterparty:[/yellow] ${max_per_counterparty/100:,.2f}")
+            c.print(f"   • [yellow]Max per Counterparty:[/yellow] ${max_per_counterparty/100:,.2f}")
 
-        console.print()
+        c.print()
 
 
 def log_performance_diagnostics(timing: dict, tick: int) -> None:
@@ -2290,7 +2385,7 @@ def log_performance_diagnostics_compact(timing: dict, tick: int) -> None:
 # ============================================================================
 
 
-def log_target2_events(events: list[dict], quiet: bool = False) -> None:
+def log_target2_events(events: list[dict], quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display all TARGET2 LSM alignment events.
 
     This is the single entry point for displaying TARGET2-specific events.
@@ -2299,9 +2394,12 @@ def log_target2_events(events: list[dict], quiet: bool = False) -> None:
     Args:
         events: List of event dicts from the tick
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     for event in events:
         event_type = event.get("event_type", "")
@@ -2502,3 +2600,142 @@ def log_entry_disposition_offset_event(event: dict, quiet: bool = False) -> None
     console.print(f"    Incoming: {incoming_tx[:12]}... ({incoming_str})")
     console.print(f"    Queued: {queued_tx[:12]}... ({queued_str})")
     console.print(f"    Offset Amount: {offset_str}")
+
+
+# ============================================================================
+# Text Capture for LLM Context
+# ============================================================================
+
+
+def format_events_as_text(
+    provider: StateProvider,
+    events: list[dict[str, Any]],
+    tick: int,
+    agent_ids: list[str],
+    prev_balances: dict[str, int] | None = None,
+) -> str:
+    """Format events as plain text using same logic as verbose terminal output.
+
+    This function captures the output of display_tick_verbose_output() as a string,
+    ensuring LLM prompts see exactly the same formatting as terminal users.
+
+    This is the SINGLE SOURCE OF TRUTH for LLM event formatting - it uses the
+    same display logic as run/replay, just captured to a string instead of stderr.
+
+    Args:
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
+        events: All events for this tick
+        tick: Current tick number
+        agent_ids: List of all agent IDs
+        prev_balances: Previous tick's balances (for calculating changes).
+                       If None, defaults to empty dict.
+
+    Returns:
+        Formatted string representation of tick events, suitable for LLM consumption.
+        Contains no ANSI escape codes (plain text).
+
+    Example:
+        >>> from io import StringIO
+        >>> provider = OrchestratorStateProvider(orch)
+        >>> events = orch.get_tick_events(5)
+        >>> text = format_events_as_text(provider, events, tick=5, agent_ids=["BANK_A", "BANK_B"])
+        >>> print(text)
+        ═══ Tick 5 ═══
+        📥 2 transaction(s) arrived:
+           • TX a1b2c3d4: BANK_A → BANK_B
+             $150.00 | P:5 MED | ⏰ Tick 7
+        ...
+    """
+    from io import StringIO
+
+    from payment_simulator.cli.execution.display import display_tick_verbose_output
+    from payment_simulator.cli.output import log_tick_start
+
+    if prev_balances is None:
+        prev_balances = {}
+
+    # Create a console that writes to a string buffer (no colors)
+    buffer = StringIO()
+    text_console = Console(file=buffer, force_terminal=False, no_color=True, width=120)
+
+    # Count events for the display function
+    num_arrivals = sum(1 for e in events if e.get("event_type") == "Arrival")
+    num_settlements = sum(
+        1 for e in events
+        if e.get("event_type") in [
+            "RtgsImmediateSettlement",
+            "Queue2LiquidityRelease",
+        ]
+    )
+    # Count LSM releases (transactions released by bilateral/cycle settlements)
+    num_lsm_releases = 0
+    for e in events:
+        if e.get("event_type") == "LsmBilateralOffset":
+            num_lsm_releases += 2  # Bilaterals settle 2 transactions
+        elif e.get("event_type") == "LsmCycleSettlement":
+            num_lsm_releases += len(e.get("tx_ids", []))
+
+    # Log tick header first
+    log_tick_start(tick, custom_console=text_console)
+
+    # Use the SINGLE SOURCE OF TRUTH for verbose output
+    display_tick_verbose_output(
+        provider=provider,
+        events=events,
+        tick_num=tick,
+        agent_ids=agent_ids,
+        prev_balances=prev_balances,
+        num_arrivals=num_arrivals,
+        num_settlements=num_settlements,
+        num_lsm_releases=num_lsm_releases,
+        custom_console=text_console,
+    )
+
+    return buffer.getvalue()
+
+
+def format_tick_range_as_text(
+    provider: StateProvider,
+    tick_events_by_tick: dict[int, list[dict[str, Any]]],
+    agent_ids: list[str],
+) -> str:
+    """Format events from multiple ticks as plain text for LLM consumption.
+
+    This provides a complete simulation trace across multiple ticks, useful for
+    LLM prompts that need to understand the full flow of events.
+
+    Args:
+        provider: StateProvider instance (OrchestratorStateProvider or DatabaseStateProvider)
+        tick_events_by_tick: Dict mapping tick number -> list of events
+        agent_ids: List of all agent IDs
+
+    Returns:
+        Formatted string representation of all ticks, suitable for LLM consumption.
+
+    Example:
+        >>> tick_events = {
+        ...     0: orch.get_tick_events(0),
+        ...     1: orch.get_tick_events(1),
+        ...     2: orch.get_tick_events(2),
+        ... }
+        >>> text = format_tick_range_as_text(provider, tick_events, ["BANK_A", "BANK_B"])
+    """
+    parts = []
+    prev_balances: dict[str, int] = {}
+
+    for tick in sorted(tick_events_by_tick.keys()):
+        events = tick_events_by_tick[tick]
+        tick_text = format_events_as_text(
+            provider=provider,
+            events=events,
+            tick=tick,
+            agent_ids=agent_ids,
+            prev_balances=prev_balances,
+        )
+        parts.append(tick_text)
+
+        # Update prev_balances for next tick
+        for agent_id in agent_ids:
+            prev_balances[agent_id] = provider.get_agent_balance(agent_id)
+
+    return "\n".join(parts)

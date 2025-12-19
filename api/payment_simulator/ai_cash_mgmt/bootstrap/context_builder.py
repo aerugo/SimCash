@@ -133,10 +133,69 @@ class EnrichedBootstrapContextBuilder:
         self._results = results
         self._agent_id = agent_id
 
+    def format_event_trace_pretty(
+        self,
+        result: EnrichedEvaluationResult,
+    ) -> str:
+        """Format event trace using the same pretty formatting as CLI run/replay.
+
+        This method uses the SINGLE SOURCE OF TRUTH for event formatting
+        (display_tick_verbose_output) to ensure LLM prompts see exactly the same
+        formatting as terminal users.
+
+        CRITICAL: Still respects agent isolation - only shows events relevant to
+        the target agent. The BootstrapEventStateProvider filters events.
+
+        Args:
+            result: Enriched evaluation result containing event trace.
+
+        Returns:
+            Formatted string representation of event trace.
+            Uses the same pretty formatting as CLI verbose output.
+        """
+        if not result.event_trace:
+            return "(No events captured)"
+
+        # Import here to avoid circular imports
+        from payment_simulator.cli.execution.state_provider import BootstrapEventStateProvider
+        from payment_simulator.cli.output import format_tick_range_as_text
+
+        # Create StateProvider adapter for BootstrapEvent list
+        provider = BootstrapEventStateProvider(
+            events=list(result.event_trace),
+            agent_id=self._agent_id,
+        )
+
+        # Group events by tick
+        events_by_tick: dict[int, list[dict[str, Any]]] = {}
+        for event in result.event_trace:
+            tick = event.tick
+            if tick not in events_by_tick:
+                events_by_tick[tick] = []
+            # Convert BootstrapEvent to dict
+            event_dict = self._bootstrap_event_to_dict(event)
+            # Filter: only include events relevant to this agent
+            if event_dict in filter_events_for_agent(self._agent_id, [event_dict]):
+                events_by_tick[tick].append(event_dict)
+
+        # Remove empty ticks
+        events_by_tick = {k: v for k, v in events_by_tick.items() if v}
+
+        if not events_by_tick:
+            return f"(No events for {self._agent_id})"
+
+        # Use the SINGLE SOURCE OF TRUTH for verbose output
+        return format_tick_range_as_text(
+            provider=provider,
+            tick_events_by_tick=events_by_tick,
+            agent_ids=[self._agent_id],
+        )
+
     def format_event_trace_for_llm(
         self,
         result: EnrichedEvaluationResult,
         max_events: int = 50,
+        use_pretty_format: bool = False,
     ) -> str:
         """Format event trace for LLM prompt.
 
@@ -153,10 +212,16 @@ class EnrichedBootstrapContextBuilder:
         Args:
             result: Enriched evaluation result containing event trace.
             max_events: Maximum number of events to include.
+            use_pretty_format: If True, use the pretty CLI-style formatting.
+                This produces more verbose output but ensures consistency
+                with what users see in terminal run/replay modes.
 
         Returns:
             Formatted string representation of event trace.
         """
+        # If using pretty format, delegate to format_event_trace_pretty
+        if use_pretty_format:
+            return self.format_event_trace_pretty(result)
         if not result.event_trace:
             return "(No events captured)"
 
