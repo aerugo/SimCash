@@ -2,35 +2,35 @@
 # This file specifies exactly which experiment runs to use for paper generation.
 # This prevents ambiguity when databases contain multiple runs.
 
-# Database paths (relative to v5/ directory)
+# Database paths (relative to paper_generator/ directory)
 databases:
   exp1: data/exp1.db
   exp2: data/exp2.db
   exp3: data/exp3.db
 
 # Experiment passes - explicit run_ids for each pass
-# Updated 2025-12-18 with fresh runs for reproducibility validation
+# Updated 2025-12-19 with fresh runs for reproducibility validation
 experiments:
   exp1:
     name: "2-Period Deterministic Nash Equilibrium"
     passes:
-      1: "exp1-20251216-233551-55f475"  # 7 iterations
-      2: "exp1-20251217-004551-624d09"  # 7 iterations
-      3: "exp1-20251217-011413-2cd7d6"  # 7 iterations
+      1: "exp1-20251219-110143-8a916c"  # completed
+      2: "exp1-20251219-154942-b68746"  # completed
+      3: ""  # TBD - exp1-20251219-210241-db1a25 still running
 
   exp2:
     name: "12-Period Stochastic LVTS-Style"
     passes:
-      1: "exp2-20251217-000335-ea22b4"  # 9 iterations
-      2: "exp2-20251217-004554-22b7db"  # 7 iterations
-      3: "exp2-20251217-011415-de9091"  # 9 iterations
+      1: "exp2-20251219-113757-e9b4c2"  # completed
+      2: "exp2-20251219-155731-018785"  # completed
+      3: "exp2-20251219-165016-f1be1d"  # completed
 
   exp3:
     name: "3-Period Symmetric Joint Liquidity"
     passes:
-      1: "exp3-20251217-001932-4e849a"  # 9 iterations
-      2: "exp3-20251217-004556-87f166"  # 7 iterations
-      3: "exp3-20251217-011418-aaeebc"  # 7 iterations
+      1: "exp3-20251219-120015-d8d08d"  # completed
+      2: "exp3-20251219-155732-9065e9"  # completed
+      3: "exp3-20251219-165017-c9b7b1"  # completed
 
 # Output configuration
 output:
