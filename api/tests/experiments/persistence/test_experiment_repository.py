@@ -707,3 +707,186 @@ class TestCastroMigration:
         repo = ExperimentEventRepository(conn)
         repo.initialize_schema()
         conn.close()
+
+
+# =============================================================================
+# Continuation Support Tests
+# =============================================================================
+
+
+class TestContinuationSupport:
+    """Tests for experiment continuation methods."""
+
+    @pytest.fixture
+    def repo(self, tmp_path: Path) -> Any:
+        """Create repository for testing."""
+        from payment_simulator.experiments.persistence import ExperimentRepository
+
+        db_path = tmp_path / "test.db"
+        repository = ExperimentRepository(db_path)
+        yield repository
+        repository.close()
+
+    @pytest.fixture
+    def incomplete_experiment(self, repo: Any) -> str:
+        """Create an incomplete experiment with iterations."""
+        from payment_simulator.experiments.persistence import (
+            ExperimentRecord,
+            IterationRecord,
+        )
+
+        run_id = "incomplete-run"
+
+        # Create experiment with completed_at=None
+        record = ExperimentRecord(
+            run_id=run_id,
+            experiment_name="test",
+            experiment_type="generic",
+            config={
+                "name": "test",
+                "master_seed": 42,
+                "evaluation": {"mode": "deterministic", "ticks": 12},
+                "convergence": {"max_iterations": 10},
+                "optimized_agents": ["BANK_A"],
+                "llm": {"model": "test:model"},
+            },
+            created_at="2025-12-19T10:00:00",
+            completed_at=None,  # NOT completed
+            num_iterations=3,
+            converged=False,
+            convergence_reason=None,
+        )
+        repo.save_experiment(record)
+
+        # Add iterations
+        for i in range(3):
+            iter_record = IterationRecord(
+                run_id=run_id,
+                iteration=i + 1,  # 1-indexed
+                costs_per_agent={"BANK_A": 1000 - i * 100},
+                accepted_changes={"BANK_A": i > 0},
+                policies={"BANK_A": {"initial_liquidity_fraction": 0.5 + i * 0.1}},
+                timestamp=f"2025-12-19T10:{i:02d}:00",
+            )
+            repo.save_iteration(iter_record)
+
+        return run_id
+
+    @pytest.fixture
+    def completed_experiment(self, repo: Any) -> str:
+        """Create a completed experiment."""
+        from payment_simulator.experiments.persistence import ExperimentRecord
+
+        run_id = "completed-run"
+
+        record = ExperimentRecord(
+            run_id=run_id,
+            experiment_name="test",
+            experiment_type="generic",
+            config={},
+            created_at="2025-12-19T10:00:00",
+            completed_at="2025-12-19T10:30:00",  # IS completed
+            num_iterations=5,
+            converged=True,
+            convergence_reason="stability",
+        )
+        repo.save_experiment(record)
+
+        return run_id
+
+    def test_is_incomplete_returns_true_for_incomplete(
+        self, repo: Any, incomplete_experiment: str
+    ) -> None:
+        """is_incomplete should return True for experiment without completed_at."""
+        assert repo.is_incomplete(incomplete_experiment) is True
+
+    def test_is_incomplete_returns_false_for_completed(
+        self, repo: Any, completed_experiment: str
+    ) -> None:
+        """is_incomplete should return False for completed experiment."""
+        assert repo.is_incomplete(completed_experiment) is False
+
+    def test_is_incomplete_returns_false_for_nonexistent(self, repo: Any) -> None:
+        """is_incomplete should return False for non-existent experiment."""
+        assert repo.is_incomplete("nonexistent-run") is False
+
+    def test_get_last_iteration_returns_highest(
+        self, repo: Any, incomplete_experiment: str
+    ) -> None:
+        """get_last_iteration should return iteration with highest number."""
+        last = repo.get_last_iteration(incomplete_experiment)
+
+        assert last is not None
+        assert last.iteration == 3  # Highest of 1, 2, 3
+        assert last.policies["BANK_A"]["initial_liquidity_fraction"] == 0.7
+
+    def test_get_last_iteration_returns_none_for_no_iterations(
+        self, repo: Any, completed_experiment: str
+    ) -> None:
+        """get_last_iteration should return None if no iterations exist."""
+        # completed_experiment has no iterations saved
+        last = repo.get_last_iteration(completed_experiment)
+        assert last is None
+
+    def test_get_last_iteration_returns_none_for_nonexistent(
+        self, repo: Any
+    ) -> None:
+        """get_last_iteration should return None for non-existent run."""
+        last = repo.get_last_iteration("nonexistent-run")
+        assert last is None
+
+    def test_get_continuation_state_returns_tuple_for_incomplete(
+        self, repo: Any, incomplete_experiment: str
+    ) -> None:
+        """get_continuation_state should return (record, iterations) for incomplete."""
+        result = repo.get_continuation_state(incomplete_experiment)
+
+        assert result is not None
+        experiment, iterations = result
+        assert experiment.run_id == incomplete_experiment
+        assert experiment.completed_at is None
+        assert len(iterations) == 3
+
+    def test_get_continuation_state_returns_none_for_completed(
+        self, repo: Any, completed_experiment: str
+    ) -> None:
+        """get_continuation_state should return None for completed experiment."""
+        result = repo.get_continuation_state(completed_experiment)
+        assert result is None
+
+    def test_get_continuation_state_returns_none_for_nonexistent(
+        self, repo: Any
+    ) -> None:
+        """get_continuation_state should return None for non-existent run."""
+        result = repo.get_continuation_state("nonexistent-run")
+        assert result is None
+
+    def test_continuation_state_includes_all_iterations_ordered(
+        self, repo: Any, incomplete_experiment: str
+    ) -> None:
+        """get_continuation_state should include all iterations in order."""
+        result = repo.get_continuation_state(incomplete_experiment)
+
+        assert result is not None
+        _, iterations = result
+
+        assert len(iterations) == 3
+        assert iterations[0].iteration == 1
+        assert iterations[1].iteration == 2
+        assert iterations[2].iteration == 3
+
+    def test_continuation_state_has_complete_config(
+        self, repo: Any, incomplete_experiment: str
+    ) -> None:
+        """get_continuation_state config should have all required fields."""
+        result = repo.get_continuation_state(incomplete_experiment)
+
+        assert result is not None
+        experiment, _ = result
+
+        config = experiment.config
+        assert "master_seed" in config
+        assert "evaluation" in config
+        assert "convergence" in config
+        assert "optimized_agents" in config
+        assert "llm" in config

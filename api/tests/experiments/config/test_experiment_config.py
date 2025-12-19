@@ -387,3 +387,144 @@ output:
 
         with pytest.raises(AttributeError):
             new_config.master_seed = 99999  # type: ignore
+
+
+# =============================================================================
+# from_stored_dict Tests (Continuation Support)
+# =============================================================================
+
+
+class TestFromStoredDict:
+    """Tests for ExperimentConfig.from_stored_dict method.
+
+    This method is used to reconstruct ExperimentConfig from the JSON
+    stored in the database for experiment continuation.
+    """
+
+    def test_from_stored_dict_basic(self) -> None:
+        """from_stored_dict should reconstruct config from dict."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        stored_dict = {
+            "name": "test_experiment",
+            "description": "Test description",
+            "scenario_path": "/path/to/scenario.yaml",
+            "master_seed": 42,
+            "evaluation": {
+                "mode": "deterministic",
+                "ticks": 12,
+                "num_samples": 5,
+            },
+            "convergence": {
+                "max_iterations": 25,
+                "stability_threshold": 0.05,
+                "stability_window": 5,
+                "improvement_threshold": 0.01,
+            },
+            "optimized_agents": ["BANK_A", "BANK_B"],
+            "constraints_module": "my_module.CONSTRAINTS",
+            "llm": {
+                "model": "anthropic:claude-sonnet-4-5",
+                "temperature": 0.1,
+                "max_retries": 3,
+                "timeout_seconds": 120,
+            },
+        }
+
+        config = ExperimentConfig.from_stored_dict(stored_dict)
+
+        assert config.name == "test_experiment"
+        assert config.description == "Test description"
+        assert config.master_seed == 42
+        assert config.evaluation.mode == "deterministic"
+        assert config.evaluation.ticks == 12
+        assert config.convergence.max_iterations == 25
+        assert config.optimized_agents == ("BANK_A", "BANK_B")
+        assert config.llm.model == "anthropic:claude-sonnet-4-5"
+
+    def test_from_stored_dict_with_defaults(self) -> None:
+        """from_stored_dict should use defaults for missing fields."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        # Minimal stored dict
+        stored_dict = {
+            "name": "minimal_exp",
+            "optimized_agents": ["BANK_A"],
+        }
+
+        config = ExperimentConfig.from_stored_dict(stored_dict)
+
+        # Check defaults are applied
+        assert config.name == "minimal_exp"
+        assert config.master_seed == 42  # default
+        assert config.evaluation.mode == "bootstrap"  # default
+        assert config.evaluation.ticks == 100  # default
+        assert config.convergence.max_iterations == 50  # default
+        assert config.llm.model == "anthropic:claude-sonnet-4-5"  # default
+
+    def test_from_stored_dict_preserves_llm_config(self) -> None:
+        """from_stored_dict should preserve LLM configuration."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        stored_dict = {
+            "name": "llm_test",
+            "optimized_agents": ["BANK_A"],
+            "llm": {
+                "model": "openai:gpt-4o",
+                "temperature": 0.5,
+                "max_retries": 5,
+                "timeout_seconds": 300,
+                "thinking_budget": 10000,
+                "reasoning_effort": "high",
+                "system_prompt": "Custom prompt text",
+            },
+        }
+
+        config = ExperimentConfig.from_stored_dict(stored_dict)
+
+        assert config.llm.model == "openai:gpt-4o"
+        assert config.llm.temperature == 0.5
+        assert config.llm.max_retries == 5
+        assert config.llm.timeout_seconds == 300
+        assert config.llm.thinking_budget == 10000
+        assert config.llm.reasoning_effort == "high"
+        assert config.llm.system_prompt == "Custom prompt text"
+
+    def test_from_stored_dict_returns_frozen_config(self) -> None:
+        """from_stored_dict should return a frozen (immutable) config."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        stored_dict = {
+            "name": "test",
+            "optimized_agents": ["BANK_A"],
+        }
+
+        config = ExperimentConfig.from_stored_dict(stored_dict)
+
+        with pytest.raises(AttributeError):
+            config.master_seed = 99999  # type: ignore
+
+    def test_from_stored_dict_scenario_path_is_path_object(self) -> None:
+        """from_stored_dict should convert scenario_path to Path."""
+        from payment_simulator.experiments.config.experiment_config import (
+            ExperimentConfig,
+        )
+
+        stored_dict = {
+            "name": "test",
+            "scenario_path": "/path/to/scenario.yaml",
+            "optimized_agents": ["BANK_A"],
+        }
+
+        config = ExperimentConfig.from_stored_dict(stored_dict)
+
+        assert isinstance(config.scenario_path, Path)
+        assert config.scenario_path == Path("/path/to/scenario.yaml")
