@@ -48,29 +48,4 @@ These results validate the framework's utility for payment system analysis.
 Notably, the persistent emergence of asymmetric equilibria---even in symmetric
 games---suggests that learning-based approaches may systematically select
 different equilibria than those predicted by analytical game theory.
-
-\subsection{{Future Work}}
-
-Several directions merit further investigation:
-
-\begin{{itemize}}
-    \item \textbf{{Network scaling}}: Extending to N-agent scenarios with diverse
-    participant types (large, medium, small banks)
-
-    \item \textbf{{Partial observability}}: Modeling realistic information constraints
-    where agents cannot directly observe counterparty reserves
-
-    \item \textbf{{Regulatory intervention}}: Testing policy interventions such as
-    minimum liquidity requirements, tiered penalty structures, or central bank
-    credit facilities
-
-    \item \textbf{{Dynamic environments}}: Incorporating non-stationary elements such
-    as changing transaction volumes or participant entry/exit
-
-    \item \textbf{{Alternative learning algorithms}}: Comparing policy gradient methods
-    with Q-learning, actor-critic, or model-based approaches
-\end{{itemize}}
-
-The SimCash framework provides a foundation for these investigations, enabling
-controlled experiments to inform payment system design and regulation.
 """
