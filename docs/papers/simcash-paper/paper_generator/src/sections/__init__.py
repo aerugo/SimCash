@@ -6,7 +6,6 @@ from src.sections.conclusion import generate_conclusion
 from src.sections.discussion import generate_discussion
 from src.sections.introduction import generate_introduction
 from src.sections.methods import generate_methods
-from src.sections.references import generate_references
 from src.sections.results import generate_results
 
 __all__ = [
@@ -17,5 +16,4 @@ __all__ = [
     "generate_discussion",
     "generate_conclusion",
     "generate_appendices",
-    "generate_references",
 ]
