@@ -200,7 +200,13 @@ This outcome matches the theoretical prediction: BANK\_A free-rides on BANK\_B's
 liquidity provision, minimizing its own reserves while relying on incoming payments
 from BANK\_B to fund outgoing obligations.
 
-Table~\ref{{tab:exp1_summary}} shows consistent convergence across all three passes.
+Table~\ref{{tab:exp1_summary}} summarizes convergence across all three passes.
+Notably, \textbf{{Pass 3 exhibited different dynamics}}: one agent persisted with
+a zero-liquidity strategy even when this produced suboptimal costs given its
+counterparty's response. This demonstrates that the game admits multiple equilibria,
+and the identity of the ``free-rider'' is not predetermined. We discuss the
+implications of this behavioral variation for LLM agent realism in
+Section~\ref{{sec:discussion}}.
 
 {exp1_summary_table}
 
