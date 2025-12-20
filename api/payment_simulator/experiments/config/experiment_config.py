@@ -156,15 +156,21 @@ class ConvergenceConfig:
 
     Attributes:
         max_iterations: Maximum number of optimization iterations.
-        stability_threshold: Cost variance threshold for stability.
+        stability_threshold: Cost variance threshold for stability (deterministic modes).
         stability_window: Number of iterations to check for stability.
         improvement_threshold: Minimum improvement to continue.
+        cv_threshold: Coefficient of variation threshold for bootstrap mode.
+            CV = std_dev / |mean| over window. Default 0.03 (3%).
+        regret_threshold: Maximum regret from best for bootstrap mode.
+            Regret = (current - best) / |best|. Default 0.10 (10%).
     """
 
     max_iterations: int = 50
     stability_threshold: float = 0.05
     stability_window: int = 5
     improvement_threshold: float = 0.01
+    cv_threshold: float = 0.03
+    regret_threshold: float = 0.10
 
 
 @dataclass(frozen=True)
@@ -304,6 +310,8 @@ class ExperimentConfig:
             stability_threshold=conv_data.get("stability_threshold", 0.05),
             stability_window=conv_data.get("stability_window", 5),
             improvement_threshold=conv_data.get("improvement_threshold", 0.01),
+            cv_threshold=conv_data.get("cv_threshold", 0.03),
+            regret_threshold=conv_data.get("regret_threshold", 0.10),
         )
 
         # Parse LLM config with system_prompt handling
