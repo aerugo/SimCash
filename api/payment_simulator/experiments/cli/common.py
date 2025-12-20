@@ -16,6 +16,7 @@ def build_verbose_config(
     verbose_bootstrap: bool | None = None,
     verbose_llm: bool | None = None,
     verbose_rejections: bool | None = None,
+    verbose_metrics: bool | None = None,
     debug: bool = False,
 ) -> VerboseConfig:
     """Build VerboseConfig from CLI flag values.
@@ -27,6 +28,7 @@ def build_verbose_config(
         verbose_bootstrap: Show per-sample bootstrap results
         verbose_llm: Show LLM call metadata
         verbose_rejections: Show rejection analysis
+        verbose_metrics: Show detailed metrics (timing, costs, bootstrap stats, LLM stats)
         debug: Show debug output (validation errors, LLM retries)
 
     Returns:
@@ -49,5 +51,6 @@ def build_verbose_config(
         verbose_bootstrap=verbose_bootstrap,
         verbose_llm=verbose_llm,
         verbose_rejections=verbose_rejections,
+        verbose_metrics=verbose_metrics,
         debug=debug,
     )

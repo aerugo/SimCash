@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import secrets
 import statistics as stats_module
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -65,6 +66,11 @@ from payment_simulator.experiments.runner.bootstrap_support import (
     BootstrapLLMContext,
     InitialSimulationResult,
     SimulationResult,
+)
+from payment_simulator.experiments.runner.display import (
+    display_experiment_summary,
+    display_iteration_metrics,
+    display_llm_stats,
 )
 from payment_simulator.experiments.runner.policy_stability import PolicyStabilityTracker
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
@@ -401,6 +407,7 @@ class OptimizationLoop:
 
         # Verbose logging
         self._verbose_config = verbose_config or VerboseConfig()
+        self._console = console  # Store for direct display functions
         self._verbose_logger: VerboseLogger | None = None
         if self._verbose_config.any:
             self._verbose_logger = VerboseLogger(self._verbose_config, console=console)
@@ -442,6 +449,24 @@ class OptimizationLoop:
         # This enables replay of individual simulations
         self._simulation_ids: list[str] = []
         self._simulation_counter: int = 0
+
+        # LLM stats tracking for metrics logging
+        self._iteration_llm_calls: int = 0
+        self._iteration_llm_prompt_tokens: int = 0
+        self._iteration_llm_completion_tokens: int = 0
+        self._iteration_llm_latency: float = 0.0
+        self._iteration_llm_successes: int = 0
+        self._iteration_llm_failures: int = 0
+
+        # Total LLM stats for experiment summary
+        self._total_llm_calls: int = 0
+        self._total_llm_prompt_tokens: int = 0
+        self._total_llm_completion_tokens: int = 0
+        self._total_llm_latency: float = 0.0
+
+        # Iteration timing
+        self._iteration_start_time: float = 0.0
+        self._iteration_timings: dict[str, float] = {}
 
     @property
     def max_iterations(self) -> int:
@@ -787,11 +812,28 @@ class OptimizationLoop:
         while self._current_iteration < self.max_iterations:
             self._current_iteration += 1
 
+            # Start iteration timing
+            self._iteration_start_time = time.time()
+            self._iteration_timings = {}
+
+            # Reset iteration LLM stats
+            self._iteration_llm_calls = 0
+            self._iteration_llm_prompt_tokens = 0
+            self._iteration_llm_completion_tokens = 0
+            self._iteration_llm_latency = 0.0
+            self._iteration_llm_successes = 0
+            self._iteration_llm_failures = 0
+
             # Reset accepted changes for this iteration
             self._accepted_changes = dict.fromkeys(self.optimized_agents, False)
 
+            # Time evaluation phase
+            eval_start = time.time()
+
             # Evaluate current policies
             total_cost, per_agent_costs = await self._evaluate_policies()
+
+            self._iteration_timings["evaluation"] = time.time() - eval_start
 
             # Log iteration start with cost (verbose logging)
             if self._verbose_logger and self._verbose_config.iterations:
@@ -834,11 +876,21 @@ class OptimizationLoop:
 
             # Check convergence
             if self._convergence.is_converged:
+                # Log iteration metrics and timing even on convergence
+                self._log_iteration_end(total_cost, per_agent_costs)
                 break
+
+            # Time optimization phase
+            opt_start = time.time()
 
             # Optimize each agent
             for agent_id in self.optimized_agents:
                 await self._optimize_agent(agent_id, per_agent_costs.get(agent_id, 0))
+
+            self._iteration_timings["optimization"] = time.time() - opt_start
+
+            # Log iteration metrics and timing
+            self._log_iteration_end(total_cost, per_agent_costs)
 
             # Check multi-agent convergence for temporal mode
             # This is based on policy stability (all agents unchanged for stability_window)
@@ -885,6 +937,32 @@ class OptimizationLoop:
             convergence_reason=convergence_reason,
         )
 
+        # Build experiment_summary event (NO timing/duration for replay identity)
+        experiment_summary_event = {
+            "num_iterations": self._current_iteration,
+            "converged": converged,
+            "convergence_reason": convergence_reason,
+            "final_cost": final_cost,
+            "best_cost": self._best_cost,
+            "total_llm_calls": self._total_llm_calls,
+            "total_tokens": self._total_llm_prompt_tokens
+            + self._total_llm_completion_tokens,
+        }
+
+        # Record event via StateProvider for replay identity
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="experiment_summary",
+            event_data=experiment_summary_event,
+        )
+
+        # Display immediately if verbose metrics enabled
+        if self._verbose_config.metrics and self._console:
+            display_experiment_summary(
+                {"event_type": "experiment_summary", **experiment_summary_event},
+                self._console,
+            )
+
         return OptimizationResult(
             num_iterations=self._current_iteration,
             converged=converged,
@@ -895,6 +973,112 @@ class OptimizationLoop:
             final_policies=self._policies.copy(),
             iteration_history=self._iteration_history.copy(),
         )
+
+    def _log_iteration_end(
+        self, total_cost: int, per_agent_costs: dict[str, int]
+    ) -> None:
+        """Log iteration metrics and LLM stats at iteration end.
+
+        Records events via StateProvider for replay identity, and displays
+        immediately if verbose metrics are enabled.
+
+        Note: Timing info is NOT recorded in events to maintain replay identity.
+
+        Args:
+            total_cost: Total cost in integer cents.
+            per_agent_costs: Cost per agent in integer cents.
+        """
+        # Get liquidity fractions from current policies
+        per_agent_liquidity: dict[str, float] = {}
+        for agent_id in per_agent_costs:
+            if agent_id in self._policies:
+                policy = self._policies[agent_id]
+                if isinstance(policy, dict):
+                    # Try to extract liquidity fraction from policy
+                    frac = policy.get("initial_liquidity_fraction")
+                    if frac is None:
+                        params = policy.get("parameters", {})
+                        frac = params.get("initial_liquidity_fraction")
+                    if frac is not None:
+                        per_agent_liquidity[agent_id] = float(frac)
+
+        # Build iteration_metrics event data (NO timing info for replay identity)
+        iteration_metrics_event = {
+            "iteration": self._current_iteration,
+            "total_cost": total_cost,
+            "per_agent_costs": per_agent_costs,
+            "per_agent_liquidity": per_agent_liquidity if per_agent_liquidity else {},
+        }
+
+        # Record event via StateProvider for replay identity
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="iteration_metrics",
+            event_data=iteration_metrics_event,
+        )
+
+        # Display immediately if verbose metrics enabled
+        if self._verbose_config.metrics and self._console:
+            display_iteration_metrics(
+                {"event_type": "iteration_metrics", **iteration_metrics_event},
+                self._console,
+            )
+
+        # Handle LLM stats for this iteration
+        if self._iteration_llm_calls > 0:
+            # Build llm_stats event data (NO timing/latency info for replay identity)
+            llm_stats_event = {
+                "iteration": self._current_iteration,
+                "total_calls": self._iteration_llm_calls,
+                "successful_calls": self._iteration_llm_successes,
+                "failed_calls": self._iteration_llm_failures,
+                "total_prompt_tokens": self._iteration_llm_prompt_tokens,
+                "total_completion_tokens": self._iteration_llm_completion_tokens,
+            }
+
+            # Record event via StateProvider for replay identity
+            self._state_provider.record_event(
+                iteration=self._current_iteration - 1,  # 0-indexed
+                event_type="llm_stats",
+                event_data=llm_stats_event,
+            )
+
+            # Display immediately if verbose metrics enabled
+            if self._verbose_config.metrics and self._console:
+                display_llm_stats(
+                    {"event_type": "llm_stats", **llm_stats_event},
+                    self._console,
+                )
+
+        # Accumulate total LLM stats
+        self._total_llm_calls += self._iteration_llm_calls
+        self._total_llm_prompt_tokens += self._iteration_llm_prompt_tokens
+        self._total_llm_completion_tokens += self._iteration_llm_completion_tokens
+        self._total_llm_latency += self._iteration_llm_latency
+
+    def _record_llm_call(
+        self,
+        prompt_tokens: int,
+        completion_tokens: int,
+        latency_seconds: float,
+        success: bool,
+    ) -> None:
+        """Record an LLM call for metrics tracking.
+
+        Args:
+            prompt_tokens: Number of prompt tokens used.
+            completion_tokens: Number of completion tokens generated.
+            latency_seconds: API latency in seconds.
+            success: Whether the call was successful.
+        """
+        self._iteration_llm_calls += 1
+        self._iteration_llm_prompt_tokens += prompt_tokens
+        self._iteration_llm_completion_tokens += completion_tokens
+        self._iteration_llm_latency += latency_seconds
+        if success:
+            self._iteration_llm_successes += 1
+        else:
+            self._iteration_llm_failures += 1
 
     def _save_iteration_record(self, per_agent_costs: dict[str, int]) -> None:
         """Save iteration record to repository.
@@ -2035,18 +2219,26 @@ class OptimizationLoop:
                     debug_callback=debug_callback,
                 )
 
+                # Get actual token counts from LLM client's last interaction
+                interaction = self._llm_client.get_last_interaction()
+                if interaction:
+                    prompt_tokens = interaction.prompt_tokens
+                    completion_tokens = interaction.completion_tokens
+                else:
+                    # Fallback if no interaction recorded
+                    prompt_tokens = opt_result.tokens_used
+                    completion_tokens = 0
+
+                # Record LLM call for metrics tracking
+                self._record_llm_call(
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    latency_seconds=opt_result.llm_latency_seconds,
+                    success=opt_result.new_policy is not None,
+                )
+
                 # Log LLM call metadata (verbose logging)
                 if self._verbose_logger and self._verbose_config.llm:
-                    # Get actual token counts from LLM client's last interaction
-                    interaction = self._llm_client.get_last_interaction()
-                    if interaction:
-                        prompt_tokens = interaction.prompt_tokens
-                        completion_tokens = interaction.completion_tokens
-                    else:
-                        # Fallback if no interaction recorded
-                        prompt_tokens = opt_result.tokens_used
-                        completion_tokens = 0
-
                     self._verbose_logger.log_llm_call(
                         LLMCallMetadata(
                             agent_id=agent_id,
@@ -2099,11 +2291,23 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                         for i, cost in enumerate(self._iteration_history)
                     ],
                 }
+                llm_start = time.time()
                 new_policy = await self._llm_client.generate_policy(
                     prompt=prompt,
                     current_policy=current_policy,
                     context=context,
                 )
+                llm_latency = time.time() - llm_start
+
+                # Record LLM call for fallback path
+                fallback_interaction = self._llm_client.get_last_interaction()
+                if fallback_interaction:
+                    self._record_llm_call(
+                        prompt_tokens=fallback_interaction.prompt_tokens,
+                        completion_tokens=fallback_interaction.completion_tokens,
+                        latency_seconds=llm_latency,
+                        success=True,
+                    )
 
             # Save LLM interaction for audit replay (after both paths)
             self._save_llm_interaction_event(agent_id)
@@ -2422,6 +2626,16 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 cost_rates=self._cost_rates,
                 debug_callback=None,
             )
+
+            # Record LLM call for metrics tracking (temporal mode)
+            temporal_interaction = self._llm_client.get_last_interaction()
+            if temporal_interaction:
+                self._record_llm_call(
+                    prompt_tokens=temporal_interaction.prompt_tokens,
+                    completion_tokens=temporal_interaction.completion_tokens,
+                    latency_seconds=opt_result.llm_latency_seconds,
+                    success=opt_result.new_policy is not None,
+                )
 
             new_policy = opt_result.new_policy
 

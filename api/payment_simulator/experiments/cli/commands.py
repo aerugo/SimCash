@@ -63,6 +63,10 @@ def replay(
         bool,
         typer.Option("--verbose-policy", help="Show policy changes"),
     ] = False,
+    verbose_metrics: Annotated[
+        bool,
+        typer.Option("--verbose-metrics", help="Show detailed metrics (timing, costs, bootstrap stats, LLM stats)"),
+    ] = False,
     audit: Annotated[
         bool,
         typer.Option("--audit", help="Show detailed audit trail for each iteration"),
@@ -152,6 +156,7 @@ def replay(
             verbose_bootstrap=verbose_bootstrap if verbose_bootstrap else None,
             verbose_llm=verbose_llm if verbose_llm else None,
             verbose_policy=verbose_policy if verbose_policy else None,
+            verbose_metrics=verbose_metrics if verbose_metrics else None,
         )
 
         # Display output using unified function
@@ -592,6 +597,10 @@ def run(
         bool,
         typer.Option("--verbose-policy", help="Show policy changes"),
     ] = False,
+    verbose_metrics: Annotated[
+        bool,
+        typer.Option("--verbose-metrics", help="Show detailed metrics (timing, costs, bootstrap stats, LLM stats)"),
+    ] = False,
     persist_bootstrap: Annotated[
         bool,
         typer.Option("--persist-bootstrap", help="Persist bootstrap sample simulations to database for replay"),
@@ -681,6 +690,7 @@ def run(
         verbose_bootstrap=verbose_bootstrap if verbose_bootstrap else None,
         verbose_llm=verbose_llm if verbose_llm else None,
         verbose_policy=verbose_policy if verbose_policy else None,
+        verbose_metrics=verbose_metrics if verbose_metrics else None,
     )
 
     # Import runner here to avoid circular imports
