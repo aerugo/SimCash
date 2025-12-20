@@ -279,7 +279,7 @@ class DatabaseDataProvider:
     """DataProvider implementation using DuckDB databases.
 
     Reads experiment data from {exp_id}.db files in the data directory.
-    Each database contains a policy_evaluations table with iteration results.
+    Each database contains an experiment_iterations table with iteration results.
 
     A config file is REQUIRED. Run_ids are looked up from the config file
     which explicitly maps experiment passes to specific run_ids. This ensures
@@ -363,14 +363,14 @@ class DatabaseDataProvider:
     ) -> list[AgentIterationResult]:
         """Get per-agent costs for all iterations.
 
-        Queries the policy_evaluations table for the specified run and
+        Queries the experiment_iterations table for the specified run and
         returns results ordered by (iteration, agent_id).
 
         Args:
             exp_id: Experiment identifier
             pass_num: Pass number
             include_baseline: If True, include baseline (iteration -1) with
-                50% liquidity and cost from old_cost of first iteration
+                50% liquidity and cost from iteration 0
 
         Returns:
             List of AgentIterationResult dicts with costs in cents
@@ -378,59 +378,68 @@ class DatabaseDataProvider:
         run_id = self.get_run_id(exp_id, pass_num)
         conn = self._get_connection(exp_id)
 
+        # Query experiment_iterations which has JSON columns for per-agent data
         result = conn.execute(
             """
             SELECT
                 iteration,
-                agent_id,
-                old_cost,
-                new_cost AS cost,
-                CAST(
-                    json_extract(
-                        proposed_policy,
-                        '$.parameters.initial_liquidity_fraction'
-                    ) AS DOUBLE
-                ) AS liquidity_fraction,
-                accepted
-            FROM policy_evaluations
+                costs_per_agent,
+                accepted_changes,
+                policies
+            FROM experiment_iterations
             WHERE run_id = ?
-            ORDER BY iteration, agent_id
+            ORDER BY iteration
             """,
             [run_id],
         ).fetchall()
 
         results: list[AgentIterationResult] = []
 
-        # Add baseline iteration (-1) with 50% liquidity and old_cost from first iteration
+        # Add baseline iteration (-1) with 50% liquidity and cost from iteration 0
         if include_baseline and result:
-            # Get the minimum iteration number (first iteration)
-            min_iter = min(row[0] for row in result)
-            first_iter_rows = [row for row in result if row[0] == min_iter]
+            # Find iteration 0 (baseline)
+            baseline_row = next((row for row in result if row[0] == 0), None)
+            if baseline_row:
+                costs = json.loads(baseline_row[1]) if isinstance(baseline_row[1], str) else baseline_row[1]
+                for agent_id in sorted(costs.keys()):
+                    results.append(
+                        AgentIterationResult(
+                            iteration=-1,  # Baseline iteration
+                            agent_id=agent_id,
+                            cost=costs[agent_id],  # Cost at iteration 0 is baseline
+                            liquidity_fraction=0.5,  # Baseline is always 50%
+                            accepted=True,  # Baseline is the starting point
+                            is_baseline=True,
+                        )
+                    )
 
-            for row in first_iter_rows:
+        # Add regular iterations (skip iteration 0 as it's the baseline)
+        for row in result:
+            iteration = row[0]
+            costs = json.loads(row[1]) if isinstance(row[1], str) else row[1]
+            accepted = json.loads(row[2]) if isinstance(row[2], str) else row[2]
+            policies = json.loads(row[3]) if isinstance(row[3], str) else row[3]
+
+            for agent_id in sorted(costs.keys()):
+                # Extract liquidity fraction from policy
+                liquidity_fraction = 0.5  # Default
+                if agent_id in policies:
+                    policy = policies[agent_id]
+                    if isinstance(policy, dict) and "parameters" in policy:
+                        params = policy["parameters"]
+                        if "initial_liquidity_fraction" in params:
+                            liquidity_fraction = params["initial_liquidity_fraction"]
+
                 results.append(
                     AgentIterationResult(
-                        iteration=-1,  # Baseline iteration
-                        agent_id=row[1],
-                        cost=row[2],  # old_cost represents baseline cost
-                        liquidity_fraction=0.5,  # Baseline is always 50%
-                        accepted=True,  # Baseline is the starting point
-                        is_baseline=True,
+                        iteration=iteration,
+                        agent_id=agent_id,
+                        cost=costs[agent_id],
+                        liquidity_fraction=liquidity_fraction,
+                        accepted=accepted.get(agent_id, True),
+                        is_baseline=False,
                     )
                 )
-
-        # Add regular iterations
-        for row in result:
-            results.append(
-                AgentIterationResult(
-                    iteration=row[0],
-                    agent_id=row[1],
-                    cost=row[3],  # new_cost
-                    liquidity_fraction=row[4],
-                    accepted=row[5],
-                    is_baseline=False,
-                )
-            )
 
         return results
 
@@ -452,11 +461,11 @@ class DatabaseDataProvider:
         run_id = self.get_run_id(exp_id, pass_num)
         conn = self._get_connection(exp_id)
 
-        # Get max iteration for this run
+        # Get max iteration for this run from experiment_iterations
         max_iter_result = conn.execute(
             """
             SELECT MAX(iteration)
-            FROM policy_evaluations
+            FROM experiment_iterations
             WHERE run_id = ?
             """,
             [run_id],
@@ -467,39 +476,28 @@ class DatabaseDataProvider:
 
         max_iter = max_iter_result[0]
 
+        # Get costs from experiment_iterations
         result = conn.execute(
             """
-            SELECT
-                agent_id,
-                new_cost AS mean_cost,
-                COALESCE(cost_std_dev, 0) AS std_dev,
-                confidence_interval_95,
-                num_samples
-            FROM policy_evaluations
+            SELECT costs_per_agent
+            FROM experiment_iterations
             WHERE run_id = ? AND iteration = ?
             """,
             [run_id, max_iter],
-        ).fetchall()
+        ).fetchone()
 
         stats: dict[str, BootstrapStats] = {}
-        for row in result:
-            agent_id, mean_cost, std_dev, ci_json, num_samples = row
-
-            # Parse CI JSON - can be string or already parsed
-            if ci_json:
-                ci = json.loads(ci_json) if isinstance(ci_json, str) else ci_json
-                ci_lower, ci_upper = int(ci[0]), int(ci[1])
-            else:
-                # No CI data - use mean as both bounds
-                ci_lower, ci_upper = mean_cost, mean_cost
-
-            stats[agent_id] = BootstrapStats(
-                mean_cost=mean_cost,
-                std_dev=int(std_dev),
-                ci_lower=ci_lower,
-                ci_upper=ci_upper,
-                num_samples=num_samples if num_samples else 1,
-            )
+        if result:
+            costs = json.loads(result[0]) if isinstance(result[0], str) else result[0]
+            for agent_id, cost in costs.items():
+                # No bootstrap data in experiment_iterations, use single value
+                stats[agent_id] = BootstrapStats(
+                    mean_cost=cost,
+                    std_dev=0,
+                    ci_lower=cost,
+                    ci_upper=cost,
+                    num_samples=1,
+                )
 
         return stats
 
@@ -521,7 +519,7 @@ class DatabaseDataProvider:
         result = conn.execute(
             """
             SELECT MAX(iteration)
-            FROM policy_evaluations
+            FROM experiment_iterations
             WHERE run_id = ?
             """,
             [run_id],
@@ -594,37 +592,35 @@ class DatabaseDataProvider:
     def get_pass_summary(self, exp_id: str, pass_num: int) -> PassSummary:
         """Get summary of results for one experiment pass.
 
-        Returns the FINAL ACCEPTED state for each agent, not the final proposed
-        values which may have been rejected.
+        Returns the FINAL iteration state for each agent, representing the
+        converged equilibrium.
 
         Args:
             exp_id: Experiment identifier
             pass_num: Pass number
 
         Returns:
-            PassSummary with final accepted state for each agent
+            PassSummary with final state for each agent
         """
         # Get total iterations for context
         final_iter = self.get_convergence_iteration(exp_id, pass_num)
-        results = self.get_iteration_results(exp_id, pass_num)
+        results = self.get_iteration_results(exp_id, pass_num, include_baseline=False)
 
-        # Find the last ACCEPTED policy for each agent
-        # This is the actual final state, not just the last proposal
-        bank_a_accepted = [
-            r for r in results if r["agent_id"] == "BANK_A" and r["accepted"]
+        # Find the final iteration's data for each agent
+        bank_a_results = [
+            r for r in results if r["agent_id"] == "BANK_A" and r["iteration"] == final_iter
         ]
-        bank_b_accepted = [
-            r for r in results if r["agent_id"] == "BANK_B" and r["accepted"]
+        bank_b_results = [
+            r for r in results if r["agent_id"] == "BANK_B" and r["iteration"] == final_iter
         ]
 
-        if not bank_a_accepted or not bank_b_accepted:
+        if not bank_a_results or not bank_b_results:
             raise ValueError(
-                f"No accepted policies found for {exp_id} pass {pass_num}"
+                f"No final iteration data found for {exp_id} pass {pass_num}"
             )
 
-        # Get the last accepted iteration for each agent
-        bank_a = max(bank_a_accepted, key=lambda r: r["iteration"])
-        bank_b = max(bank_b_accepted, key=lambda r: r["iteration"])
+        bank_a = bank_a_results[0]
+        bank_b = bank_b_results[0]
 
         return PassSummary(
             pass_num=pass_num,

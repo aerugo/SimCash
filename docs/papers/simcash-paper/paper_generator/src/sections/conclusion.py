@@ -28,8 +28,7 @@ def generate_conclusion(provider: DataProvider) -> str:
 
 This paper presented SimCash, a multi-agent simulation framework for studying
 strategic liquidity management in RTGS payment systems. Through three experiments,
-we demonstrated that reinforcement learning agents converge to game-theoretically
-predicted equilibria:
+we demonstrated that LLM agents consistently converge to stable equilibria:
 
 \begin{{enumerate}}
     \item \textbf{{Asymmetric equilibrium}} ({exp1_conv} iterations): Free-rider behavior
@@ -40,13 +39,15 @@ predicted equilibria:
     strategies even under transaction stochasticity, as validated through bootstrap
     evaluation methodology.
 
-    \item \textbf{{Cooperative equilibrium}} ({exp3_conv} iterations): Symmetric cost
-    structures lead to balanced liquidity provision across participants.
+    \item \textbf{{Equilibrium selection}} ({exp3_conv} iterations): Even in symmetric
+    games, LLM agents converge to asymmetric equilibria, suggesting that sequential
+    best-response dynamics favor free-rider outcomes over cooperative equilibria.
 \end{{enumerate}}
 
-These results validate the framework's utility for payment system analysis and
-contribute experimental evidence supporting theoretical predictions about strategic
-behavior in financial infrastructure.
+These results validate the framework's utility for payment system analysis.
+Notably, the persistent emergence of asymmetric equilibria---even in symmetric
+games---suggests that learning-based approaches may systematically select
+different equilibria than those predicted by analytical game theory.
 
 \subsection{{Future Work}}
 
