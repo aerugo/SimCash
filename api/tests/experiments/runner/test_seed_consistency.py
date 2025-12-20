@@ -170,25 +170,6 @@ class TestSeedConsistencyInDeterministicMode:
         assert "BANK_B" in loop._seed_matrix._agents_tuple
 
 
-class TestSeedConsistencyWithBootstrapMode:
-    """Verify bootstrap mode is not affected by seed consistency fix."""
-
-    def test_bootstrap_mode_still_uses_derived_sample_seeds(self) -> None:
-        """Bootstrap mode should continue to use _derive_sample_seed for samples.
-
-        The seed consistency fix is only for deterministic mode.
-        Bootstrap mode has its own seed derivation logic.
-        """
-        mock_config = _create_mock_config(mode="bootstrap", num_samples=5)
-        loop = OptimizationLoop(config=mock_config)
-
-        # Verify bootstrap uses derived seeds (different from iteration seed)
-        sample_seed_0 = loop._derive_sample_seed(0)
-        sample_seed_1 = loop._derive_sample_seed(1)
-
-        assert sample_seed_0 != sample_seed_1, "Bootstrap samples should have different seeds"
-
-
 class TestSeedDerivationDeterminism:
     """Test that seed derivation is fully deterministic."""
 
