@@ -85,6 +85,7 @@ def wrap_document(
 \usepackage{{booktabs}}
 \usepackage{{graphicx}}
 \usepackage{{float}}
+\usepackage{{longtable}}
 
 % Lists
 \usepackage{{enumitem}}

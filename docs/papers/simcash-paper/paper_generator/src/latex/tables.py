@@ -24,19 +24,27 @@ def generate_iteration_table(
     results: list[AgentIterationResult],
     caption: str,
     label: str,
+    max_rows: int | None = None,
 ) -> str:
     """Generate LaTeX table for iteration-by-iteration results.
 
     Creates a table showing agent costs and liquidity fractions per iteration.
     Baseline iteration (-1) is displayed as "Baseline" in the table.
 
+    For long experiments (>15 iterations), uses longtable to span multiple pages.
+
+    The "Accepted" column is NOT included because the underlying data has a
+    known bug where accepted_changes is always False. Acceptance should be
+    inferred from cost improvement if needed.
+
     Args:
         results: List of AgentIterationResult from DataProvider
         caption: Table caption text
         label: LaTeX label for referencing (e.g., "tab:exp1_results")
+        max_rows: If set, truncate to this many iterations (showing first and last)
 
     Returns:
-        Complete LaTeX table string with tabular environment
+        Complete LaTeX table string with tabular or longtable environment
 
     Example:
         >>> results = provider.get_iteration_results("exp1", pass_num=1)
@@ -49,41 +57,67 @@ def generate_iteration_table(
             iterations[r["iteration"]] = []
         iterations[r["iteration"]].append(r)
 
+    sorted_iters = sorted(iterations.keys())
+    num_iterations = len(sorted_iters)
+
     # Build table rows
     rows: list[str] = []
 
-    # Header row
-    header = format_table_row(
-        ["Iteration", "Agent", "Cost", "Liquidity", "Accepted"]
-    )
-    rows.append(header)
-    rows.append(r"\hline")
-
     # Data rows
-    for iteration in sorted(iterations.keys()):
+    for iteration in sorted_iters:
         for r in sorted(iterations[iteration], key=lambda x: x["agent_id"]):
             # Display "Baseline" for iteration -1, otherwise show the iteration number
             iter_display = "Baseline" if r.get("is_baseline", False) or r["iteration"] == -1 else str(r["iteration"])
-            # For baseline, show "---" for Accepted column since it's the starting point
-            accepted_display = "---" if r.get("is_baseline", False) or r["iteration"] == -1 else ("Yes" if r["accepted"] else "No")
             row = format_table_row([
                 iter_display,
                 escape_latex(r["agent_id"]),
                 format_money(r["cost"]),
                 format_percent(r["liquidity_fraction"]),
-                accepted_display,
             ])
             rows.append(row)
 
-    # Build complete table
-    table_body = "\n        ".join(rows)
+    # Use longtable for experiments with many iterations (>15)
+    if num_iterations > 15:
+        # longtable format for multi-page tables
+        table_body = "\n        ".join(rows)
 
-    return rf"""
+        return rf"""
+\begin{{longtable}}{{llrr}}
+    \caption{{{caption}}} \label{{{label}}} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{{4}}{{c}}{{\tablename\ \thetable{{}} -- continued from previous page}} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{{4}}{{r}}{{Continued on next page}} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+
+        {table_body}
+\end{{longtable}}
+"""
+    else:
+        # Standard table for shorter experiments
+        table_body = "\n        ".join(rows)
+        header = format_table_row(["Iteration", "Agent", "Cost", "Liquidity"])
+
+        return rf"""
 \begin{{table}}[htbp]
     \centering
     \caption{{{caption}}}
     \label{{{label}}}
-    \begin{{tabular}}{{llrrr}}
+    \begin{{tabular}}{{llrr}}
+        \hline
+        {header}
         \hline
         {table_body}
         \hline
