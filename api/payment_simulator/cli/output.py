@@ -2402,36 +2402,37 @@ def log_target2_events(events: list[dict], quiet: bool = False, custom_console: 
     if quiet:
         return
 
-    c = _get_console(custom_console)
-
     for event in events:
         event_type = event.get("event_type", "")
 
         if event_type == "RtgsSubmission":
-            log_rtgs_submission_event(event)
+            log_rtgs_submission_event(event, custom_console=custom_console)
         elif event_type == "RtgsWithdrawal":
-            log_rtgs_withdrawal_event(event)
+            log_rtgs_withdrawal_event(event, custom_console=custom_console)
         elif event_type == "RtgsResubmission":
-            log_rtgs_resubmission_event(event)
+            log_rtgs_resubmission_event(event, custom_console=custom_console)
         elif event_type == "BilateralLimitExceeded":
-            log_bilateral_limit_exceeded_event(event)
+            log_bilateral_limit_exceeded_event(event, custom_console=custom_console)
         elif event_type == "MultilateralLimitExceeded":
-            log_multilateral_limit_exceeded_event(event)
+            log_multilateral_limit_exceeded_event(event, custom_console=custom_console)
         elif event_type == "AlgorithmExecution":
-            log_algorithm_execution_event(event)
+            log_algorithm_execution_event(event, custom_console=custom_console)
         elif event_type == "EntryDispositionOffset":
-            log_entry_disposition_offset_event(event)
+            log_entry_disposition_offset_event(event, custom_console=custom_console)
 
 
-def log_rtgs_submission_event(event: dict, quiet: bool = False) -> None:
+def log_rtgs_submission_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display RtgsSubmission event (Phase 0: Dual Priority System).
 
     Args:
         event: Event dict with rtgs_priority, internal_priority, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     tx_id = event.get("tx_id", "unknown")
     sender = event.get("sender", "unknown")
@@ -2443,20 +2444,23 @@ def log_rtgs_submission_event(event: dict, quiet: bool = False) -> None:
     amount_str = f"${amount / 100:,.2f}"
     priority_color = "red" if rtgs_priority == "Urgent" else "yellow" if rtgs_priority == "HighlyUrgent" else "green"
 
-    console.print(f"  [cyan]RTGS Submission:[/cyan] {tx_id[:12]}...")
-    console.print(f"    {sender} → {receiver}: {amount_str}")
-    console.print(f"    RTGS Priority: [{priority_color}]{rtgs_priority}[/{priority_color}] (internal: {internal_priority})")
+    c.print(f"  [cyan]RTGS Submission:[/cyan] {tx_id[:12]}...")
+    c.print(f"    {sender} → {receiver}: {amount_str}")
+    c.print(f"    RTGS Priority: [{priority_color}]{rtgs_priority}[/{priority_color}] (internal: {internal_priority})")
 
 
-def log_rtgs_withdrawal_event(event: dict, quiet: bool = False) -> None:
+def log_rtgs_withdrawal_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display RtgsWithdrawal event (Phase 0: Dual Priority System).
 
     Args:
         event: Event dict with tx_id, original_rtgs_priority, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     tx_id = event.get("tx_id", "unknown")
     sender = event.get("sender", "unknown")
@@ -2464,21 +2468,24 @@ def log_rtgs_withdrawal_event(event: dict, quiet: bool = False) -> None:
     ticks_in_queue = event.get("ticks_in_queue", 0)
     reason = event.get("reason", "Unknown")
 
-    console.print(f"  [yellow]RTGS Withdrawal:[/yellow] {tx_id[:12]}...")
-    console.print(f"    Sender: {sender}")
-    console.print(f"    Original Priority: {original_priority}, Ticks in Queue: {ticks_in_queue}")
-    console.print(f"    Reason: {reason}")
+    c.print(f"  [yellow]RTGS Withdrawal:[/yellow] {tx_id[:12]}...")
+    c.print(f"    Sender: {sender}")
+    c.print(f"    Original Priority: {original_priority}, Ticks in Queue: {ticks_in_queue}")
+    c.print(f"    Reason: {reason}")
 
 
-def log_rtgs_resubmission_event(event: dict, quiet: bool = False) -> None:
+def log_rtgs_resubmission_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display RtgsResubmission event (Phase 0: Dual Priority System).
 
     Args:
         event: Event dict with old/new rtgs_priority
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     tx_id = event.get("tx_id", "unknown")
     sender = event.get("sender", "unknown")
@@ -2488,20 +2495,23 @@ def log_rtgs_resubmission_event(event: dict, quiet: bool = False) -> None:
     old_color = "red" if old_priority == "Urgent" else "green"
     new_color = "red" if new_priority == "Urgent" else "green"
 
-    console.print(f"  [magenta]RTGS Resubmission:[/magenta] {tx_id[:12]}...")
-    console.print(f"    Sender: {sender}")
-    console.print(f"    Priority: [{old_color}]{old_priority}[/{old_color}] → [{new_color}]{new_priority}[/{new_color}]")
+    c.print(f"  [magenta]RTGS Resubmission:[/magenta] {tx_id[:12]}...")
+    c.print(f"    Sender: {sender}")
+    c.print(f"    Priority: [{old_color}]{old_priority}[/{old_color}] → [{new_color}]{new_priority}[/{new_color}]")
 
 
-def log_bilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None:
+def log_bilateral_limit_exceeded_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display BilateralLimitExceeded event (Phase 1: Limits).
 
     Args:
         event: Event dict with sender, receiver, limit, attempted, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     sender = event.get("sender", "unknown")
     receiver = event.get("receiver", "unknown")
@@ -2513,21 +2523,24 @@ def log_bilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None
     current_str = f"${current / 100:,.2f}"
     attempted_str = f"${attempted / 100:,.2f}"
 
-    console.print("  [red]⚠ Bilateral Limit Exceeded:[/red]")
-    console.print(f"    {sender} → {receiver}")
-    console.print(f"    Limit: {limit_str}, Current Outflow: {current_str}")
-    console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
+    c.print("  [red]⚠ Bilateral Limit Exceeded:[/red]")
+    c.print(f"    {sender} → {receiver}")
+    c.print(f"    Limit: {limit_str}, Current Outflow: {current_str}")
+    c.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
 
 
-def log_multilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> None:
+def log_multilateral_limit_exceeded_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display MultilateralLimitExceeded event (Phase 1: Limits).
 
     Args:
         event: Event dict with sender, limit, current_total_outflow, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     sender = event.get("sender", "unknown")
     limit = event.get("multilateral_limit", event.get("limit", 0))
@@ -2538,21 +2551,24 @@ def log_multilateral_limit_exceeded_event(event: dict, quiet: bool = False) -> N
     current_str = f"${current / 100:,.2f}"
     attempted_str = f"${attempted / 100:,.2f}"
 
-    console.print("  [red]⚠ Multilateral Limit Exceeded:[/red]")
-    console.print(f"    Sender: {sender}")
-    console.print(f"    Total Limit: {limit_str}, Current Total Outflow: {current_str}")
-    console.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
+    c.print("  [red]⚠ Multilateral Limit Exceeded:[/red]")
+    c.print(f"    Sender: {sender}")
+    c.print(f"    Total Limit: {limit_str}, Current Total Outflow: {current_str}")
+    c.print(f"    Attempted: {attempted_str} (would exceed by ${(current + attempted - limit) / 100:,.2f})")
 
 
-def log_algorithm_execution_event(event: dict, quiet: bool = False) -> None:
+def log_algorithm_execution_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display AlgorithmExecution event (Phase 2: Algorithm Sequencing).
 
     Args:
         event: Event dict with algorithm number, result, settlements, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     algorithm = event.get("algorithm", 0)
     result = event.get("result", "Unknown")
@@ -2570,21 +2586,24 @@ def log_algorithm_execution_event(event: dict, quiet: bool = False) -> None:
     result_color = "green" if result == "Success" else "yellow" if result == "NoProgress" else "red"
     value_str = f"${settled_value / 100:,.2f}" if settled_value > 0 else "$0.00"
 
-    console.print(f"  [blue]Algorithm {algorithm}:[/blue] {alg_name}")
-    console.print(f"    Result: [{result_color}]{result}[/{result_color}]")
+    c.print(f"  [blue]Algorithm {algorithm}:[/blue] {alg_name}")
+    c.print(f"    Result: [{result_color}]{result}[/{result_color}]")
     if settlements > 0 or settled_value > 0:
-        console.print(f"    Settlements: {settlements}, Value: {value_str}")
+        c.print(f"    Settlements: {settlements}, Value: {value_str}")
 
 
-def log_entry_disposition_offset_event(event: dict, quiet: bool = False) -> None:
+def log_entry_disposition_offset_event(event: dict, quiet: bool = False, custom_console: Console | None = None) -> None:
     """Display EntryDispositionOffset event (Phase 3: Entry Disposition).
 
     Args:
         event: Event dict with incoming/queued tx, agents, offset_amount, etc.
         quiet: Suppress output if True
+        custom_console: Optional custom console to use for output.
     """
     if quiet:
         return
+
+    c = _get_console(custom_console)
 
     incoming_tx = event.get("incoming_tx_id", "unknown")
     queued_tx = event.get("queued_tx_id", "unknown")
@@ -2598,11 +2617,11 @@ def log_entry_disposition_offset_event(event: dict, quiet: bool = False) -> None
     incoming_str = f"${incoming_amount / 100:,.2f}"
     queued_str = f"${queued_amount / 100:,.2f}"
 
-    console.print("  [green]Entry Disposition Offset:[/green]")
-    console.print(f"    {agent_a} ↔ {agent_b}")
-    console.print(f"    Incoming: {incoming_tx[:12]}... ({incoming_str})")
-    console.print(f"    Queued: {queued_tx[:12]}... ({queued_str})")
-    console.print(f"    Offset Amount: {offset_str}")
+    c.print("  [green]Entry Disposition Offset:[/green]")
+    c.print(f"    {agent_a} ↔ {agent_b}")
+    c.print(f"    Incoming: {incoming_tx[:12]}... ({incoming_str})")
+    c.print(f"    Queued: {queued_tx[:12]}... ({queued_str})")
+    c.print(f"    Offset Amount: {offset_str}")
 
 
 # ============================================================================
