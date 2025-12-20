@@ -14,16 +14,16 @@ experiments:
   exp1:
     name: "2-Period Deterministic Nash Equilibrium"
     passes:
-      1: "exp3-20251219-120015-d8d08d"
-      2: "exp3-20251219-155732-9065e9"
-      3: "exp3-20251219-165017-c9b7b1"
+      1: "exp1-20251219-110143-8a916c"
+      2: "exp1-20251219-154942-b68746"
+      3: "exp1-20251220-110405-2799dd"
 
   exp2:
     name: "12-Period Stochastic LVTS-Style"
     passes:
-      1: "exp3-20251219-120015-d8d08d"
-      2: "exp3-20251219-155732-9065e9"
-      3: "exp3-20251219-165017-c9b7b1"
+      1: "exp2-20251219-113757-e9b4c2"
+      2: "exp2-20251219-155731-018785"
+      3: "exp2-20251219-165016-f1be1d"
 
   exp3:
     name: "3-Period Symmetric Joint Liquidity"
