@@ -135,8 +135,8 @@ class SystemPromptBuilder:
         if self._customization and self._customization.strip():
             sections.append(_build_customization_section(self._customization))
 
-        # Section 4: Domain explanation
-        sections.append(_build_domain_explanation())
+        # Section 4: Domain explanation (filtered based on scenario features)
+        sections.append(self._build_domain_explanation())
 
         # Section 5: Cost structure and objectives
         sections.append(_build_cost_objectives())
@@ -172,6 +172,16 @@ class SystemPromptBuilder:
     # =========================================================================
     # Constraint-Aware Section Builders
     # =========================================================================
+
+    def _build_domain_explanation(self) -> str:
+        """Build the domain explanation section.
+
+        Conditionally includes the LSM (Liquidity-Saving Mechanism) section
+        based on whether LSM is enabled in the scenario constraints.
+        """
+        return _build_domain_explanation_base(
+            lsm_enabled=self._constraints.lsm_enabled
+        )
 
     def _build_policy_architecture(self) -> str:
         """Build the policy tree architecture explanation.
@@ -482,9 +492,19 @@ REQUIRED strategic_collateral_tree STRUCTURE:
 """
 
 
-def _build_domain_explanation() -> str:
-    """Build the domain explanation section."""
-    return """
+def _build_domain_explanation_base(lsm_enabled: bool = True) -> str:
+    """Build the domain explanation section.
+
+    Args:
+        lsm_enabled: Whether LSM is enabled in the scenario. If False,
+                     the LSM section is omitted from the explanation.
+
+    Returns:
+        Domain explanation string.
+    """
+    sections = []
+
+    sections.append("""
 ## Domain Context: Interbank Payment Settlement
 
 ### Real-Time Gross Settlement (RTGS)
@@ -497,21 +517,27 @@ When liquidity is insufficient, payments enter a queue:
 - **Queue 1**: Immediate settlement attempts (holds payments briefly)
 - **Queue 2**: Longer-term holding when liquidity is constrained
 
-Queued payments accumulate delay costs until settled.
+Queued payments accumulate delay costs until settled.""")
 
+    # Only include LSM section if enabled in the scenario
+    if lsm_enabled:
+        sections.append("""
 ### Liquidity-Saving Mechanisms (LSM)
 The system provides netting opportunities:
 - **Bilateral Offsets**: Two banks with opposing payments can net them
 - **Multilateral Cycles**: Multiple banks form a cycle where debts cancel out
 
-LSM reduces liquidity requirements but depends on counterparty behavior.
+LSM reduces liquidity requirements but depends on counterparty behavior.""")
 
+    sections.append("""
 ### Key Concepts
 - **Balance**: Current reserves in settlement account (integer cents)
 - **Effective Liquidity**: Balance + credit limit - pending obligations
 - **Credit Limit**: Available daylight overdraft or collateralized credit
 - **Collateral**: Assets posted to central bank to secure credit
-"""
+""")
+
+    return "".join(sections)
 
 
 def _build_cost_objectives() -> str:

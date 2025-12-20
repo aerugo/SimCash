@@ -760,3 +760,125 @@ class TestTreeTypeFiltering:
 
         # Should have generic guidance
         assert "scenario constraints" in prompt.lower() or "defined by" in prompt.lower()
+
+
+# =============================================================================
+# Test Group 10: LSM Section Filtering
+# =============================================================================
+
+
+class TestLsmSectionFiltering:
+    """Tests for LSM (Liquidity-Saving Mechanism) section filtering.
+
+    When LSM is disabled in the scenario, the LSM section should be
+    omitted from the domain explanation to avoid confusing the LLM
+    with irrelevant information.
+    """
+
+    def test_lsm_section_included_by_default(
+        self, minimal_constraints: ScenarioConstraints
+    ) -> None:
+        """LSM section is included when lsm_enabled defaults to True."""
+        prompt = build_system_prompt(minimal_constraints)
+
+        # LSM section should be present
+        assert "Liquidity-Saving Mechanisms" in prompt or "LSM" in prompt
+        assert "Bilateral Offsets" in prompt
+        assert "Multilateral Cycles" in prompt
+
+    def test_lsm_section_included_when_explicitly_enabled(self) -> None:
+        """LSM section is included when lsm_enabled=True."""
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+            lsm_enabled=True,
+        )
+        prompt = build_system_prompt(constraints)
+
+        # LSM section should be present
+        assert "Liquidity-Saving Mechanisms" in prompt or "LSM" in prompt
+        assert "Bilateral Offsets" in prompt
+        assert "Multilateral Cycles" in prompt
+
+    def test_lsm_section_excluded_when_disabled(self) -> None:
+        """LSM section is excluded when lsm_enabled=False."""
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+            lsm_enabled=False,
+        )
+        prompt = build_system_prompt(constraints)
+
+        # LSM section should NOT be present
+        assert "Liquidity-Saving Mechanisms" not in prompt
+        assert "Bilateral Offsets" not in prompt
+        assert "Multilateral Cycles" not in prompt
+        # "netting" should also not appear in the domain context
+        domain_section = prompt.split("## Domain Context")[1].split("## Cost Structure")[0]
+        assert "netting" not in domain_section.lower()
+
+    def test_lsm_disabled_still_has_other_sections(self) -> None:
+        """Disabling LSM doesn't remove other domain sections."""
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+            lsm_enabled=False,
+        )
+        prompt = build_system_prompt(constraints)
+
+        # Other domain sections should still be present
+        assert "Real-Time Gross Settlement" in prompt or "RTGS" in prompt
+        assert "Queuing Mechanism" in prompt
+        assert "Key Concepts" in prompt
+        assert "Balance" in prompt
+        assert "Credit Limit" in prompt
+
+    def test_lsm_disabled_with_builder_pattern(self) -> None:
+        """LSM filtering works with SystemPromptBuilder."""
+        constraints = ScenarioConstraints(
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+            lsm_enabled=False,
+        )
+        builder = SystemPromptBuilder(constraints)
+        prompt = builder.build()
+
+        # LSM section should NOT be present
+        assert "Liquidity-Saving Mechanisms" not in prompt
+        assert "Bilateral Offsets" not in prompt
+
+    def test_lsm_enabled_with_full_constraints(
+        self, full_constraints: ScenarioConstraints
+    ) -> None:
+        """LSM is included with full constraints (default lsm_enabled=True)."""
+        prompt = build_system_prompt(full_constraints)
+
+        # LSM section should be present
+        assert "Liquidity-Saving Mechanisms" in prompt or "LSM" in prompt
+        assert "Bilateral" in prompt
+
+    def test_lsm_disabled_no_netting_terminology(self) -> None:
+        """When LSM disabled, no LSM/netting terminology in domain explanation."""
+        constraints = ScenarioConstraints(
+            allowed_parameters=[
+                ParameterSpec(
+                    name="threshold",
+                    param_type="float",
+                    min_value=0,
+                    max_value=10,
+                ),
+            ],
+            allowed_fields=["balance", "ticks_to_deadline"],
+            allowed_actions={"payment_tree": ["Release", "Hold"]},
+            lsm_enabled=False,
+        )
+        prompt = build_system_prompt(constraints)
+
+        # Get just the domain explanation section
+        domain_start = prompt.find("## Domain Context")
+        domain_end = prompt.find("## Cost Structure")
+        if domain_start > 0 and domain_end > domain_start:
+            domain_section = prompt[domain_start:domain_end]
+            # No LSM terminology
+            assert "LSM" not in domain_section
+            assert "liquidity-saving" not in domain_section.lower()
+            assert "bilateral" not in domain_section.lower()
+            assert "multilateral" not in domain_section.lower()
+            assert "cycle" not in domain_section.lower()
+            assert "offset" not in domain_section.lower()
