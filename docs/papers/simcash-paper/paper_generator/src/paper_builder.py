@@ -30,7 +30,6 @@ from src.sections import (
     generate_introduction,
     generate_methods,
     generate_references,
-    generate_related_work,
     generate_results,
 )
 
@@ -44,7 +43,6 @@ SectionGenerator = Callable[["DataProvider"], str]
 DEFAULT_SECTIONS: list[SectionGenerator] = [
     generate_abstract,
     generate_introduction,
-    generate_related_work,
     generate_methods,
     generate_results,
     generate_discussion,

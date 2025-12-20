@@ -116,7 +116,6 @@ paper_generator/
 │   ├── sections/            # Section generators
 │   │   ├── abstract.py
 │   │   ├── introduction.py
-│   │   ├── related_work.py
 │   │   ├── methods.py
 │   │   ├── results.py       # Main results with tables and figures
 │   │   ├── discussion.py

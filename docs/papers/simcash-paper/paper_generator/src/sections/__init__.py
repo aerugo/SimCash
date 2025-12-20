@@ -7,13 +7,11 @@ from src.sections.discussion import generate_discussion
 from src.sections.introduction import generate_introduction
 from src.sections.methods import generate_methods
 from src.sections.references import generate_references
-from src.sections.related_work import generate_related_work
 from src.sections.results import generate_results
 
 __all__ = [
     "generate_abstract",
     "generate_introduction",
-    "generate_related_work",
     "generate_methods",
     "generate_results",
     "generate_discussion",
