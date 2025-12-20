@@ -7,7 +7,11 @@ from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import (
     ValidationResult,
 )
 from payment_simulator.ai_cash_mgmt.optimization.convergence_detector import (
+    BootstrapConvergenceDetector,
+    ConvergenceDiagnostics,
     ConvergenceDetector,
+    MannKendallResult,
+    mann_kendall_test,
 )
 from payment_simulator.ai_cash_mgmt.optimization.policy_evaluator import (
     EvaluationResult,
@@ -22,14 +26,18 @@ from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import (
 )
 
 __all__ = [
+    "BootstrapConvergenceDetector",
     "ConstraintValidator",
+    "ConvergenceDiagnostics",
     "ConvergenceDetector",
     "EvaluationResult",
     "LLMClientProtocol",
+    "MannKendallResult",
     "OptimizationResult",
     "PolicyEvaluator",
     "PolicyOptimizer",
     "SimulationResult",
     "SimulationRunnerProtocol",
     "ValidationResult",
+    "mann_kendall_test",
 ]

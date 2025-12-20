@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from payment_simulator.experiments.persistence import ExperimentRepository
 
 from payment_simulator._core import Orchestrator
-from payment_simulator.ai_cash_mgmt import ConvergenceDetector
+from payment_simulator.ai_cash_mgmt import BootstrapConvergenceDetector, ConvergenceDetector
 from payment_simulator.ai_cash_mgmt.bootstrap.context_builder import (
     AgentSimulationContext,
     EnrichedBootstrapContextBuilder,
@@ -316,14 +316,26 @@ class OptimizationLoop:
         self._repository: ExperimentRepository | None = repository
         self._persist_bootstrap = persist_bootstrap
 
-        # Get convergence settings
+        # Get convergence settings - use mode-appropriate detector
         conv = config.convergence
-        self._convergence = ConvergenceDetector(
-            stability_threshold=conv.stability_threshold,
-            stability_window=conv.stability_window,
-            max_iterations=conv.max_iterations,
-            improvement_threshold=conv.improvement_threshold,
-        )
+        if config.evaluation.is_bootstrap:
+            # Bootstrap mode uses improved detector with CV, trend, and regret criteria
+            self._convergence: ConvergenceDetector | BootstrapConvergenceDetector = (
+                BootstrapConvergenceDetector(
+                    cv_threshold=conv.cv_threshold,
+                    window_size=conv.stability_window,
+                    regret_threshold=conv.regret_threshold,
+                    max_iterations=conv.max_iterations,
+                )
+            )
+        else:
+            # Deterministic modes use original simple detector
+            self._convergence = ConvergenceDetector(
+                stability_threshold=conv.stability_threshold,
+                stability_window=conv.stability_window,
+                max_iterations=conv.max_iterations,
+                improvement_threshold=conv.improvement_threshold,
+            )
 
         # Get constraints from config
         self._constraints: ScenarioConstraints | None = config.get_constraints()
@@ -833,7 +845,9 @@ class OptimizationLoop:
             if self._config.evaluation.is_deterministic_temporal:
                 if self._check_multiagent_convergence():
                     # Override convergence state for proper reporting
-                    self._convergence._converged_by_stability = True
+                    # Note: temporal mode always uses ConvergenceDetector, not Bootstrap
+                    if isinstance(self._convergence, ConvergenceDetector):
+                        self._convergence._converged_by_stability = True
                     break
 
         # Get final cost
