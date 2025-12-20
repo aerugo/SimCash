@@ -159,6 +159,13 @@ def generate_results(provider: DataProvider) -> str:
         width=0.9,
     )
 
+    exp2_variance_fig = include_figure(
+        path=f"{CHARTS_DIR}/exp2_pass2_variance.png",
+        caption="Experiment 2: Cost variance over iterations showing 95\\% confidence intervals",
+        label="fig:exp2_variance",
+        width=0.95,
+    )
+
     exp3_fig = include_figure(
         path=f"{CHARTS_DIR}/exp3_pass1_combined.png",
         caption="Experiment 3: Convergence dynamics in symmetric game",
@@ -239,8 +246,16 @@ Bootstrap evaluation reveals:
     \item BANK\_B: Mean cost {exp2_b_mean} ($\pm$ {exp2_b_std} std dev)
 \end{{itemize}}
 
-The agents learned robust strategies despite stochastic costs, with confidence intervals
-appropriately reflecting the underlying variance.
+\subsubsection{{Risk-Return Tradeoff}}
+
+Figure~\ref{{fig:exp2_variance}} shows how cost variance evolves during optimization.
+BANK\_B exhibits increasing variance from iteration 17 onward as it reduces liquidity
+toward the final 11.5\% allocation. This demonstrates a risk-return tradeoff: lower
+liquidity reduces mean holding costs but increases exposure to stochastic payment timing.
+BANK\_A's variance remains stable, suggesting its lower liquidity position (7.4\%) has
+already reached a risk plateau.
+
+{exp2_variance_fig}
 
 {exp2_summary_table}
 
