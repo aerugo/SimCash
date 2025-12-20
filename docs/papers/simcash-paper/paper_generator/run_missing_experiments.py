@@ -321,9 +321,17 @@ def run_experiment(
     api_dir: Path,
     output_prefix: str,
     lock: threading.Lock,
+    verbose: bool = False,
 ) -> tuple[MissingExperiment, str | None, str]:
     """
     Run a single experiment and return (experiment, run_id, output).
+
+    Args:
+        exp: The missing experiment to run.
+        api_dir: Path to the api directory containing payment-sim.
+        output_prefix: Prefix for output lines (e.g., "exp1:P1").
+        lock: Threading lock for synchronized output.
+        verbose: If True, enable verbose experiment output.
 
     Returns None for run_id if experiment failed.
     """
@@ -331,11 +339,12 @@ def run_experiment(
         str(api_dir / ".venv" / "bin" / "payment-sim"),
         "experiment",
         "run",
-        "--verbose",
         str(exp.config_path),
         "--db",
         str(exp.db_path),
     ]
+    if verbose:
+        cmd.insert(3, "--verbose")
 
     output_lines: list[str] = []
     run_id: str | None = None
@@ -403,18 +412,28 @@ def run_experiment_sequence(
     config: dict,
     config_lock: threading.Lock,
     output_lock: threading.Lock,
+    verbose: bool = False,
 ) -> list[tuple[MissingExperiment, str | None]]:
     """
     Run a sequence of experiments for the same database (sequentially).
 
     Updates config.yaml after each successful run.
+
+    Args:
+        experiments: List of experiments for the same database.
+        api_dir: Path to the api directory containing payment-sim.
+        config_path: Path to config.yaml to update after each run.
+        config: The loaded config dict to update.
+        config_lock: Threading lock for config file updates.
+        output_lock: Threading lock for synchronized output.
+        verbose: If True, enable verbose experiment output.
     """
     results: list[tuple[MissingExperiment, str | None]] = []
     exp_name = experiments[0].experiment_name
 
     for exp in experiments:
         prefix = f"{exp.experiment_name}:P{exp.pass_number}"
-        exp_result, run_id, _ = run_experiment(exp, api_dir, prefix, output_lock)
+        exp_result, run_id, _ = run_experiment(exp, api_dir, prefix, output_lock, verbose)
         results.append((exp_result, run_id))
 
         if run_id:
@@ -461,6 +480,11 @@ Examples:
         "--validate-only",
         action="store_true",
         help="Only validate the configuration, don't run experiments",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose experiment output (shows iteration details, LLM calls, etc.)",
     )
 
     args = parser.parse_args()
@@ -555,6 +579,7 @@ Examples:
                 config,
                 config_lock,
                 output_lock,
+                args.verbose,
             ): exp_name
             for exp_name, passes in missing.items()
         }
