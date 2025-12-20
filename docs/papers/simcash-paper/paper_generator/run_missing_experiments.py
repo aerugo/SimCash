@@ -346,6 +346,9 @@ def run_experiment(
         print(f"{'='*60}")
         sys.stdout.flush()
 
+    # Run from project root so Rust can find simulator/policies/ directory
+    project_root = api_dir.parent
+
     try:
         process = subprocess.Popen(
             cmd,
@@ -353,6 +356,7 @@ def run_experiment(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            cwd=project_root,
         )
 
         for line in iter(process.stdout.readline, ""):
