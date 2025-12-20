@@ -248,8 +248,11 @@ def generate_experiment_charts(
 ) -> dict[str, Path]:
     """Generate all charts for an experiment pass.
 
-    Creates BANK_A, BANK_B, and combined charts with flat naming scheme.
+    Creates BANK_A, BANK_B, combined, and variance charts with flat naming scheme.
     Files are named: {exp_id}_pass{pass_num}_{type}.png
+
+    For bootstrap experiments (exp2), also generates variance charts showing
+    cost with confidence interval bands.
 
     Args:
         db_path: Path to experiment database
@@ -293,7 +296,144 @@ def generate_experiment_charts(
         config=config,
     )
 
+    # Bootstrap variance chart (for experiments with bootstrap evaluation)
+    try:
+        paths["variance"] = generate_bootstrap_variance_chart(
+            db_path=db_path,
+            exp_id=exp_id,
+            pass_num=pass_num,
+            output_path=output_dir / f"{exp_id}_pass{pass_num}_variance.png",
+            config=config,
+        )
+    except ValueError:
+        # No policy evaluations available, skip variance chart
+        pass
+
     return paths
+
+
+# =============================================================================
+# Bootstrap Variance Charts
+# =============================================================================
+
+
+def generate_bootstrap_variance_chart(
+    db_path: Path,
+    exp_id: str,
+    pass_num: int,
+    output_path: Path,
+    config: dict,
+) -> Path:
+    """Generate bootstrap variance chart showing cost with confidence intervals.
+
+    Creates a side-by-side chart with:
+    - Left: BANK_A cost trajectory with 95% CI band
+    - Right: BANK_B cost trajectory with 95% CI band
+
+    This illustrates how risk (variance) may change as agents optimize for lower costs.
+    Requires bootstrap evaluation data in the policy_evaluations table.
+
+    Args:
+        db_path: Path to experiment database
+        exp_id: Experiment identifier
+        pass_num: Pass number
+        output_path: Where to save the chart
+        config: Paper config with explicit run_id mappings (required)
+
+    Returns:
+        Path to generated chart
+    """
+    run_id = _get_run_id_for_pass(db_path, exp_id, pass_num, config)
+
+    repo = ExperimentRepository(db_path)
+
+    # Get policy evaluations for both agents
+    evals_a = repo.get_policy_evaluations(run_id, "BANK_A")
+    evals_b = repo.get_policy_evaluations(run_id, "BANK_B")
+
+    if not evals_a or not evals_b:
+        raise ValueError(f"No policy evaluations found for {exp_id} pass {pass_num}")
+
+    # Create side-by-side subplots
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Helper to plot agent data with CI band
+    def plot_agent_variance(ax: plt.Axes, evals: list, agent_id: str, color: str) -> None:
+        iterations = []
+        costs = []
+        ci_lower = []
+        ci_upper = []
+
+        for e in evals:
+            iterations.append(e.iteration)
+            # Convert cents to dollars
+            costs.append(e.new_cost / 100.0)
+
+            # Get CI from agent_stats if available, otherwise use confidence_interval_95
+            if e.agent_stats and agent_id in e.agent_stats:
+                agent_stat = e.agent_stats[agent_id]
+                ci_lower.append(agent_stat.get("ci_95_lower", e.new_cost) / 100.0)
+                ci_upper.append(agent_stat.get("ci_95_upper", e.new_cost) / 100.0)
+            elif e.confidence_interval_95:
+                ci_lower.append(e.confidence_interval_95[0] / 100.0)
+                ci_upper.append(e.confidence_interval_95[1] / 100.0)
+            else:
+                # No CI data, use cost as both bounds
+                ci_lower.append(e.new_cost / 100.0)
+                ci_upper.append(e.new_cost / 100.0)
+
+        # Plot CI band
+        ax.fill_between(
+            iterations,
+            ci_lower,
+            ci_upper,
+            alpha=0.3,
+            color=color,
+            label="95% CI",
+        )
+
+        # Plot mean cost line
+        ax.plot(
+            iterations,
+            costs,
+            color=color,
+            linewidth=2,
+            label=f"{agent_id} Cost",
+            marker="o",
+            markersize=5,
+        )
+
+        # Styling
+        ax.set_title(f"{agent_id}", fontsize=12, fontweight="medium", color=COLORS["text"])
+        ax.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
+        ax.set_ylabel("Cost ($)", fontsize=11, color=COLORS["text"])
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+        ax.legend(loc="upper right", framealpha=0.9)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.grid(True, alpha=0.3, color=COLORS["grid"])
+
+    # Plot both agents
+    plot_agent_variance(ax_a, evals_a, "BANK_A", COLORS["bank_a"])
+    plot_agent_variance(ax_b, evals_b, "BANK_B", COLORS["bank_b"])
+
+    # Overall figure title
+    fig.suptitle(
+        f"Cost Variance - {exp_id.upper()} Pass {pass_num}",
+        fontsize=14,
+        fontweight="medium",
+        color=COLORS["text"],
+        y=1.02,
+    )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
 
 
 # =============================================================================
