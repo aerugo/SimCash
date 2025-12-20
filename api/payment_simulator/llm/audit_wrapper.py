@@ -2,7 +2,7 @@
 
 This module provides the AuditCaptureLLMClient which wraps any
 LLMClientProtocol implementation and captures all interactions
-for later replay and auditing.
+for later replay and auditing, including reasoning summaries.
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
+
+from payment_simulator.llm.result import LLMResult
 
 if TYPE_CHECKING:
     from pydantic import BaseModel
@@ -24,7 +26,7 @@ class LLMInteraction:
     """Captured LLM interaction for audit trail.
 
     Immutable record of a single LLM interaction, capturing all
-    inputs, outputs, and metadata for later replay.
+    inputs, outputs, metadata, and reasoning for later replay.
 
     Attributes:
         system_prompt: The system prompt used for this interaction.
@@ -35,6 +37,7 @@ class LLMInteraction:
         prompt_tokens: Number of input tokens (0 if unavailable).
         completion_tokens: Number of output tokens (0 if unavailable).
         latency_seconds: Time taken for the LLM call.
+        reasoning_summary: Extracted reasoning/thinking from the LLM response.
     """
 
     system_prompt: str
@@ -45,17 +48,19 @@ class LLMInteraction:
     prompt_tokens: int
     completion_tokens: int
     latency_seconds: float
+    reasoning_summary: str | None = None
 
 
 class AuditCaptureLLMClient:
     """Wrapper that captures interactions for audit replay.
 
     Wraps any LLMClientProtocol implementation and captures
-    all interactions for later replay. This enables:
+    all interactions for later replay, including reasoning. This enables:
 
     - Audit trails for compliance
     - Debugging and analysis of LLM behavior
     - Replay of experiments without calling the LLM
+    - Understanding LLM reasoning/decision-making
 
     Example:
         >>> base_client = PydanticAILLMClient(config)
@@ -64,6 +69,8 @@ class AuditCaptureLLMClient:
         >>> interaction = audit_client.get_last_interaction()
         >>> interaction.user_prompt
         'prompt'
+        >>> interaction.reasoning_summary
+        'The model considered...'
 
     Attributes:
         _delegate: The wrapped LLM client.
@@ -99,15 +106,15 @@ class AuditCaptureLLMClient:
         self,
         prompt: str,
         system_prompt: str | None = None,
-    ) -> str:
-        """Generate text and capture interaction.
+    ) -> LLMResult[str]:
+        """Generate text and capture interaction with reasoning.
 
         Args:
             prompt: The user prompt to send.
             system_prompt: Optional system prompt.
 
         Returns:
-            Text response from the LLM.
+            LLMResult containing text response and optional reasoning.
         """
         start = time.perf_counter()
         result = await self._delegate.generate_text(prompt, system_prompt)
@@ -117,12 +124,13 @@ class AuditCaptureLLMClient:
             LLMInteraction(
                 system_prompt=system_prompt or "",
                 user_prompt=prompt,
-                raw_response=result,
+                raw_response=result.data,
                 parsed_policy=None,
                 parsing_error=None,
                 prompt_tokens=0,  # Not available from base client
                 completion_tokens=0,
                 latency_seconds=latency,
+                reasoning_summary=result.reasoning_summary,
             )
         )
 
@@ -133,8 +141,8 @@ class AuditCaptureLLMClient:
         prompt: str,
         response_model: type[T],
         system_prompt: str | None = None,
-    ) -> T:
-        """Generate structured output and capture interaction.
+    ) -> LLMResult[T]:
+        """Generate structured output and capture interaction with reasoning.
 
         Args:
             prompt: The user prompt to send.
@@ -142,7 +150,7 @@ class AuditCaptureLLMClient:
             system_prompt: Optional system prompt.
 
         Returns:
-            Instance of response_model populated by the LLM.
+            LLMResult containing response_model instance and optional reasoning.
 
         Raises:
             Re-raises any exception from the delegate after capturing.
@@ -154,23 +162,25 @@ class AuditCaptureLLMClient:
             )
             latency = time.perf_counter() - start
 
-            # Try to extract dict representation
+            # Try to extract dict representation from the data
+            data = result.data
             parsed: dict[str, Any] | None = None
-            if hasattr(result, "model_dump"):
-                parsed = result.model_dump()
-            elif hasattr(result, "__dict__"):
-                parsed = result.__dict__
+            if hasattr(data, "model_dump"):
+                parsed = data.model_dump()
+            elif hasattr(data, "__dict__"):
+                parsed = data.__dict__
 
             self._interactions.append(
                 LLMInteraction(
                     system_prompt=system_prompt or "",
                     user_prompt=prompt,
-                    raw_response=str(result),
+                    raw_response=str(data),
                     parsed_policy=parsed,
                     parsing_error=None,
                     prompt_tokens=0,
                     completion_tokens=0,
                     latency_seconds=latency,
+                    reasoning_summary=result.reasoning_summary,
                 )
             )
 
@@ -188,6 +198,7 @@ class AuditCaptureLLMClient:
                     prompt_tokens=0,
                     completion_tokens=0,
                     latency_seconds=latency,
+                    reasoning_summary=None,
                 )
             )
             raise
