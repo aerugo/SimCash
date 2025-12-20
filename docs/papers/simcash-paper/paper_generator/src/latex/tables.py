@@ -25,6 +25,7 @@ def generate_iteration_table(
     caption: str,
     label: str,
     max_rows: int | None = None,
+    position: str = "htbp",
 ) -> str:
     """Generate LaTeX table for iteration-by-iteration results.
 
@@ -42,6 +43,8 @@ def generate_iteration_table(
         caption: Table caption text
         label: LaTeX label for referencing (e.g., "tab:exp1_results")
         max_rows: If set, truncate to this many iterations (showing first and last)
+        position: Float position specifier for short tables (default: htbp).
+            Use "H" to force table to stay in place (requires float package).
 
     Returns:
         Complete LaTeX table string with tabular or longtable environment
@@ -111,7 +114,7 @@ def generate_iteration_table(
         header = format_table_row(["Iteration", "Agent", "Cost", "Liquidity"])
 
         return rf"""
-\begin{{table}}[htbp]
+\begin{{table}}[{position}]
     \centering
     \caption{{{caption}}}
     \label{{{label}}}
