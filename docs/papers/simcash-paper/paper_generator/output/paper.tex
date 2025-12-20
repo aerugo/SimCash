@@ -51,7 +51,7 @@ equilibria emerge even in symmetric games, suggesting the best-response dynamics
 select among multiple equilibria rather than converging to symmetric outcomes.
 Our results across 9 independent runs
 (3 passes $\times$ 3 experiments) show 100\% convergence success with an average
-of 10.6 iterations to stability.
+of 13.8 iterations to stability.
 \end{abstract}
 
 
@@ -81,23 +81,6 @@ best-response dynamics.
     \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
     arrivals
 \end{enumerate}
-
-
-
-\section{Related Work}
-\label{sec:related}
-
-\subsection{Payment System Simulation}
-
-Castro et al.\ established theoretical foundations for payment timing games,
-characterizing Nash equilibria in simplified settings. Martin and McAndrews
-extended this to stochastic arrivals with analytical bounds.
-
-\subsection{LLMs in Game Theory}
-
-Recent work has explored LLMs in strategic settings, but primarily in matrix
-games or negotiation tasks. Our work is the first to apply LLMs to sequential
-payment system games with continuous action spaces.
 
 
 
@@ -131,41 +114,78 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
 \begin{enumerate}
     \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
-    \item \textbf{Paired Evaluation}: Run sandboxed simulations with proposed vs. current policy
-    \item \textbf{Acceptance Decision}: Accept if cost improves (cost delta $> 0$)
-    \item \textbf{Convergence Check}: Stable for 5 consecutive iterations
+    \item \textbf{Evaluation}: Run simulation(s) with proposed policy
+    \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
+    \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or multi-criteria cost stability (bootstrap) over 5 iterations
 \end{enumerate}
 
 \subsection{Evaluation Modes}
 
+We employ two distinct evaluation methodologies optimized for different scenario types:
+
+\subsubsection{Deterministic-Temporal Mode (Experiments 1 \& 3)}
+
+For scenarios with fixed payment schedules, we use \textbf{temporal policy stability} to identify Nash equilibria:
+
 \begin{itemize}
-    \item \textbf{Deterministic}: Single simulation per evaluation (fixed payments)
-    \item \textbf{Bootstrap}: 50 resampled transaction histories (stochastic payments)
+    \item \textbf{Single simulation} per iteration with deterministic arrivals
+    \item \textbf{Unconditional acceptance}: All LLM-proposed policies are accepted immediately
+    \item \textbf{Rationale}: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies evolve simultaneously
+    \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} unchanged for 5 consecutive iterations, indicating mutual best-response equilibrium
+\end{itemize}
+
+\subsubsection{Bootstrap Mode (Experiment 2)}
+
+For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy evaluation:
+
+\begin{itemize}
+    \item \textbf{Initial collection}: Run one simulation to collect transaction history
+    \item \textbf{Resampling}: Generate 50 transaction schedules by resampling with replacement, preserving settlement offset distributions
+    \item \textbf{Paired comparison}: Evaluate both old and new policy on each sample, computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
+    \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (improvement across all samples)
+    \item \textbf{Convergence criterion}: Three criteria must ALL be satisfied over a 5-iteration window:
+    \begin{enumerate}
+        \item Coefficient of variation below 3\% (cost stability)
+        \item Mann-Kendall test $p > 0.05$ (no significant trend, i.e., not still improving)
+        \item Regret below 10\% (current cost within 10\% of best observed)
+    \end{enumerate}
 \end{itemize}
 
 \subsection{Experimental Setup}
 
-We implement three canonical scenarios:
+We implement three canonical scenarios from Castro et al.\ (2025):
 
-\textbf{Experiment 1: 2-Period Deterministic}
+\textbf{Experiment 1: 2-Period Deterministic} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 2 ticks per day
-    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Asymmetric payment demands: $P^A = [0, 0.15]$, $P^B = [0.15, 0.05]$
+    \item Bank A sends 0.15$B$ at tick 1; Bank B sends 0.15$B$ at tick 0, 0.05$B$ at tick 1
     \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
 \end{itemize}
 
-\textbf{Experiment 2: 12-Period Stochastic}
+\textbf{Experiment 2: 12-Period Stochastic} (Bootstrap Mode)
 \begin{itemize}
     \item 12 ticks per day
-    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
-    \item Expected equilibrium: Both agents in 10-30\% range
+    \item Poisson arrivals ($\lambda=2.0$/tick), LogNormal amounts ($\mu$=10k, $\sigma$=5k)
+    \item Expected equilibrium: Both agents in 10--30\% range
 \end{itemize}
 
-\textbf{Experiment 3: 3-Period Symmetric}
+\textbf{Experiment 3: 3-Period Symmetric} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 3 ticks per day
-    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Symmetric payment demands: $P^A = P^B = [0.2, 0.2, 0]$
     \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{Comparison with Castro et al.\ (2025)}
+
+Our experiments replicate the scenarios from Castro et al., with key methodological differences:
+
+\begin{itemize}
+    \item \textbf{Optimization method}: Castro uses REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
+    \item \textbf{Action representation}: Castro discretizes $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
+    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or multi-criteria statistical convergence (bootstrap) detection
+    \item \textbf{Multi-agent dynamics}: Castro trains two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
 \end{itemize}
 
 \subsection{LLM Configuration}
@@ -174,11 +194,11 @@ We implement three canonical scenarios:
     \item Model: \texttt{openai:gpt-5.2}
     \item Reasoning effort: \texttt{high}
     \item Temperature: 0.5
-    \item Convergence: 5-iteration stability window, 5\% threshold
+    \item Max iterations: 25 per pass
 \end{itemize}
 
-Each experiment run 3 times (passes) with identical configurations to assess
-convergence reliability.
+Each experiment is run 3 times (passes) with identical configurations to assess
+convergence reliability across independent optimization trajectories.
 
 
 
@@ -205,7 +225,7 @@ All passes achieved convergence, with mean iterations ranging from 7.0
         Experiment & Mean Iters & Min & Max & Conv. Rate \\
         \hline
         EXP1 & 10.3 & 8 & 12 & 100.0\% \\
-        EXP2 & 14.3 & 9 & 24 & 100.0\% \\
+        EXP2 & 24.0 & 24 & 24 & 100.0\% \\
         EXP3 & 7.0 & 7 & 7 & 100.0\% \\
         \hline
     \end{tabular}
@@ -270,7 +290,13 @@ This outcome matches the theoretical prediction: BANK\_A free-rides on BANK\_B's
 liquidity provision, minimizing its own reserves while relying on incoming payments
 from BANK\_B to fund outgoing obligations.
 
-Table~\ref{tab:exp1_summary} shows consistent convergence across all three passes.
+Table~\ref{tab:exp1_summary} summarizes convergence across all three passes.
+Notably, \textbf{Pass 3 exhibited different dynamics}: one agent persisted with
+a zero-liquidity strategy even when this produced suboptimal costs given its
+counterparty's response. This demonstrates that the game admits multiple equilibria,
+and the identity of the ``free-rider'' is not predetermined. We discuss the
+implications of this behavioral variation for LLM agent realism in
+Section~\ref{sec:discussion}.
 
 
 \begin{table}[htbp]
@@ -293,7 +319,7 @@ Table~\ref{tab:exp1_summary} shows consistent convergence across all three passe
 
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
-Agents converged after 9 iterations in Pass 1.
+Agents converged after 24 iterations in Pass 1.
 
 
 \begin{table}[htbp]
@@ -309,23 +335,53 @@ Agents converged after 9 iterations in Pass 1.
         0 & BANK\_A & \$498.00 & 50.0\% & No \\
         0 & BANK\_B & \$498.00 & 50.0\% & No \\
         1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$398.40 & 40.0\% & No \\
-        2 & BANK\_A & \$298.80 & 30.0\% & No \\
-        2 & BANK\_B & \$298.80 & 30.0\% & No \\
-        3 & BANK\_A & \$249.00 & 25.0\% & No \\
-        3 & BANK\_B & \$278.88 & 28.0\% & No \\
-        4 & BANK\_A & \$219.12 & 22.0\% & No \\
-        4 & BANK\_B & \$258.96 & 26.0\% & No \\
-        5 & BANK\_A & \$209.16 & 21.0\% & No \\
-        5 & BANK\_B & \$249.00 & 25.0\% & No \\
-        6 & BANK\_A & \$199.20 & 20.0\% & No \\
-        6 & BANK\_B & \$239.04 & 24.0\% & No \\
-        7 & BANK\_A & \$189.47 & 19.0\% & No \\
-        7 & BANK\_B & \$229.08 & 23.0\% & No \\
-        8 & BANK\_A & \$183.81 & 18.0\% & No \\
-        8 & BANK\_B & \$219.12 & 22.0\% & No \\
-        9 & BANK\_A & \$174.20 & 17.0\% & No \\
-        9 & BANK\_B & \$209.16 & 21.0\% & No \\
+        1 & BANK\_B & \$448.20 & 45.0\% & No \\
+        2 & BANK\_A & \$328.68 & 33.0\% & No \\
+        2 & BANK\_B & \$418.32 & 42.0\% & No \\
+        3 & BANK\_A & \$298.80 & 30.0\% & No \\
+        3 & BANK\_B & \$408.36 & 41.0\% & No \\
+        4 & BANK\_A & \$278.88 & 28.0\% & No \\
+        4 & BANK\_B & \$398.40 & 40.0\% & No \\
+        5 & BANK\_A & \$258.96 & 26.0\% & No \\
+        5 & BANK\_B & \$388.44 & 39.0\% & No \\
+        6 & BANK\_A & \$239.04 & 24.0\% & No \\
+        6 & BANK\_B & \$378.48 & 38.0\% & No \\
+        7 & BANK\_A & \$219.12 & 22.0\% & No \\
+        7 & BANK\_B & \$368.52 & 37.0\% & No \\
+        8 & BANK\_A & \$209.16 & 21.0\% & No \\
+        8 & BANK\_B & \$358.56 & 36.0\% & No \\
+        9 & BANK\_A & \$199.20 & 20.0\% & No \\
+        9 & BANK\_B & \$348.60 & 35.0\% & No \\
+        10 & BANK\_A & \$189.47 & 19.0\% & No \\
+        10 & BANK\_B & \$338.64 & 34.0\% & No \\
+        11 & BANK\_A & \$183.81 & 18.0\% & No \\
+        11 & BANK\_B & \$328.68 & 33.0\% & No \\
+        12 & BANK\_A & \$174.20 & 17.0\% & No \\
+        12 & BANK\_B & \$318.72 & 32.0\% & No \\
+        13 & BANK\_A & \$164.95 & 16.0\% & No \\
+        13 & BANK\_B & \$308.76 & 31.0\% & No \\
+        14 & BANK\_A & \$157.76 & 15.0\% & No \\
+        14 & BANK\_B & \$298.80 & 30.0\% & No \\
+        15 & BANK\_A & \$149.45 & 14.0\% & No \\
+        15 & BANK\_B & \$288.84 & 29.0\% & No \\
+        16 & BANK\_A & \$143.29 & 13.0\% & No \\
+        16 & BANK\_B & \$278.88 & 28.0\% & No \\
+        17 & BANK\_A & \$134.78 & 12.0\% & No \\
+        17 & BANK\_B & \$268.92 & 27.0\% & No \\
+        18 & BANK\_A & \$131.78 & 11.0\% & No \\
+        18 & BANK\_B & \$258.96 & 26.0\% & No \\
+        19 & BANK\_A & \$129.64 & 10.0\% & No \\
+        19 & BANK\_B & \$249.00 & 25.0\% & No \\
+        20 & BANK\_A & \$163.10 & 9.0\% & No \\
+        20 & BANK\_B & \$239.04 & 24.0\% & No \\
+        21 & BANK\_A & \$237.53 & 8.0\% & No \\
+        21 & BANK\_B & \$229.08 & 23.0\% & No \\
+        22 & BANK\_A & \$237.53 & 8.0\% & No \\
+        22 & BANK\_B & \$219.12 & 22.0\% & No \\
+        23 & BANK\_A & \$317.48 & 7.0\% & No \\
+        23 & BANK\_B & \$209.16 & 21.0\% & No \\
+        24 & BANK\_A & \$298.68 & 6.5\% & No \\
+        24 & BANK\_B & \$199.20 & 20.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -354,8 +410,8 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$174.20 & \$0.00 & [\$174.20, \$174.20] & 1 \\
-        BANK\_B & \$209.16 & \$0.00 & [\$209.16, \$209.16] & 1 \\
+        BANK\_A & \$298.68 & \$0.00 & [\$298.68, \$298.68] & 1 \\
+        BANK\_B & \$199.20 & \$0.00 & [\$199.20, \$199.20] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -363,8 +419,8 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 Bootstrap evaluation reveals:
 \begin{itemize}
-    \item BANK\_A: Mean cost \$174.20 ($\pm$ \$0.00 std dev)
-    \item BANK\_B: Mean cost \$209.16 ($\pm$ \$0.00 std dev)
+    \item BANK\_A: Mean cost \$298.68 ($\pm$ \$0.00 std dev)
+    \item BANK\_B: Mean cost \$199.20 ($\pm$ \$0.00 std dev)
 \end{itemize}
 
 The agents learned robust strategies despite stochastic costs, with confidence intervals
@@ -379,9 +435,9 @@ appropriately reflecting the underlying variance.
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 9 & 17.0\% & 21.0\% & \$174.20 & \$209.16 & \$383.36 \\
-        2 & 24 & 6.7\% & 11.3\% & \$325.26 & \$134.06 & \$459.32 \\
-        3 & 10 & 22.0\% & 23.0\% & \$219.12 & \$229.08 & \$448.20 \\
+        1 & 24 & 6.5\% & 20.0\% & \$298.68 & \$199.20 & \$497.88 \\
+        2 & 24 & 7.4\% & 11.5\% & \$243.64 & \$134.46 & \$378.10 \\
+        3 & 24 & 5.6\% & 12.0\% & \$515.15 & \$136.25 & \$651.40 \\
         \hline
     \end{tabular}
 \end{table}
@@ -663,7 +719,7 @@ we demonstrated that LLM agents consistently converge to stable equilibria:
     emerges when agents face different cost structures, with one agent minimizing
     liquidity while depending on counterparty provision.
 
-    \item \textbf{Robust learning} (9 iterations): Agents learn effective
+    \item \textbf{Robust learning} (24 iterations): Agents learn effective
     strategies even under transaction stochasticity, as validated through bootstrap
     evaluation methodology.
 
@@ -759,9 +815,9 @@ programmatically from the experiment databases to ensure consistency.
          & 2 & 12 & 0.0\% & 17.9\% & \$0.00 & \$27.90 & \$27.90 \\
          & 3 & 11 & 1.8\% & 0.0\% & \$31.78 & \$70.00 & \$101.78 \\
         \hline
-        Exp2 & 1 & 9 & 17.0\% & 21.0\% & \$174.20 & \$209.16 & \$383.36 \\
-         & 2 & 24 & 6.7\% & 11.3\% & \$325.26 & \$134.06 & \$459.32 \\
-         & 3 & 10 & 22.0\% & 23.0\% & \$219.12 & \$229.08 & \$448.20 \\
+        Exp2 & 1 & 24 & 6.5\% & 20.0\% & \$298.68 & \$199.20 & \$497.88 \\
+         & 2 & 24 & 7.4\% & 11.5\% & \$243.64 & \$134.46 & \$378.10 \\
+         & 3 & 24 & 5.6\% & 12.0\% & \$515.15 & \$136.25 & \$651.40 \\
         \hline
         Exp3 & 1 & 7 & 1.0\% & 30.0\% & \$120.99 & \$69.97 & \$190.96 \\
          & 2 & 7 & 4.9\% & 29.0\% & \$124.89 & \$68.98 & \$193.87 \\
@@ -774,9 +830,9 @@ programmatically from the experiment databases to ensure consistency.
 \subsection{Aggregate Statistics}
 
 \begin{itemize}
-    \item \textbf{Mean iterations to convergence}: 10.6
+    \item \textbf{Mean iterations to convergence}: 13.8
     \item \textbf{Experiment 1 mean total cost}: \$52.26
-    \item \textbf{Experiment 2 mean total cost}: \$430.29
+    \item \textbf{Experiment 2 mean total cost}: \$509.12
     \item \textbf{Experiment 3 mean total cost}: \$265.25
 \end{itemize}
 
@@ -964,23 +1020,53 @@ all three passes of experiment 2: stochastic environment.
         0 & BANK\_A & \$498.00 & 50.0\% & No \\
         0 & BANK\_B & \$498.00 & 50.0\% & No \\
         1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$398.40 & 40.0\% & No \\
-        2 & BANK\_A & \$298.80 & 30.0\% & No \\
-        2 & BANK\_B & \$298.80 & 30.0\% & No \\
-        3 & BANK\_A & \$249.00 & 25.0\% & No \\
-        3 & BANK\_B & \$278.88 & 28.0\% & No \\
-        4 & BANK\_A & \$219.12 & 22.0\% & No \\
-        4 & BANK\_B & \$258.96 & 26.0\% & No \\
-        5 & BANK\_A & \$209.16 & 21.0\% & No \\
-        5 & BANK\_B & \$249.00 & 25.0\% & No \\
-        6 & BANK\_A & \$199.20 & 20.0\% & No \\
-        6 & BANK\_B & \$239.04 & 24.0\% & No \\
-        7 & BANK\_A & \$189.47 & 19.0\% & No \\
-        7 & BANK\_B & \$229.08 & 23.0\% & No \\
-        8 & BANK\_A & \$183.81 & 18.0\% & No \\
-        8 & BANK\_B & \$219.12 & 22.0\% & No \\
-        9 & BANK\_A & \$174.20 & 17.0\% & No \\
-        9 & BANK\_B & \$209.16 & 21.0\% & No \\
+        1 & BANK\_B & \$448.20 & 45.0\% & No \\
+        2 & BANK\_A & \$328.68 & 33.0\% & No \\
+        2 & BANK\_B & \$418.32 & 42.0\% & No \\
+        3 & BANK\_A & \$298.80 & 30.0\% & No \\
+        3 & BANK\_B & \$408.36 & 41.0\% & No \\
+        4 & BANK\_A & \$278.88 & 28.0\% & No \\
+        4 & BANK\_B & \$398.40 & 40.0\% & No \\
+        5 & BANK\_A & \$258.96 & 26.0\% & No \\
+        5 & BANK\_B & \$388.44 & 39.0\% & No \\
+        6 & BANK\_A & \$239.04 & 24.0\% & No \\
+        6 & BANK\_B & \$378.48 & 38.0\% & No \\
+        7 & BANK\_A & \$219.12 & 22.0\% & No \\
+        7 & BANK\_B & \$368.52 & 37.0\% & No \\
+        8 & BANK\_A & \$209.16 & 21.0\% & No \\
+        8 & BANK\_B & \$358.56 & 36.0\% & No \\
+        9 & BANK\_A & \$199.20 & 20.0\% & No \\
+        9 & BANK\_B & \$348.60 & 35.0\% & No \\
+        10 & BANK\_A & \$189.47 & 19.0\% & No \\
+        10 & BANK\_B & \$338.64 & 34.0\% & No \\
+        11 & BANK\_A & \$183.81 & 18.0\% & No \\
+        11 & BANK\_B & \$328.68 & 33.0\% & No \\
+        12 & BANK\_A & \$174.20 & 17.0\% & No \\
+        12 & BANK\_B & \$318.72 & 32.0\% & No \\
+        13 & BANK\_A & \$164.95 & 16.0\% & No \\
+        13 & BANK\_B & \$308.76 & 31.0\% & No \\
+        14 & BANK\_A & \$157.76 & 15.0\% & No \\
+        14 & BANK\_B & \$298.80 & 30.0\% & No \\
+        15 & BANK\_A & \$149.45 & 14.0\% & No \\
+        15 & BANK\_B & \$288.84 & 29.0\% & No \\
+        16 & BANK\_A & \$143.29 & 13.0\% & No \\
+        16 & BANK\_B & \$278.88 & 28.0\% & No \\
+        17 & BANK\_A & \$134.78 & 12.0\% & No \\
+        17 & BANK\_B & \$268.92 & 27.0\% & No \\
+        18 & BANK\_A & \$131.78 & 11.0\% & No \\
+        18 & BANK\_B & \$258.96 & 26.0\% & No \\
+        19 & BANK\_A & \$129.64 & 10.0\% & No \\
+        19 & BANK\_B & \$249.00 & 25.0\% & No \\
+        20 & BANK\_A & \$163.10 & 9.0\% & No \\
+        20 & BANK\_B & \$239.04 & 24.0\% & No \\
+        21 & BANK\_A & \$237.53 & 8.0\% & No \\
+        21 & BANK\_B & \$229.08 & 23.0\% & No \\
+        22 & BANK\_A & \$237.53 & 8.0\% & No \\
+        22 & BANK\_B & \$219.12 & 22.0\% & No \\
+        23 & BANK\_A & \$317.48 & 7.0\% & No \\
+        23 & BANK\_B & \$209.16 & 21.0\% & No \\
+        24 & BANK\_A & \$298.68 & 6.5\% & No \\
+        24 & BANK\_B & \$199.20 & 20.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1010,54 +1096,54 @@ all three passes of experiment 2: stochastic environment.
         Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
         0 & BANK\_A & \$498.00 & 50.0\% & No \\
         0 & BANK\_B & \$498.00 & 50.0\% & No \\
-        1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$199.20 & 20.0\% & No \\
-        2 & BANK\_A & \$348.60 & 35.0\% & No \\
-        2 & BANK\_B & \$161.34 & 16.0\% & No \\
+        1 & BANK\_A & \$448.20 & 45.0\% & No \\
+        1 & BANK\_B & \$348.60 & 35.0\% & No \\
+        2 & BANK\_A & \$398.40 & 40.0\% & No \\
+        2 & BANK\_B & \$298.80 & 30.0\% & No \\
         3 & BANK\_A & \$298.80 & 30.0\% & No \\
-        3 & BANK\_B & \$145.03 & 14.0\% & No \\
-        4 & BANK\_A & \$278.88 & 28.0\% & No \\
-        4 & BANK\_B & \$136.25 & 12.0\% & No \\
-        5 & BANK\_A & \$258.96 & 26.0\% & No \\
-        5 & BANK\_B & \$136.25 & 12.0\% & No \\
-        6 & BANK\_A & \$239.04 & 24.0\% & No \\
-        6 & BANK\_B & \$134.46 & 11.5\% & No \\
-        7 & BANK\_A & \$219.12 & 22.0\% & No \\
-        7 & BANK\_B & \$134.46 & 11.5\% & No \\
-        8 & BANK\_A & \$199.20 & 20.0\% & No \\
-        8 & BANK\_B & \$134.46 & 11.5\% & No \\
-        9 & BANK\_A & \$183.81 & 18.0\% & No \\
-        9 & BANK\_B & \$134.46 & 11.5\% & No \\
-        10 & BANK\_A & \$164.95 & 16.0\% & No \\
-        10 & BANK\_B & \$134.46 & 11.5\% & No \\
-        11 & BANK\_A & \$149.45 & 14.0\% & No \\
-        11 & BANK\_B & \$134.46 & 11.5\% & No \\
-        12 & BANK\_A & \$134.78 & 12.0\% & No \\
-        12 & BANK\_B & \$134.46 & 11.5\% & No \\
-        13 & BANK\_A & \$129.64 & 10.0\% & No \\
-        13 & BANK\_B & \$134.46 & 11.5\% & No \\
-        14 & BANK\_A & \$237.53 & 8.0\% & No \\
-        14 & BANK\_B & \$134.46 & 11.5\% & No \\
-        15 & BANK\_A & \$317.48 & 7.0\% & No \\
-        15 & BANK\_B & \$134.06 & 11.3\% & No \\
-        16 & BANK\_A & \$317.48 & 7.0\% & No \\
-        16 & BANK\_B & \$134.06 & 11.3\% & No \\
-        17 & BANK\_A & \$298.68 & 6.5\% & No \\
-        17 & BANK\_B & \$134.06 & 11.3\% & No \\
-        18 & BANK\_A & \$298.68 & 6.5\% & No \\
-        18 & BANK\_B & \$134.06 & 11.3\% & No \\
-        19 & BANK\_A & \$322.08 & 6.8\% & No \\
-        19 & BANK\_B & \$134.06 & 11.3\% & No \\
-        20 & BANK\_A & \$322.08 & 6.8\% & No \\
-        20 & BANK\_B & \$134.06 & 11.3\% & No \\
-        21 & BANK\_A & \$325.09 & 6.7\% & No \\
-        21 & BANK\_B & \$134.06 & 11.3\% & No \\
-        22 & BANK\_A & \$325.09 & 6.7\% & No \\
-        22 & BANK\_B & \$134.06 & 11.3\% & No \\
-        23 & BANK\_A & \$325.09 & 6.7\% & No \\
-        23 & BANK\_B & \$134.06 & 11.3\% & No \\
-        24 & BANK\_A & \$325.26 & 6.7\% & No \\
-        24 & BANK\_B & \$134.06 & 11.3\% & No \\
+        3 & BANK\_B & \$288.84 & 29.0\% & No \\
+        4 & BANK\_A & \$249.00 & 25.0\% & No \\
+        4 & BANK\_B & \$278.88 & 28.0\% & No \\
+        5 & BANK\_A & \$199.20 & 20.0\% & No \\
+        5 & BANK\_B & \$268.92 & 27.0\% & No \\
+        6 & BANK\_A & \$157.76 & 15.0\% & No \\
+        6 & BANK\_B & \$258.96 & 26.0\% & No \\
+        7 & BANK\_A & \$129.64 & 10.0\% & No \\
+        7 & BANK\_B & \$249.00 & 25.0\% & No \\
+        8 & BANK\_A & \$163.10 & 9.0\% & No \\
+        8 & BANK\_B & \$239.04 & 24.0\% & No \\
+        9 & BANK\_A & \$164.70 & 8.8\% & No \\
+        9 & BANK\_B & \$229.08 & 23.0\% & No \\
+        10 & BANK\_A & \$197.80 & 8.6\% & No \\
+        10 & BANK\_B & \$219.12 & 22.0\% & No \\
+        11 & BANK\_A & \$248.41 & 8.5\% & No \\
+        11 & BANK\_B & \$209.16 & 21.0\% & No \\
+        12 & BANK\_A & \$233.04 & 8.4\% & No \\
+        12 & BANK\_B & \$199.20 & 20.0\% & No \\
+        13 & BANK\_A & \$235.77 & 8.3\% & No \\
+        13 & BANK\_B & \$189.24 & 19.0\% & No \\
+        14 & BANK\_A & \$269.91 & 8.2\% & No \\
+        14 & BANK\_B & \$179.53 & 18.0\% & No \\
+        15 & BANK\_A & \$269.91 & 8.2\% & No \\
+        15 & BANK\_B & \$169.81 & 17.0\% & No \\
+        16 & BANK\_A & \$269.91 & 8.2\% & No \\
+        16 & BANK\_B & \$161.34 & 16.0\% & No \\
+        17 & BANK\_A & \$236.44 & 8.1\% & No \\
+        17 & BANK\_B & \$152.18 & 15.0\% & No \\
+        18 & BANK\_A & \$237.53 & 8.0\% & No \\
+        18 & BANK\_B & \$145.03 & 14.0\% & No \\
+        19 & BANK\_A & \$239.48 & 7.9\% & No \\
+        19 & BANK\_B & \$138.65 & 13.0\% & No \\
+        20 & BANK\_A & \$207.25 & 7.8\% & No \\
+        20 & BANK\_B & \$136.25 & 12.0\% & No \\
+        21 & BANK\_A & \$269.75 & 7.7\% & No \\
+        21 & BANK\_B & \$136.25 & 12.0\% & No \\
+        22 & BANK\_A & \$237.69 & 7.6\% & No \\
+        22 & BANK\_B & \$136.25 & 12.0\% & No \\
+        23 & BANK\_A & \$272.79 & 7.5\% & No \\
+        23 & BANK\_B & \$136.25 & 12.0\% & No \\
+        24 & BANK\_A & \$243.64 & 7.4\% & No \\
+        24 & BANK\_B & \$134.46 & 11.5\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1088,25 +1174,53 @@ all three passes of experiment 2: stochastic environment.
         0 & BANK\_A & \$498.00 & 50.0\% & No \\
         0 & BANK\_B & \$498.00 & 50.0\% & No \\
         1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$398.40 & 40.0\% & No \\
-        2 & BANK\_A & \$318.72 & 32.0\% & No \\
-        2 & BANK\_B & \$348.60 & 35.0\% & No \\
-        3 & BANK\_A & \$278.88 & 28.0\% & No \\
-        3 & BANK\_B & \$328.68 & 33.0\% & No \\
-        4 & BANK\_A & \$268.92 & 27.0\% & No \\
-        4 & BANK\_B & \$298.80 & 30.0\% & No \\
-        5 & BANK\_A & \$258.96 & 26.0\% & No \\
-        5 & BANK\_B & \$268.92 & 27.0\% & No \\
-        6 & BANK\_A & \$258.96 & 26.0\% & No \\
-        6 & BANK\_B & \$268.92 & 27.0\% & No \\
-        7 & BANK\_A & \$249.00 & 25.0\% & No \\
-        7 & BANK\_B & \$258.96 & 26.0\% & No \\
-        8 & BANK\_A & \$239.04 & 24.0\% & No \\
-        8 & BANK\_B & \$249.00 & 25.0\% & No \\
-        9 & BANK\_A & \$229.08 & 23.0\% & No \\
-        9 & BANK\_B & \$239.04 & 24.0\% & No \\
-        10 & BANK\_A & \$219.12 & 22.0\% & No \\
-        10 & BANK\_B & \$229.08 & 23.0\% & No \\
+        1 & BANK\_B & \$152.18 & 15.0\% & No \\
+        2 & BANK\_A & \$199.20 & 20.0\% & No \\
+        2 & BANK\_B & \$136.25 & 12.0\% & No \\
+        3 & BANK\_A & \$183.81 & 18.0\% & No \\
+        3 & BANK\_B & \$136.25 & 12.0\% & No \\
+        4 & BANK\_A & \$174.20 & 17.0\% & No \\
+        4 & BANK\_B & \$136.25 & 12.0\% & No \\
+        5 & BANK\_A & \$164.95 & 16.0\% & No \\
+        5 & BANK\_B & \$136.25 & 12.0\% & No \\
+        6 & BANK\_A & \$157.76 & 15.0\% & No \\
+        6 & BANK\_B & \$136.25 & 12.0\% & No \\
+        7 & BANK\_A & \$149.45 & 14.0\% & No \\
+        7 & BANK\_B & \$136.25 & 12.0\% & No \\
+        8 & BANK\_A & \$143.29 & 13.0\% & No \\
+        8 & BANK\_B & \$136.25 & 12.0\% & No \\
+        9 & BANK\_A & \$134.78 & 12.0\% & No \\
+        9 & BANK\_B & \$136.25 & 12.0\% & No \\
+        10 & BANK\_A & \$131.78 & 11.0\% & No \\
+        10 & BANK\_B & \$136.25 & 12.0\% & No \\
+        11 & BANK\_A & \$129.64 & 10.0\% & No \\
+        11 & BANK\_B & \$136.25 & 12.0\% & No \\
+        12 & BANK\_A & \$163.10 & 9.0\% & No \\
+        12 & BANK\_B & \$136.25 & 12.0\% & No \\
+        13 & BANK\_A & \$237.53 & 8.0\% & No \\
+        13 & BANK\_B & \$136.25 & 12.0\% & No \\
+        14 & BANK\_A & \$317.48 & 7.0\% & No \\
+        14 & BANK\_B & \$136.25 & 12.0\% & No \\
+        15 & BANK\_A & \$298.68 & 6.5\% & No \\
+        15 & BANK\_B & \$136.25 & 12.0\% & No \\
+        16 & BANK\_A & \$326.00 & 6.0\% & No \\
+        16 & BANK\_B & \$136.25 & 12.0\% & No \\
+        17 & BANK\_A & \$516.04 & 5.5\% & No \\
+        17 & BANK\_B & \$136.25 & 12.0\% & No \\
+        18 & BANK\_A & \$516.04 & 5.5\% & No \\
+        18 & BANK\_B & \$136.25 & 12.0\% & No \\
+        19 & BANK\_A & \$516.04 & 5.5\% & No \\
+        19 & BANK\_B & \$136.25 & 12.0\% & No \\
+        20 & BANK\_A & \$516.04 & 5.5\% & No \\
+        20 & BANK\_B & \$136.25 & 12.0\% & No \\
+        21 & BANK\_A & \$490.81 & 5.6\% & No \\
+        21 & BANK\_B & \$136.25 & 12.0\% & No \\
+        22 & BANK\_A & \$515.29 & 5.6\% & No \\
+        22 & BANK\_B & \$136.25 & 12.0\% & No \\
+        23 & BANK\_A & \$515.15 & 5.6\% & No \\
+        23 & BANK\_B & \$136.25 & 12.0\% & No \\
+        24 & BANK\_A & \$515.15 & 5.6\% & No \\
+        24 & BANK\_B & \$136.25 & 12.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1255,427 +1369,6 @@ all three passes of experiment 3: symmetric equilibrium.
     \includegraphics[width=0.85\textwidth]{charts/exp3_pass3_combined.png}
     \caption{Experiment 3: Symmetric Equilibrium - Pass 3 convergence}
     \label{fig:exp3_pass3_convergence}
-\end{figure}
-
-
-
-
-\section{Bootstrap Evaluation Statistics}
-\label{app:bootstrap}
-
-This appendix provides bootstrap evaluation statistics and visualizations for all
-experiments and passes. Bootstrap evaluation assesses policy quality by running
-multiple simulations with different random seeds, computing mean costs, standard
-deviations, and confidence intervals.
-
-\subsection{Experiment 1}
-
-\subsubsection{Pass 1}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 1 Bootstrap Statistics - Pass 1}
-    \label{tab:exp1_bootstrap_pass1}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$0.10 & \$0.00 & [\$0.10, \$0.10] & 1 \\
-        BANK\_B & \$27.00 & \$0.00 & [\$27.00, \$27.00] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass1_ci_width.png}
-    \caption{Experiment 1 Pass 1: CI width comparison across iterations}
-    \label{fig:exp1_pass1_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass1_variance_evolution.png}
-    \caption{Experiment 1 Pass 1: Standard deviation evolution}
-    \label{fig:exp1_pass1_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass1_sample_distribution.png}
-    \caption{Experiment 1 Pass 1: Bootstrap sample distribution at convergence}
-    \label{fig:exp1_pass1_samples}
-\end{figure}
-
-
-\subsubsection{Pass 2}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 1 Bootstrap Statistics - Pass 2}
-    \label{tab:exp1_bootstrap_pass2}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$0.00 & \$0.00 & [\$0.00, \$0.00] & 1 \\
-        BANK\_B & \$27.90 & \$0.00 & [\$27.90, \$27.90] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass2_ci_width.png}
-    \caption{Experiment 1 Pass 2: CI width comparison across iterations}
-    \label{fig:exp1_pass2_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass2_variance_evolution.png}
-    \caption{Experiment 1 Pass 2: Standard deviation evolution}
-    \label{fig:exp1_pass2_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass2_sample_distribution.png}
-    \caption{Experiment 1 Pass 2: Bootstrap sample distribution at convergence}
-    \label{fig:exp1_pass2_samples}
-\end{figure}
-
-
-\subsubsection{Pass 3}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 1 Bootstrap Statistics - Pass 3}
-    \label{tab:exp1_bootstrap_pass3}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$31.78 & \$0.00 & [\$31.78, \$31.78] & 1 \\
-        BANK\_B & \$70.00 & \$0.00 & [\$70.00, \$70.00] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass3_ci_width.png}
-    \caption{Experiment 1 Pass 3: CI width comparison across iterations}
-    \label{fig:exp1_pass3_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass3_variance_evolution.png}
-    \caption{Experiment 1 Pass 3: Standard deviation evolution}
-    \label{fig:exp1_pass3_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp1_pass3_sample_distribution.png}
-    \caption{Experiment 1 Pass 3: Bootstrap sample distribution at convergence}
-    \label{fig:exp1_pass3_samples}
-\end{figure}
-
-
-\subsection{Experiment 2}
-
-\subsubsection{Pass 1}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2 Bootstrap Statistics - Pass 1}
-    \label{tab:exp2_bootstrap_pass1}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$174.20 & \$0.00 & [\$174.20, \$174.20] & 1 \\
-        BANK\_B & \$209.16 & \$0.00 & [\$209.16, \$209.16] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass1_ci_width.png}
-    \caption{Experiment 2 Pass 1: CI width comparison across iterations}
-    \label{fig:exp2_pass1_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass1_variance_evolution.png}
-    \caption{Experiment 2 Pass 1: Standard deviation evolution}
-    \label{fig:exp2_pass1_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass1_sample_distribution.png}
-    \caption{Experiment 2 Pass 1: Bootstrap sample distribution at convergence}
-    \label{fig:exp2_pass1_samples}
-\end{figure}
-
-
-\subsubsection{Pass 2}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2 Bootstrap Statistics - Pass 2}
-    \label{tab:exp2_bootstrap_pass2}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$325.26 & \$0.00 & [\$325.26, \$325.26] & 1 \\
-        BANK\_B & \$134.06 & \$0.00 & [\$134.06, \$134.06] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass2_ci_width.png}
-    \caption{Experiment 2 Pass 2: CI width comparison across iterations}
-    \label{fig:exp2_pass2_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass2_variance_evolution.png}
-    \caption{Experiment 2 Pass 2: Standard deviation evolution}
-    \label{fig:exp2_pass2_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass2_sample_distribution.png}
-    \caption{Experiment 2 Pass 2: Bootstrap sample distribution at convergence}
-    \label{fig:exp2_pass2_samples}
-\end{figure}
-
-
-\subsubsection{Pass 3}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2 Bootstrap Statistics - Pass 3}
-    \label{tab:exp2_bootstrap_pass3}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$219.12 & \$0.00 & [\$219.12, \$219.12] & 1 \\
-        BANK\_B & \$229.08 & \$0.00 & [\$229.08, \$229.08] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass3_ci_width.png}
-    \caption{Experiment 2 Pass 3: CI width comparison across iterations}
-    \label{fig:exp2_pass3_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass3_variance_evolution.png}
-    \caption{Experiment 2 Pass 3: Standard deviation evolution}
-    \label{fig:exp2_pass3_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp2_pass3_sample_distribution.png}
-    \caption{Experiment 2 Pass 3: Bootstrap sample distribution at convergence}
-    \label{fig:exp2_pass3_samples}
-\end{figure}
-
-
-\subsection{Experiment 3}
-
-\subsubsection{Pass 1}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 3 Bootstrap Statistics - Pass 1}
-    \label{tab:exp3_bootstrap_pass1}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$120.99 & \$0.00 & [\$120.99, \$120.99] & 1 \\
-        BANK\_B & \$69.97 & \$0.00 & [\$69.97, \$69.97] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass1_ci_width.png}
-    \caption{Experiment 3 Pass 1: CI width comparison across iterations}
-    \label{fig:exp3_pass1_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass1_variance_evolution.png}
-    \caption{Experiment 3 Pass 1: Standard deviation evolution}
-    \label{fig:exp3_pass1_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass1_sample_distribution.png}
-    \caption{Experiment 3 Pass 1: Bootstrap sample distribution at convergence}
-    \label{fig:exp3_pass1_samples}
-\end{figure}
-
-
-\subsubsection{Pass 2}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 3 Bootstrap Statistics - Pass 2}
-    \label{tab:exp3_bootstrap_pass2}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$124.89 & \$0.00 & [\$124.89, \$124.89] & 1 \\
-        BANK\_B & \$68.98 & \$0.00 & [\$68.98, \$68.98] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass2_ci_width.png}
-    \caption{Experiment 3 Pass 2: CI width comparison across iterations}
-    \label{fig:exp3_pass2_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass2_variance_evolution.png}
-    \caption{Experiment 3 Pass 2: Standard deviation evolution}
-    \label{fig:exp3_pass2_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass2_sample_distribution.png}
-    \caption{Experiment 3 Pass 2: Bootstrap sample distribution at convergence}
-    \label{fig:exp3_pass2_samples}
-\end{figure}
-
-
-\subsubsection{Pass 3}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 3 Bootstrap Statistics - Pass 3}
-    \label{tab:exp3_bootstrap_pass3}
-    \begin{tabular}{lrrrr}
-        \hline
-        Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
-        \hline
-        BANK\_A & \$209.96 & \$0.00 & [\$209.96, \$209.96] & 1 \\
-        BANK\_B & \$200.96 & \$0.00 & [\$200.96, \$200.96] & 1 \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass3_ci_width.png}
-    \caption{Experiment 3 Pass 3: CI width comparison across iterations}
-    \label{fig:exp3_pass3_ci_width}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass3_variance_evolution.png}
-    \caption{Experiment 3 Pass 3: Standard deviation evolution}
-    \label{fig:exp3_pass3_variance}
-\end{figure}
-
-
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{charts/exp3_pass3_sample_distribution.png}
-    \caption{Experiment 3 Pass 3: Bootstrap sample distribution at convergence}
-    \label{fig:exp3_pass3_samples}
 \end{figure}
 
 
