@@ -411,37 +411,21 @@ def generate_bootstrap_variance_chart(
         y_lower = np.array(ci_lower)
         y_upper = np.array(ci_upper)
 
-        # Create smooth interpolation for GP-like appearance
-        if len(x) > 2:
-            # Create fine-grained x values for smooth curves
-            x_smooth = np.linspace(x.min(), x.max(), 200)
-
-            # Linear interpolation using numpy (sufficient for GP aesthetic)
-            y_mean_smooth = np.interp(x_smooth, x, y_mean)
-            y_lower_smooth = np.interp(x_smooth, x, y_lower)
-            y_upper_smooth = np.interp(x_smooth, x, y_upper)
-        else:
-            # Not enough points for interpolation, use original
-            x_smooth = x
-            y_mean_smooth = y_mean
-            y_lower_smooth = y_lower
-            y_upper_smooth = y_upper
-
         # Plot 95% CI band (prominent, GP-style)
         ax.fill_between(
-            x_smooth,
-            y_lower_smooth,
-            y_upper_smooth,
+            x,
+            y_lower,
+            y_upper,
             alpha=0.4,
             color=colors["band"],
             label="95% Confidence Interval",
             edgecolor="none",
         )
 
-        # Plot smooth mean prediction line
+        # Plot mean prediction line (straight lines between points)
         ax.plot(
-            x_smooth,
-            y_mean_smooth,
+            x,
+            y_mean,
             color=colors["line"],
             linewidth=2,
             label="Mean Prediction",
