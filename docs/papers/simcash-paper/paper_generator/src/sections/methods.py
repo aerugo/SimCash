@@ -53,7 +53,7 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
     \item \textbf{Evaluation}: Run simulation(s) with proposed policy
     \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
-    \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or cost plateau (bootstrap) for 5 iterations
+    \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or multi-criteria cost stability (bootstrap) over 5 iterations
 \end{enumerate}
 
 \subsection{Evaluation Modes}
@@ -80,7 +80,12 @@ For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy
     \item \textbf{Resampling}: Generate 50 transaction schedules by resampling with replacement, preserving settlement offset distributions
     \item \textbf{Paired comparison}: Evaluate both old and new policy on each sample, computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
     \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (improvement across all samples)
-    \item \textbf{Convergence criterion}: Cost improvement plateau with coefficient of variation below 5\%
+    \item \textbf{Convergence criterion}: Three criteria must ALL be satisfied over a 5-iteration window:
+    \begin{enumerate}
+        \item Coefficient of variation below 3\% (cost stability)
+        \item Mann-Kendall test $p > 0.05$ (no significant trend, i.e., not still improving)
+        \item Regret below 10\% (current cost within 10\% of best observed)
+    \end{enumerate}
 \end{itemize}
 
 \subsection{Experimental Setup}
@@ -116,7 +121,7 @@ Our experiments replicate the scenarios from Castro et al., with key methodologi
 \begin{itemize}
     \item \textbf{Optimization method}: Castro uses REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
     \item \textbf{Action representation}: Castro discretizes $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
-    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or cost plateau (bootstrap) detection
+    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or multi-criteria statistical convergence (bootstrap) detection
     \item \textbf{Multi-agent dynamics}: Castro trains two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
 \end{itemize}
 
