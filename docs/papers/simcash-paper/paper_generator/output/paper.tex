@@ -465,7 +465,7 @@ environment requires more exploration to reach stable policies.
 \subsubsection{Bootstrap Evaluation Methodology}
 
 To account for stochastic variance, we evaluate final policies using bootstrap
-evaluation with 1 samples. This provides confidence intervals on expected costs.
+evaluation with 50 samples. This provides confidence intervals on expected costs.
 
 
 \begin{table}[htbp]
@@ -476,8 +476,8 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$243.64 & \$0.00 & [\$243.64, \$243.64] & 1 \\
-        BANK\_B & \$134.46 & \$0.00 & [\$134.46, \$134.46] & 1 \\
+        BANK\_A & \$77.10 & \$15.81 & [\$72.58, \$81.62] & 50 \\
+        BANK\_B & \$126.95 & \$47.44 & [\$113.39, \$140.51] & 50 \\
         \hline
     \end{tabular}
 \end{table}
@@ -485,12 +485,27 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 Bootstrap evaluation reveals:
 \begin{itemize}
-    \item BANK\_A: Mean cost \$243.64 ($\pm$ \$0.00 std dev)
-    \item BANK\_B: Mean cost \$134.46 ($\pm$ \$0.00 std dev)
+    \item BANK\_A: Mean cost \$77.10 ($\pm$ \$15.81 std dev)
+    \item BANK\_B: Mean cost \$126.95 ($\pm$ \$47.44 std dev)
 \end{itemize}
 
-The agents learned robust strategies despite stochastic costs, with confidence intervals
-appropriately reflecting the underlying variance.
+\subsubsection{Risk-Return Tradeoff}
+
+Figure~\ref{fig:exp2_variance} shows how cost variance evolves during optimization.
+BANK\_B exhibits increasing variance from iteration 17 onward as it reduces liquidity
+toward the final 11.5\% allocation. This demonstrates a risk-return tradeoff: lower
+liquidity reduces mean holding costs but increases exposure to stochastic payment timing.
+BANK\_A's variance remains stable, suggesting its lower liquidity position (7.4\%) has
+already reached a risk plateau.
+
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{charts/exp2_pass2_variance.png}
+    \caption{Experiment 2: Cost variance over iterations showing 95\% confidence intervals}
+    \label{fig:exp2_variance}
+\end{figure}
+
 
 
 \begin{table}[htbp]
@@ -822,31 +837,6 @@ These results validate the framework's utility for payment system analysis.
 Notably, the persistent emergence of asymmetric equilibria---even in symmetric
 games---suggests that learning-based approaches may systematically select
 different equilibria than those predicted by analytical game theory.
-
-\subsection{Future Work}
-
-Several directions merit further investigation:
-
-\begin{itemize}
-    \item \textbf{Network scaling}: Extending to N-agent scenarios with diverse
-    participant types (large, medium, small banks)
-
-    \item \textbf{Partial observability}: Modeling realistic information constraints
-    where agents cannot directly observe counterparty reserves
-
-    \item \textbf{Regulatory intervention}: Testing policy interventions such as
-    minimum liquidity requirements, tiered penalty structures, or central bank
-    credit facilities
-
-    \item \textbf{Dynamic environments}: Incorporating non-stationary elements such
-    as changing transaction volumes or participant entry/exit
-
-    \item \textbf{Alternative learning algorithms}: Comparing policy gradient methods
-    with Q-learning, actor-critic, or model-based approaches
-\end{itemize}
-
-The SimCash framework provides a foundation for these investigations, enabling
-controlled experiments to inform payment system design and regulation.
 
 
 

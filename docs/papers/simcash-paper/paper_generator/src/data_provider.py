@@ -448,7 +448,8 @@ class DatabaseDataProvider:
     ) -> dict[str, BootstrapStats]:
         """Get bootstrap statistics for final iteration.
 
-        For stochastic experiments, returns mean, std_dev, and CI bounds.
+        For stochastic experiments, returns mean, std_dev, and CI bounds
+        from the policy_evaluations table which stores bootstrap samples.
         For deterministic experiments, std_dev=0 and CI bounds equal mean.
 
         Args:
@@ -461,43 +462,69 @@ class DatabaseDataProvider:
         run_id = self.get_run_id(exp_id, pass_num)
         conn = self._get_connection(exp_id)
 
-        # Get max iteration for this run from experiment_iterations
+        # Get max iteration for this run
         max_iter_result = conn.execute(
             """
             SELECT MAX(iteration)
-            FROM experiment_iterations
+            FROM policy_evaluations
             WHERE run_id = ?
             """,
             [run_id],
         ).fetchone()
 
         if max_iter_result is None or max_iter_result[0] is None:
-            raise ValueError(f"No iterations found for {exp_id} pass {pass_num}")
+            raise ValueError(f"No policy evaluations found for {exp_id} pass {pass_num}")
 
         max_iter = max_iter_result[0]
 
-        # Get costs from experiment_iterations
-        result = conn.execute(
+        # Get bootstrap stats from policy_evaluations for final iteration
+        results = conn.execute(
             """
-            SELECT costs_per_agent
-            FROM experiment_iterations
+            SELECT agent_id, new_cost, num_samples, cost_std_dev,
+                   confidence_interval_95, agent_stats
+            FROM policy_evaluations
             WHERE run_id = ? AND iteration = ?
             """,
             [run_id, max_iter],
-        ).fetchone()
+        ).fetchall()
 
         stats: dict[str, BootstrapStats] = {}
-        if result:
-            costs = json.loads(result[0]) if isinstance(result[0], str) else result[0]
-            for agent_id, cost in costs.items():
-                # No bootstrap data in experiment_iterations, use single value
-                stats[agent_id] = BootstrapStats(
-                    mean_cost=cost,
-                    std_dev=0,
-                    ci_lower=cost,
-                    ci_upper=cost,
-                    num_samples=1,
-                )
+        for row in results:
+            agent_id = row[0]
+            mean_cost = row[1]
+            num_samples = row[2] or 1
+            std_dev = row[3] or 0
+
+            # Parse CI from confidence_interval_95 or agent_stats
+            ci_lower = mean_cost
+            ci_upper = mean_cost
+
+            # Try agent_stats first (has per-agent CI)
+            agent_stats_json = row[5]
+            if agent_stats_json:
+                if isinstance(agent_stats_json, str):
+                    agent_stats_json = json.loads(agent_stats_json)
+                if agent_id in agent_stats_json:
+                    agent_stat = agent_stats_json[agent_id]
+                    ci_lower = agent_stat.get("ci_95_lower", mean_cost)
+                    ci_upper = agent_stat.get("ci_95_upper", mean_cost)
+
+            # Fallback to confidence_interval_95 if no agent_stats
+            elif row[4]:
+                ci_data = row[4]
+                if isinstance(ci_data, str):
+                    ci_data = json.loads(ci_data)
+                if isinstance(ci_data, list) and len(ci_data) >= 2:
+                    ci_lower = ci_data[0]
+                    ci_upper = ci_data[1]
+
+            stats[agent_id] = BootstrapStats(
+                mean_cost=mean_cost,
+                std_dev=std_dev,
+                ci_lower=ci_lower,
+                ci_upper=ci_upper,
+                num_samples=num_samples,
+            )
 
         return stats
 
