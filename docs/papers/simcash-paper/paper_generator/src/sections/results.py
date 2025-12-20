@@ -160,7 +160,7 @@ def generate_results(provider: DataProvider) -> str:
 
     exp3_fig = include_figure(
         path=f"{CHARTS_DIR}/exp3_pass1_combined.png",
-        caption="Experiment 3: Convergence to symmetric equilibrium",
+        caption="Experiment 3: Convergence dynamics in symmetric game",
         label="fig:exp3_convergence",
         width=0.9,
     )
@@ -232,11 +232,11 @@ appropriately reflecting the underlying variance.
 
 {exp2_summary_table}
 
-\subsection{{Experiment 3: Symmetric Equilibrium}}
+\subsection{{Experiment 3: Symmetric Game Dynamics}}
 
-In this 3-period symmetric scenario, both banks face identical cost structures,
-leading to expected symmetric equilibrium behavior. Convergence occurred at
-iteration {exp3_convergence} in Pass 1.
+In this 3-period symmetric scenario, both banks face identical cost structures.
+Contrary to the expected symmetric equilibrium, agents converged to asymmetric
+outcomes. Convergence occurred at iteration {exp3_convergence} in Pass 1.
 
 {exp3_iter_table}
 
@@ -248,8 +248,10 @@ Final equilibrium:
     \item BANK\_B: {exp3_b_cost} cost, {exp3_b_liq} liquidity
 \end{{itemize}}
 
-Both agents adopted similar liquidity strategies, demonstrating that symmetric
-incentives lead to cooperative equilibrium rather than exploitation.
+Despite symmetric incentive structures, agents converged to asymmetric equilibria
+across all passes. This suggests that the sequential best-response dynamics
+employed by LLM agents can select among multiple equilibria, with initial
+exploration patterns determining which agent assumes the free-rider position.
 
 {exp3_summary_table}
 
@@ -261,9 +263,10 @@ Several key observations emerge from comparing results across experiments:
     \item \textbf{{Convergence Reliability}}: All {total_passes} passes ({total_experiments} experiments $\times$ {passes_per_exp} passes)
     achieved convergence to stable equilibria, demonstrating framework robustness.
 
-    \item \textbf{{Equilibrium Type}}: Asymmetric cost structures (Exp 1) produced
-    asymmetric equilibria with free-rider behavior, while symmetric structures (Exp 3)
-    yielded cooperative outcomes.
+    \item \textbf{{Asymmetric Equilibria Prevalence}}: Both asymmetric (Exp 1) and
+    symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider
+    behavior. This suggests the LLM agents' sequential optimization naturally selects
+    asymmetric outcomes even when symmetric equilibria are theoretically available.
 
     \item \textbf{{Stochastic Robustness}}: The bootstrap evaluation in Experiment 2
     confirmed that learned policies remain effective under transaction variance,

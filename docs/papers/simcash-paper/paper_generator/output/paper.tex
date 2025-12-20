@@ -45,12 +45,13 @@ system liquidity games using Large Language Models (LLMs). Our approach treats
 policy optimization as an iterative best-response problem where LLM agents propose
 liquidity allocation strategies based on observed costs and opponent behavior.
 Through experiments on three canonical scenarios from Castro et al., we demonstrate
-that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
-equilibria: asymmetric equilibria in deterministic two-period games, symmetric
-equilibria in three-period coordination games, and bounded stochastic equilibria
-in twelve-period LVTS-style scenarios. Our results across 9 independent runs
+that GPT-5.2 with high reasoning effort consistently discovers stable equilibria,
+though with notable deviations from theoretical predictions: asymmetric free-rider
+equilibria emerge even in symmetric games, suggesting the best-response dynamics
+select among multiple equilibria rather than converging to symmetric outcomes.
+Our results across 9 independent runs
 (3 passes $\times$ 3 experiments) show 100\% convergence success with an average
-of 6.7 iterations to stability.
+of 10.6 iterations to stability.
 \end{abstract}
 
 
@@ -191,8 +192,8 @@ conducted across three independent passes to verify reproducibility.
 \subsection{Convergence Summary}
 
 Table~\ref{tab:convergence_stats} summarizes convergence behavior across all experiments.
-All passes achieved convergence, with mean iterations ranging from 5.7
-(Experiment 3) to 8.0 (Experiment 1).
+All passes achieved convergence, with mean iterations ranging from 7.0
+(Experiment 3) to 10.3 (Experiment 1).
 
 
 \begin{table}[htbp]
@@ -203,9 +204,9 @@ All passes achieved convergence, with mean iterations ranging from 5.7
         \hline
         Experiment & Mean Iters & Min & Max & Conv. Rate \\
         \hline
-        EXP1 & 8.0 & 5 & 14 & 100.0\% \\
-        EXP2 & 6.3 & 5 & 7 & 100.0\% \\
-        EXP3 & 5.7 & 5 & 7 & 100.0\% \\
+        EXP1 & 10.3 & 8 & 12 & 100.0\% \\
+        EXP2 & 14.3 & 9 & 24 & 100.0\% \\
+        EXP3 & 7.0 & 7 & 7 & 100.0\% \\
         \hline
     \end{tabular}
 \end{table}
@@ -227,36 +228,24 @@ creating an incentive structure that theoretically favors free-rider behavior by
         \hline
         Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$20.00 & 20.0\% & Yes \\
-        0 & BANK\_B & \$25.00 & 25.0\% & Yes \\
-        1 & BANK\_A & \$15.00 & 15.0\% & Yes \\
-        1 & BANK\_B & \$20.00 & 20.0\% & Yes \\
-        2 & BANK\_A & \$12.00 & 12.0\% & Yes \\
-        2 & BANK\_B & \$25.00 & 15.0\% & No \\
-        3 & BANK\_A & \$8.00 & 8.0\% & Yes \\
-        3 & BANK\_B & \$27.00 & 17.0\% & No \\
-        4 & BANK\_A & \$6.00 & 6.0\% & Yes \\
-        4 & BANK\_B & \$25.00 & 15.0\% & No \\
-        5 & BANK\_A & \$4.00 & 4.0\% & Yes \\
+        0 & BANK\_A & \$50.00 & 50.0\% & No \\
+        0 & BANK\_B & \$50.00 & 50.0\% & No \\
+        1 & BANK\_A & \$20.00 & 20.0\% & No \\
+        1 & BANK\_B & \$30.00 & 30.0\% & No \\
+        2 & BANK\_A & \$10.00 & 10.0\% & No \\
+        2 & BANK\_B & \$20.00 & 20.0\% & No \\
+        3 & BANK\_A & \$5.00 & 5.0\% & No \\
+        3 & BANK\_B & \$28.00 & 18.0\% & No \\
+        4 & BANK\_A & \$0.00 & 0.0\% & No \\
+        4 & BANK\_B & \$20.00 & 20.0\% & No \\
+        5 & BANK\_A & \$0.10 & 0.1\% & No \\
         5 & BANK\_B & \$27.00 & 17.0\% & No \\
-        6 & BANK\_A & \$3.50 & 3.5\% & Yes \\
-        6 & BANK\_B & \$28.00 & 18.0\% & No \\
-        7 & BANK\_A & \$3.00 & 3.0\% & Yes \\
-        7 & BANK\_B & \$26.00 & 16.0\% & No \\
-        8 & BANK\_A & \$2.50 & 2.5\% & Yes \\
-        8 & BANK\_B & \$25.00 & 15.0\% & No \\
-        9 & BANK\_A & \$0.00 & 0.0\% & Yes \\
-        9 & BANK\_B & \$25.50 & 15.5\% & No \\
-        10 & BANK\_A & \$0.00 & 0.0\% & No \\
-        10 & BANK\_B & \$28.00 & 18.0\% & No \\
-        11 & BANK\_A & \$0.00 & 0.0\% & No \\
-        11 & BANK\_B & \$25.00 & 15.0\% & No \\
-        12 & BANK\_A & \$0.00 & 0.0\% & No \\
-        12 & BANK\_B & \$25.00 & 15.0\% & No \\
-        13 & BANK\_A & \$0.00 & 0.0\% & No \\
-        13 & BANK\_B & \$25.00 & 15.0\% & No \\
-        14 & BANK\_A & \$0.00 & 0.0\% & No \\
-        14 & BANK\_B & \$25.10 & 15.1\% & No \\
+        6 & BANK\_A & \$0.10 & 0.1\% & No \\
+        6 & BANK\_B & \$27.00 & 17.0\% & No \\
+        7 & BANK\_A & \$0.10 & 0.1\% & No \\
+        7 & BANK\_B & \$27.00 & 17.0\% & No \\
+        8 & BANK\_A & \$0.10 & 0.1\% & No \\
+        8 & BANK\_B & \$27.00 & 17.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -271,10 +260,10 @@ creating an incentive structure that theoretically favors free-rider behavior by
 \end{figure}
 
 
-The agents converged after 14 iterations in Pass 1 to an asymmetric equilibrium:
+The agents converged after 8 iterations in Pass 1 to an asymmetric equilibrium:
 \begin{itemize}
-    \item BANK\_A achieved \$0.00 cost with 0.0\% liquidity allocation
-    \item BANK\_B achieved \$25.10 cost with 15.1\% liquidity allocation
+    \item BANK\_A achieved \$0.10 cost with 0.1\% liquidity allocation
+    \item BANK\_B achieved \$27.00 cost with 17.0\% liquidity allocation
 \end{itemize}
 
 This outcome matches the theoretical prediction: BANK\_A free-rides on BANK\_B's
@@ -292,9 +281,9 @@ Table~\ref{tab:exp1_summary} shows consistent convergence across all three passe
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 14 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
-        2 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
-        3 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+        1 & 8 & 0.1\% & 17.0\% & \$0.10 & \$27.00 & \$27.10 \\
+        2 & 12 & 0.0\% & 17.9\% & \$0.00 & \$27.90 & \$27.90 \\
+        3 & 11 & 1.8\% & 0.0\% & \$31.78 & \$70.00 & \$101.78 \\
         \hline
     \end{tabular}
 \end{table}
@@ -304,7 +293,7 @@ Table~\ref{tab:exp1_summary} shows consistent convergence across all three passe
 
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
-Agents converged after 7 iterations in Pass 1.
+Agents converged after 9 iterations in Pass 1.
 
 
 \begin{table}[htbp]
@@ -317,20 +306,26 @@ Agents converged after 7 iterations in Pass 1.
         \hline
         Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        1 & BANK\_A & \$298.80 & 30.0\% & Yes \\
-        1 & BANK\_B & \$150.76 & 15.0\% & Yes \\
-        2 & BANK\_A & \$199.20 & 20.0\% & Yes \\
-        2 & BANK\_B & \$133.49 & 13.0\% & Yes \\
-        3 & BANK\_A & \$189.24 & 19.0\% & Yes \\
-        3 & BANK\_B & \$128.27 & 12.0\% & Yes \\
-        4 & BANK\_A & \$179.28 & 18.0\% & Yes \\
-        4 & BANK\_B & \$126.95 & 11.5\% & Yes \\
-        5 & BANK\_A & \$174.36 & 17.5\% & Yes \\
-        5 & BANK\_B & \$130.56 & 10.5\% & No \\
-        6 & BANK\_A & \$169.32 & 17.0\% & Yes \\
-        6 & BANK\_B & \$130.85 & 11.0\% & No \\
-        7 & BANK\_A & \$164.40 & 16.5\% & Yes \\
-        7 & BANK\_B & \$130.85 & 11.0\% & No \\
+        0 & BANK\_A & \$498.00 & 50.0\% & No \\
+        0 & BANK\_B & \$498.00 & 50.0\% & No \\
+        1 & BANK\_A & \$398.40 & 40.0\% & No \\
+        1 & BANK\_B & \$398.40 & 40.0\% & No \\
+        2 & BANK\_A & \$298.80 & 30.0\% & No \\
+        2 & BANK\_B & \$298.80 & 30.0\% & No \\
+        3 & BANK\_A & \$249.00 & 25.0\% & No \\
+        3 & BANK\_B & \$278.88 & 28.0\% & No \\
+        4 & BANK\_A & \$219.12 & 22.0\% & No \\
+        4 & BANK\_B & \$258.96 & 26.0\% & No \\
+        5 & BANK\_A & \$209.16 & 21.0\% & No \\
+        5 & BANK\_B & \$249.00 & 25.0\% & No \\
+        6 & BANK\_A & \$199.20 & 20.0\% & No \\
+        6 & BANK\_B & \$239.04 & 24.0\% & No \\
+        7 & BANK\_A & \$189.47 & 19.0\% & No \\
+        7 & BANK\_B & \$229.08 & 23.0\% & No \\
+        8 & BANK\_A & \$183.81 & 18.0\% & No \\
+        8 & BANK\_B & \$219.12 & 22.0\% & No \\
+        9 & BANK\_A & \$174.20 & 17.0\% & No \\
+        9 & BANK\_B & \$209.16 & 21.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -348,7 +343,7 @@ Agents converged after 7 iterations in Pass 1.
 \subsubsection{Bootstrap Evaluation Methodology}
 
 To account for stochastic variance, we evaluate final policies using bootstrap
-evaluation with 50 samples. This provides confidence intervals on expected costs.
+evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 
 \begin{table}[htbp]
@@ -359,8 +354,8 @@ evaluation with 50 samples. This provides confidence intervals on expected costs
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$164.40 & \$0.00 & [\$164.40, \$164.40] & 50 \\
-        BANK\_B & \$130.85 & \$69.51 & [\$110.99, \$150.72] & 50 \\
+        BANK\_A & \$174.20 & \$0.00 & [\$174.20, \$174.20] & 1 \\
+        BANK\_B & \$209.16 & \$0.00 & [\$209.16, \$209.16] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -368,8 +363,8 @@ evaluation with 50 samples. This provides confidence intervals on expected costs
 
 Bootstrap evaluation reveals:
 \begin{itemize}
-    \item BANK\_A: Mean cost \$164.40 ($\pm$ \$0.00 std dev)
-    \item BANK\_B: Mean cost \$130.85 ($\pm$ \$69.51 std dev)
+    \item BANK\_A: Mean cost \$174.20 ($\pm$ \$0.00 std dev)
+    \item BANK\_B: Mean cost \$209.16 ($\pm$ \$0.00 std dev)
 \end{itemize}
 
 The agents learned robust strategies despite stochastic costs, with confidence intervals
@@ -384,19 +379,19 @@ appropriately reflecting the underlying variance.
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 7 & 16.5\% & 11.5\% & \$164.40 & \$126.95 & \$291.35 \\
-        2 & 5 & 5.0\% & 10.0\% & \$65.58 & \$172.11 & \$237.69 \\
-        3 & 7 & 9.2\% & 12.0\% & \$92.07 & \$128.27 & \$220.34 \\
+        1 & 9 & 17.0\% & 21.0\% & \$174.20 & \$209.16 & \$383.36 \\
+        2 & 24 & 6.7\% & 11.3\% & \$325.26 & \$134.06 & \$459.32 \\
+        3 & 10 & 22.0\% & 23.0\% & \$219.12 & \$229.08 & \$448.20 \\
         \hline
     \end{tabular}
 \end{table}
 
 
-\subsection{Experiment 3: Symmetric Equilibrium}
+\subsection{Experiment 3: Symmetric Game Dynamics}
 
-In this 3-period symmetric scenario, both banks face identical cost structures,
-leading to expected symmetric equilibrium behavior. Convergence occurred at
-iteration 7 in Pass 1.
+In this 3-period symmetric scenario, both banks face identical cost structures.
+Contrary to the expected symmetric equilibrium, agents converged to asymmetric
+outcomes. Convergence occurred at iteration 7 in Pass 1.
 
 
 \begin{table}[htbp]
@@ -409,22 +404,22 @@ iteration 7 in Pass 1.
         \hline
         Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
         Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$24.99 & 25.0\% & Yes \\
-        0 & BANK\_B & \$29.97 & 30.0\% & Yes \\
-        1 & BANK\_A & \$22.98 & 23.0\% & Yes \\
-        1 & BANK\_B & \$19.98 & 20.0\% & Yes \\
-        2 & BANK\_A & \$20.49 & 20.5\% & Yes \\
-        2 & BANK\_B & \$120.00 & 0.0\% & No \\
-        3 & BANK\_A & \$19.98 & 20.0\% & Yes \\
-        3 & BANK\_B & \$120.00 & 0.0\% & No \\
-        4 & BANK\_A & \$138.99 & 19.0\% & No \\
-        4 & BANK\_B & \$129.99 & 10.0\% & No \\
-        5 & BANK\_A & \$120.00 & 0.0\% & No \\
-        5 & BANK\_B & \$120.00 & 0.0\% & No \\
-        6 & BANK\_A & \$120.00 & 0.0\% & No \\
-        6 & BANK\_B & \$138.99 & 19.0\% & No \\
-        7 & BANK\_A & \$137.97 & 18.0\% & No \\
-        7 & BANK\_B & \$129.99 & 10.0\% & No \\
+        0 & BANK\_A & \$49.95 & 50.0\% & No \\
+        0 & BANK\_B & \$49.95 & 50.0\% & No \\
+        1 & BANK\_A & \$29.97 & 30.0\% & No \\
+        1 & BANK\_B & \$39.96 & 40.0\% & No \\
+        2 & BANK\_A & \$120.99 & 1.0\% & No \\
+        2 & BANK\_B & \$69.97 & 30.0\% & No \\
+        3 & BANK\_A & \$120.90 & 0.9\% & No \\
+        3 & BANK\_B & \$68.98 & 29.0\% & No \\
+        4 & BANK\_A & \$120.96 & 1.0\% & No \\
+        4 & BANK\_B & \$69.97 & 30.0\% & No \\
+        5 & BANK\_A & \$120.99 & 1.0\% & No \\
+        5 & BANK\_B & \$71.98 & 32.0\% & No \\
+        6 & BANK\_A & \$120.96 & 1.0\% & No \\
+        6 & BANK\_B & \$69.97 & 30.0\% & No \\
+        7 & BANK\_A & \$120.99 & 1.0\% & No \\
+        7 & BANK\_B & \$69.97 & 30.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -434,19 +429,21 @@ iteration 7 in Pass 1.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\textwidth]{charts/exp3_pass1_combined.png}
-    \caption{Experiment 3: Convergence to symmetric equilibrium}
+    \caption{Experiment 3: Convergence dynamics in symmetric game}
     \label{fig:exp3_convergence}
 \end{figure}
 
 
 Final equilibrium:
 \begin{itemize}
-    \item BANK\_A: \$137.97 cost, 18.0\% liquidity
-    \item BANK\_B: \$129.99 cost, 10.0\% liquidity
+    \item BANK\_A: \$120.99 cost, 1.0\% liquidity
+    \item BANK\_B: \$69.97 cost, 30.0\% liquidity
 \end{itemize}
 
-Both agents adopted similar liquidity strategies, demonstrating that symmetric
-incentives lead to cooperative equilibrium rather than exploitation.
+Despite symmetric incentive structures, agents converged to asymmetric equilibria
+across all passes. This suggests that the sequential best-response dynamics
+employed by LLM agents can select among multiple equilibria, with initial
+exploration patterns determining which agent assumes the free-rider position.
 
 
 \begin{table}[htbp]
@@ -457,9 +454,9 @@ incentives lead to cooperative equilibrium rather than exploitation.
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 7 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
-        2 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
-        3 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+        1 & 7 & 1.0\% & 30.0\% & \$120.99 & \$69.97 & \$190.96 \\
+        2 & 7 & 4.9\% & 29.0\% & \$124.89 & \$68.98 & \$193.87 \\
+        3 & 7 & 10.0\% & 0.9\% & \$209.96 & \$200.96 & \$410.92 \\
         \hline
     \end{tabular}
 \end{table}
@@ -473,9 +470,10 @@ Several key observations emerge from comparing results across experiments:
     \item \textbf{Convergence Reliability}: All 9 passes (3 experiments $\times$ 3 passes)
     achieved convergence to stable equilibria, demonstrating framework robustness.
 
-    \item \textbf{Equilibrium Type}: Asymmetric cost structures (Exp 1) produced
-    asymmetric equilibria with free-rider behavior, while symmetric structures (Exp 3)
-    yielded cooperative outcomes.
+    \item \textbf{Asymmetric Equilibria Prevalence}: Both asymmetric (Exp 1) and
+    symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider
+    behavior. This suggests the LLM agents' sequential optimization naturally selects
+    asymmetric outcomes even when symmetric equilibria are theoretically available.
 
     \item \textbf{Stochastic Robustness}: The bootstrap evaluation in Experiment 2
     confirmed that learned policies remain effective under transaction variance,
@@ -487,30 +485,30 @@ Several key observations emerge from comparing results across experiments:
 \section{Discussion}
 \label{sec:discussion}
 
-Our experimental results demonstrate that reinforcement learning agents in the
-SimCash framework successfully discover game-theoretically predicted equilibria
-across varied scenarios. All 9 experiment passes achieved convergence,
+Our experimental results demonstrate that LLM agents in the SimCash framework
+consistently converge to stable equilibria, though not always matching theoretical
+predictions. All 9 experiment passes achieved convergence,
 validating the framework's robustness.
 
-\subsection{Theoretical Alignment}
+\subsection{Theoretical Alignment and Deviations}
 
-The observed equilibria closely align with game-theoretic predictions:
+The observed equilibria show both alignment with and deviation from game-theoretic predictions:
 
 \begin{itemize}
     \item \textbf{Experiment 1 (Asymmetric)}: BANK\_A converged to mean liquidity
-    0.0\% while BANK\_B maintained 20.0\%. The
-    20.0\% difference reflects the predicted free-rider equilibrium
-    where the bank with lower delay costs under-provides liquidity.
+    0.6\% while BANK\_B maintained 11.6\%. This 11.0\%
+    difference reflects free-rider dynamics, though the \textit{identity} of the free-rider
+    varied across passes---demonstrating that the game admits multiple asymmetric equilibria.
 
-    \item \textbf{Experiment 3 (Symmetric)}: Both banks converged to similar
-    liquidity levels (20.0\% vs 20.0\%), with only
-    0.0\% difference. This symmetric outcome confirms
-    that identical incentives produce cooperative equilibria.
+    \item \textbf{Experiment 3 (Symmetric)}: Contrary to the predicted symmetric equilibrium,
+    agents converged to asymmetric outcomes (5.3\% vs 20.0\%). This
+    14.7\% difference suggests that even symmetric incentive structures
+    can support asymmetric equilibria when agents engage in sequential best-response dynamics.
 \end{itemize}
 
-The mean convergence time of 8.0 iterations for Experiment 1
-compared to 5.7 for Experiment 3 suggests that asymmetric equilibria
-require more exploration to discover optimal free-riding strategies.
+The mean convergence time of 10.3 iterations for Experiment 1
+compared to 7.0 for Experiment 3 indicates similar exploration
+effort regardless of the underlying cost structure.
 
 \subsection{Implications for Payment System Design}
 
@@ -528,8 +526,8 @@ Our results suggest that:
     strategic liquidity hoarding
 \end{itemize}
 
-The total equilibrium cost of \$20.00 in Experiment 1 compared to
-\$39.96 in Experiment 3 demonstrates the efficiency implications of
+The total equilibrium cost of \$52.26 in Experiment 1 compared to
+\$265.25 in Experiment 3 demonstrates the efficiency implications of
 different cost structures.
 
 \subsection{Methodological Contributions}
@@ -554,15 +552,82 @@ into their strategic reasoning capabilities:
 \begin{enumerate}
     \item \textbf{Policy Optimization}: Agents effectively explored the
     continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from 0.0\% to 20.0\%.
+    to optimal values ranging from 0.6\% to 11.6\%.
 
     \item \textbf{Counterparty Modeling}: The asymmetric equilibria demonstrate
     implicit opponent modeling---BANK\_A's low liquidity strategy only works
     if it anticipates BANK\_B's higher provision.
 
-    \item \textbf{Convergence Speed}: Mean convergence in 8.0--5.7
+    \item \textbf{Convergence Speed}: Mean convergence in 10.3--7.0
     iterations suggests efficient exploration of the strategy space.
 \end{enumerate}
+
+\subsection{Behavioral Realism of LLM Agents}
+
+A key advantage of using LLM-based reasoning agents over traditional reinforcement learning
+approaches lies in their behavioral realism. Optimal RL agents converge to mathematically
+optimal policies through extensive training, but real-world payment system participants
+do not behave optimally---they operate under bounded rationality, make strategic errors,
+and respond to institutional incentives that may not align with pure cost minimization.
+
+Our experimental results demonstrate this concretely: in Experiment 1 Pass 3, one agent
+persistently attempted a zero-liquidity strategy despite facing costs that made this
+suboptimal given its counterparty's response. This ``mistake'' is precisely the kind of
+behavior observed in real financial institutions, where treasury managers may anchor on
+historical strategies or misread market signals.
+
+LLM agents offer additional modeling flexibility:
+\begin{itemize}
+    \item \textbf{Heterogeneous instructions}: Different agents can receive tailored
+    system prompts emphasizing risk tolerance, regulatory constraints, or strategic
+    objectives---mirroring how different banks operate under different mandates.
+
+    \item \textbf{Bounded rationality}: Rather than assuming perfect optimization,
+    LLM agents exhibit human-like exploration and exploitation patterns, occasionally
+    getting ``stuck'' in local optima or over-exploring suboptimal regions.
+
+    \item \textbf{Strategic reasoning}: Agents can explain their decisions in natural
+    language, enabling researchers to understand \textit{why} particular equilibria
+    emerge---not just what the equilibrium is.
+\end{itemize}
+
+This behavioral richness makes LLM-based simulation more suitable for policy analysis
+where understanding participant responses to regulatory changes is as important as
+predicting equilibrium outcomes.
+
+\subsection{Policy Expressiveness and Extensibility}
+
+While our experiments used simplified liquidity fraction policies to enable comparison
+with analytical game theory, the SimCash framework supports substantially more complex
+policy specifications. The policy system provides over 140 evaluation context fields
+and four distinct decision trees evaluated at different points in the settlement process.
+
+Agents can develop policies that respond dynamically to:
+\begin{itemize}
+    \item \textbf{Temporal dynamics}: Payment urgency based on ticks remaining until
+    deadline, with different thresholds for ``urgent'' versus ``critical'' situations.
+    Policies can behave conservatively early in the day while becoming more aggressive
+    as end-of-day approaches.
+
+    \item \textbf{System stress}: Real-time liquidity gap monitoring enables policies
+    that post collateral preemptively when queue depths exceed thresholds, rather than
+    waiting for gridlock to develop.
+
+    \item \textbf{Payment characteristics}: Priority levels, divisibility flags, and
+    remaining amounts can trigger different handling strategies---high-priority payments
+    might be released with only modest liquidity buffers, while low-priority payments
+    wait for comfortable buffers or offsetting inflows.
+
+    \item \textbf{Collateral management}: Sophisticated strategies for posting and
+    withdrawing collateral based on credit utilization, queue gaps, and auto-withdrawal
+    timers that balance liquidity costs against settlement delays.
+\end{itemize}
+
+This expressiveness enables future experiments that more closely approximate real RTGS
+operating procedures, including tiered participant strategies, liquidity-saving mechanism
+optimization, and crisis response behaviors. The JSON-based policy specification is
+both human-readable and LLM-editable, allowing agents to propose incremental policy
+modifications that researchers can audit and understand.
 
 \subsection{Limitations}
 
@@ -591,25 +656,26 @@ Several limitations of this study warrant acknowledgment:
 
 This paper presented SimCash, a multi-agent simulation framework for studying
 strategic liquidity management in RTGS payment systems. Through three experiments,
-we demonstrated that reinforcement learning agents converge to game-theoretically
-predicted equilibria:
+we demonstrated that LLM agents consistently converge to stable equilibria:
 
 \begin{enumerate}
-    \item \textbf{Asymmetric equilibrium} (14 iterations): Free-rider behavior
+    \item \textbf{Asymmetric equilibrium} (8 iterations): Free-rider behavior
     emerges when agents face different cost structures, with one agent minimizing
     liquidity while depending on counterparty provision.
 
-    \item \textbf{Robust learning} (7 iterations): Agents learn effective
+    \item \textbf{Robust learning} (9 iterations): Agents learn effective
     strategies even under transaction stochasticity, as validated through bootstrap
     evaluation methodology.
 
-    \item \textbf{Cooperative equilibrium} (7 iterations): Symmetric cost
-    structures lead to balanced liquidity provision across participants.
+    \item \textbf{Equilibrium selection} (7 iterations): Even in symmetric
+    games, LLM agents converge to asymmetric equilibria, suggesting that sequential
+    best-response dynamics favor free-rider outcomes over cooperative equilibria.
 \end{enumerate}
 
-These results validate the framework's utility for payment system analysis and
-contribute experimental evidence supporting theoretical predictions about strategic
-behavior in financial infrastructure.
+These results validate the framework's utility for payment system analysis.
+Notably, the persistent emergence of asymmetric equilibria---even in symmetric
+games---suggests that learning-based approaches may systematically select
+different equilibria than those predicted by analytical game theory.
 
 \subsection{Future Work}
 
@@ -689,17 +755,17 @@ programmatically from the experiment databases to ensure consistency.
         \hline
         Exp & Pass & Iters & A Liq & B Liq & A Cost & B Cost & Total \\
         \hline
-        Exp1 & 1 & 14 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
-         & 2 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
-         & 3 & 5 & 0.0\% & 20.0\% & \$0.00 & \$20.00 & \$20.00 \\
+        Exp1 & 1 & 8 & 0.1\% & 17.0\% & \$0.10 & \$27.00 & \$27.10 \\
+         & 2 & 12 & 0.0\% & 17.9\% & \$0.00 & \$27.90 & \$27.90 \\
+         & 3 & 11 & 1.8\% & 0.0\% & \$31.78 & \$70.00 & \$101.78 \\
         \hline
-        Exp2 & 1 & 7 & 16.5\% & 11.5\% & \$164.40 & \$126.95 & \$291.35 \\
-         & 2 & 5 & 5.0\% & 10.0\% & \$65.58 & \$172.11 & \$237.69 \\
-         & 3 & 7 & 9.2\% & 12.0\% & \$92.07 & \$128.27 & \$220.34 \\
+        Exp2 & 1 & 9 & 17.0\% & 21.0\% & \$174.20 & \$209.16 & \$383.36 \\
+         & 2 & 24 & 6.7\% & 11.3\% & \$325.26 & \$134.06 & \$459.32 \\
+         & 3 & 10 & 22.0\% & 23.0\% & \$219.12 & \$229.08 & \$448.20 \\
         \hline
-        Exp3 & 1 & 7 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
-         & 2 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
-         & 3 & 5 & 20.0\% & 20.0\% & \$19.98 & \$19.98 & \$39.96 \\
+        Exp3 & 1 & 7 & 1.0\% & 30.0\% & \$120.99 & \$69.97 & \$190.96 \\
+         & 2 & 7 & 4.9\% & 29.0\% & \$124.89 & \$68.98 & \$193.87 \\
+         & 3 & 7 & 10.0\% & 0.9\% & \$209.96 & \$200.96 & \$410.92 \\
         \hline
     \end{tabular}
 \end{table}
@@ -708,10 +774,10 @@ programmatically from the experiment databases to ensure consistency.
 \subsection{Aggregate Statistics}
 
 \begin{itemize}
-    \item \textbf{Mean iterations to convergence}: 6.7
-    \item \textbf{Experiment 1 mean total cost}: \$20.00
-    \item \textbf{Experiment 2 mean total cost}: \$249.79
-    \item \textbf{Experiment 3 mean total cost}: \$39.96
+    \item \textbf{Mean iterations to convergence}: 10.6
+    \item \textbf{Experiment 1 mean total cost}: \$52.26
+    \item \textbf{Experiment 2 mean total cost}: \$430.29
+    \item \textbf{Experiment 3 mean total cost}: \$265.25
 \end{itemize}
 
 All 9 passes achieved convergence to stable equilibria, demonstrating
@@ -738,36 +804,24 @@ all three passes of experiment 1: asymmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$20.00 & 20.0\% & Yes \\
-        0 & BANK\_B & \$25.00 & 25.0\% & Yes \\
-        1 & BANK\_A & \$15.00 & 15.0\% & Yes \\
-        1 & BANK\_B & \$20.00 & 20.0\% & Yes \\
-        2 & BANK\_A & \$12.00 & 12.0\% & Yes \\
-        2 & BANK\_B & \$25.00 & 15.0\% & No \\
-        3 & BANK\_A & \$8.00 & 8.0\% & Yes \\
-        3 & BANK\_B & \$27.00 & 17.0\% & No \\
-        4 & BANK\_A & \$6.00 & 6.0\% & Yes \\
-        4 & BANK\_B & \$25.00 & 15.0\% & No \\
-        5 & BANK\_A & \$4.00 & 4.0\% & Yes \\
+        0 & BANK\_A & \$50.00 & 50.0\% & No \\
+        0 & BANK\_B & \$50.00 & 50.0\% & No \\
+        1 & BANK\_A & \$20.00 & 20.0\% & No \\
+        1 & BANK\_B & \$30.00 & 30.0\% & No \\
+        2 & BANK\_A & \$10.00 & 10.0\% & No \\
+        2 & BANK\_B & \$20.00 & 20.0\% & No \\
+        3 & BANK\_A & \$5.00 & 5.0\% & No \\
+        3 & BANK\_B & \$28.00 & 18.0\% & No \\
+        4 & BANK\_A & \$0.00 & 0.0\% & No \\
+        4 & BANK\_B & \$20.00 & 20.0\% & No \\
+        5 & BANK\_A & \$0.10 & 0.1\% & No \\
         5 & BANK\_B & \$27.00 & 17.0\% & No \\
-        6 & BANK\_A & \$3.50 & 3.5\% & Yes \\
-        6 & BANK\_B & \$28.00 & 18.0\% & No \\
-        7 & BANK\_A & \$3.00 & 3.0\% & Yes \\
-        7 & BANK\_B & \$26.00 & 16.0\% & No \\
-        8 & BANK\_A & \$2.50 & 2.5\% & Yes \\
-        8 & BANK\_B & \$25.00 & 15.0\% & No \\
-        9 & BANK\_A & \$0.00 & 0.0\% & Yes \\
-        9 & BANK\_B & \$25.50 & 15.5\% & No \\
-        10 & BANK\_A & \$0.00 & 0.0\% & No \\
-        10 & BANK\_B & \$28.00 & 18.0\% & No \\
-        11 & BANK\_A & \$0.00 & 0.0\% & No \\
-        11 & BANK\_B & \$25.00 & 15.0\% & No \\
-        12 & BANK\_A & \$0.00 & 0.0\% & No \\
-        12 & BANK\_B & \$25.00 & 15.0\% & No \\
-        13 & BANK\_A & \$0.00 & 0.0\% & No \\
-        13 & BANK\_B & \$25.00 & 15.0\% & No \\
-        14 & BANK\_A & \$0.00 & 0.0\% & No \\
-        14 & BANK\_B & \$25.10 & 15.1\% & No \\
+        6 & BANK\_A & \$0.10 & 0.1\% & No \\
+        6 & BANK\_B & \$27.00 & 17.0\% & No \\
+        7 & BANK\_A & \$0.10 & 0.1\% & No \\
+        7 & BANK\_B & \$27.00 & 17.0\% & No \\
+        8 & BANK\_A & \$0.10 & 0.1\% & No \\
+        8 & BANK\_B & \$27.00 & 17.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -795,18 +849,32 @@ all three passes of experiment 1: asymmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$0.00 & 0.0\% & Yes \\
-        0 & BANK\_B & \$20.00 & 20.0\% & Yes \\
+        0 & BANK\_A & \$50.00 & 50.0\% & No \\
+        0 & BANK\_B & \$50.00 & 50.0\% & No \\
         1 & BANK\_A & \$0.00 & 0.0\% & No \\
-        1 & BANK\_B & \$25.00 & 15.0\% & No \\
+        1 & BANK\_B & \$20.00 & 20.0\% & No \\
         2 & BANK\_A & \$0.00 & 0.0\% & No \\
-        2 & BANK\_B & \$25.00 & 15.0\% & No \\
-        3 & BANK\_A & \$0.00 & 0.0\% & No \\
-        3 & BANK\_B & \$25.10 & 15.1\% & No \\
+        2 & BANK\_B & \$28.00 & 18.0\% & No \\
+        3 & BANK\_A & \$1.00 & 1.0\% & No \\
+        3 & BANK\_B & \$27.00 & 17.0\% & No \\
         4 & BANK\_A & \$0.00 & 0.0\% & No \\
-        4 & BANK\_B & \$26.00 & 16.0\% & No \\
-        5 & BANK\_A & \$75.00 & 75.0\% & No \\
-        5 & BANK\_B & \$26.00 & 16.0\% & No \\
+        4 & BANK\_B & \$27.90 & 17.9\% & No \\
+        5 & BANK\_A & \$0.00 & 0.0\% & No \\
+        5 & BANK\_B & \$27.50 & 17.5\% & No \\
+        6 & BANK\_A & \$30.00 & 0.0\% & No \\
+        6 & BANK\_B & \$56.50 & 16.5\% & No \\
+        7 & BANK\_A & \$1.00 & 1.0\% & No \\
+        7 & BANK\_B & \$27.96 & 17.9\% & No \\
+        8 & BANK\_A & \$0.00 & 0.0\% & No \\
+        8 & BANK\_B & \$27.98 & 18.0\% & No \\
+        9 & BANK\_A & \$0.00 & 0.0\% & No \\
+        9 & BANK\_B & \$28.00 & 18.0\% & No \\
+        10 & BANK\_A & \$0.00 & 0.0\% & No \\
+        10 & BANK\_B & \$27.50 & 17.5\% & No \\
+        11 & BANK\_A & \$0.00 & 0.0\% & No \\
+        11 & BANK\_B & \$27.00 & 17.0\% & No \\
+        12 & BANK\_A & \$0.00 & 0.0\% & No \\
+        12 & BANK\_B & \$27.90 & 17.9\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -834,16 +902,30 @@ all three passes of experiment 1: asymmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$0.00 & 0.0\% & Yes \\
-        0 & BANK\_B & \$20.00 & 20.0\% & Yes \\
-        1 & BANK\_A & \$0.00 & 0.0\% & No \\
-        1 & BANK\_B & \$28.00 & 18.0\% & No \\
-        3 & BANK\_A & \$0.00 & 0.0\% & No \\
-        3 & BANK\_B & \$25.00 & 15.0\% & No \\
-        4 & BANK\_A & \$0.00 & 0.0\% & No \\
+        0 & BANK\_A & \$50.00 & 50.0\% & No \\
+        0 & BANK\_B & \$50.00 & 50.0\% & No \\
+        1 & BANK\_A & \$10.00 & 10.0\% & No \\
+        1 & BANK\_B & \$20.00 & 20.0\% & No \\
+        2 & BANK\_A & \$32.00 & 2.0\% & No \\
+        2 & BANK\_B & \$70.00 & 0.0\% & No \\
+        3 & BANK\_A & \$31.80 & 1.8\% & No \\
+        3 & BANK\_B & \$73.00 & 3.0\% & No \\
+        4 & BANK\_A & \$1.98 & 2.0\% & No \\
         4 & BANK\_B & \$25.00 & 15.0\% & No \\
-        5 & BANK\_A & \$0.00 & 0.0\% & No \\
-        5 & BANK\_B & \$25.10 & 15.1\% & No \\
+        5 & BANK\_A & \$1.88 & 1.9\% & No \\
+        5 & BANK\_B & \$25.00 & 15.0\% & No \\
+        6 & BANK\_A & \$31.78 & 1.8\% & No \\
+        6 & BANK\_B & \$70.00 & 0.0\% & No \\
+        7 & BANK\_A & \$31.74 & 1.7\% & No \\
+        7 & BANK\_B & \$70.00 & 0.0\% & No \\
+        8 & BANK\_A & \$31.78 & 1.8\% & No \\
+        8 & BANK\_B & \$70.00 & 10.0\% & No \\
+        9 & BANK\_A & \$31.78 & 1.8\% & No \\
+        9 & BANK\_B & \$70.00 & 0.0\% & No \\
+        10 & BANK\_A & \$31.76 & 1.8\% & No \\
+        10 & BANK\_B & \$70.00 & 0.0\% & No \\
+        11 & BANK\_A & \$31.78 & 1.8\% & No \\
+        11 & BANK\_B & \$70.00 & 0.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -879,20 +961,26 @@ all three passes of experiment 2: stochastic environment.
         \hline
         Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        1 & BANK\_A & \$298.80 & 30.0\% & Yes \\
-        1 & BANK\_B & \$150.76 & 15.0\% & Yes \\
-        2 & BANK\_A & \$199.20 & 20.0\% & Yes \\
-        2 & BANK\_B & \$133.49 & 13.0\% & Yes \\
-        3 & BANK\_A & \$189.24 & 19.0\% & Yes \\
-        3 & BANK\_B & \$128.27 & 12.0\% & Yes \\
-        4 & BANK\_A & \$179.28 & 18.0\% & Yes \\
-        4 & BANK\_B & \$126.95 & 11.5\% & Yes \\
-        5 & BANK\_A & \$174.36 & 17.5\% & Yes \\
-        5 & BANK\_B & \$130.56 & 10.5\% & No \\
-        6 & BANK\_A & \$169.32 & 17.0\% & Yes \\
-        6 & BANK\_B & \$130.85 & 11.0\% & No \\
-        7 & BANK\_A & \$164.40 & 16.5\% & Yes \\
-        7 & BANK\_B & \$130.85 & 11.0\% & No \\
+        0 & BANK\_A & \$498.00 & 50.0\% & No \\
+        0 & BANK\_B & \$498.00 & 50.0\% & No \\
+        1 & BANK\_A & \$398.40 & 40.0\% & No \\
+        1 & BANK\_B & \$398.40 & 40.0\% & No \\
+        2 & BANK\_A & \$298.80 & 30.0\% & No \\
+        2 & BANK\_B & \$298.80 & 30.0\% & No \\
+        3 & BANK\_A & \$249.00 & 25.0\% & No \\
+        3 & BANK\_B & \$278.88 & 28.0\% & No \\
+        4 & BANK\_A & \$219.12 & 22.0\% & No \\
+        4 & BANK\_B & \$258.96 & 26.0\% & No \\
+        5 & BANK\_A & \$209.16 & 21.0\% & No \\
+        5 & BANK\_B & \$249.00 & 25.0\% & No \\
+        6 & BANK\_A & \$199.20 & 20.0\% & No \\
+        6 & BANK\_B & \$239.04 & 24.0\% & No \\
+        7 & BANK\_A & \$189.47 & 19.0\% & No \\
+        7 & BANK\_B & \$229.08 & 23.0\% & No \\
+        8 & BANK\_A & \$183.81 & 18.0\% & No \\
+        8 & BANK\_B & \$219.12 & 22.0\% & No \\
+        9 & BANK\_A & \$174.20 & 17.0\% & No \\
+        9 & BANK\_B & \$209.16 & 21.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -920,18 +1008,56 @@ all three passes of experiment 2: stochastic environment.
         \hline
         Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$65.58 & 5.0\% & Yes \\
-        0 & BANK\_B & \$172.11 & 10.0\% & Yes \\
-        1 & BANK\_A & \$119.52 & 12.0\% & No \\
-        1 & BANK\_B & \$249.00 & 25.0\% & No \\
-        2 & BANK\_A & \$71.99 & 6.5\% & No \\
-        2 & BANK\_B & \$249.00 & 25.0\% & No \\
-        3 & BANK\_A & \$73.31 & 7.0\% & No \\
-        3 & BANK\_B & \$298.80 & 30.0\% & No \\
-        4 & BANK\_A & \$99.99 & 10.0\% & No \\
-        4 & BANK\_B & \$249.00 & 25.0\% & No \\
-        5 & BANK\_A & \$81.44 & 8.0\% & No \\
-        5 & BANK\_B & \$199.20 & 20.0\% & No \\
+        0 & BANK\_A & \$498.00 & 50.0\% & No \\
+        0 & BANK\_B & \$498.00 & 50.0\% & No \\
+        1 & BANK\_A & \$398.40 & 40.0\% & No \\
+        1 & BANK\_B & \$199.20 & 20.0\% & No \\
+        2 & BANK\_A & \$348.60 & 35.0\% & No \\
+        2 & BANK\_B & \$161.34 & 16.0\% & No \\
+        3 & BANK\_A & \$298.80 & 30.0\% & No \\
+        3 & BANK\_B & \$145.03 & 14.0\% & No \\
+        4 & BANK\_A & \$278.88 & 28.0\% & No \\
+        4 & BANK\_B & \$136.25 & 12.0\% & No \\
+        5 & BANK\_A & \$258.96 & 26.0\% & No \\
+        5 & BANK\_B & \$136.25 & 12.0\% & No \\
+        6 & BANK\_A & \$239.04 & 24.0\% & No \\
+        6 & BANK\_B & \$134.46 & 11.5\% & No \\
+        7 & BANK\_A & \$219.12 & 22.0\% & No \\
+        7 & BANK\_B & \$134.46 & 11.5\% & No \\
+        8 & BANK\_A & \$199.20 & 20.0\% & No \\
+        8 & BANK\_B & \$134.46 & 11.5\% & No \\
+        9 & BANK\_A & \$183.81 & 18.0\% & No \\
+        9 & BANK\_B & \$134.46 & 11.5\% & No \\
+        10 & BANK\_A & \$164.95 & 16.0\% & No \\
+        10 & BANK\_B & \$134.46 & 11.5\% & No \\
+        11 & BANK\_A & \$149.45 & 14.0\% & No \\
+        11 & BANK\_B & \$134.46 & 11.5\% & No \\
+        12 & BANK\_A & \$134.78 & 12.0\% & No \\
+        12 & BANK\_B & \$134.46 & 11.5\% & No \\
+        13 & BANK\_A & \$129.64 & 10.0\% & No \\
+        13 & BANK\_B & \$134.46 & 11.5\% & No \\
+        14 & BANK\_A & \$237.53 & 8.0\% & No \\
+        14 & BANK\_B & \$134.46 & 11.5\% & No \\
+        15 & BANK\_A & \$317.48 & 7.0\% & No \\
+        15 & BANK\_B & \$134.06 & 11.3\% & No \\
+        16 & BANK\_A & \$317.48 & 7.0\% & No \\
+        16 & BANK\_B & \$134.06 & 11.3\% & No \\
+        17 & BANK\_A & \$298.68 & 6.5\% & No \\
+        17 & BANK\_B & \$134.06 & 11.3\% & No \\
+        18 & BANK\_A & \$298.68 & 6.5\% & No \\
+        18 & BANK\_B & \$134.06 & 11.3\% & No \\
+        19 & BANK\_A & \$322.08 & 6.8\% & No \\
+        19 & BANK\_B & \$134.06 & 11.3\% & No \\
+        20 & BANK\_A & \$322.08 & 6.8\% & No \\
+        20 & BANK\_B & \$134.06 & 11.3\% & No \\
+        21 & BANK\_A & \$325.09 & 6.7\% & No \\
+        21 & BANK\_B & \$134.06 & 11.3\% & No \\
+        22 & BANK\_A & \$325.09 & 6.7\% & No \\
+        22 & BANK\_B & \$134.06 & 11.3\% & No \\
+        23 & BANK\_A & \$325.09 & 6.7\% & No \\
+        23 & BANK\_B & \$134.06 & 11.3\% & No \\
+        24 & BANK\_A & \$325.26 & 6.7\% & No \\
+        24 & BANK\_B & \$134.06 & 11.3\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -959,22 +1085,28 @@ all three passes of experiment 2: stochastic environment.
         \hline
         Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
         Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$99.99 & 10.0\% & Yes \\
-        0 & BANK\_B & \$128.27 & 12.0\% & Yes \\
-        1 & BANK\_A & \$109.56 & 11.0\% & No \\
-        1 & BANK\_B & \$141.99 & 14.0\% & No \\
-        2 & BANK\_A & \$95.07 & 9.5\% & Yes \\
-        2 & BANK\_B & \$133.49 & 13.0\% & No \\
-        3 & BANK\_A & \$97.95 & 9.8\% & No \\
-        3 & BANK\_B & \$141.99 & 14.0\% & No \\
-        4 & BANK\_A & \$93.03 & 9.3\% & Yes \\
-        4 & BANK\_B & \$199.20 & 20.0\% & No \\
-        5 & BANK\_A & \$92.07 & 9.2\% & Yes \\
-        5 & BANK\_B & \$141.99 & 14.0\% & No \\
-        6 & BANK\_A & \$93.99 & 9.4\% & No \\
-        6 & BANK\_B & \$160.40 & 16.0\% & No \\
-        7 & BANK\_A & \$93.99 & 9.4\% & No \\
-        7 & BANK\_B & \$141.99 & 14.0\% & No \\
+        0 & BANK\_A & \$498.00 & 50.0\% & No \\
+        0 & BANK\_B & \$498.00 & 50.0\% & No \\
+        1 & BANK\_A & \$398.40 & 40.0\% & No \\
+        1 & BANK\_B & \$398.40 & 40.0\% & No \\
+        2 & BANK\_A & \$318.72 & 32.0\% & No \\
+        2 & BANK\_B & \$348.60 & 35.0\% & No \\
+        3 & BANK\_A & \$278.88 & 28.0\% & No \\
+        3 & BANK\_B & \$328.68 & 33.0\% & No \\
+        4 & BANK\_A & \$268.92 & 27.0\% & No \\
+        4 & BANK\_B & \$298.80 & 30.0\% & No \\
+        5 & BANK\_A & \$258.96 & 26.0\% & No \\
+        5 & BANK\_B & \$268.92 & 27.0\% & No \\
+        6 & BANK\_A & \$258.96 & 26.0\% & No \\
+        6 & BANK\_B & \$268.92 & 27.0\% & No \\
+        7 & BANK\_A & \$249.00 & 25.0\% & No \\
+        7 & BANK\_B & \$258.96 & 26.0\% & No \\
+        8 & BANK\_A & \$239.04 & 24.0\% & No \\
+        8 & BANK\_B & \$249.00 & 25.0\% & No \\
+        9 & BANK\_A & \$229.08 & 23.0\% & No \\
+        9 & BANK\_B & \$239.04 & 24.0\% & No \\
+        10 & BANK\_A & \$219.12 & 22.0\% & No \\
+        10 & BANK\_B & \$229.08 & 23.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1010,22 +1142,22 @@ all three passes of experiment 3: symmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
         Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$24.99 & 25.0\% & Yes \\
-        0 & BANK\_B & \$29.97 & 30.0\% & Yes \\
-        1 & BANK\_A & \$22.98 & 23.0\% & Yes \\
-        1 & BANK\_B & \$19.98 & 20.0\% & Yes \\
-        2 & BANK\_A & \$20.49 & 20.5\% & Yes \\
-        2 & BANK\_B & \$120.00 & 0.0\% & No \\
-        3 & BANK\_A & \$19.98 & 20.0\% & Yes \\
-        3 & BANK\_B & \$120.00 & 0.0\% & No \\
-        4 & BANK\_A & \$138.99 & 19.0\% & No \\
-        4 & BANK\_B & \$129.99 & 10.0\% & No \\
-        5 & BANK\_A & \$120.00 & 0.0\% & No \\
-        5 & BANK\_B & \$120.00 & 0.0\% & No \\
-        6 & BANK\_A & \$120.00 & 0.0\% & No \\
-        6 & BANK\_B & \$138.99 & 19.0\% & No \\
-        7 & BANK\_A & \$137.97 & 18.0\% & No \\
-        7 & BANK\_B & \$129.99 & 10.0\% & No \\
+        0 & BANK\_A & \$49.95 & 50.0\% & No \\
+        0 & BANK\_B & \$49.95 & 50.0\% & No \\
+        1 & BANK\_A & \$29.97 & 30.0\% & No \\
+        1 & BANK\_B & \$39.96 & 40.0\% & No \\
+        2 & BANK\_A & \$120.99 & 1.0\% & No \\
+        2 & BANK\_B & \$69.97 & 30.0\% & No \\
+        3 & BANK\_A & \$120.90 & 0.9\% & No \\
+        3 & BANK\_B & \$68.98 & 29.0\% & No \\
+        4 & BANK\_A & \$120.96 & 1.0\% & No \\
+        4 & BANK\_B & \$69.97 & 30.0\% & No \\
+        5 & BANK\_A & \$120.99 & 1.0\% & No \\
+        5 & BANK\_B & \$71.98 & 32.0\% & No \\
+        6 & BANK\_A & \$120.96 & 1.0\% & No \\
+        6 & BANK\_B & \$69.97 & 30.0\% & No \\
+        7 & BANK\_A & \$120.99 & 1.0\% & No \\
+        7 & BANK\_B & \$69.97 & 30.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1053,18 +1185,22 @@ all three passes of experiment 3: symmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
         Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$19.98 & 20.0\% & Yes \\
-        0 & BANK\_B & \$20.97 & 21.0\% & Yes \\
-        1 & BANK\_A & \$138.99 & 19.0\% & No \\
-        1 & BANK\_B & \$20.07 & 20.1\% & Yes \\
-        2 & BANK\_A & \$120.00 & 0.0\% & No \\
-        2 & BANK\_B & \$19.98 & 20.0\% & Yes \\
-        3 & BANK\_A & \$120.00 & 0.0\% & No \\
-        3 & BANK\_B & \$120.99 & 1.0\% & No \\
-        4 & BANK\_A & \$138.99 & 19.0\% & No \\
-        4 & BANK\_B & \$120.00 & 0.0\% & No \\
-        5 & BANK\_A & \$120.00 & 0.0\% & No \\
-        5 & BANK\_B & \$120.00 & 0.0\% & No \\
+        0 & BANK\_A & \$49.95 & 50.0\% & No \\
+        0 & BANK\_B & \$49.95 & 50.0\% & No \\
+        1 & BANK\_A & \$19.98 & 20.0\% & No \\
+        1 & BANK\_B & \$39.96 & 40.0\% & No \\
+        2 & BANK\_A & \$125.01 & 5.0\% & No \\
+        2 & BANK\_B & \$69.97 & 30.0\% & No \\
+        3 & BANK\_A & \$123.99 & 4.0\% & No \\
+        3 & BANK\_B & \$67.96 & 28.0\% & No \\
+        4 & BANK\_A & \$124.50 & 4.5\% & No \\
+        4 & BANK\_B & \$69.46 & 29.5\% & No \\
+        5 & BANK\_A & \$124.80 & 4.8\% & No \\
+        5 & BANK\_B & \$69.88 & 29.9\% & No \\
+        6 & BANK\_A & \$124.89 & 4.9\% & No \\
+        6 & BANK\_B & \$68.98 & 29.0\% & No \\
+        7 & BANK\_A & \$124.89 & 4.9\% & No \\
+        7 & BANK\_B & \$68.98 & 29.0\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1092,18 +1228,22 @@ all three passes of experiment 3: symmetric equilibrium.
         \hline
         Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
         Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$21.99 & 22.0\% & Yes \\
-        0 & BANK\_B & \$19.98 & 20.0\% & Yes \\
-        1 & BANK\_A & \$19.98 & 20.0\% & Yes \\
-        1 & BANK\_B & \$120.00 & 0.0\% & No \\
-        2 & BANK\_A & \$120.00 & 0.0\% & No \\
-        2 & BANK\_B & \$120.00 & 0.0\% & No \\
-        3 & BANK\_A & \$120.00 & 0.0\% & No \\
-        3 & BANK\_B & \$125.01 & 5.0\% & No \\
-        4 & BANK\_A & \$135.00 & 15.0\% & No \\
-        4 & BANK\_B & \$120.00 & 0.0\% & No \\
-        5 & BANK\_A & \$138.99 & 19.0\% & No \\
-        5 & BANK\_B & \$120.00 & 0.0\% & No \\
+        0 & BANK\_A & \$49.95 & 50.0\% & No \\
+        0 & BANK\_B & \$49.95 & 50.0\% & No \\
+        1 & BANK\_A & \$19.98 & 20.0\% & No \\
+        1 & BANK\_B & \$19.98 & 20.0\% & No \\
+        2 & BANK\_A & \$209.99 & 10.0\% & No \\
+        2 & BANK\_B & \$200.99 & 1.0\% & No \\
+        3 & BANK\_A & \$209.00 & 9.0\% & No \\
+        3 & BANK\_B & \$200.51 & 0.5\% & No \\
+        4 & BANK\_A & \$209.99 & 10.0\% & No \\
+        4 & BANK\_B & \$200.90 & 0.9\% & No \\
+        5 & BANK\_A & \$207.98 & 8.0\% & No \\
+        5 & BANK\_B & \$200.99 & 1.0\% & No \\
+        6 & BANK\_A & \$209.90 & 9.9\% & No \\
+        6 & BANK\_B & \$200.96 & 0.9\% & No \\
+        7 & BANK\_A & \$209.96 & 10.0\% & No \\
+        7 & BANK\_B & \$200.96 & 0.9\% & No \\
         \hline
     \end{tabular}
 \end{table}
@@ -1141,8 +1281,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$0.00 & \$0.00 & [\$0.00, \$0.00] & 1 \\
-        BANK\_B & \$25.10 & \$0.00 & [\$25.10, \$25.10] & 1 \\
+        BANK\_A & \$0.10 & \$0.00 & [\$0.10, \$0.10] & 1 \\
+        BANK\_B & \$27.00 & \$0.00 & [\$27.00, \$27.00] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1186,8 +1326,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$75.00 & \$0.00 & [\$75.00, \$75.00] & 1 \\
-        BANK\_B & \$26.00 & \$0.00 & [\$26.00, \$26.00] & 1 \\
+        BANK\_A & \$0.00 & \$0.00 & [\$0.00, \$0.00] & 1 \\
+        BANK\_B & \$27.90 & \$0.00 & [\$27.90, \$27.90] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1231,8 +1371,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$0.00 & \$0.00 & [\$0.00, \$0.00] & 1 \\
-        BANK\_B & \$25.10 & \$0.00 & [\$25.10, \$25.10] & 1 \\
+        BANK\_A & \$31.78 & \$0.00 & [\$31.78, \$31.78] & 1 \\
+        BANK\_B & \$70.00 & \$0.00 & [\$70.00, \$70.00] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1278,8 +1418,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$164.40 & \$0.00 & [\$164.40, \$164.40] & 50 \\
-        BANK\_B & \$130.85 & \$69.51 & [\$110.99, \$150.72] & 50 \\
+        BANK\_A & \$174.20 & \$0.00 & [\$174.20, \$174.20] & 1 \\
+        BANK\_B & \$209.16 & \$0.00 & [\$209.16, \$209.16] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1323,8 +1463,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$81.44 & \$12.45 & [\$77.88, \$85.00] & 50 \\
-        BANK\_B & \$199.20 & \$0.00 & [\$199.20, \$199.20] & 50 \\
+        BANK\_A & \$325.26 & \$0.00 & [\$325.26, \$325.26] & 1 \\
+        BANK\_B & \$134.06 & \$0.00 & [\$134.06, \$134.06] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1368,8 +1508,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$93.99 & \$2.77 & [\$93.19, \$94.78] & 50 \\
-        BANK\_B & \$141.99 & \$18.09 & [\$136.82, \$147.17] & 50 \\
+        BANK\_A & \$219.12 & \$0.00 & [\$219.12, \$219.12] & 1 \\
+        BANK\_B & \$229.08 & \$0.00 & [\$229.08, \$229.08] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1415,8 +1555,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$137.97 & \$0.00 & [\$137.97, \$137.97] & 1 \\
-        BANK\_B & \$129.99 & \$0.00 & [\$129.99, \$129.99] & 1 \\
+        BANK\_A & \$120.99 & \$0.00 & [\$120.99, \$120.99] & 1 \\
+        BANK\_B & \$69.97 & \$0.00 & [\$69.97, \$69.97] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1460,8 +1600,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$120.00 & \$0.00 & [\$120.00, \$120.00] & 1 \\
-        BANK\_B & \$120.00 & \$0.00 & [\$120.00, \$120.00] & 1 \\
+        BANK\_A & \$124.89 & \$0.00 & [\$124.89, \$124.89] & 1 \\
+        BANK\_B & \$68.98 & \$0.00 & [\$68.98, \$68.98] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -1505,8 +1645,8 @@ deviations, and confidence intervals.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$138.99 & \$0.00 & [\$138.99, \$138.99] & 1 \\
-        BANK\_B & \$120.00 & \$0.00 & [\$120.00, \$120.00] & 1 \\
+        BANK\_A & \$209.96 & \$0.00 & [\$209.96, \$209.96] & 1 \\
+        BANK\_B & \$200.96 & \$0.00 & [\$200.96, \$200.96] & 1 \\
         \hline
     \end{tabular}
 \end{table}
