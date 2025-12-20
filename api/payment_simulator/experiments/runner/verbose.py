@@ -34,6 +34,7 @@ class VerboseConfig:
     - rejections: Show why policies are rejected
     - debug: Show detailed debug info (validation errors, retries, LLM progress)
     - simulations: Show simulation IDs when simulations start (default True)
+    - metrics: Show detailed metrics per iteration (timing, costs, bootstrap stats)
 
     Example:
         >>> config = VerboseConfig(policy=True, bootstrap=True)
@@ -48,6 +49,7 @@ class VerboseConfig:
     rejections: bool = False
     debug: bool = False
     simulations: bool = True  # Show simulation IDs by default for transparency
+    metrics: bool = False  # Show detailed metrics (timing, costs, bootstrap stats)
 
     @property
     def any(self) -> bool:
@@ -64,6 +66,7 @@ class VerboseConfig:
             or self.rejections
             or self.debug
             or self.simulations
+            or self.metrics
         )
 
     @classmethod
@@ -81,6 +84,7 @@ class VerboseConfig:
             rejections=True,
             debug=False,
             simulations=True,
+            metrics=True,
         )
 
     @classmethod
@@ -93,6 +97,7 @@ class VerboseConfig:
         verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
+        verbose_metrics: bool | None = None,
         debug: bool = False,
     ) -> VerboseConfig:
         """Create config from CLI flags.
@@ -107,6 +112,7 @@ class VerboseConfig:
             verbose_bootstrap: Override bootstrap verbose flag.
             verbose_llm: Override llm verbose flag.
             verbose_rejections: Override rejections verbose flag.
+            verbose_metrics: Override metrics verbose flag.
             debug: Enable debug output (validation errors, retries).
 
         Returns:
@@ -120,6 +126,7 @@ class VerboseConfig:
                 bootstrap=verbose_bootstrap if verbose_bootstrap is not None else True,
                 llm=verbose_llm if verbose_llm is not None else True,
                 rejections=verbose_rejections if verbose_rejections is not None else True,
+                metrics=verbose_metrics if verbose_metrics is not None else True,
                 debug=debug,
             )
 
@@ -130,6 +137,7 @@ class VerboseConfig:
             bootstrap=verbose_bootstrap or False,
             llm=verbose_llm or False,
             rejections=verbose_rejections or False,
+            metrics=verbose_metrics or False,
             debug=debug,
         )
 
@@ -149,6 +157,7 @@ class VerboseConfig:
         verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
+        verbose_metrics: bool | None = None,
         debug: bool = False,
     ) -> VerboseConfig:
         """Alias for from_cli_flags() for backward compatibility."""
@@ -159,6 +168,7 @@ class VerboseConfig:
             verbose_bootstrap=verbose_bootstrap,
             verbose_llm=verbose_llm,
             verbose_rejections=verbose_rejections,
+            verbose_metrics=verbose_metrics,
             debug=debug,
         )
 
@@ -877,3 +887,221 @@ class VerboseLogger:
 
         if seed is not None and self._config.debug:
             self._console.print(f"    [dim]Seed: 0x{seed:08x}[/dim]")
+
+    def log_iteration_timing(
+        self,
+        iteration: int,
+        duration_seconds: float,
+        breakdown: dict[str, float] | None = None,
+    ) -> None:
+        """Log iteration timing information.
+
+        Args:
+            iteration: Iteration number.
+            duration_seconds: Total iteration duration in seconds.
+            breakdown: Optional timing breakdown by phase (e.g., "evaluation", "llm", "simulation").
+        """
+        if not self._config.metrics:
+            return
+
+        self._console.print(
+            f"  [dim]Iteration {iteration} completed in {duration_seconds:.2f}s[/dim]"
+        )
+
+        if breakdown:
+            # Show timing breakdown as a compact line
+            parts = [f"{k}: {v:.2f}s" for k, v in breakdown.items()]
+            self._console.print(f"    [dim]Breakdown: {', '.join(parts)}[/dim]")
+
+    def log_iteration_metrics(
+        self,
+        iteration: int,
+        total_cost: int,
+        per_agent_costs: dict[str, int],
+        per_agent_liquidity: dict[str, float] | None = None,
+        settlement_rate: float | None = None,
+        avg_delay: float | None = None,
+    ) -> None:
+        """Log detailed metrics for an iteration.
+
+        Args:
+            iteration: Iteration number.
+            total_cost: Total cost in cents (integer).
+            per_agent_costs: Cost per agent in cents.
+            per_agent_liquidity: Liquidity fraction per agent (0.0-1.0).
+            settlement_rate: System-wide settlement rate (0.0-1.0).
+            avg_delay: Average delay in ticks.
+        """
+        if not self._config.metrics:
+            return
+
+        table = Table(title=f"Iteration {iteration} Metrics", show_header=True)
+        table.add_column("Agent", style="cyan")
+        table.add_column("Cost", justify="right")
+        if per_agent_liquidity:
+            table.add_column("Liquidity", justify="right")
+
+        for agent_id in sorted(per_agent_costs.keys()):
+            cost = per_agent_costs[agent_id]
+            cost_str = f"${cost / 100:,.2f}"
+
+            if per_agent_liquidity and agent_id in per_agent_liquidity:
+                liq = per_agent_liquidity[agent_id]
+                liq_str = f"{liq * 100:.1f}%"
+                table.add_row(agent_id, cost_str, liq_str)
+            else:
+                table.add_row(agent_id, cost_str)
+
+        # Add total row
+        total_str = f"${total_cost / 100:,.2f}"
+        if per_agent_liquidity:
+            table.add_row("[bold]Total[/bold]", f"[bold]{total_str}[/bold]", "")
+        else:
+            table.add_row("[bold]Total[/bold]", f"[bold]{total_str}[/bold]")
+
+        self._console.print(table)
+
+        # Additional metrics
+        if settlement_rate is not None:
+            self._console.print(f"  Settlement rate: {settlement_rate * 100:.1f}%")
+        if avg_delay is not None:
+            self._console.print(f"  Avg delay: {avg_delay:.2f} ticks")
+
+    def log_bootstrap_stats(
+        self,
+        iteration: int,
+        agent_id: str,
+        mean_cost: int,
+        std_dev: int | None,
+        ci_lower: int | None,
+        ci_upper: int | None,
+        num_samples: int,
+        cv: float | None = None,
+    ) -> None:
+        """Log bootstrap statistics for an agent at an iteration.
+
+        Args:
+            iteration: Iteration number.
+            agent_id: Agent ID.
+            mean_cost: Mean cost in cents.
+            std_dev: Standard deviation in cents.
+            ci_lower: Lower bound of 95% CI in cents.
+            ci_upper: Upper bound of 95% CI in cents.
+            num_samples: Number of bootstrap samples.
+            cv: Coefficient of variation (std_dev / mean).
+        """
+        if not self._config.metrics:
+            return
+
+        self._console.print(
+            f"\n  [bold]Bootstrap Stats ({agent_id}, iter {iteration}):[/bold]"
+        )
+        self._console.print(f"    Mean: ${mean_cost / 100:,.2f}")
+
+        if std_dev is not None:
+            self._console.print(f"    Std Dev: ${std_dev / 100:,.2f}")
+
+        if ci_lower is not None and ci_upper is not None:
+            self._console.print(
+                f"    95% CI: [${ci_lower / 100:,.2f}, ${ci_upper / 100:,.2f}]"
+            )
+
+        if cv is not None:
+            # Color-code CV: green if low (<0.1), yellow if moderate, red if high
+            if cv < 0.1:
+                cv_style = "green"
+            elif cv < 0.2:
+                cv_style = "yellow"
+            else:
+                cv_style = "red"
+            self._console.print(f"    CV: [{cv_style}]{cv:.3f}[/{cv_style}]")
+
+        self._console.print(f"    Samples: {num_samples}")
+
+    def log_llm_stats_summary(
+        self,
+        iteration: int,
+        total_calls: int,
+        total_prompt_tokens: int,
+        total_completion_tokens: int,
+        total_latency_seconds: float,
+        successful_calls: int,
+        failed_calls: int,
+    ) -> None:
+        """Log LLM statistics summary for an iteration.
+
+        Args:
+            iteration: Iteration number.
+            total_calls: Total LLM calls made.
+            total_prompt_tokens: Total prompt tokens used.
+            total_completion_tokens: Total completion tokens generated.
+            total_latency_seconds: Total API latency.
+            successful_calls: Number of successful calls.
+            failed_calls: Number of failed calls.
+        """
+        if not self._config.metrics:
+            return
+
+        self._console.print(f"\n  [bold]LLM Stats (iter {iteration}):[/bold]")
+        self._console.print(f"    Calls: {successful_calls}/{total_calls} succeeded")
+        if failed_calls > 0:
+            self._console.print(f"    [red]Failed: {failed_calls}[/red]")
+        self._console.print(f"    Prompt tokens: {total_prompt_tokens:,}")
+        self._console.print(f"    Completion tokens: {total_completion_tokens:,}")
+        self._console.print(
+            f"    Total tokens: {total_prompt_tokens + total_completion_tokens:,}"
+        )
+        self._console.print(f"    Total latency: {total_latency_seconds:.2f}s")
+        if total_calls > 0:
+            avg_latency = total_latency_seconds / total_calls
+            self._console.print(f"    Avg latency/call: {avg_latency:.2f}s")
+
+    def log_experiment_summary(
+        self,
+        num_iterations: int,
+        total_duration_seconds: float,
+        converged: bool,
+        convergence_reason: str,
+        final_cost: int,
+        best_cost: int,
+        total_llm_calls: int,
+        total_tokens: int,
+    ) -> None:
+        """Log experiment completion summary.
+
+        Args:
+            num_iterations: Total iterations run.
+            total_duration_seconds: Total experiment duration.
+            converged: Whether the experiment converged.
+            convergence_reason: Reason for termination.
+            final_cost: Final cost in cents.
+            best_cost: Best cost achieved in cents.
+            total_llm_calls: Total LLM calls made.
+            total_tokens: Total tokens used (prompt + completion).
+        """
+        if not self._config.metrics:
+            return
+
+        self._console.print("\n[bold cyan]═══ Experiment Summary ═══[/bold cyan]")
+        self._console.print(f"  Iterations: {num_iterations}")
+        self._console.print(f"  Duration: {total_duration_seconds:.1f}s")
+        self._console.print(
+            f"  Avg time/iteration: {total_duration_seconds / num_iterations:.2f}s"
+            if num_iterations > 0
+            else "  Avg time/iteration: N/A"
+        )
+
+        if converged:
+            self._console.print(f"  [green]Converged: {convergence_reason}[/green]")
+        else:
+            self._console.print(f"  [yellow]Not converged: {convergence_reason}[/yellow]")
+
+        self._console.print(f"  Final cost: ${final_cost / 100:,.2f}")
+        self._console.print(f"  Best cost: ${best_cost / 100:,.2f}")
+
+        if final_cost > 0:
+            improvement = (1 - best_cost / final_cost) * 100
+            self._console.print(f"  Improvement: {improvement:.1f}%")
+
+        self._console.print(f"  LLM calls: {total_llm_calls}")
+        self._console.print(f"  Total tokens: {total_tokens:,}")
