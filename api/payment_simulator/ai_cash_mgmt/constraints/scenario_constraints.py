@@ -29,6 +29,7 @@ class ScenarioConstraints(BaseModel):
         ...         "payment_tree": ["submit", "queue", "hold"],
         ...         "bank_tree": ["borrow", "repay", "none"],
         ...     },
+        ...     lsm_enabled=True,
         ... )
     """
 
@@ -43,6 +44,10 @@ class ScenarioConstraints(BaseModel):
     allowed_actions: dict[str, list[str]] = Field(
         default_factory=dict,
         description="Allowed actions per tree type (payment_tree, bank_tree, collateral_tree)",
+    )
+    lsm_enabled: bool = Field(
+        default=True,
+        description="Whether LSM (Liquidity-Saving Mechanism) is enabled in the scenario",
     )
 
     @classmethod
