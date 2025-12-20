@@ -16,6 +16,7 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{float}
+\usepackage{longtable}
 
 % Lists
 \usepackage{enumitem}
@@ -242,30 +243,30 @@ creating an incentive structure that theoretically favors free-rider behavior by
     \centering
     \caption{Experiment 1: Iteration-by-iteration results (Pass 1)}
     \label{tab:exp1_results}
-    \begin{tabular}{llrrr}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$50.00 & 50.0\% & No \\
-        0 & BANK\_B & \$50.00 & 50.0\% & No \\
-        1 & BANK\_A & \$20.00 & 20.0\% & No \\
-        1 & BANK\_B & \$30.00 & 30.0\% & No \\
-        2 & BANK\_A & \$10.00 & 10.0\% & No \\
-        2 & BANK\_B & \$20.00 & 20.0\% & No \\
-        3 & BANK\_A & \$5.00 & 5.0\% & No \\
-        3 & BANK\_B & \$28.00 & 18.0\% & No \\
-        4 & BANK\_A & \$0.00 & 0.0\% & No \\
-        4 & BANK\_B & \$20.00 & 20.0\% & No \\
-        5 & BANK\_A & \$0.10 & 0.1\% & No \\
-        5 & BANK\_B & \$27.00 & 17.0\% & No \\
-        6 & BANK\_A & \$0.10 & 0.1\% & No \\
-        6 & BANK\_B & \$27.00 & 17.0\% & No \\
-        7 & BANK\_A & \$0.10 & 0.1\% & No \\
-        7 & BANK\_B & \$27.00 & 17.0\% & No \\
-        8 & BANK\_A & \$0.10 & 0.1\% & No \\
-        8 & BANK\_B & \$27.00 & 17.0\% & No \\
+        Baseline & BANK\_A & \$50.00 & 50.0\% \\
+        Baseline & BANK\_B & \$50.00 & 50.0\% \\
+        0 & BANK\_A & \$50.00 & 50.0\% \\
+        0 & BANK\_B & \$50.00 & 50.0\% \\
+        1 & BANK\_A & \$20.00 & 20.0\% \\
+        1 & BANK\_B & \$30.00 & 30.0\% \\
+        2 & BANK\_A & \$10.00 & 10.0\% \\
+        2 & BANK\_B & \$20.00 & 20.0\% \\
+        3 & BANK\_A & \$5.00 & 5.0\% \\
+        3 & BANK\_B & \$28.00 & 18.0\% \\
+        4 & BANK\_A & \$0.00 & 0.0\% \\
+        4 & BANK\_B & \$20.00 & 20.0\% \\
+        5 & BANK\_A & \$0.10 & 0.1\% \\
+        5 & BANK\_B & \$27.00 & 17.0\% \\
+        6 & BANK\_A & \$0.10 & 0.1\% \\
+        6 & BANK\_B & \$27.00 & 17.0\% \\
+        7 & BANK\_A & \$0.10 & 0.1\% \\
+        7 & BANK\_B & \$27.00 & 17.0\% \\
+        8 & BANK\_A & \$0.10 & 0.1\% \\
+        8 & BANK\_B & \$27.00 & 17.0\% \\
         \hline
     \end{tabular}
 \end{table}
@@ -322,69 +323,79 @@ requiring bootstrap evaluation to assess policy quality under cost variance.
 Agents converged after 24 iterations in Pass 1.
 
 
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2: Iteration-by-iteration results (Pass 1)}
-    \label{tab:exp2_results}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$498.00 & 50.0\% & No \\
-        0 & BANK\_B & \$498.00 & 50.0\% & No \\
-        1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$448.20 & 45.0\% & No \\
-        2 & BANK\_A & \$328.68 & 33.0\% & No \\
-        2 & BANK\_B & \$418.32 & 42.0\% & No \\
-        3 & BANK\_A & \$298.80 & 30.0\% & No \\
-        3 & BANK\_B & \$408.36 & 41.0\% & No \\
-        4 & BANK\_A & \$278.88 & 28.0\% & No \\
-        4 & BANK\_B & \$398.40 & 40.0\% & No \\
-        5 & BANK\_A & \$258.96 & 26.0\% & No \\
-        5 & BANK\_B & \$388.44 & 39.0\% & No \\
-        6 & BANK\_A & \$239.04 & 24.0\% & No \\
-        6 & BANK\_B & \$378.48 & 38.0\% & No \\
-        7 & BANK\_A & \$219.12 & 22.0\% & No \\
-        7 & BANK\_B & \$368.52 & 37.0\% & No \\
-        8 & BANK\_A & \$209.16 & 21.0\% & No \\
-        8 & BANK\_B & \$358.56 & 36.0\% & No \\
-        9 & BANK\_A & \$199.20 & 20.0\% & No \\
-        9 & BANK\_B & \$348.60 & 35.0\% & No \\
-        10 & BANK\_A & \$189.47 & 19.0\% & No \\
-        10 & BANK\_B & \$338.64 & 34.0\% & No \\
-        11 & BANK\_A & \$183.81 & 18.0\% & No \\
-        11 & BANK\_B & \$328.68 & 33.0\% & No \\
-        12 & BANK\_A & \$174.20 & 17.0\% & No \\
-        12 & BANK\_B & \$318.72 & 32.0\% & No \\
-        13 & BANK\_A & \$164.95 & 16.0\% & No \\
-        13 & BANK\_B & \$308.76 & 31.0\% & No \\
-        14 & BANK\_A & \$157.76 & 15.0\% & No \\
-        14 & BANK\_B & \$298.80 & 30.0\% & No \\
-        15 & BANK\_A & \$149.45 & 14.0\% & No \\
-        15 & BANK\_B & \$288.84 & 29.0\% & No \\
-        16 & BANK\_A & \$143.29 & 13.0\% & No \\
-        16 & BANK\_B & \$278.88 & 28.0\% & No \\
-        17 & BANK\_A & \$134.78 & 12.0\% & No \\
-        17 & BANK\_B & \$268.92 & 27.0\% & No \\
-        18 & BANK\_A & \$131.78 & 11.0\% & No \\
-        18 & BANK\_B & \$258.96 & 26.0\% & No \\
-        19 & BANK\_A & \$129.64 & 10.0\% & No \\
-        19 & BANK\_B & \$249.00 & 25.0\% & No \\
-        20 & BANK\_A & \$163.10 & 9.0\% & No \\
-        20 & BANK\_B & \$239.04 & 24.0\% & No \\
-        21 & BANK\_A & \$237.53 & 8.0\% & No \\
-        21 & BANK\_B & \$229.08 & 23.0\% & No \\
-        22 & BANK\_A & \$237.53 & 8.0\% & No \\
-        22 & BANK\_B & \$219.12 & 22.0\% & No \\
-        23 & BANK\_A & \$317.48 & 7.0\% & No \\
-        23 & BANK\_B & \$209.16 & 21.0\% & No \\
-        24 & BANK\_A & \$298.68 & 6.5\% & No \\
-        24 & BANK\_B & \$199.20 & 20.0\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
+\begin{longtable}{llrr}
+    \caption{Experiment 2: Iteration-by-iteration results (Pass 1)} \label{tab:exp2_results} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{4}{c}{\tablename\ \thetable{} -- continued from previous page} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{4}{r}{Continued on next page} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+
+        Baseline & BANK\_A & \$498.00 & 50.0\% \\
+        Baseline & BANK\_B & \$498.00 & 50.0\% \\
+        0 & BANK\_A & \$498.00 & 50.0\% \\
+        0 & BANK\_B & \$498.00 & 50.0\% \\
+        1 & BANK\_A & \$398.40 & 40.0\% \\
+        1 & BANK\_B & \$448.20 & 45.0\% \\
+        2 & BANK\_A & \$328.68 & 33.0\% \\
+        2 & BANK\_B & \$418.32 & 42.0\% \\
+        3 & BANK\_A & \$298.80 & 30.0\% \\
+        3 & BANK\_B & \$408.36 & 41.0\% \\
+        4 & BANK\_A & \$278.88 & 28.0\% \\
+        4 & BANK\_B & \$398.40 & 40.0\% \\
+        5 & BANK\_A & \$258.96 & 26.0\% \\
+        5 & BANK\_B & \$388.44 & 39.0\% \\
+        6 & BANK\_A & \$239.04 & 24.0\% \\
+        6 & BANK\_B & \$378.48 & 38.0\% \\
+        7 & BANK\_A & \$219.12 & 22.0\% \\
+        7 & BANK\_B & \$368.52 & 37.0\% \\
+        8 & BANK\_A & \$209.16 & 21.0\% \\
+        8 & BANK\_B & \$358.56 & 36.0\% \\
+        9 & BANK\_A & \$199.20 & 20.0\% \\
+        9 & BANK\_B & \$348.60 & 35.0\% \\
+        10 & BANK\_A & \$189.47 & 19.0\% \\
+        10 & BANK\_B & \$338.64 & 34.0\% \\
+        11 & BANK\_A & \$183.81 & 18.0\% \\
+        11 & BANK\_B & \$328.68 & 33.0\% \\
+        12 & BANK\_A & \$174.20 & 17.0\% \\
+        12 & BANK\_B & \$318.72 & 32.0\% \\
+        13 & BANK\_A & \$164.95 & 16.0\% \\
+        13 & BANK\_B & \$308.76 & 31.0\% \\
+        14 & BANK\_A & \$157.76 & 15.0\% \\
+        14 & BANK\_B & \$298.80 & 30.0\% \\
+        15 & BANK\_A & \$149.45 & 14.0\% \\
+        15 & BANK\_B & \$288.84 & 29.0\% \\
+        16 & BANK\_A & \$143.29 & 13.0\% \\
+        16 & BANK\_B & \$278.88 & 28.0\% \\
+        17 & BANK\_A & \$134.78 & 12.0\% \\
+        17 & BANK\_B & \$268.92 & 27.0\% \\
+        18 & BANK\_A & \$131.78 & 11.0\% \\
+        18 & BANK\_B & \$258.96 & 26.0\% \\
+        19 & BANK\_A & \$129.64 & 10.0\% \\
+        19 & BANK\_B & \$249.00 & 25.0\% \\
+        20 & BANK\_A & \$163.10 & 9.0\% \\
+        20 & BANK\_B & \$239.04 & 24.0\% \\
+        21 & BANK\_A & \$237.53 & 8.0\% \\
+        21 & BANK\_B & \$229.08 & 23.0\% \\
+        22 & BANK\_A & \$237.53 & 8.0\% \\
+        22 & BANK\_B & \$219.12 & 22.0\% \\
+        23 & BANK\_A & \$317.48 & 7.0\% \\
+        23 & BANK\_B & \$209.16 & 21.0\% \\
+        24 & BANK\_A & \$298.68 & 6.5\% \\
+        24 & BANK\_B & \$199.20 & 20.0\% \\
+\end{longtable}
 
 
 
@@ -454,28 +465,28 @@ outcomes. Convergence occurred at iteration 7 in Pass 1.
     \centering
     \caption{Experiment 3: Iteration-by-iteration results (Pass 1)}
     \label{tab:exp3_results}
-    \begin{tabular}{llrrr}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$49.95 & 50.0\% & No \\
-        0 & BANK\_B & \$49.95 & 50.0\% & No \\
-        1 & BANK\_A & \$29.97 & 30.0\% & No \\
-        1 & BANK\_B & \$39.96 & 40.0\% & No \\
-        2 & BANK\_A & \$120.99 & 1.0\% & No \\
-        2 & BANK\_B & \$69.97 & 30.0\% & No \\
-        3 & BANK\_A & \$120.90 & 0.9\% & No \\
-        3 & BANK\_B & \$68.98 & 29.0\% & No \\
-        4 & BANK\_A & \$120.96 & 1.0\% & No \\
-        4 & BANK\_B & \$69.97 & 30.0\% & No \\
-        5 & BANK\_A & \$120.99 & 1.0\% & No \\
-        5 & BANK\_B & \$71.98 & 32.0\% & No \\
-        6 & BANK\_A & \$120.96 & 1.0\% & No \\
-        6 & BANK\_B & \$69.97 & 30.0\% & No \\
-        7 & BANK\_A & \$120.99 & 1.0\% & No \\
-        7 & BANK\_B & \$69.97 & 30.0\% & No \\
+        Baseline & BANK\_A & \$49.95 & 50.0\% \\
+        Baseline & BANK\_B & \$49.95 & 50.0\% \\
+        0 & BANK\_A & \$49.95 & 50.0\% \\
+        0 & BANK\_B & \$49.95 & 50.0\% \\
+        1 & BANK\_A & \$29.97 & 30.0\% \\
+        1 & BANK\_B & \$39.96 & 40.0\% \\
+        2 & BANK\_A & \$120.99 & 1.0\% \\
+        2 & BANK\_B & \$69.97 & 30.0\% \\
+        3 & BANK\_A & \$120.90 & 0.9\% \\
+        3 & BANK\_B & \$68.98 & 29.0\% \\
+        4 & BANK\_A & \$120.96 & 1.0\% \\
+        4 & BANK\_B & \$69.97 & 30.0\% \\
+        5 & BANK\_A & \$120.99 & 1.0\% \\
+        5 & BANK\_B & \$71.98 & 32.0\% \\
+        6 & BANK\_A & \$120.96 & 1.0\% \\
+        6 & BANK\_B & \$69.97 & 30.0\% \\
+        7 & BANK\_A & \$120.99 & 1.0\% \\
+        7 & BANK\_B & \$69.97 & 30.0\% \\
         \hline
     \end{tabular}
 \end{table}
@@ -850,40 +861,6 @@ all three passes of experiment 1: asymmetric equilibrium.
 \subsection{Pass 1}
 
 
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 1: Asymmetric Equilibrium - Pass 1}
-    \label{tab:exp1_pass1}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$50.00 & 50.0\% & No \\
-        0 & BANK\_B & \$50.00 & 50.0\% & No \\
-        1 & BANK\_A & \$20.00 & 20.0\% & No \\
-        1 & BANK\_B & \$30.00 & 30.0\% & No \\
-        2 & BANK\_A & \$10.00 & 10.0\% & No \\
-        2 & BANK\_B & \$20.00 & 20.0\% & No \\
-        3 & BANK\_A & \$5.00 & 5.0\% & No \\
-        3 & BANK\_B & \$28.00 & 18.0\% & No \\
-        4 & BANK\_A & \$0.00 & 0.0\% & No \\
-        4 & BANK\_B & \$20.00 & 20.0\% & No \\
-        5 & BANK\_A & \$0.10 & 0.1\% & No \\
-        5 & BANK\_B & \$27.00 & 17.0\% & No \\
-        6 & BANK\_A & \$0.10 & 0.1\% & No \\
-        6 & BANK\_B & \$27.00 & 17.0\% & No \\
-        7 & BANK\_A & \$0.10 & 0.1\% & No \\
-        7 & BANK\_B & \$27.00 & 17.0\% & No \\
-        8 & BANK\_A & \$0.10 & 0.1\% & No \\
-        8 & BANK\_B & \$27.00 & 17.0\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{charts/exp1_pass1_combined.png}
@@ -892,49 +869,41 @@ all three passes of experiment 1: asymmetric equilibrium.
 \end{figure}
 
 
-\subsection{Pass 2}
-
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 1: Asymmetric Equilibrium - Pass 2}
-    \label{tab:exp1_pass2}
-    \begin{tabular}{llrrr}
+    \caption{Experiment 1: Asymmetric Equilibrium - Pass 1}
+    \label{tab:exp1_pass1}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$50.00 & 50.0\% & No \\
-        0 & BANK\_B & \$50.00 & 50.0\% & No \\
-        1 & BANK\_A & \$0.00 & 0.0\% & No \\
-        1 & BANK\_B & \$20.00 & 20.0\% & No \\
-        2 & BANK\_A & \$0.00 & 0.0\% & No \\
-        2 & BANK\_B & \$28.00 & 18.0\% & No \\
-        3 & BANK\_A & \$1.00 & 1.0\% & No \\
-        3 & BANK\_B & \$27.00 & 17.0\% & No \\
-        4 & BANK\_A & \$0.00 & 0.0\% & No \\
-        4 & BANK\_B & \$27.90 & 17.9\% & No \\
-        5 & BANK\_A & \$0.00 & 0.0\% & No \\
-        5 & BANK\_B & \$27.50 & 17.5\% & No \\
-        6 & BANK\_A & \$30.00 & 0.0\% & No \\
-        6 & BANK\_B & \$56.50 & 16.5\% & No \\
-        7 & BANK\_A & \$1.00 & 1.0\% & No \\
-        7 & BANK\_B & \$27.96 & 17.9\% & No \\
-        8 & BANK\_A & \$0.00 & 0.0\% & No \\
-        8 & BANK\_B & \$27.98 & 18.0\% & No \\
-        9 & BANK\_A & \$0.00 & 0.0\% & No \\
-        9 & BANK\_B & \$28.00 & 18.0\% & No \\
-        10 & BANK\_A & \$0.00 & 0.0\% & No \\
-        10 & BANK\_B & \$27.50 & 17.5\% & No \\
-        11 & BANK\_A & \$0.00 & 0.0\% & No \\
-        11 & BANK\_B & \$27.00 & 17.0\% & No \\
-        12 & BANK\_A & \$0.00 & 0.0\% & No \\
-        12 & BANK\_B & \$27.90 & 17.9\% & No \\
+        Baseline & BANK\_A & \$50.00 & 50.0\% \\
+        Baseline & BANK\_B & \$50.00 & 50.0\% \\
+        0 & BANK\_A & \$50.00 & 50.0\% \\
+        0 & BANK\_B & \$50.00 & 50.0\% \\
+        1 & BANK\_A & \$20.00 & 20.0\% \\
+        1 & BANK\_B & \$30.00 & 30.0\% \\
+        2 & BANK\_A & \$10.00 & 10.0\% \\
+        2 & BANK\_B & \$20.00 & 20.0\% \\
+        3 & BANK\_A & \$5.00 & 5.0\% \\
+        3 & BANK\_B & \$28.00 & 18.0\% \\
+        4 & BANK\_A & \$0.00 & 0.0\% \\
+        4 & BANK\_B & \$20.00 & 20.0\% \\
+        5 & BANK\_A & \$0.10 & 0.1\% \\
+        5 & BANK\_B & \$27.00 & 17.0\% \\
+        6 & BANK\_A & \$0.10 & 0.1\% \\
+        6 & BANK\_B & \$27.00 & 17.0\% \\
+        7 & BANK\_A & \$0.10 & 0.1\% \\
+        7 & BANK\_B & \$27.00 & 17.0\% \\
+        8 & BANK\_A & \$0.10 & 0.1\% \\
+        8 & BANK\_B & \$27.00 & 17.0\% \\
         \hline
     \end{tabular}
 \end{table}
 
+
+\subsection{Pass 2}
 
 
 \begin{figure}[htbp]
@@ -945,47 +914,49 @@ all three passes of experiment 1: asymmetric equilibrium.
 \end{figure}
 
 
-\subsection{Pass 3}
-
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 1: Asymmetric Equilibrium - Pass 3}
-    \label{tab:exp1_pass3}
-    \begin{tabular}{llrrr}
+    \caption{Experiment 1: Asymmetric Equilibrium - Pass 2}
+    \label{tab:exp1_pass2}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$50.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$50.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$50.00 & 50.0\% & No \\
-        0 & BANK\_B & \$50.00 & 50.0\% & No \\
-        1 & BANK\_A & \$10.00 & 10.0\% & No \\
-        1 & BANK\_B & \$20.00 & 20.0\% & No \\
-        2 & BANK\_A & \$32.00 & 2.0\% & No \\
-        2 & BANK\_B & \$70.00 & 0.0\% & No \\
-        3 & BANK\_A & \$31.80 & 1.8\% & No \\
-        3 & BANK\_B & \$73.00 & 3.0\% & No \\
-        4 & BANK\_A & \$1.98 & 2.0\% & No \\
-        4 & BANK\_B & \$25.00 & 15.0\% & No \\
-        5 & BANK\_A & \$1.88 & 1.9\% & No \\
-        5 & BANK\_B & \$25.00 & 15.0\% & No \\
-        6 & BANK\_A & \$31.78 & 1.8\% & No \\
-        6 & BANK\_B & \$70.00 & 0.0\% & No \\
-        7 & BANK\_A & \$31.74 & 1.7\% & No \\
-        7 & BANK\_B & \$70.00 & 0.0\% & No \\
-        8 & BANK\_A & \$31.78 & 1.8\% & No \\
-        8 & BANK\_B & \$70.00 & 10.0\% & No \\
-        9 & BANK\_A & \$31.78 & 1.8\% & No \\
-        9 & BANK\_B & \$70.00 & 0.0\% & No \\
-        10 & BANK\_A & \$31.76 & 1.8\% & No \\
-        10 & BANK\_B & \$70.00 & 0.0\% & No \\
-        11 & BANK\_A & \$31.78 & 1.8\% & No \\
-        11 & BANK\_B & \$70.00 & 0.0\% & No \\
+        Baseline & BANK\_A & \$50.00 & 50.0\% \\
+        Baseline & BANK\_B & \$50.00 & 50.0\% \\
+        0 & BANK\_A & \$50.00 & 50.0\% \\
+        0 & BANK\_B & \$50.00 & 50.0\% \\
+        1 & BANK\_A & \$0.00 & 0.0\% \\
+        1 & BANK\_B & \$20.00 & 20.0\% \\
+        2 & BANK\_A & \$0.00 & 0.0\% \\
+        2 & BANK\_B & \$28.00 & 18.0\% \\
+        3 & BANK\_A & \$1.00 & 1.0\% \\
+        3 & BANK\_B & \$27.00 & 17.0\% \\
+        4 & BANK\_A & \$0.00 & 0.0\% \\
+        4 & BANK\_B & \$27.90 & 17.9\% \\
+        5 & BANK\_A & \$0.00 & 0.0\% \\
+        5 & BANK\_B & \$27.50 & 17.5\% \\
+        6 & BANK\_A & \$30.00 & 0.0\% \\
+        6 & BANK\_B & \$56.50 & 16.5\% \\
+        7 & BANK\_A & \$1.00 & 1.0\% \\
+        7 & BANK\_B & \$27.96 & 17.9\% \\
+        8 & BANK\_A & \$0.00 & 0.0\% \\
+        8 & BANK\_B & \$27.98 & 18.0\% \\
+        9 & BANK\_A & \$0.00 & 0.0\% \\
+        9 & BANK\_B & \$28.00 & 18.0\% \\
+        10 & BANK\_A & \$0.00 & 0.0\% \\
+        10 & BANK\_B & \$27.50 & 17.5\% \\
+        11 & BANK\_A & \$0.00 & 0.0\% \\
+        11 & BANK\_B & \$27.00 & 17.0\% \\
+        12 & BANK\_A & \$0.00 & 0.0\% \\
+        12 & BANK\_B & \$27.90 & 17.9\% \\
         \hline
     \end{tabular}
 \end{table}
 
+
+\subsection{Pass 3}
 
 
 \begin{figure}[htbp]
@@ -994,6 +965,46 @@ all three passes of experiment 1: asymmetric equilibrium.
     \caption{Experiment 1: Asymmetric Equilibrium - Pass 3 convergence}
     \label{fig:exp1_pass3_convergence}
 \end{figure}
+
+
+
+\begin{table}[htbp]
+    \centering
+    \caption{Experiment 1: Asymmetric Equilibrium - Pass 3}
+    \label{tab:exp1_pass3}
+    \begin{tabular}{llrr}
+        \hline
+        Iteration & Agent & Cost & Liquidity \\
+        \hline
+        Baseline & BANK\_A & \$50.00 & 50.0\% \\
+        Baseline & BANK\_B & \$50.00 & 50.0\% \\
+        0 & BANK\_A & \$50.00 & 50.0\% \\
+        0 & BANK\_B & \$50.00 & 50.0\% \\
+        1 & BANK\_A & \$10.00 & 10.0\% \\
+        1 & BANK\_B & \$20.00 & 20.0\% \\
+        2 & BANK\_A & \$32.00 & 2.0\% \\
+        2 & BANK\_B & \$70.00 & 0.0\% \\
+        3 & BANK\_A & \$31.80 & 1.8\% \\
+        3 & BANK\_B & \$73.00 & 3.0\% \\
+        4 & BANK\_A & \$1.98 & 2.0\% \\
+        4 & BANK\_B & \$25.00 & 15.0\% \\
+        5 & BANK\_A & \$1.88 & 1.9\% \\
+        5 & BANK\_B & \$25.00 & 15.0\% \\
+        6 & BANK\_A & \$31.78 & 1.8\% \\
+        6 & BANK\_B & \$70.00 & 0.0\% \\
+        7 & BANK\_A & \$31.74 & 1.7\% \\
+        7 & BANK\_B & \$70.00 & 0.0\% \\
+        8 & BANK\_A & \$31.78 & 1.8\% \\
+        8 & BANK\_B & \$70.00 & 10.0\% \\
+        9 & BANK\_A & \$31.78 & 1.8\% \\
+        9 & BANK\_B & \$70.00 & 0.0\% \\
+        10 & BANK\_A & \$31.76 & 1.8\% \\
+        10 & BANK\_B & \$70.00 & 0.0\% \\
+        11 & BANK\_A & \$31.78 & 1.8\% \\
+        11 & BANK\_B & \$70.00 & 0.0\% \\
+        \hline
+    \end{tabular}
+\end{table}
 
 
 
@@ -1007,72 +1018,6 @@ all three passes of experiment 2: stochastic environment.
 \subsection{Pass 1}
 
 
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2: Stochastic Environment - Pass 1}
-    \label{tab:exp2_pass1}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$498.00 & 50.0\% & No \\
-        0 & BANK\_B & \$498.00 & 50.0\% & No \\
-        1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$448.20 & 45.0\% & No \\
-        2 & BANK\_A & \$328.68 & 33.0\% & No \\
-        2 & BANK\_B & \$418.32 & 42.0\% & No \\
-        3 & BANK\_A & \$298.80 & 30.0\% & No \\
-        3 & BANK\_B & \$408.36 & 41.0\% & No \\
-        4 & BANK\_A & \$278.88 & 28.0\% & No \\
-        4 & BANK\_B & \$398.40 & 40.0\% & No \\
-        5 & BANK\_A & \$258.96 & 26.0\% & No \\
-        5 & BANK\_B & \$388.44 & 39.0\% & No \\
-        6 & BANK\_A & \$239.04 & 24.0\% & No \\
-        6 & BANK\_B & \$378.48 & 38.0\% & No \\
-        7 & BANK\_A & \$219.12 & 22.0\% & No \\
-        7 & BANK\_B & \$368.52 & 37.0\% & No \\
-        8 & BANK\_A & \$209.16 & 21.0\% & No \\
-        8 & BANK\_B & \$358.56 & 36.0\% & No \\
-        9 & BANK\_A & \$199.20 & 20.0\% & No \\
-        9 & BANK\_B & \$348.60 & 35.0\% & No \\
-        10 & BANK\_A & \$189.47 & 19.0\% & No \\
-        10 & BANK\_B & \$338.64 & 34.0\% & No \\
-        11 & BANK\_A & \$183.81 & 18.0\% & No \\
-        11 & BANK\_B & \$328.68 & 33.0\% & No \\
-        12 & BANK\_A & \$174.20 & 17.0\% & No \\
-        12 & BANK\_B & \$318.72 & 32.0\% & No \\
-        13 & BANK\_A & \$164.95 & 16.0\% & No \\
-        13 & BANK\_B & \$308.76 & 31.0\% & No \\
-        14 & BANK\_A & \$157.76 & 15.0\% & No \\
-        14 & BANK\_B & \$298.80 & 30.0\% & No \\
-        15 & BANK\_A & \$149.45 & 14.0\% & No \\
-        15 & BANK\_B & \$288.84 & 29.0\% & No \\
-        16 & BANK\_A & \$143.29 & 13.0\% & No \\
-        16 & BANK\_B & \$278.88 & 28.0\% & No \\
-        17 & BANK\_A & \$134.78 & 12.0\% & No \\
-        17 & BANK\_B & \$268.92 & 27.0\% & No \\
-        18 & BANK\_A & \$131.78 & 11.0\% & No \\
-        18 & BANK\_B & \$258.96 & 26.0\% & No \\
-        19 & BANK\_A & \$129.64 & 10.0\% & No \\
-        19 & BANK\_B & \$249.00 & 25.0\% & No \\
-        20 & BANK\_A & \$163.10 & 9.0\% & No \\
-        20 & BANK\_B & \$239.04 & 24.0\% & No \\
-        21 & BANK\_A & \$237.53 & 8.0\% & No \\
-        21 & BANK\_B & \$229.08 & 23.0\% & No \\
-        22 & BANK\_A & \$237.53 & 8.0\% & No \\
-        22 & BANK\_B & \$219.12 & 22.0\% & No \\
-        23 & BANK\_A & \$317.48 & 7.0\% & No \\
-        23 & BANK\_B & \$209.16 & 21.0\% & No \\
-        24 & BANK\_A & \$298.68 & 6.5\% & No \\
-        24 & BANK\_B & \$199.20 & 20.0\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{charts/exp2_pass1_combined.png}
@@ -1081,73 +1026,83 @@ all three passes of experiment 2: stochastic environment.
 \end{figure}
 
 
+
+\begin{longtable}{llrr}
+    \caption{Experiment 2: Stochastic Environment - Pass 1} \label{tab:exp2_pass1} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{4}{c}{\tablename\ \thetable{} -- continued from previous page} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{4}{r}{Continued on next page} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+
+        Baseline & BANK\_A & \$498.00 & 50.0\% \\
+        Baseline & BANK\_B & \$498.00 & 50.0\% \\
+        0 & BANK\_A & \$498.00 & 50.0\% \\
+        0 & BANK\_B & \$498.00 & 50.0\% \\
+        1 & BANK\_A & \$398.40 & 40.0\% \\
+        1 & BANK\_B & \$448.20 & 45.0\% \\
+        2 & BANK\_A & \$328.68 & 33.0\% \\
+        2 & BANK\_B & \$418.32 & 42.0\% \\
+        3 & BANK\_A & \$298.80 & 30.0\% \\
+        3 & BANK\_B & \$408.36 & 41.0\% \\
+        4 & BANK\_A & \$278.88 & 28.0\% \\
+        4 & BANK\_B & \$398.40 & 40.0\% \\
+        5 & BANK\_A & \$258.96 & 26.0\% \\
+        5 & BANK\_B & \$388.44 & 39.0\% \\
+        6 & BANK\_A & \$239.04 & 24.0\% \\
+        6 & BANK\_B & \$378.48 & 38.0\% \\
+        7 & BANK\_A & \$219.12 & 22.0\% \\
+        7 & BANK\_B & \$368.52 & 37.0\% \\
+        8 & BANK\_A & \$209.16 & 21.0\% \\
+        8 & BANK\_B & \$358.56 & 36.0\% \\
+        9 & BANK\_A & \$199.20 & 20.0\% \\
+        9 & BANK\_B & \$348.60 & 35.0\% \\
+        10 & BANK\_A & \$189.47 & 19.0\% \\
+        10 & BANK\_B & \$338.64 & 34.0\% \\
+        11 & BANK\_A & \$183.81 & 18.0\% \\
+        11 & BANK\_B & \$328.68 & 33.0\% \\
+        12 & BANK\_A & \$174.20 & 17.0\% \\
+        12 & BANK\_B & \$318.72 & 32.0\% \\
+        13 & BANK\_A & \$164.95 & 16.0\% \\
+        13 & BANK\_B & \$308.76 & 31.0\% \\
+        14 & BANK\_A & \$157.76 & 15.0\% \\
+        14 & BANK\_B & \$298.80 & 30.0\% \\
+        15 & BANK\_A & \$149.45 & 14.0\% \\
+        15 & BANK\_B & \$288.84 & 29.0\% \\
+        16 & BANK\_A & \$143.29 & 13.0\% \\
+        16 & BANK\_B & \$278.88 & 28.0\% \\
+        17 & BANK\_A & \$134.78 & 12.0\% \\
+        17 & BANK\_B & \$268.92 & 27.0\% \\
+        18 & BANK\_A & \$131.78 & 11.0\% \\
+        18 & BANK\_B & \$258.96 & 26.0\% \\
+        19 & BANK\_A & \$129.64 & 10.0\% \\
+        19 & BANK\_B & \$249.00 & 25.0\% \\
+        20 & BANK\_A & \$163.10 & 9.0\% \\
+        20 & BANK\_B & \$239.04 & 24.0\% \\
+        21 & BANK\_A & \$237.53 & 8.0\% \\
+        21 & BANK\_B & \$229.08 & 23.0\% \\
+        22 & BANK\_A & \$237.53 & 8.0\% \\
+        22 & BANK\_B & \$219.12 & 22.0\% \\
+        23 & BANK\_A & \$317.48 & 7.0\% \\
+        23 & BANK\_B & \$209.16 & 21.0\% \\
+        24 & BANK\_A & \$298.68 & 6.5\% \\
+        24 & BANK\_B & \$199.20 & 20.0\% \\
+\end{longtable}
+
+
 \subsection{Pass 2}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2: Stochastic Environment - Pass 2}
-    \label{tab:exp2_pass2}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$498.00 & 50.0\% & No \\
-        0 & BANK\_B & \$498.00 & 50.0\% & No \\
-        1 & BANK\_A & \$448.20 & 45.0\% & No \\
-        1 & BANK\_B & \$348.60 & 35.0\% & No \\
-        2 & BANK\_A & \$398.40 & 40.0\% & No \\
-        2 & BANK\_B & \$298.80 & 30.0\% & No \\
-        3 & BANK\_A & \$298.80 & 30.0\% & No \\
-        3 & BANK\_B & \$288.84 & 29.0\% & No \\
-        4 & BANK\_A & \$249.00 & 25.0\% & No \\
-        4 & BANK\_B & \$278.88 & 28.0\% & No \\
-        5 & BANK\_A & \$199.20 & 20.0\% & No \\
-        5 & BANK\_B & \$268.92 & 27.0\% & No \\
-        6 & BANK\_A & \$157.76 & 15.0\% & No \\
-        6 & BANK\_B & \$258.96 & 26.0\% & No \\
-        7 & BANK\_A & \$129.64 & 10.0\% & No \\
-        7 & BANK\_B & \$249.00 & 25.0\% & No \\
-        8 & BANK\_A & \$163.10 & 9.0\% & No \\
-        8 & BANK\_B & \$239.04 & 24.0\% & No \\
-        9 & BANK\_A & \$164.70 & 8.8\% & No \\
-        9 & BANK\_B & \$229.08 & 23.0\% & No \\
-        10 & BANK\_A & \$197.80 & 8.6\% & No \\
-        10 & BANK\_B & \$219.12 & 22.0\% & No \\
-        11 & BANK\_A & \$248.41 & 8.5\% & No \\
-        11 & BANK\_B & \$209.16 & 21.0\% & No \\
-        12 & BANK\_A & \$233.04 & 8.4\% & No \\
-        12 & BANK\_B & \$199.20 & 20.0\% & No \\
-        13 & BANK\_A & \$235.77 & 8.3\% & No \\
-        13 & BANK\_B & \$189.24 & 19.0\% & No \\
-        14 & BANK\_A & \$269.91 & 8.2\% & No \\
-        14 & BANK\_B & \$179.53 & 18.0\% & No \\
-        15 & BANK\_A & \$269.91 & 8.2\% & No \\
-        15 & BANK\_B & \$169.81 & 17.0\% & No \\
-        16 & BANK\_A & \$269.91 & 8.2\% & No \\
-        16 & BANK\_B & \$161.34 & 16.0\% & No \\
-        17 & BANK\_A & \$236.44 & 8.1\% & No \\
-        17 & BANK\_B & \$152.18 & 15.0\% & No \\
-        18 & BANK\_A & \$237.53 & 8.0\% & No \\
-        18 & BANK\_B & \$145.03 & 14.0\% & No \\
-        19 & BANK\_A & \$239.48 & 7.9\% & No \\
-        19 & BANK\_B & \$138.65 & 13.0\% & No \\
-        20 & BANK\_A & \$207.25 & 7.8\% & No \\
-        20 & BANK\_B & \$136.25 & 12.0\% & No \\
-        21 & BANK\_A & \$269.75 & 7.7\% & No \\
-        21 & BANK\_B & \$136.25 & 12.0\% & No \\
-        22 & BANK\_A & \$237.69 & 7.6\% & No \\
-        22 & BANK\_B & \$136.25 & 12.0\% & No \\
-        23 & BANK\_A & \$272.79 & 7.5\% & No \\
-        23 & BANK\_B & \$136.25 & 12.0\% & No \\
-        24 & BANK\_A & \$243.64 & 7.4\% & No \\
-        24 & BANK\_B & \$134.46 & 11.5\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
-
 
 
 \begin{figure}[htbp]
@@ -1158,73 +1113,83 @@ all three passes of experiment 2: stochastic environment.
 \end{figure}
 
 
+
+\begin{longtable}{llrr}
+    \caption{Experiment 2: Stochastic Environment - Pass 2} \label{tab:exp2_pass2} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{4}{c}{\tablename\ \thetable{} -- continued from previous page} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{4}{r}{Continued on next page} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+
+        Baseline & BANK\_A & \$498.00 & 50.0\% \\
+        Baseline & BANK\_B & \$498.00 & 50.0\% \\
+        0 & BANK\_A & \$498.00 & 50.0\% \\
+        0 & BANK\_B & \$498.00 & 50.0\% \\
+        1 & BANK\_A & \$448.20 & 45.0\% \\
+        1 & BANK\_B & \$348.60 & 35.0\% \\
+        2 & BANK\_A & \$398.40 & 40.0\% \\
+        2 & BANK\_B & \$298.80 & 30.0\% \\
+        3 & BANK\_A & \$298.80 & 30.0\% \\
+        3 & BANK\_B & \$288.84 & 29.0\% \\
+        4 & BANK\_A & \$249.00 & 25.0\% \\
+        4 & BANK\_B & \$278.88 & 28.0\% \\
+        5 & BANK\_A & \$199.20 & 20.0\% \\
+        5 & BANK\_B & \$268.92 & 27.0\% \\
+        6 & BANK\_A & \$157.76 & 15.0\% \\
+        6 & BANK\_B & \$258.96 & 26.0\% \\
+        7 & BANK\_A & \$129.64 & 10.0\% \\
+        7 & BANK\_B & \$249.00 & 25.0\% \\
+        8 & BANK\_A & \$163.10 & 9.0\% \\
+        8 & BANK\_B & \$239.04 & 24.0\% \\
+        9 & BANK\_A & \$164.70 & 8.8\% \\
+        9 & BANK\_B & \$229.08 & 23.0\% \\
+        10 & BANK\_A & \$197.80 & 8.6\% \\
+        10 & BANK\_B & \$219.12 & 22.0\% \\
+        11 & BANK\_A & \$248.41 & 8.5\% \\
+        11 & BANK\_B & \$209.16 & 21.0\% \\
+        12 & BANK\_A & \$233.04 & 8.4\% \\
+        12 & BANK\_B & \$199.20 & 20.0\% \\
+        13 & BANK\_A & \$235.77 & 8.3\% \\
+        13 & BANK\_B & \$189.24 & 19.0\% \\
+        14 & BANK\_A & \$269.91 & 8.2\% \\
+        14 & BANK\_B & \$179.53 & 18.0\% \\
+        15 & BANK\_A & \$269.91 & 8.2\% \\
+        15 & BANK\_B & \$169.81 & 17.0\% \\
+        16 & BANK\_A & \$269.91 & 8.2\% \\
+        16 & BANK\_B & \$161.34 & 16.0\% \\
+        17 & BANK\_A & \$236.44 & 8.1\% \\
+        17 & BANK\_B & \$152.18 & 15.0\% \\
+        18 & BANK\_A & \$237.53 & 8.0\% \\
+        18 & BANK\_B & \$145.03 & 14.0\% \\
+        19 & BANK\_A & \$239.48 & 7.9\% \\
+        19 & BANK\_B & \$138.65 & 13.0\% \\
+        20 & BANK\_A & \$207.25 & 7.8\% \\
+        20 & BANK\_B & \$136.25 & 12.0\% \\
+        21 & BANK\_A & \$269.75 & 7.7\% \\
+        21 & BANK\_B & \$136.25 & 12.0\% \\
+        22 & BANK\_A & \$237.69 & 7.6\% \\
+        22 & BANK\_B & \$136.25 & 12.0\% \\
+        23 & BANK\_A & \$272.79 & 7.5\% \\
+        23 & BANK\_B & \$136.25 & 12.0\% \\
+        24 & BANK\_A & \$243.64 & 7.4\% \\
+        24 & BANK\_B & \$134.46 & 11.5\% \\
+\end{longtable}
+
+
 \subsection{Pass 3}
-
-
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 2: Stochastic Environment - Pass 3}
-    \label{tab:exp2_pass3}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$498.00 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$498.00 & 50.0\% & --- \\
-        0 & BANK\_A & \$498.00 & 50.0\% & No \\
-        0 & BANK\_B & \$498.00 & 50.0\% & No \\
-        1 & BANK\_A & \$398.40 & 40.0\% & No \\
-        1 & BANK\_B & \$152.18 & 15.0\% & No \\
-        2 & BANK\_A & \$199.20 & 20.0\% & No \\
-        2 & BANK\_B & \$136.25 & 12.0\% & No \\
-        3 & BANK\_A & \$183.81 & 18.0\% & No \\
-        3 & BANK\_B & \$136.25 & 12.0\% & No \\
-        4 & BANK\_A & \$174.20 & 17.0\% & No \\
-        4 & BANK\_B & \$136.25 & 12.0\% & No \\
-        5 & BANK\_A & \$164.95 & 16.0\% & No \\
-        5 & BANK\_B & \$136.25 & 12.0\% & No \\
-        6 & BANK\_A & \$157.76 & 15.0\% & No \\
-        6 & BANK\_B & \$136.25 & 12.0\% & No \\
-        7 & BANK\_A & \$149.45 & 14.0\% & No \\
-        7 & BANK\_B & \$136.25 & 12.0\% & No \\
-        8 & BANK\_A & \$143.29 & 13.0\% & No \\
-        8 & BANK\_B & \$136.25 & 12.0\% & No \\
-        9 & BANK\_A & \$134.78 & 12.0\% & No \\
-        9 & BANK\_B & \$136.25 & 12.0\% & No \\
-        10 & BANK\_A & \$131.78 & 11.0\% & No \\
-        10 & BANK\_B & \$136.25 & 12.0\% & No \\
-        11 & BANK\_A & \$129.64 & 10.0\% & No \\
-        11 & BANK\_B & \$136.25 & 12.0\% & No \\
-        12 & BANK\_A & \$163.10 & 9.0\% & No \\
-        12 & BANK\_B & \$136.25 & 12.0\% & No \\
-        13 & BANK\_A & \$237.53 & 8.0\% & No \\
-        13 & BANK\_B & \$136.25 & 12.0\% & No \\
-        14 & BANK\_A & \$317.48 & 7.0\% & No \\
-        14 & BANK\_B & \$136.25 & 12.0\% & No \\
-        15 & BANK\_A & \$298.68 & 6.5\% & No \\
-        15 & BANK\_B & \$136.25 & 12.0\% & No \\
-        16 & BANK\_A & \$326.00 & 6.0\% & No \\
-        16 & BANK\_B & \$136.25 & 12.0\% & No \\
-        17 & BANK\_A & \$516.04 & 5.5\% & No \\
-        17 & BANK\_B & \$136.25 & 12.0\% & No \\
-        18 & BANK\_A & \$516.04 & 5.5\% & No \\
-        18 & BANK\_B & \$136.25 & 12.0\% & No \\
-        19 & BANK\_A & \$516.04 & 5.5\% & No \\
-        19 & BANK\_B & \$136.25 & 12.0\% & No \\
-        20 & BANK\_A & \$516.04 & 5.5\% & No \\
-        20 & BANK\_B & \$136.25 & 12.0\% & No \\
-        21 & BANK\_A & \$490.81 & 5.6\% & No \\
-        21 & BANK\_B & \$136.25 & 12.0\% & No \\
-        22 & BANK\_A & \$515.29 & 5.6\% & No \\
-        22 & BANK\_B & \$136.25 & 12.0\% & No \\
-        23 & BANK\_A & \$515.15 & 5.6\% & No \\
-        23 & BANK\_B & \$136.25 & 12.0\% & No \\
-        24 & BANK\_A & \$515.15 & 5.6\% & No \\
-        24 & BANK\_B & \$136.25 & 12.0\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
-
 
 
 \begin{figure}[htbp]
@@ -1233,6 +1198,82 @@ all three passes of experiment 2: stochastic environment.
     \caption{Experiment 2: Stochastic Environment - Pass 3 convergence}
     \label{fig:exp2_pass3_convergence}
 \end{figure}
+
+
+
+\begin{longtable}{llrr}
+    \caption{Experiment 2: Stochastic Environment - Pass 3} \label{tab:exp2_pass3} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endfirsthead
+
+    \multicolumn{4}{c}{\tablename\ \thetable{} -- continued from previous page} \\
+    \hline
+    Iteration & Agent & Cost & Liquidity \\
+    \hline
+    \endhead
+
+    \hline
+    \multicolumn{4}{r}{Continued on next page} \\
+    \endfoot
+
+    \hline
+    \endlastfoot
+
+        Baseline & BANK\_A & \$498.00 & 50.0\% \\
+        Baseline & BANK\_B & \$498.00 & 50.0\% \\
+        0 & BANK\_A & \$498.00 & 50.0\% \\
+        0 & BANK\_B & \$498.00 & 50.0\% \\
+        1 & BANK\_A & \$398.40 & 40.0\% \\
+        1 & BANK\_B & \$152.18 & 15.0\% \\
+        2 & BANK\_A & \$199.20 & 20.0\% \\
+        2 & BANK\_B & \$136.25 & 12.0\% \\
+        3 & BANK\_A & \$183.81 & 18.0\% \\
+        3 & BANK\_B & \$136.25 & 12.0\% \\
+        4 & BANK\_A & \$174.20 & 17.0\% \\
+        4 & BANK\_B & \$136.25 & 12.0\% \\
+        5 & BANK\_A & \$164.95 & 16.0\% \\
+        5 & BANK\_B & \$136.25 & 12.0\% \\
+        6 & BANK\_A & \$157.76 & 15.0\% \\
+        6 & BANK\_B & \$136.25 & 12.0\% \\
+        7 & BANK\_A & \$149.45 & 14.0\% \\
+        7 & BANK\_B & \$136.25 & 12.0\% \\
+        8 & BANK\_A & \$143.29 & 13.0\% \\
+        8 & BANK\_B & \$136.25 & 12.0\% \\
+        9 & BANK\_A & \$134.78 & 12.0\% \\
+        9 & BANK\_B & \$136.25 & 12.0\% \\
+        10 & BANK\_A & \$131.78 & 11.0\% \\
+        10 & BANK\_B & \$136.25 & 12.0\% \\
+        11 & BANK\_A & \$129.64 & 10.0\% \\
+        11 & BANK\_B & \$136.25 & 12.0\% \\
+        12 & BANK\_A & \$163.10 & 9.0\% \\
+        12 & BANK\_B & \$136.25 & 12.0\% \\
+        13 & BANK\_A & \$237.53 & 8.0\% \\
+        13 & BANK\_B & \$136.25 & 12.0\% \\
+        14 & BANK\_A & \$317.48 & 7.0\% \\
+        14 & BANK\_B & \$136.25 & 12.0\% \\
+        15 & BANK\_A & \$298.68 & 6.5\% \\
+        15 & BANK\_B & \$136.25 & 12.0\% \\
+        16 & BANK\_A & \$326.00 & 6.0\% \\
+        16 & BANK\_B & \$136.25 & 12.0\% \\
+        17 & BANK\_A & \$516.04 & 5.5\% \\
+        17 & BANK\_B & \$136.25 & 12.0\% \\
+        18 & BANK\_A & \$516.04 & 5.5\% \\
+        18 & BANK\_B & \$136.25 & 12.0\% \\
+        19 & BANK\_A & \$516.04 & 5.5\% \\
+        19 & BANK\_B & \$136.25 & 12.0\% \\
+        20 & BANK\_A & \$516.04 & 5.5\% \\
+        20 & BANK\_B & \$136.25 & 12.0\% \\
+        21 & BANK\_A & \$490.81 & 5.6\% \\
+        21 & BANK\_B & \$136.25 & 12.0\% \\
+        22 & BANK\_A & \$515.29 & 5.6\% \\
+        22 & BANK\_B & \$136.25 & 12.0\% \\
+        23 & BANK\_A & \$515.15 & 5.6\% \\
+        23 & BANK\_B & \$136.25 & 12.0\% \\
+        24 & BANK\_A & \$515.15 & 5.6\% \\
+        24 & BANK\_B & \$136.25 & 12.0\% \\
+\end{longtable}
 
 
 
@@ -1246,38 +1287,6 @@ all three passes of experiment 3: symmetric equilibrium.
 \subsection{Pass 1}
 
 
-\begin{table}[htbp]
-    \centering
-    \caption{Experiment 3: Symmetric Equilibrium - Pass 1}
-    \label{tab:exp3_pass1}
-    \begin{tabular}{llrrr}
-        \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
-        \hline
-        Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$49.95 & 50.0\% & No \\
-        0 & BANK\_B & \$49.95 & 50.0\% & No \\
-        1 & BANK\_A & \$29.97 & 30.0\% & No \\
-        1 & BANK\_B & \$39.96 & 40.0\% & No \\
-        2 & BANK\_A & \$120.99 & 1.0\% & No \\
-        2 & BANK\_B & \$69.97 & 30.0\% & No \\
-        3 & BANK\_A & \$120.90 & 0.9\% & No \\
-        3 & BANK\_B & \$68.98 & 29.0\% & No \\
-        4 & BANK\_A & \$120.96 & 1.0\% & No \\
-        4 & BANK\_B & \$69.97 & 30.0\% & No \\
-        5 & BANK\_A & \$120.99 & 1.0\% & No \\
-        5 & BANK\_B & \$71.98 & 32.0\% & No \\
-        6 & BANK\_A & \$120.96 & 1.0\% & No \\
-        6 & BANK\_B & \$69.97 & 30.0\% & No \\
-        7 & BANK\_A & \$120.99 & 1.0\% & No \\
-        7 & BANK\_B & \$69.97 & 30.0\% & No \\
-        \hline
-    \end{tabular}
-\end{table}
-
-
-
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.85\textwidth]{charts/exp3_pass1_combined.png}
@@ -1286,39 +1295,39 @@ all three passes of experiment 3: symmetric equilibrium.
 \end{figure}
 
 
-\subsection{Pass 2}
-
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 3: Symmetric Equilibrium - Pass 2}
-    \label{tab:exp3_pass2}
-    \begin{tabular}{llrrr}
+    \caption{Experiment 3: Symmetric Equilibrium - Pass 1}
+    \label{tab:exp3_pass1}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$49.95 & 50.0\% & No \\
-        0 & BANK\_B & \$49.95 & 50.0\% & No \\
-        1 & BANK\_A & \$19.98 & 20.0\% & No \\
-        1 & BANK\_B & \$39.96 & 40.0\% & No \\
-        2 & BANK\_A & \$125.01 & 5.0\% & No \\
-        2 & BANK\_B & \$69.97 & 30.0\% & No \\
-        3 & BANK\_A & \$123.99 & 4.0\% & No \\
-        3 & BANK\_B & \$67.96 & 28.0\% & No \\
-        4 & BANK\_A & \$124.50 & 4.5\% & No \\
-        4 & BANK\_B & \$69.46 & 29.5\% & No \\
-        5 & BANK\_A & \$124.80 & 4.8\% & No \\
-        5 & BANK\_B & \$69.88 & 29.9\% & No \\
-        6 & BANK\_A & \$124.89 & 4.9\% & No \\
-        6 & BANK\_B & \$68.98 & 29.0\% & No \\
-        7 & BANK\_A & \$124.89 & 4.9\% & No \\
-        7 & BANK\_B & \$68.98 & 29.0\% & No \\
+        Baseline & BANK\_A & \$49.95 & 50.0\% \\
+        Baseline & BANK\_B & \$49.95 & 50.0\% \\
+        0 & BANK\_A & \$49.95 & 50.0\% \\
+        0 & BANK\_B & \$49.95 & 50.0\% \\
+        1 & BANK\_A & \$29.97 & 30.0\% \\
+        1 & BANK\_B & \$39.96 & 40.0\% \\
+        2 & BANK\_A & \$120.99 & 1.0\% \\
+        2 & BANK\_B & \$69.97 & 30.0\% \\
+        3 & BANK\_A & \$120.90 & 0.9\% \\
+        3 & BANK\_B & \$68.98 & 29.0\% \\
+        4 & BANK\_A & \$120.96 & 1.0\% \\
+        4 & BANK\_B & \$69.97 & 30.0\% \\
+        5 & BANK\_A & \$120.99 & 1.0\% \\
+        5 & BANK\_B & \$71.98 & 32.0\% \\
+        6 & BANK\_A & \$120.96 & 1.0\% \\
+        6 & BANK\_B & \$69.97 & 30.0\% \\
+        7 & BANK\_A & \$120.99 & 1.0\% \\
+        7 & BANK\_B & \$69.97 & 30.0\% \\
         \hline
     \end{tabular}
 \end{table}
 
+
+\subsection{Pass 2}
 
 
 \begin{figure}[htbp]
@@ -1329,39 +1338,39 @@ all three passes of experiment 3: symmetric equilibrium.
 \end{figure}
 
 
-\subsection{Pass 3}
-
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 3: Symmetric Equilibrium - Pass 3}
-    \label{tab:exp3_pass3}
-    \begin{tabular}{llrrr}
+    \caption{Experiment 3: Symmetric Equilibrium - Pass 2}
+    \label{tab:exp3_pass2}
+    \begin{tabular}{llrr}
         \hline
-        Iteration & Agent & Cost & Liquidity & Accepted \\
+        Iteration & Agent & Cost & Liquidity \\
         \hline
-        Baseline & BANK\_A & \$49.95 & 50.0\% & --- \\
-        Baseline & BANK\_B & \$49.95 & 50.0\% & --- \\
-        0 & BANK\_A & \$49.95 & 50.0\% & No \\
-        0 & BANK\_B & \$49.95 & 50.0\% & No \\
-        1 & BANK\_A & \$19.98 & 20.0\% & No \\
-        1 & BANK\_B & \$19.98 & 20.0\% & No \\
-        2 & BANK\_A & \$209.99 & 10.0\% & No \\
-        2 & BANK\_B & \$200.99 & 1.0\% & No \\
-        3 & BANK\_A & \$209.00 & 9.0\% & No \\
-        3 & BANK\_B & \$200.51 & 0.5\% & No \\
-        4 & BANK\_A & \$209.99 & 10.0\% & No \\
-        4 & BANK\_B & \$200.90 & 0.9\% & No \\
-        5 & BANK\_A & \$207.98 & 8.0\% & No \\
-        5 & BANK\_B & \$200.99 & 1.0\% & No \\
-        6 & BANK\_A & \$209.90 & 9.9\% & No \\
-        6 & BANK\_B & \$200.96 & 0.9\% & No \\
-        7 & BANK\_A & \$209.96 & 10.0\% & No \\
-        7 & BANK\_B & \$200.96 & 0.9\% & No \\
+        Baseline & BANK\_A & \$49.95 & 50.0\% \\
+        Baseline & BANK\_B & \$49.95 & 50.0\% \\
+        0 & BANK\_A & \$49.95 & 50.0\% \\
+        0 & BANK\_B & \$49.95 & 50.0\% \\
+        1 & BANK\_A & \$19.98 & 20.0\% \\
+        1 & BANK\_B & \$39.96 & 40.0\% \\
+        2 & BANK\_A & \$125.01 & 5.0\% \\
+        2 & BANK\_B & \$69.97 & 30.0\% \\
+        3 & BANK\_A & \$123.99 & 4.0\% \\
+        3 & BANK\_B & \$67.96 & 28.0\% \\
+        4 & BANK\_A & \$124.50 & 4.5\% \\
+        4 & BANK\_B & \$69.46 & 29.5\% \\
+        5 & BANK\_A & \$124.80 & 4.8\% \\
+        5 & BANK\_B & \$69.88 & 29.9\% \\
+        6 & BANK\_A & \$124.89 & 4.9\% \\
+        6 & BANK\_B & \$68.98 & 29.0\% \\
+        7 & BANK\_A & \$124.89 & 4.9\% \\
+        7 & BANK\_B & \$68.98 & 29.0\% \\
         \hline
     \end{tabular}
 \end{table}
 
+
+\subsection{Pass 3}
 
 
 \begin{figure}[htbp]
@@ -1370,6 +1379,38 @@ all three passes of experiment 3: symmetric equilibrium.
     \caption{Experiment 3: Symmetric Equilibrium - Pass 3 convergence}
     \label{fig:exp3_pass3_convergence}
 \end{figure}
+
+
+
+\begin{table}[htbp]
+    \centering
+    \caption{Experiment 3: Symmetric Equilibrium - Pass 3}
+    \label{tab:exp3_pass3}
+    \begin{tabular}{llrr}
+        \hline
+        Iteration & Agent & Cost & Liquidity \\
+        \hline
+        Baseline & BANK\_A & \$49.95 & 50.0\% \\
+        Baseline & BANK\_B & \$49.95 & 50.0\% \\
+        0 & BANK\_A & \$49.95 & 50.0\% \\
+        0 & BANK\_B & \$49.95 & 50.0\% \\
+        1 & BANK\_A & \$19.98 & 20.0\% \\
+        1 & BANK\_B & \$19.98 & 20.0\% \\
+        2 & BANK\_A & \$209.99 & 10.0\% \\
+        2 & BANK\_B & \$200.99 & 1.0\% \\
+        3 & BANK\_A & \$209.00 & 9.0\% \\
+        3 & BANK\_B & \$200.51 & 0.5\% \\
+        4 & BANK\_A & \$209.99 & 10.0\% \\
+        4 & BANK\_B & \$200.90 & 0.9\% \\
+        5 & BANK\_A & \$207.98 & 8.0\% \\
+        5 & BANK\_B & \$200.99 & 1.0\% \\
+        6 & BANK\_A & \$209.90 & 9.9\% \\
+        6 & BANK\_B & \$200.96 & 0.9\% \\
+        7 & BANK\_A & \$209.96 & 10.0\% \\
+        7 & BANK\_B & \$200.96 & 0.9\% \\
+        \hline
+    \end{tabular}
+\end{table}
 
 
 
