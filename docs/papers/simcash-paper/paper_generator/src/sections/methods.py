@@ -49,12 +49,62 @@ Agent costs comprise:
 The key innovation is using LLMs to propose policy parameters. At each iteration:
 
 \begin{enumerate}
-    \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
+    \item \textbf{Context Construction}: Agent receives its own policy, filtered simulation trace, and cost history (see Section~\ref{sec:prompt_anatomy})
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
     \item \textbf{Evaluation}: Run simulation(s) with proposed policy
     \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
     \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or multi-criteria cost stability (bootstrap) over 5 iterations
 \end{enumerate}
+
+\subsection{Optimization Prompt Anatomy}
+\label{sec:prompt_anatomy}
+
+A critical aspect of our framework is the \textbf{strict information isolation} between agents.
+Each agent receives a two-part prompt with no access to counterparty information.
+
+\subsubsection{System Prompt (Shared)}
+
+The system prompt is identical for all agents and provides domain context:
+\begin{itemize}
+    \item RTGS mechanics, queuing, and LSM netting explanation
+    \item Cost structure: overdraft, delay, deadline, and EOD penalties
+    \item Policy tree architecture: JSON schema for valid policies
+    \item Optimization guidance for cost minimization
+\end{itemize}
+
+\subsubsection{User Prompt (Agent-Specific)}
+
+The user prompt is constructed individually for each agent and contains \textbf{only} information
+about that agent's own experience:
+
+\begin{enumerate}
+    \item \textbf{Performance metrics}: Agent's own mean cost, standard deviation, settlement rate
+    \item \textbf{Current policy}: Agent's own \texttt{initial\_liquidity\_fraction} parameter
+    \item \textbf{Cost breakdown}: Agent's own costs by type (delay, overdraft, penalties)
+    \item \textbf{Simulation trace}: Filtered event log showing \textbf{only}:
+    \begin{itemize}
+        \item Outgoing transactions FROM this agent
+        \item Incoming payments TO this agent
+        \item Agent's own policy decisions (Submit, Hold, etc.)
+        \item Agent's own balance changes (for settlements it initiated)
+    \end{itemize}
+    \item \textbf{Iteration history}: Agent's own cost trajectory across iterations
+\end{enumerate}
+
+\subsubsection{Information Isolation}
+
+The prompt explicitly excludes all counterparty information:
+\begin{itemize}
+    \item \textbf{No counterparty balances}: Agents cannot observe opponent's reserves
+    \item \textbf{No counterparty policies}: Agents cannot see opponent's liquidity fraction
+    \item \textbf{No counterparty costs}: Agents cannot observe opponent's cost breakdown
+    \item \textbf{No third-party events}: Transactions not involving this agent are filtered
+\end{itemize}
+
+This isolation is enforced programmatically by the \texttt{filter\_events\_for\_agent()} function.
+The only ``signal'' about counterparty behavior comes from \textit{incoming payments}---a realistic
+level of transparency in actual RTGS systems where participants observe settlement messages but not
+others' internal liquidity positions.
 
 \subsection{Evaluation Modes}
 
