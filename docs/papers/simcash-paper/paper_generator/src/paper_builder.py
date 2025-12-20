@@ -29,7 +29,6 @@ from src.sections import (
     generate_discussion,
     generate_introduction,
     generate_methods,
-    generate_references,
     generate_results,
 )
 
@@ -47,7 +46,6 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
     generate_results,
     generate_discussion,
     generate_conclusion,
-    generate_references,
     generate_appendices,
 ]
 

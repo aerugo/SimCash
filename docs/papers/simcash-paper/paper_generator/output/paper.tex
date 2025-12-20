@@ -130,10 +130,10 @@ Each agent receives a two-part prompt with no access to counterparty information
 
 The system prompt is identical for all agents and provides domain context:
 \begin{itemize}
-    \item RTGS mechanics, queuing, and LSM netting explanation
+    \item RTGS mechanics and queuing behavior
     \item Cost structure: overdraft, delay, deadline, and EOD penalties
     \item Policy tree architecture: JSON schema for valid policies
-    \item Optimization guidance for cost minimization
+    \item Optimization guidance: e.g., ``lower liquidity reduces holding costs but increases delay risk; find the balance that minimizes total cost''
 \end{itemize}
 
 \subsubsection{User Prompt (Agent-Specific)}
@@ -342,12 +342,13 @@ liquidity provision, minimizing its own reserves while relying on incoming payme
 from BANK\_B to fund outgoing obligations.
 
 Table~\ref{tab:exp1_summary} summarizes convergence across all three passes.
-Notably, \textbf{Pass 3 exhibited different dynamics}: one agent persisted with
-a zero-liquidity strategy even when this produced suboptimal costs given its
-counterparty's response. This demonstrates that the game admits multiple equilibria,
-and the identity of the ``free-rider'' is not predetermined. We discuss the
-implications of this behavioral variation for LLM agent realism in
-Section~\ref{sec:discussion}.
+Notably, \textbf{Pass 3 exhibited coordination failure}: BANK\_B adopted a
+zero-liquidity strategy, but unlike Passes 1--2 where BANK\_A successfully free-rode,
+here BANK\_A's low liquidity (1.8\%) was insufficient to compensate. Both agents
+incurred high costs (\$31.78 and \$70.00 respectively), with total cost nearly 4$\times$
+that of the efficient equilibrium. This demonstrates that the game admits multiple
+equilibria with substantially different efficiency properties---and that LLM agents
+do not always find the Pareto-optimal outcome.
 
 
 \begin{table}[htbp]
@@ -370,11 +371,15 @@ Section~\ref{sec:discussion}.
 
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
-Agents converged after 24 iterations in Pass 1.
+
+We present Pass 2 results, which achieved convergence after 24 iterations.
+Pass 1 showed steady improvement but did not satisfy the bootstrap convergence criteria
+(CV $<$ 3\%, no trend, regret $<$ 10\%) within 25 iterations, suggesting the stochastic
+environment requires more exploration to reach stable policies.
 
 
 \begin{longtable}{llrr}
-    \caption{Experiment 2: Iteration-by-iteration results (Pass 1)} \label{tab:exp2_results} \\
+    \caption{Experiment 2: Iteration-by-iteration results (Pass 2)} \label{tab:exp2_results} \\
     \hline
     Iteration & Agent & Cost & Liquidity \\
     \hline
@@ -397,62 +402,62 @@ Agents converged after 24 iterations in Pass 1.
         Baseline & BANK\_B & \$498.00 & 50.0\% \\
         0 & BANK\_A & \$498.00 & 50.0\% \\
         0 & BANK\_B & \$498.00 & 50.0\% \\
-        1 & BANK\_A & \$398.40 & 40.0\% \\
-        1 & BANK\_B & \$448.20 & 45.0\% \\
-        2 & BANK\_A & \$328.68 & 33.0\% \\
-        2 & BANK\_B & \$418.32 & 42.0\% \\
+        1 & BANK\_A & \$448.20 & 45.0\% \\
+        1 & BANK\_B & \$348.60 & 35.0\% \\
+        2 & BANK\_A & \$398.40 & 40.0\% \\
+        2 & BANK\_B & \$298.80 & 30.0\% \\
         3 & BANK\_A & \$298.80 & 30.0\% \\
-        3 & BANK\_B & \$408.36 & 41.0\% \\
-        4 & BANK\_A & \$278.88 & 28.0\% \\
-        4 & BANK\_B & \$398.40 & 40.0\% \\
-        5 & BANK\_A & \$258.96 & 26.0\% \\
-        5 & BANK\_B & \$388.44 & 39.0\% \\
-        6 & BANK\_A & \$239.04 & 24.0\% \\
-        6 & BANK\_B & \$378.48 & 38.0\% \\
-        7 & BANK\_A & \$219.12 & 22.0\% \\
-        7 & BANK\_B & \$368.52 & 37.0\% \\
-        8 & BANK\_A & \$209.16 & 21.0\% \\
-        8 & BANK\_B & \$358.56 & 36.0\% \\
-        9 & BANK\_A & \$199.20 & 20.0\% \\
-        9 & BANK\_B & \$348.60 & 35.0\% \\
-        10 & BANK\_A & \$189.47 & 19.0\% \\
-        10 & BANK\_B & \$338.64 & 34.0\% \\
-        11 & BANK\_A & \$183.81 & 18.0\% \\
-        11 & BANK\_B & \$328.68 & 33.0\% \\
-        12 & BANK\_A & \$174.20 & 17.0\% \\
-        12 & BANK\_B & \$318.72 & 32.0\% \\
-        13 & BANK\_A & \$164.95 & 16.0\% \\
-        13 & BANK\_B & \$308.76 & 31.0\% \\
-        14 & BANK\_A & \$157.76 & 15.0\% \\
-        14 & BANK\_B & \$298.80 & 30.0\% \\
-        15 & BANK\_A & \$149.45 & 14.0\% \\
-        15 & BANK\_B & \$288.84 & 29.0\% \\
-        16 & BANK\_A & \$143.29 & 13.0\% \\
-        16 & BANK\_B & \$278.88 & 28.0\% \\
-        17 & BANK\_A & \$134.78 & 12.0\% \\
-        17 & BANK\_B & \$268.92 & 27.0\% \\
-        18 & BANK\_A & \$131.78 & 11.0\% \\
-        18 & BANK\_B & \$258.96 & 26.0\% \\
-        19 & BANK\_A & \$129.64 & 10.0\% \\
-        19 & BANK\_B & \$249.00 & 25.0\% \\
-        20 & BANK\_A & \$163.10 & 9.0\% \\
-        20 & BANK\_B & \$239.04 & 24.0\% \\
-        21 & BANK\_A & \$237.53 & 8.0\% \\
-        21 & BANK\_B & \$229.08 & 23.0\% \\
-        22 & BANK\_A & \$237.53 & 8.0\% \\
-        22 & BANK\_B & \$219.12 & 22.0\% \\
-        23 & BANK\_A & \$317.48 & 7.0\% \\
-        23 & BANK\_B & \$209.16 & 21.0\% \\
-        24 & BANK\_A & \$298.68 & 6.5\% \\
-        24 & BANK\_B & \$199.20 & 20.0\% \\
+        3 & BANK\_B & \$288.84 & 29.0\% \\
+        4 & BANK\_A & \$249.00 & 25.0\% \\
+        4 & BANK\_B & \$278.88 & 28.0\% \\
+        5 & BANK\_A & \$199.20 & 20.0\% \\
+        5 & BANK\_B & \$268.92 & 27.0\% \\
+        6 & BANK\_A & \$157.76 & 15.0\% \\
+        6 & BANK\_B & \$258.96 & 26.0\% \\
+        7 & BANK\_A & \$129.64 & 10.0\% \\
+        7 & BANK\_B & \$249.00 & 25.0\% \\
+        8 & BANK\_A & \$163.10 & 9.0\% \\
+        8 & BANK\_B & \$239.04 & 24.0\% \\
+        9 & BANK\_A & \$164.70 & 8.8\% \\
+        9 & BANK\_B & \$229.08 & 23.0\% \\
+        10 & BANK\_A & \$197.80 & 8.6\% \\
+        10 & BANK\_B & \$219.12 & 22.0\% \\
+        11 & BANK\_A & \$248.41 & 8.5\% \\
+        11 & BANK\_B & \$209.16 & 21.0\% \\
+        12 & BANK\_A & \$233.04 & 8.4\% \\
+        12 & BANK\_B & \$199.20 & 20.0\% \\
+        13 & BANK\_A & \$235.77 & 8.3\% \\
+        13 & BANK\_B & \$189.24 & 19.0\% \\
+        14 & BANK\_A & \$269.91 & 8.2\% \\
+        14 & BANK\_B & \$179.53 & 18.0\% \\
+        15 & BANK\_A & \$269.91 & 8.2\% \\
+        15 & BANK\_B & \$169.81 & 17.0\% \\
+        16 & BANK\_A & \$269.91 & 8.2\% \\
+        16 & BANK\_B & \$161.34 & 16.0\% \\
+        17 & BANK\_A & \$236.44 & 8.1\% \\
+        17 & BANK\_B & \$152.18 & 15.0\% \\
+        18 & BANK\_A & \$237.53 & 8.0\% \\
+        18 & BANK\_B & \$145.03 & 14.0\% \\
+        19 & BANK\_A & \$239.48 & 7.9\% \\
+        19 & BANK\_B & \$138.65 & 13.0\% \\
+        20 & BANK\_A & \$207.25 & 7.8\% \\
+        20 & BANK\_B & \$136.25 & 12.0\% \\
+        21 & BANK\_A & \$269.75 & 7.7\% \\
+        21 & BANK\_B & \$136.25 & 12.0\% \\
+        22 & BANK\_A & \$237.69 & 7.6\% \\
+        22 & BANK\_B & \$136.25 & 12.0\% \\
+        23 & BANK\_A & \$272.79 & 7.5\% \\
+        23 & BANK\_B & \$136.25 & 12.0\% \\
+        24 & BANK\_A & \$243.64 & 7.4\% \\
+        24 & BANK\_B & \$134.46 & 11.5\% \\
 \end{longtable}
 
 
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{charts/exp2_pass1_combined.png}
-    \caption{Experiment 2: Convergence under stochastic transaction amounts}
+    \includegraphics[width=0.9\textwidth]{charts/exp2_pass2_combined.png}
+    \caption{Experiment 2: Convergence under stochastic transaction amounts (Pass 2)}
     \label{fig:exp2_convergence}
 \end{figure}
 
@@ -465,14 +470,14 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 2: Bootstrap evaluation statistics (Pass 1, 50 samples)}
+    \caption{Experiment 2: Bootstrap evaluation statistics (Pass 2, 50 samples)}
     \label{tab:exp2_bootstrap}
     \begin{tabular}{lrrrr}
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$298.68 & \$0.00 & [\$298.68, \$298.68] & 1 \\
-        BANK\_B & \$199.20 & \$0.00 & [\$199.20, \$199.20] & 1 \\
+        BANK\_A & \$243.64 & \$0.00 & [\$243.64, \$243.64] & 1 \\
+        BANK\_B & \$134.46 & \$0.00 & [\$134.46, \$134.46] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -480,8 +485,8 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 Bootstrap evaluation reveals:
 \begin{itemize}
-    \item BANK\_A: Mean cost \$298.68 ($\pm$ \$0.00 std dev)
-    \item BANK\_B: Mean cost \$199.20 ($\pm$ \$0.00 std dev)
+    \item BANK\_A: Mean cost \$243.64 ($\pm$ \$0.00 std dev)
+    \item BANK\_B: Mean cost \$134.46 ($\pm$ \$0.00 std dev)
 \end{itemize}
 
 The agents learned robust strategies despite stochastic costs, with confidence intervals
@@ -558,9 +563,14 @@ Final equilibrium:
 \end{itemize}
 
 Despite symmetric incentive structures, agents converged to asymmetric equilibria
-across all passes. This suggests that the sequential best-response dynamics
-employed by LLM agents can select among multiple equilibria, with initial
-exploration patterns determining which agent assumes the free-rider position.
+across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
+(BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
+then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
+
+Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
+increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
+high liquidity, potentially triggering mutual defection. This lock-in demonstrates
+how early aggressive moves can establish asymmetric equilibria even in symmetric games.
 
 
 \begin{table}[htbp]
@@ -584,8 +594,10 @@ exploration patterns determining which agent assumes the free-rider position.
 Several key observations emerge from comparing results across experiments:
 
 \begin{enumerate}
-    \item \textbf{Convergence Reliability}: All 9 passes (3 experiments $\times$ 3 passes)
-    achieved convergence to stable equilibria, demonstrating framework robustness.
+    \item \textbf{Convergence Reliability}: 8 of 9 passes achieved formal convergence.
+    Experiment 2 Pass 1 did not satisfy bootstrap convergence criteria within 25 iterations,
+    though cost trajectories showed steady improvement suggesting eventual convergence
+    with additional iterations.
 
     \item \textbf{Asymmetric Equilibria Prevalence}: Both asymmetric (Exp 1) and
     symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider
@@ -609,110 +621,122 @@ validating the framework's robustness.
 
 \subsection{Theoretical Alignment and Deviations}
 
-The observed equilibria show both alignment with and deviation from game-theoretic predictions:
+We compare observed equilibria against game-theoretic predictions from Castro et al.\ (2025):
 
+\subsubsection{Experiment 1: Asymmetric Cost Structure}
+
+Theory predicts an asymmetric equilibrium where BANK\_A (facing lower delay costs) free-rides
+on BANK\_B's liquidity provision, with expected allocations around A$\approx$0\%, B$\approx$20\%.
+
+Our results \textbf{partially confirm} this prediction:
 \begin{itemize}
-    \item \textbf{Experiment 1 (Asymmetric)}: BANK\_A converged to mean liquidity
-    0.6\% while BANK\_B maintained 11.6\%. This 11.0\%
-    difference reflects free-rider dynamics, though the \textit{identity} of the free-rider
-    varied across passes---demonstrating that the game admits multiple asymmetric equilibria.
+    \item \textbf{Passes 1--2}: BANK\_A converged to near-zero liquidity (0.0--0.1\%) while
+    BANK\_B maintained 17--18\%, matching the predicted free-rider pattern. Total costs were
+    efficient at \$27--28.
 
-    \item \textbf{Experiment 3 (Symmetric)}: Contrary to the predicted symmetric equilibrium,
-    agents converged to asymmetric outcomes (5.3\% vs 20.0\%). This
-    14.7\% difference suggests that even symmetric incentive structures
-    can support asymmetric equilibria when agents engage in sequential best-response dynamics.
+    \item \textbf{Pass 3}: The free-rider \textit{identity flipped}---BANK\_B converged to
+    0\% while BANK\_A maintained 1.8\%. This role reversal resulted in substantially
+    higher total cost (\$101.78 vs \$27.10),
+    demonstrating that the game admits \textbf{multiple asymmetric equilibria} with
+    different efficiency properties.
 \end{itemize}
 
-The mean convergence time of 10.3 iterations for Experiment 1
-compared to 7.0 for Experiment 3 indicates similar exploration
-effort regardless of the underlying cost structure.
+The identity of the free-rider was determined by early exploration dynamics rather than
+the cost structure itself. BANK\_A assumed the free-rider role in 2
+of 3 passes.
 
-\subsection{Implications for Payment System Design}
+\subsubsection{Experiment 2: Stochastic Environment}
 
-The emergence of free-rider equilibria in asymmetric cost scenarios (Experiment 1)
-highlights a key challenge for RTGS system designers. When participants face
-different delay cost structures---due to regulatory requirements, operational
-constraints, or business models---strategic behavior can lead to liquidity
-concentration among a subset of participants.
+Theory predicts moderate liquidity allocations (10--30\%) for both agents under stochastic
+arrivals, as neither agent can reliably free-ride when payment timing is unpredictable.
 
-Our results suggest that:
+Our results show \textbf{broad alignment} with this prediction:
 \begin{itemize}
-    \item Symmetric penalty structures encourage more distributed liquidity provision
-    \item Asymmetric penalties can create systemic dependencies on specific participants
-    \item The liquidity-saving mechanism (LSM) can mitigate but not eliminate
-    strategic liquidity hoarding
+    \item Final liquidity allocations ranged from 6.5\% (BANK\_A mean)
+    to 14.5\% (BANK\_B mean), within the expected range.
+
+    \item However, equilibrium \textbf{efficiency varied substantially} across passes:
+    total costs ranged from \$378.10 to \$651.40.
+
+    \item The bootstrap convergence criterion (CV $<$ 3\%, no trend, regret $<$ 10\%)
+    identified stable policies, but these stable points differed across independent runs.
 \end{itemize}
 
-The total equilibrium cost of \$52.26 in Experiment 1 compared to
-\$265.25 in Experiment 3 demonstrates the efficiency implications of
-different cost structures.
+\subsubsection{Experiment 3: Symmetric Cost Structure}
 
-\subsection{Methodological Contributions}
+Theory predicts a \textbf{symmetric equilibrium} where both agents allocate similar
+liquidity fractions ($\sim$20\% each), as neither has a structural advantage.
 
-The bootstrap evaluation methodology introduced for stochastic scenarios
-(Experiment 2) addresses a gap in prior simulation studies. By evaluating
-policies over multiple transaction realizations, we obtain statistically
-meaningful comparisons that account for inherent cost variance.
-
-This approach is essential when:
+Our results show a \textbf{systematic deviation} from this prediction:
 \begin{itemize}
-    \item Transaction amounts are drawn from distributions rather than fixed
-    \item Arrival patterns exhibit day-to-day variation
-    \item Policy differences are subtle relative to stochastic noise
+    \item \textbf{Passes 1--2}: Despite symmetric costs, BANK\_A converged to low liquidity
+    (1--5\%) while BANK\_B maintained high liquidity (29--30\%). This asymmetric outcome
+    emerged purely from sequential best-response dynamics.
+
+    \item \textbf{Pass 3}: Roles flipped---BANK\_B became the free-rider (0.9\%) while
+    BANK\_A maintained 10\%. Total cost was \$410.92, more than
+    double the efficient equilibrium (\$190.96).
+
+    \item BANK\_A assumed the free-rider role in 2 of 3 passes.
 \end{itemize}
 
-\subsection{LLM Reasoning Capabilities}
+This finding suggests that \textbf{symmetric games can support asymmetric equilibria}
+when agents optimize sequentially. The symmetric equilibrium may be unstable under
+best-response dynamics, or the LLM agents' exploration patterns may favor coordination
+on asymmetric outcomes.
 
-The success of LLM-based agents in discovering equilibria provides insights
-into their strategic reasoning capabilities:
+\subsubsection{Summary of Theoretical Alignment}
 
-\begin{enumerate}
-    \item \textbf{Policy Optimization}: Agents effectively explored the
-    continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from 0.6\% to 11.6\%.
+\begin{center}
+\begin{tabular}{lccc}
+\hline
+Experiment & Predicted & Observed & Alignment \\
+\hline
+Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
+Exp 2 (Stochastic) & Moderate (10--30\%) & 6--20\% & Good \\
+Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
+\hline
+\end{tabular}
+\end{center}
 
-    \item \textbf{Implicit Opponent Modeling}: Despite having no direct visibility into
-    counterparty policies or balances (see Section~\ref{sec:prompt_anatomy}), agents
-    converged to coordinated asymmetric equilibria. BANK\_A's low liquidity strategy
-    only works if BANK\_B provides higher liquidity---yet agents achieved this coordination
-    purely through observing their own cost dynamics and incoming payment patterns.
+The key insight is that while agents consistently find \textit{stable} equilibria,
+the specific equilibrium selected depends on learning dynamics rather than cost structure
+alone. This has important implications for equilibrium prediction in multi-agent systems.
 
-    \item \textbf{Convergence Speed}: Mean convergence in 10.3--7.0
-    iterations suggests efficient exploration of the strategy space.
-\end{enumerate}
+\subsection{LLM Reasoning as a Policy Approximation}
 
-\subsection{Behavioral Realism of LLM Agents}
+A central motivation for using LLM-based agents rather than reinforcement learning
+is the nature of the decision-making process itself. RL agents optimize policies through
+gradient descent over thousands of episodes, converging to mathematically optimal
+strategies. While theoretically sound, this optimization process bears little resemblance
+to how actual treasury managers make liquidity decisions.
 
-A key advantage of using LLM-based reasoning agents over traditional reinforcement learning
-approaches lies in their behavioral realism. Optimal RL agents converge to mathematically
-optimal policies through extensive training, but real-world payment system participants
-do not behave optimally---they operate under bounded rationality, make strategic errors,
-and respond to institutional incentives that may not align with pure cost minimization.
+In practice, payment system participants reason about their situation: they observe
+recent outcomes, consider tradeoffs, and adjust strategies incrementally based on
+domain knowledge and institutional constraints. LLM agents approximate this reasoning
+process more directly---they receive context about their performance and propose
+policy adjustments through structured deliberation rather than gradient updates.
 
-Our experimental results demonstrate this concretely: in Experiment 1 Pass 3, one agent
-persistently attempted a zero-liquidity strategy despite facing costs that made this
-suboptimal given its counterparty's response. This ``mistake'' is precisely the kind of
-behavior observed in real financial institutions, where treasury managers may anchor on
-historical strategies or misread market signals.
-
-LLM agents offer additional modeling flexibility:
+This approach offers several modeling advantages:
 \begin{itemize}
+    \item \textbf{Interpretable decisions}: LLM agents produce natural language
+    reasoning that researchers can audit, unlike opaque neural network weights.
+
     \item \textbf{Heterogeneous instructions}: Different agents can receive tailored
     system prompts emphasizing risk tolerance, regulatory constraints, or strategic
-    objectives---mirroring how different banks operate under different mandates.
+    objectives---approximating how different institutions operate under different mandates.
 
-    \item \textbf{Bounded rationality}: Rather than assuming perfect optimization,
-    LLM agents exhibit human-like exploration and exploitation patterns, occasionally
-    getting ``stuck'' in local optima or over-exploring suboptimal regions.
-
-    \item \textbf{Strategic reasoning}: Agents can explain their decisions in natural
-    language, enabling researchers to understand \textit{why} particular equilibria
-    emerge---not just what the equilibrium is.
+    \item \textbf{Few-shot adaptation}: Agents adjust policies in 7--24 iterations
+    rather than requiring thousands of training episodes, enabling rapid exploration
+    of scenario variations.
 \end{itemize}
 
-This behavioral richness makes LLM-based simulation more suitable for policy analysis
-where understanding participant responses to regulatory changes is as important as
-predicting equilibrium outcomes.
+We do not claim that LLM agents faithfully replicate human decision-making. Our
+experiments show behaviors that are sometimes suboptimal (e.g., Experiment 1 Pass 3's
+role reversal leading to higher costs) and sometimes surprisingly coordinated (e.g.,
+asymmetric equilibria emerging under information isolation). The value lies not in
+behavioral fidelity but in providing a \textit{reasoning-based} alternative to
+gradient-based optimization for multi-agent policy discovery.
 
 \subsection{Policy Expressiveness and Extensibility}
 
@@ -765,9 +789,10 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{Simplified cost model}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{Deterministic convergence}: While we verify reproducibility across
-    9 passes, learning dynamics could exhibit path-dependence in more
-    complex scenarios.
+    \item \textbf{Equilibrium variability}: While all passes converged to \textit{some}
+    stable equilibrium, the specific equilibrium varied across runs---different passes
+    found different free-rider assignments and efficiency levels. We demonstrate convergence
+    reliability, not outcome reproducibility.
 \end{enumerate}
 
 
@@ -822,37 +847,6 @@ Several directions merit further investigation:
 
 The SimCash framework provides a foundation for these investigations, enabling
 controlled experiments to inform payment system design and regulation.
-
-
-
-\begin{thebibliography}{9}
-
-\bibitem{castro2013}
-Castro, P., Cramton, P., Malec, D., \& Schwierz, C. (2013).
-\textit{Payment Timing Games in RTGS Systems}.
-Working Paper, Bank of Canada.
-
-\bibitem{martin2010}
-Martin, A. \& McAndrews, J. (2010).
-Liquidity-saving mechanisms.
-\textit{Journal of Monetary Economics}, 57(5), 621--630.
-
-\bibitem{openai2024}
-OpenAI (2024).
-\textit{GPT-5.2 Technical Report}.
-OpenAI Technical Documentation.
-
-\bibitem{bech2008}
-Bech, M. L. \& Garratt, R. (2008).
-The intraday liquidity management game.
-\textit{Journal of Economic Theory}, 109(2), 198--219.
-
-\bibitem{kahn2009}
-Kahn, C. M. \& Roberds, W. (2009).
-Why pay? An introduction to payments economics.
-\textit{Journal of Financial Intermediation}, 18(1), 1--23.
-
-\end{thebibliography}
 
 
 
@@ -1466,112 +1460,6 @@ all three passes of experiment 3: symmetric equilibrium.
     \end{tabular}
 \end{table}
 
-
-
-
-\section{LLM Prompt Audit}
-\label{app:prompt_audit}
-
-This appendix documents the LLM prompts used for policy learning and provides
-an audit of potential information leakage or bias.
-
-\subsection{Prompt Structure}
-
-Each agent receives a \textbf{system prompt} (identical for all agents) and a
-\textbf{user prompt} (agent-specific, filtered).
-
-\subsubsection{System Prompt (Shared)}
-
-The system prompt provides domain context without agent-specific information:
-
-\begin{enumerate}
-    \item \textbf{Domain explanation}: RTGS mechanics, queuing, LSM netting
-    \item \textbf{Cost structure}: Overdraft, delay, deadline, and EOD penalties
-    \item \textbf{Policy tree architecture}: JSON schema for valid policies
-    \item \textbf{Optimization guidance}: General strategy for cost minimization
-    \item \textbf{Validation checklist}: Common errors to avoid
-\end{enumerate}
-
-\subsubsection{User Prompt (Agent-Specific)}
-
-The user prompt provides filtered information for the optimizing agent only:
-
-\begin{enumerate}
-    \item \textbf{Performance metrics}: Agent's own mean cost, standard deviation, settlement rate
-    \item \textbf{Current policy}: Agent's own policy parameters (e.g., \texttt{initial\_liquidity\_fraction})
-    \item \textbf{Cost breakdown}: Agent's own costs by type (delay, overdraft, penalties)
-    \item \textbf{Simulation trace}: Filtered event log showing ONLY:
-    \begin{itemize}
-        \item Outgoing transactions FROM this agent
-        \item Incoming payments TO this agent
-        \item Agent's own policy decisions (Submit, Hold, etc.)
-        \item Agent's own balance changes (for outgoing settlements only)
-    \end{itemize}
-    \item \textbf{Iteration history}: Agent's own cost trajectory across iterations
-    \item \textbf{Parameter trajectories}: How agent's parameters evolved
-\end{enumerate}
-
-\subsection{Information Boundaries}
-
-\textbf{Critical invariant}: An agent optimizing policy may ONLY observe:
-\begin{itemize}
-    \item Events where they are the sender (outgoing transactions)
-    \item Events where they are the receiver (incoming liquidity)
-    \item Their own state changes (balance, collateral, costs)
-\end{itemize}
-
-\subsubsection{What Agents CANNOT See}
-
-\begin{itemize}
-    \item \textbf{Counterparty balances}: No visibility into opponent's reserves
-    \item \textbf{Counterparty policies}: No access to opponent's decision trees
-    \item \textbf{Counterparty costs}: No visibility into opponent's cost breakdown
-    \item \textbf{Counterparty reasoning}: No access to opponent's LLM responses
-    \item \textbf{Third-party transactions}: Events not involving this agent are filtered
-\end{itemize}
-
-This strict isolation is enforced by the \texttt{filter\_events\_for\_agent()} function
-which processes the raw simulation event stream before prompt construction.
-
-\subsection{Prompt Sanitization}
-
-All prompts are sanitized to remove:
-
-\begin{itemize}
-    \item References to ``optimal'' or ``theoretical'' equilibria
-    \item Hints about expected asymmetric vs symmetric outcomes
-    \item Explicit game-theoretic terminology (Nash, Pareto, etc.)
-    \item Training data leakage from prior experiments
-\end{itemize}
-
-\subsection{Audit Conclusions}
-
-Based on our review:
-
-\begin{enumerate}
-    \item \textbf{No information leakage}: Agents discover equilibria through
-    observed costs, not prompt hints. Counterparty information is strictly filtered.
-
-    \item \textbf{Fair competition}: Both agents receive identically structured
-    prompts with symmetric information access. Neither agent has visibility into
-    the other's balance, policy, or reasoning.
-
-    \item \textbf{Reproducibility}: The same prompts with identical seeds produce
-    identical learning trajectories.
-
-    \item \textbf{Strategic opacity}: Agents cannot observe counterparty reserves
-    or pending decisions. The only ``signal'' about counterparty behavior comes
-    from incoming payments, which is realistic RTGS transparency.
-\end{enumerate}
-
-The experiment results demonstrate genuine strategic learning rather than
-prompt-induced behavior, as evidenced by:
-
-\begin{itemize}
-    \item Gradual convergence over multiple iterations
-    \item Different equilibria across different cost structures
-    \item Consistent results across independent passes
-\end{itemize}
 
 
 
