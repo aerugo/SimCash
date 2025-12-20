@@ -448,16 +448,23 @@ class TestIntegerCentsInvariant:
 
     def test_evaluation_result_costs_are_integers(self) -> None:
         """All cost fields in evaluation results must be integers."""
+        from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import (
+            CostBreakdown,
+        )
         from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import (
             EvaluationResult,
         )
 
+        cost_breakdown = CostBreakdown(
+            delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+        )
         result = EvaluationResult(
             sample_idx=0,
             seed=42,
             total_cost=150000,  # Integer cents
             settlement_rate=0.95,
             avg_delay=2.5,
+            cost_breakdown=cost_breakdown,
         )
 
         assert isinstance(result.total_cost, int)

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import CostBreakdown
 from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import (
     BootstrapPolicyEvaluator,
     EvaluationResult,
@@ -29,12 +30,19 @@ class TestEvaluationResultDataclass:
 
     def test_evaluation_result_creation(self) -> None:
         """EvaluationResult stores cost and metadata."""
+        cost_breakdown = CostBreakdown(
+            delay_cost=10000,
+            overdraft_cost=20000,
+            deadline_penalty=15000,
+            eod_penalty=5000,
+        )
         result = EvaluationResult(
             sample_idx=0,
             seed=12345,
             total_cost=50000,
             settlement_rate=0.95,
             avg_delay=2.5,
+            cost_breakdown=cost_breakdown,
         )
 
         assert result.sample_idx == 0
@@ -42,15 +50,23 @@ class TestEvaluationResultDataclass:
         assert result.total_cost == 50000
         assert result.settlement_rate == 0.95
         assert result.avg_delay == 2.5
+        assert result.cost_breakdown.delay_cost == 10000
 
     def test_evaluation_result_immutable(self) -> None:
         """EvaluationResult is immutable."""
+        cost_breakdown = CostBreakdown(
+            delay_cost=10000,
+            overdraft_cost=20000,
+            deadline_penalty=15000,
+            eod_penalty=5000,
+        )
         result = EvaluationResult(
             sample_idx=0,
             seed=12345,
             total_cost=50000,
             settlement_rate=0.95,
             avg_delay=2.5,
+            cost_breakdown=cost_breakdown,
         )
 
         with pytest.raises(AttributeError):
