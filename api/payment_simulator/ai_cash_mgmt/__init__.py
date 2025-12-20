@@ -75,6 +75,7 @@ from payment_simulator.ai_cash_mgmt.events import (
 
 # Optimization
 from payment_simulator.ai_cash_mgmt.optimization import (
+    BootstrapConvergenceDetector,
     ConstraintValidator,
     ConvergenceDetector,
     PolicyEvaluator,
@@ -138,6 +139,7 @@ __all__ = [
     "create_policy_change_event",
     "create_policy_rejected_event",
     # Optimization
+    "BootstrapConvergenceDetector",
     "ConstraintValidator",
     "ConvergenceDetector",
     "PolicyEvaluator",
