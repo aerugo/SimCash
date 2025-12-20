@@ -68,21 +68,22 @@ def generate_results(provider: DataProvider) -> str:
         label="tab:exp1_summary",
     )
 
-    # Get experiment 2 data
-    exp2_results = provider.get_iteration_results("exp2", pass_num=1)
-    exp2_convergence = provider.get_convergence_iteration("exp2", pass_num=1)
-    exp2_bootstrap = provider.get_final_bootstrap_stats("exp2", pass_num=1)
+    # Get experiment 2 data - use Pass 2 which achieved convergence
+    # (Pass 1 did not converge within 25 iterations)
+    exp2_results = provider.get_iteration_results("exp2", pass_num=2)
+    exp2_convergence = provider.get_convergence_iteration("exp2", pass_num=2)
+    exp2_bootstrap = provider.get_final_bootstrap_stats("exp2", pass_num=2)
 
     # Generate exp2 tables
     exp2_iter_table = generate_iteration_table(
         exp2_results,
-        caption="Experiment 2: Iteration-by-iteration results (Pass 1)",
+        caption="Experiment 2: Iteration-by-iteration results (Pass 2)",
         label="tab:exp2_results",
     )
 
     exp2_bootstrap_table = generate_bootstrap_table(
         exp2_bootstrap,
-        caption="Experiment 2: Bootstrap evaluation statistics (Pass 1, 50 samples)",
+        caption="Experiment 2: Bootstrap evaluation statistics (Pass 2, 50 samples)",
         label="tab:exp2_bootstrap",
     )
 
@@ -152,8 +153,8 @@ def generate_results(provider: DataProvider) -> str:
     )
 
     exp2_fig = include_figure(
-        path=f"{CHARTS_DIR}/exp2_pass1_combined.png",
-        caption="Experiment 2: Convergence under stochastic transaction amounts",
+        path=f"{CHARTS_DIR}/exp2_pass2_combined.png",
+        caption="Experiment 2: Convergence under stochastic transaction amounts (Pass 2)",
         label="fig:exp2_convergence",
         width=0.9,
     )
@@ -201,12 +202,13 @@ liquidity provision, minimizing its own reserves while relying on incoming payme
 from BANK\_B to fund outgoing obligations.
 
 Table~\ref{{tab:exp1_summary}} summarizes convergence across all three passes.
-Notably, \textbf{{Pass 3 exhibited different dynamics}}: one agent persisted with
-a zero-liquidity strategy even when this produced suboptimal costs given its
-counterparty's response. This demonstrates that the game admits multiple equilibria,
-and the identity of the ``free-rider'' is not predetermined. We discuss the
-implications of this behavioral variation for LLM agent realism in
-Section~\ref{{sec:discussion}}.
+Notably, \textbf{{Pass 3 exhibited coordination failure}}: BANK\_B adopted a
+zero-liquidity strategy, but unlike Passes 1--2 where BANK\_A successfully free-rode,
+here BANK\_A's low liquidity (1.8\%) was insufficient to compensate. Both agents
+incurred high costs (\$31.78 and \$70.00 respectively), with total cost nearly 4$\times$
+that of the efficient equilibrium. This demonstrates that the game admits multiple
+equilibria with substantially different efficiency properties---and that LLM agents
+do not always find the Pareto-optimal outcome.
 
 {exp1_summary_table}
 
@@ -214,7 +216,11 @@ Section~\ref{{sec:discussion}}.
 
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
-Agents converged after {exp2_convergence} iterations in Pass 1.
+
+We present Pass 2 results, which achieved convergence after {exp2_convergence} iterations.
+Pass 1 showed steady improvement but did not satisfy the bootstrap convergence criteria
+(CV $<$ 3\%, no trend, regret $<$ 10\%) within 25 iterations, suggesting the stochastic
+environment requires more exploration to reach stable policies.
 
 {exp2_iter_table}
 
@@ -255,9 +261,14 @@ Final equilibrium:
 \end{{itemize}}
 
 Despite symmetric incentive structures, agents converged to asymmetric equilibria
-across all passes. This suggests that the sequential best-response dynamics
-employed by LLM agents can select among multiple equilibria, with initial
-exploration patterns determining which agent assumes the free-rider position.
+across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
+(BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
+then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
+
+Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
+increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
+high liquidity, potentially triggering mutual defection. This lock-in demonstrates
+how early aggressive moves can establish asymmetric equilibria even in symmetric games.
 
 {exp3_summary_table}
 
@@ -266,8 +277,10 @@ exploration patterns determining which agent assumes the free-rider position.
 Several key observations emerge from comparing results across experiments:
 
 \begin{{enumerate}}
-    \item \textbf{{Convergence Reliability}}: All {total_passes} passes ({total_experiments} experiments $\times$ {passes_per_exp} passes)
-    achieved convergence to stable equilibria, demonstrating framework robustness.
+    \item \textbf{{Convergence Reliability}}: 8 of {total_passes} passes achieved formal convergence.
+    Experiment 2 Pass 1 did not satisfy bootstrap convergence criteria within 25 iterations,
+    though cost trajectories showed steady improvement suggesting eventual convergence
+    with additional iterations.
 
     \item \textbf{{Asymmetric Equilibria Prevalence}}: Both asymmetric (Exp 1) and
     symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider

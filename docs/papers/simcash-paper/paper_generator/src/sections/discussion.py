@@ -258,8 +258,9 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{{Simplified cost model}}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{{Deterministic convergence}}: While we verify reproducibility across
-    {total_passes} passes, learning dynamics could exhibit path-dependence in more
-    complex scenarios.
+    \item \textbf{{Equilibrium variability}}: While all passes converged to \textit{{some}}
+    stable equilibrium, the specific equilibrium varied across runs---different passes
+    found different free-rider assignments and efficiency levels. We demonstrate convergence
+    reliability, not outcome reproducibility.
 \end{{enumerate}}
 """
