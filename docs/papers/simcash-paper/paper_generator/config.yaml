@@ -14,23 +14,23 @@ experiments:
   exp1:
     name: "2-Period Deterministic Nash Equilibrium"
     passes:
-      1: "exp1-20251219-110143-8a916c"  # completed
-      2: "exp1-20251219-154942-b68746"  # completed
-      3: ""  # TBD - exp1-20251219-210241-db1a25 still running
+      1: "exp3-20251219-120015-d8d08d"
+      2: "exp3-20251219-155732-9065e9"
+      3: "exp3-20251219-165017-c9b7b1"
 
   exp2:
     name: "12-Period Stochastic LVTS-Style"
     passes:
-      1: "exp2-20251219-113757-e9b4c2"  # completed
-      2: "exp2-20251219-155731-018785"  # completed
-      3: "exp2-20251219-165016-f1be1d"  # completed
+      1: "exp3-20251219-120015-d8d08d"
+      2: "exp3-20251219-155732-9065e9"
+      3: "exp3-20251219-165017-c9b7b1"
 
   exp3:
     name: "3-Period Symmetric Joint Liquidity"
     passes:
-      1: "exp3-20251219-120015-d8d08d"  # completed
-      2: "exp3-20251219-155732-9065e9"  # completed
-      3: "exp3-20251219-165017-c9b7b1"  # completed
+      1: "exp3-20251219-120015-d8d08d"
+      2: "exp3-20251219-155732-9065e9"
+      3: "exp3-20251219-165017-c9b7b1"
 
 # Output configuration
 output:
