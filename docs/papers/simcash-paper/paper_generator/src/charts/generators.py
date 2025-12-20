@@ -324,11 +324,16 @@ def generate_bootstrap_variance_chart(
     output_path: Path,
     config: dict,
 ) -> Path:
-    """Generate bootstrap variance chart showing cost with confidence intervals.
+    """Generate bootstrap variance chart with Gaussian Process-style visualization.
 
     Creates a side-by-side chart with:
-    - Left: BANK_A cost trajectory with 95% CI band
-    - Right: BANK_B cost trajectory with 95% CI band
+    - Left: BANK_A cost trajectory with smooth 95% CI band
+    - Right: BANK_B cost trajectory with smooth 95% CI band
+
+    Styled like Gaussian Process regression plots with:
+    - Smooth mean prediction line
+    - Shaded confidence interval band
+    - Distinct markers for observed data points
 
     This illustrates how risk (variance) may change as agents optimize for lower costs.
     Requires bootstrap evaluation data in the policy_evaluations table.
@@ -343,6 +348,8 @@ def generate_bootstrap_variance_chart(
     Returns:
         Path to generated chart
     """
+    import numpy as np
+
     run_id = _get_run_id_for_pass(db_path, exp_id, pass_num, config)
 
     repo = ExperimentRepository(db_path)
@@ -354,12 +361,27 @@ def generate_bootstrap_variance_chart(
     if not evals_a or not evals_b:
         raise ValueError(f"No policy evaluations found for {exp_id} pass {pass_num}")
 
-    # Create side-by-side subplots
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(14, 5))
+    # Create side-by-side subplots with white background
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(14, 5), facecolor="white")
 
-    # Helper to plot agent data with CI band
-    def plot_agent_variance(ax: plt.Axes, evals: list, agent_id: str, color: str) -> None:
+    # GP-style colors
+    GP_COLORS = {
+        "bank_a": {
+            "line": "#1f77b4",  # Blue line
+            "band": "#aec7e8",  # Light blue band
+            "points": "#d62728",  # Red observed points
+        },
+        "bank_b": {
+            "line": "#1f77b4",  # Blue line
+            "band": "#aec7e8",  # Light blue band
+            "points": "#d62728",  # Red observed points
+        },
+    }
+
+    def plot_gp_style(
+        ax: plt.Axes, evals: list, agent_id: str, colors: dict
+    ) -> None:
+        """Plot agent data in Gaussian Process regression style."""
         iterations = []
         costs = []
         ci_lower = []
@@ -383,41 +405,83 @@ def generate_bootstrap_variance_chart(
                 ci_lower.append(e.new_cost / 100.0)
                 ci_upper.append(e.new_cost / 100.0)
 
-        # Plot CI band
+        # Convert to numpy arrays
+        x = np.array(iterations)
+        y_mean = np.array(costs)
+        y_lower = np.array(ci_lower)
+        y_upper = np.array(ci_upper)
+
+        # Create smooth interpolation for GP-like appearance
+        if len(x) > 2:
+            # Create fine-grained x values for smooth curves
+            x_smooth = np.linspace(x.min(), x.max(), 200)
+
+            # Linear interpolation using numpy (sufficient for GP aesthetic)
+            y_mean_smooth = np.interp(x_smooth, x, y_mean)
+            y_lower_smooth = np.interp(x_smooth, x, y_lower)
+            y_upper_smooth = np.interp(x_smooth, x, y_upper)
+        else:
+            # Not enough points for interpolation, use original
+            x_smooth = x
+            y_mean_smooth = y_mean
+            y_lower_smooth = y_lower
+            y_upper_smooth = y_upper
+
+        # Plot 95% CI band (prominent, GP-style)
         ax.fill_between(
-            iterations,
-            ci_lower,
-            ci_upper,
-            alpha=0.3,
-            color=color,
-            label="95% CI",
+            x_smooth,
+            y_lower_smooth,
+            y_upper_smooth,
+            alpha=0.4,
+            color=colors["band"],
+            label="95% Confidence Interval",
+            edgecolor="none",
         )
 
-        # Plot mean cost line
+        # Plot smooth mean prediction line
         ax.plot(
-            iterations,
-            costs,
-            color=color,
+            x_smooth,
+            y_mean_smooth,
+            color=colors["line"],
             linewidth=2,
-            label=f"{agent_id} Cost",
-            marker="o",
-            markersize=5,
+            label="Mean Prediction",
         )
 
-        # Styling
-        ax.set_title(f"{agent_id}", fontsize=12, fontweight="medium", color=COLORS["text"])
-        ax.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
-        ax.set_ylabel("Cost ($)", fontsize=11, color=COLORS["text"])
+        # Plot observed data points (red dots like GP chart)
+        ax.scatter(
+            x,
+            y_mean,
+            color=colors["points"],
+            s=80,
+            zorder=5,
+            label="Observed Data",
+            edgecolors="white",
+            linewidths=1.5,
+        )
+
+        # Styling - clean, minimal like GP plots
+        ax.set_title(agent_id, fontsize=14, fontweight="medium", color=COLORS["text"])
+        ax.set_xlabel("Iteration", fontsize=12, color=COLORS["text"])
+        ax.set_ylabel("Cost ($)", fontsize=12, color=COLORS["text"])
         ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))
         ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
-        ax.legend(loc="upper right", framealpha=0.9)
+
+        # Clean legend
+        ax.legend(loc="upper right", framealpha=0.95, fontsize=10)
+
+        # Minimal spines
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.grid(True, alpha=0.3, color=COLORS["grid"])
+        ax.spines["left"].set_color("#cccccc")
+        ax.spines["bottom"].set_color("#cccccc")
 
-    # Plot both agents
-    plot_agent_variance(ax_a, evals_a, "BANK_A", COLORS["bank_a"])
-    plot_agent_variance(ax_b, evals_b, "BANK_B", COLORS["bank_b"])
+        # Subtle grid
+        ax.grid(True, alpha=0.3, color="#e0e0e0", linestyle="-")
+        ax.set_facecolor("white")
+
+    # Plot both agents in GP style
+    plot_gp_style(ax_a, evals_a, "BANK_A", GP_COLORS["bank_a"])
+    plot_gp_style(ax_b, evals_b, "BANK_B", GP_COLORS["bank_b"])
 
     # Overall figure title
     fig.suptitle(
@@ -430,7 +494,7 @@ def generate_bootstrap_variance_chart(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
     return output_path
