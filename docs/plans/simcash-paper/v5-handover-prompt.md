@@ -4,13 +4,12 @@
 
 We are writing a paper to demonstrate how SimCash can reproduce the three experiments from Castro et al. (2025) on reinforcement learning for payment system policy optimization.
 
-**Your task**: Re-run all experiments in three passes, then use the **paper_generator** to automatically generate charts, tables, and the complete LaTeX paper from the experiment databases.
+Use the **paper_generator** to automatically generate charts, tables, and the complete LaTeX paper from the experiment databases.
 
 ---
 
 **What you DO manually**:
-- Run the 3 passes of experiments
-- Update `config.yaml` with new run_ids
+- Generate a paper by running the generator on experiments tracked in config.yaml
 - Analyze the generated paper and update section **source code** (NOT output!)
 - Regenerate and verify
 
@@ -53,90 +52,7 @@ docs/papers/simcash-paper/paper_generator/
 
 ## Your Assignment
 
-### Phase 1: Run Experiments (Three Passes)
-
-Run each experiment THREE times to assess reproducibility. All passes for an experiment go into the same database file.
-
-**NEVER change the LLM model!** Always use `openai:gpt-5.2` as specified in the configs.
-
-```bash
-cd api
-
-# Pass 1
-.venv/bin/payment-sim experiment run --verbose \
-  ../docs/papers/simcash-paper/paper_generator/configs/exp1.yaml \
-  --db ../docs/papers/simcash-paper/paper_generator/data/exp1.db \
-  2>&1 | tee ../docs/papers/simcash-paper/paper_generator/logs/pass1_exp1.log
-
-.venv/bin/payment-sim experiment run --verbose \
-  ../docs/papers/simcash-paper/paper_generator/configs/exp2.yaml \
-  --db ../docs/papers/simcash-paper/paper_generator/data/exp2.db \
-  2>&1 | tee ../docs/papers/simcash-paper/paper_generator/logs/pass1_exp2.log
-
-.venv/bin/payment-sim experiment run --verbose \
-  ../docs/papers/simcash-paper/paper_generator/configs/exp3.yaml \
-  --db ../docs/papers/simcash-paper/paper_generator/data/exp3.db \
-  2>&1 | tee ../docs/papers/simcash-paper/paper_generator/logs/pass1_exp3.log
-
-# Pass 2 - same commands, results accumulate in same DBs
-
-# Pass 3 - same commands, results accumulate in same DBs
-```
-
-**After each experiment run**, note the run_id printed in the output (format: `exp1-YYYYMMDD-HHMMSS-XXXXXX`).
-
----
-
-### Phase 2: Update config.yaml
-
-After all experiments complete, update `config.yaml` with the new run_ids:
-
-```yaml
-# docs/papers/simcash-paper/paper_generator/config.yaml
-
-databases:
-  exp1: data/exp1.db
-  exp2: data/exp2.db
-  exp3: data/exp3.db
-
-experiments:
-  exp1:
-    name: "2-Period Deterministic Nash Equilibrium"
-    passes:
-      1: "exp1-YYYYMMDD-HHMMSS-XXXXXX"  # Replace with actual run_id from Pass 1
-      2: "exp1-YYYYMMDD-HHMMSS-XXXXXX"  # Replace with actual run_id from Pass 2
-      3: "exp1-YYYYMMDD-HHMMSS-XXXXXX"  # Replace with actual run_id from Pass 3
-
-  exp2:
-    name: "12-Period Stochastic LVTS-Style"
-    passes:
-      1: "exp2-YYYYMMDD-HHMMSS-XXXXXX"
-      2: "exp2-YYYYMMDD-HHMMSS-XXXXXX"
-      3: "exp2-YYYYMMDD-HHMMSS-XXXXXX"
-
-  exp3:
-    name: "3-Period Symmetric Joint Liquidity"
-    passes:
-      1: "exp3-YYYYMMDD-HHMMSS-XXXXXX"
-      2: "exp3-YYYYMMDD-HHMMSS-XXXXXX"
-      3: "exp3-YYYYMMDD-HHMMSS-XXXXXX"
-
-output:
-  paper_filename: paper.tex
-  charts_dir: charts
-```
-
-**To find run_ids** if you forgot to note them:
-
-```bash
-cd api
-.venv/bin/payment-sim experiment results \
-  --db ../docs/papers/simcash-paper/paper_generator/data/exp1.db
-```
-
----
-
-### Phase 3: Generate the Paper
+### Phase 1: Generate the Paper
 
 ```bash
 cd docs/papers/simcash-paper/paper_generator
@@ -158,7 +74,7 @@ This generates:
 
 ---
 
-### Phase 4: Analyze Results and Update Paper
+### Phase 2: Analyze Results and Update Paper
 
 **CRITICAL WORKFLOW**: Read output → Edit source → Regenerate
 
@@ -201,7 +117,7 @@ Then read `output/paper.tex` again to verify your changes appear correctly.
 
 ---
 
-### Phase 5: Final Verification Checklist
+### Phase 4: Final Verification Checklist
 
 Before finalizing, verify:
 
@@ -221,16 +137,6 @@ Before finalizing, verify:
 ---
 
 ## CLI Reference
-
-### Run Experiments
-
-```bash
-# Run with verbose output
-payment-sim experiment run --verbose <config.yaml>
-
-# Override database path
-payment-sim experiment run --verbose <config.yaml> --db <path/to/db>
-```
 
 ### List Results
 
@@ -317,16 +223,6 @@ You may have edited `output/paper.tex` directly. Edits must go in `src/sections/
 ---
 
 ## Checklist
-
-### Experiment Execution
-- [ ] Pass 1: exp1, exp2, exp3 completed
-- [ ] Pass 2: exp1, exp2, exp3 completed
-- [ ] Pass 3: exp1, exp2, exp3 completed
-- [ ] All run_ids noted/recorded
-
-### Configuration
-- [ ] `config.yaml` updated with all 9 run_ids (3 experiments × 3 passes)
-- [ ] Config validation passes (no errors on generation)
 
 ### Paper Generation
 - [ ] Paper generated successfully
