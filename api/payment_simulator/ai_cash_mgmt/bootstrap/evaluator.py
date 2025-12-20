@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from payment_simulator._core import Orchestrator
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import CostBreakdown
 from payment_simulator.ai_cash_mgmt.bootstrap.models import BootstrapSample
 from payment_simulator.ai_cash_mgmt.bootstrap.sandbox_config import SandboxConfigBuilder
 
@@ -27,6 +28,7 @@ class EvaluationResult:
         total_cost: Total cost incurred by the target agent (integer cents).
         settlement_rate: Fraction of transactions settled (0.0 to 1.0).
         avg_delay: Average delay in ticks for settled transactions.
+        cost_breakdown: Breakdown of costs by type (delay, overdraft, etc.).
     """
 
     sample_idx: int
@@ -34,6 +36,7 @@ class EvaluationResult:
     total_cost: int  # Integer cents (project invariant)
     settlement_rate: float
     avg_delay: float
+    cost_breakdown: CostBreakdown
 
 
 @dataclass(frozen=True)
@@ -152,12 +155,25 @@ class BootstrapPolicyEvaluator:
         # Extract metrics for target agent
         metrics = self._extract_agent_metrics(orchestrator, sample.agent_id)
 
+        # Extract cost breakdown - type is guaranteed by _extract_agent_metrics
+        cost_breakdown = metrics["cost_breakdown"]
+        assert isinstance(cost_breakdown, CostBreakdown)
+
+        # Extract numeric metrics (type narrowing for mypy)
+        total_cost = metrics["total_cost"]
+        settlement_rate = metrics["settlement_rate"]
+        avg_delay = metrics["avg_delay"]
+        assert isinstance(total_cost, (int, float))
+        assert isinstance(settlement_rate, (int, float))
+        assert isinstance(avg_delay, (int, float))
+
         return EvaluationResult(
             sample_idx=sample.sample_idx,
             seed=sample.seed,
-            total_cost=int(metrics["total_cost"]),
-            settlement_rate=float(metrics["settlement_rate"]),
-            avg_delay=float(metrics["avg_delay"]),
+            total_cost=int(total_cost),
+            settlement_rate=float(settlement_rate),
+            avg_delay=float(avg_delay),
+            cost_breakdown=cost_breakdown,
         )
 
     def evaluate_samples(
@@ -241,7 +257,7 @@ class BootstrapPolicyEvaluator:
         self,
         orchestrator: Orchestrator,
         agent_id: str,
-    ) -> dict[str, int | float]:
+    ) -> dict[str, int | float | CostBreakdown]:
         """Extract metrics for specific agent from completed simulation.
 
         Args:
@@ -249,14 +265,25 @@ class BootstrapPolicyEvaluator:
             agent_id: ID of agent to extract metrics for.
 
         Returns:
-            Dict with total_cost, settlement_rate, avg_delay.
+            Dict with total_cost, settlement_rate, avg_delay, cost_breakdown.
         """
         # Get agent costs from orchestrator
         try:
             agent_costs = orchestrator.get_agent_accumulated_costs(agent_id)
             total_cost = int(agent_costs.get("total_cost", 0))
+            # Extract cost breakdown from accumulated costs
+            # Note: FFI doesn't separate eod_penalty from deadline_penalty
+            cost_breakdown = CostBreakdown(
+                delay_cost=int(agent_costs.get("delay_cost", 0)),
+                overdraft_cost=int(agent_costs.get("liquidity_cost", 0)),
+                deadline_penalty=int(agent_costs.get("deadline_penalty", 0)),
+                eod_penalty=0,  # Included in deadline_penalty by FFI
+            )
         except Exception:
             total_cost = 0
+            cost_breakdown = CostBreakdown(
+                delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+            )
 
         # Get simulation state for metrics
         try:
@@ -281,4 +308,5 @@ class BootstrapPolicyEvaluator:
             "total_cost": total_cost,
             "settlement_rate": settlement_rate,
             "avg_delay": avg_delay,
+            "cost_breakdown": cost_breakdown,
         }
