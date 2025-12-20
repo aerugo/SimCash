@@ -185,7 +185,7 @@ conducted across three independent passes to verify reproducibility.
 
 Table~\ref{{tab:convergence_stats}} summarizes convergence behavior across all experiments.
 All passes achieved convergence, with mean iterations ranging from {exp3_mean_iters}
-(Experiment 3) to {exp1_mean_iters} (Experiment 1).
+(Experiment 3) to {exp2_mean_iters} (Experiment 2).
 
 {convergence_table}
 
@@ -224,10 +224,10 @@ do not always find the Pareto-optimal outcome.
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
 
-We present Pass 2 results, which achieved convergence after {exp2_convergence} iterations.
-Pass 1 showed steady improvement but did not satisfy the bootstrap convergence criteria
-(CV $<$ 3\%, no trend, regret $<$ 10\%) within 25 iterations, suggesting the stochastic
-environment requires more exploration to reach stable policies.
+All three passes achieved convergence, with Pass 2 converging fastest after {exp2_convergence}
+iterations. We present Pass 2 as the exemplar run, demonstrating how agents adapt to stochastic
+transaction arrivals. The bootstrap convergence criteria (CV $<$ 3\%, no trend, regret $<$ 10\%)
+successfully identified stable policies across all passes.
 
 {exp2_iter_table}
 
@@ -241,8 +241,7 @@ stochastic scenarios require evaluating policy robustness across many transactio
 
 Table~\ref{{tab:exp2_bootstrap}} presents bootstrap statistics for the \textbf{{final converged
 policies}} (iteration {exp2_convergence}), evaluated across {exp2_samples} resampled transaction
-schedules. Note that context simulation costs (e.g., BANK\_A's \$243.64 in iteration 24) may
-differ substantially from bootstrap means (\$77.10) due to transaction variance---this
+schedules. Context simulation costs may differ from bootstrap means due to transaction variance---this
 difference illustrates why bootstrap evaluation is essential for stochastic scenarios.
 
 {exp2_bootstrap_table}
@@ -254,11 +253,11 @@ more consistent costs at {exp2_b_mean} ($\pm$ {exp2_b_std}).
 \subsubsection{{Risk-Return Tradeoff}}
 
 Figure~\ref{{fig:exp2_variance}} shows how cost variance evolves during optimization.
-BANK\_B exhibits increasing variance from iteration 17 onward as it reduces liquidity
-toward the final 11.5\% allocation. This demonstrates a risk-return tradeoff: lower
-liquidity reduces mean holding costs but increases exposure to stochastic payment timing.
-BANK\_A's variance remains stable, suggesting its lower liquidity position (7.4\%) has
-already reached a risk plateau.
+As agents reduce liquidity toward their final allocations, variance behavior diverges:
+BANK\_B's variance increases as it reduces liquidity, demonstrating a risk-return tradeoff
+where lower liquidity reduces mean holding costs but increases exposure to stochastic
+payment timing. BANK\_A's variance remains relatively stable at its low liquidity position,
+suggesting it has reached a risk plateau where further reductions would incur settlement failures.
 
 {exp2_variance_fig}
 
@@ -297,10 +296,9 @@ how early aggressive moves can establish asymmetric equilibria even in symmetric
 Several key observations emerge from comparing results across experiments:
 
 \begin{{enumerate}}
-    \item \textbf{{Convergence Reliability}}: 8 of {total_passes} passes achieved formal convergence.
-    Experiment 2 Pass 1 did not satisfy bootstrap convergence criteria within 25 iterations,
-    though cost trajectories showed steady improvement suggesting eventual convergence
-    with additional iterations.
+    \item \textbf{{Convergence Reliability}}: All {total_passes} passes achieved formal convergence,
+    validating the robustness of the bootstrap convergence criteria for stochastic scenarios
+    and temporal policy stability for deterministic scenarios.
 
     \item \textbf{{Asymmetric Equilibria Prevalence}}: Both asymmetric (Exp 1) and
     symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider

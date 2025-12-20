@@ -195,7 +195,7 @@ This approach offers several modeling advantages:
     system prompts emphasizing risk tolerance, regulatory constraints, or strategic
     objectives---approximating how different institutions operate under different mandates.
 
-    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--24 iterations
+    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--29 iterations
     rather than requiring thousands of training episodes, enabling rapid exploration
     of scenario variations.
 \end{{itemize}}
