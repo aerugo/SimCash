@@ -34,6 +34,7 @@ class VerboseConfig:
     - rejections: Show why policies are rejected
     - debug: Show detailed debug info (validation errors, retries, LLM progress)
     - simulations: Show simulation IDs when simulations start (default True)
+    - metrics: Show detailed metrics per iteration (timing, costs, bootstrap stats)
 
     Example:
         >>> config = VerboseConfig(policy=True, bootstrap=True)
@@ -48,6 +49,7 @@ class VerboseConfig:
     rejections: bool = False
     debug: bool = False
     simulations: bool = True  # Show simulation IDs by default for transparency
+    metrics: bool = False  # Show detailed metrics (timing, costs, bootstrap stats)
 
     @property
     def any(self) -> bool:
@@ -64,6 +66,7 @@ class VerboseConfig:
             or self.rejections
             or self.debug
             or self.simulations
+            or self.metrics
         )
 
     @classmethod
@@ -81,6 +84,7 @@ class VerboseConfig:
             rejections=True,
             debug=False,
             simulations=True,
+            metrics=True,
         )
 
     @classmethod
@@ -93,6 +97,7 @@ class VerboseConfig:
         verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
+        verbose_metrics: bool | None = None,
         debug: bool = False,
     ) -> VerboseConfig:
         """Create config from CLI flags.
@@ -107,6 +112,7 @@ class VerboseConfig:
             verbose_bootstrap: Override bootstrap verbose flag.
             verbose_llm: Override llm verbose flag.
             verbose_rejections: Override rejections verbose flag.
+            verbose_metrics: Override metrics verbose flag.
             debug: Enable debug output (validation errors, retries).
 
         Returns:
@@ -120,6 +126,7 @@ class VerboseConfig:
                 bootstrap=verbose_bootstrap if verbose_bootstrap is not None else True,
                 llm=verbose_llm if verbose_llm is not None else True,
                 rejections=verbose_rejections if verbose_rejections is not None else True,
+                metrics=verbose_metrics if verbose_metrics is not None else True,
                 debug=debug,
             )
 
@@ -130,6 +137,7 @@ class VerboseConfig:
             bootstrap=verbose_bootstrap or False,
             llm=verbose_llm or False,
             rejections=verbose_rejections or False,
+            metrics=verbose_metrics or False,
             debug=debug,
         )
 
@@ -149,6 +157,7 @@ class VerboseConfig:
         verbose_bootstrap: bool | None = None,
         verbose_llm: bool | None = None,
         verbose_rejections: bool | None = None,
+        verbose_metrics: bool | None = None,
         debug: bool = False,
     ) -> VerboseConfig:
         """Alias for from_cli_flags() for backward compatibility."""
@@ -159,6 +168,7 @@ class VerboseConfig:
             verbose_bootstrap=verbose_bootstrap,
             verbose_llm=verbose_llm,
             verbose_rejections=verbose_rejections,
+            verbose_metrics=verbose_metrics,
             debug=debug,
         )
 

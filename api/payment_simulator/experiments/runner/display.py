@@ -32,6 +32,9 @@ __all__ = [
     "display_policy_change",
     "display_policy_rejected",
     "display_experiment_end",
+    "display_iteration_metrics",
+    "display_llm_stats",
+    "display_experiment_summary",
     "_format_cost",
 ]
 
@@ -122,6 +125,13 @@ def _display_event(
         display_policy_rejected(event, console)
     elif event_type == "experiment_end":
         display_experiment_end(event, console)
+    # Metrics events (controlled by config.metrics)
+    elif event_type == "iteration_metrics" and config.metrics:
+        display_iteration_metrics(event, console)
+    elif event_type == "llm_stats" and config.metrics:
+        display_llm_stats(event, console)
+    elif event_type == "experiment_summary" and config.metrics:
+        display_experiment_summary(event, console)
 
 
 def _display_final_results(result: dict[str, Any], console: Console) -> None:
@@ -351,6 +361,142 @@ def display_experiment_end(event: ExperimentEvent, console: Console) -> None:
     # This is handled by _display_final_results from the provider
     # We just note that the experiment ended
     pass
+
+
+# =============================================================================
+# Metrics Display Functions (Replay-Safe)
+# =============================================================================
+
+
+def display_iteration_metrics(event: ExperimentEvent, console: Console) -> None:
+    """Display iteration metrics event.
+
+    Shows per-agent costs and liquidity fractions for an iteration.
+    This is part of replay identity - output must be identical in run and replay.
+
+    Note: Timing information is NOT included (excluded from replay identity).
+
+    Args:
+        event: iteration_metrics event dict with fields:
+            - total_cost: Total cost in cents (integer, INV-1)
+            - per_agent_costs: Dict mapping agent_id to cost in cents
+            - per_agent_liquidity: Optional dict mapping agent_id to fraction
+        console: Console for output
+    """
+    iteration = event.get("iteration", 0)
+    total_cost = event.get("total_cost", 0)
+    per_agent_costs = event.get("per_agent_costs", {})
+    per_agent_liquidity = event.get("per_agent_liquidity", {})
+
+    console.print(f"\n[bold]Iteration {iteration} Metrics[/bold]")
+
+    # Create table for per-agent metrics
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Agent", style="cyan")
+    table.add_column("Cost", justify="right")
+    if per_agent_liquidity:
+        table.add_column("Liquidity", justify="right")
+
+    for agent_id in sorted(per_agent_costs.keys()):
+        cost = per_agent_costs[agent_id]
+        cost_str = _format_cost(cost)
+
+        if per_agent_liquidity and agent_id in per_agent_liquidity:
+            liq = per_agent_liquidity[agent_id]
+            liq_str = f"{liq * 100:.1f}%"
+            table.add_row(agent_id, cost_str, liq_str)
+        else:
+            table.add_row(agent_id, cost_str)
+
+    # Add total row
+    total_str = _format_cost(total_cost)
+    if per_agent_liquidity:
+        table.add_row("[bold]Total[/bold]", f"[bold]{total_str}[/bold]", "")
+    else:
+        table.add_row("[bold]Total[/bold]", f"[bold]{total_str}[/bold]")
+
+    console.print(table)
+
+
+def display_llm_stats(event: ExperimentEvent, console: Console) -> None:
+    """Display LLM statistics event.
+
+    Shows LLM call counts and token usage for an iteration.
+    This is part of replay identity - output must be identical in run and replay.
+
+    Note: Latency/timing information is NOT included (excluded from replay identity).
+
+    Args:
+        event: llm_stats event dict with fields:
+            - total_calls: Total LLM calls made
+            - successful_calls: Number of successful calls
+            - failed_calls: Number of failed calls
+            - total_prompt_tokens: Total prompt tokens used
+            - total_completion_tokens: Total completion tokens generated
+        console: Console for output
+    """
+    iteration = event.get("iteration", 0)
+    total_calls = event.get("total_calls", 0)
+    successful_calls = event.get("successful_calls", 0)
+    failed_calls = event.get("failed_calls", 0)
+    prompt_tokens = event.get("total_prompt_tokens", 0)
+    completion_tokens = event.get("total_completion_tokens", 0)
+
+    console.print(f"\n[bold]LLM Stats (Iteration {iteration})[/bold]")
+    console.print(f"  Calls: {successful_calls}/{total_calls} succeeded")
+
+    if failed_calls > 0:
+        console.print(f"  [red]Failed: {failed_calls}[/red]")
+
+    console.print(f"  Prompt tokens: {prompt_tokens:,}")
+    console.print(f"  Completion tokens: {completion_tokens:,}")
+    console.print(f"  Total tokens: {prompt_tokens + completion_tokens:,}")
+
+
+def display_experiment_summary(event: ExperimentEvent, console: Console) -> None:
+    """Display experiment summary event.
+
+    Shows final experiment statistics.
+    This is part of replay identity - output must be identical in run and replay.
+
+    Note: Duration/timing information is NOT included (excluded from replay identity).
+
+    Args:
+        event: experiment_summary event dict with fields:
+            - num_iterations: Total iterations run
+            - converged: Whether experiment converged
+            - convergence_reason: Reason for termination
+            - final_cost: Final cost in cents (integer, INV-1)
+            - best_cost: Best cost achieved in cents (integer, INV-1)
+            - total_llm_calls: Total LLM calls made
+            - total_tokens: Total tokens used
+        console: Console for output
+    """
+    num_iterations = event.get("num_iterations", 0)
+    converged = event.get("converged", False)
+    convergence_reason = event.get("convergence_reason", "unknown")
+    final_cost = event.get("final_cost", 0)
+    best_cost = event.get("best_cost", 0)
+    total_llm_calls = event.get("total_llm_calls", 0)
+    total_tokens = event.get("total_tokens", 0)
+
+    console.print("\n[bold cyan]═══ Experiment Summary ═══[/bold cyan]")
+    console.print(f"  Iterations: {num_iterations}")
+
+    if converged:
+        console.print(f"  [green]Converged: {convergence_reason}[/green]")
+    else:
+        console.print(f"  [yellow]Not converged: {convergence_reason}[/yellow]")
+
+    console.print(f"  Final cost: {_format_cost(final_cost)}")
+    console.print(f"  Best cost: {_format_cost(best_cost)}")
+
+    if final_cost > 0 and best_cost < final_cost:
+        improvement = (1 - best_cost / final_cost) * 100
+        console.print(f"  Improvement: {improvement:.1f}%")
+
+    console.print(f"  LLM calls: {total_llm_calls}")
+    console.print(f"  Total tokens: {total_tokens:,}")
 
 
 # =============================================================================
