@@ -692,11 +692,15 @@ def run(
     try:
         import asyncio
 
+        # Use db path override if not default
+        db_path_override = db if db != DEFAULT_DB_PATH else None
+
         runner = GenericExperimentRunner(
             config=config,
             verbose_config=verbose_config,
             config_dir=config_path.parent,  # Pass config directory for relative path resolution
             persist_bootstrap=persist_bootstrap,
+            db_path=db_path_override,
         )
 
         # Print the experiment run ID for user reference (enables replay later)
