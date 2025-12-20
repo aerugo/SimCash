@@ -59,27 +59,58 @@ def load_config(config_path: Path) -> dict:
 
 
 def save_config(config_path: Path, config: dict) -> None:
-    """Save config.yaml with proper formatting."""
-    # Read original file to preserve comments structure
-    with open(config_path) as f:
-        original_content = f.read()
+    """Save config.yaml with proper formatting.
 
-    # Update run_ids in the original content using regex
-    for exp_name, exp_data in config["experiments"].items():
-        for pass_num, run_id in exp_data["passes"].items():
-            if run_id:
-                # Find and replace the specific pass line
-                pattern = rf'(\s+{pass_num}:\s*")[^"]*(".*#{exp_name}.*pass.*{pass_num}|".*#.*|")'
-                replacement = rf'\g<1>{run_id}\g<2>'
-                # Try to match with comment
-                if not re.search(pattern, original_content):
-                    # Simple pattern without comment matching
-                    pattern = rf'(\s+{pass_num}:\s*")[^"]*(")'
-                    replacement = rf'\g<1>{run_id}\g<2>'
-                original_content = re.sub(pattern, replacement, original_content)
+    This function preserves the file's comments and formatting by using
+    line-by-line replacement within each experiment's section.
+    """
+    with open(config_path) as f:
+        lines = f.readlines()
+
+    # Process line by line, tracking which experiment section we're in
+    current_experiment: str | None = None
+    in_passes_section = False
+    result_lines: list[str] = []
+
+    for line in lines:
+        # Check if we're entering a new experiment section (e.g., "  exp1:")
+        exp_match = re.match(r'^  (\w+):$', line)
+        if exp_match:
+            exp_name = exp_match.group(1)
+            if exp_name in config["experiments"]:
+                current_experiment = exp_name
+                in_passes_section = False
+            else:
+                current_experiment = None
+            result_lines.append(line)
+            continue
+
+        # Check if we're entering the passes section
+        if current_experiment and re.match(r'^\s+passes:\s*$', line):
+            in_passes_section = True
+            result_lines.append(line)
+            continue
+
+        # Check if we're leaving the passes section (new key at same or lower indent)
+        if in_passes_section and re.match(r'^\s{0,6}\S', line) and not re.match(r'^\s+\d+:', line):
+            in_passes_section = False
+
+        # Update pass lines within the correct experiment section
+        if current_experiment and in_passes_section:
+            pass_match = re.match(r'^(\s+)(\d+):\s*"[^"]*"(.*)$', line)
+            if pass_match:
+                indent = pass_match.group(1)
+                pass_num = int(pass_match.group(2))
+                trailing = pass_match.group(3)  # Preserve any trailing comments
+                exp_passes = config["experiments"][current_experiment]["passes"]
+                if pass_num in exp_passes and exp_passes[pass_num]:
+                    run_id = exp_passes[pass_num]
+                    line = f'{indent}{pass_num}: "{run_id}"{trailing}\n'
+
+        result_lines.append(line)
 
     with open(config_path, "w") as f:
-        f.write(original_content)
+        f.writelines(result_lines)
 
 
 def find_missing_experiments(
