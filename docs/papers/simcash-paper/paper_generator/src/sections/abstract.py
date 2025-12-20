@@ -38,10 +38,11 @@ system liquidity games using Large Language Models (LLMs). Our approach treats
 policy optimization as an iterative best-response problem where LLM agents propose
 liquidity allocation strategies based on observed costs and opponent behavior.
 Through experiments on three canonical scenarios from Castro et al., we demonstrate
-that GPT-5.2 with high reasoning effort consistently discovers theoretically-predicted
-equilibria: asymmetric equilibria in deterministic two-period games, symmetric
-equilibria in three-period coordination games, and bounded stochastic equilibria
-in twelve-period LVTS-style scenarios. Our results across {total_passes} independent runs
+that GPT-5.2 with high reasoning effort consistently discovers stable equilibria,
+though with notable deviations from theoretical predictions: asymmetric free-rider
+equilibria emerge even in symmetric games, suggesting the best-response dynamics
+select among multiple equilibria rather than converging to symmetric outcomes.
+Our results across {total_passes} independent runs
 ({passes_per_exp} passes $\times$ {total_experiments} experiments) show {convergence_pct}\% convergence success with an average
 of {avg_iterations:.1f} iterations to stability.
 \end{{abstract}}
