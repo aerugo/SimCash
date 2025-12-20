@@ -67,6 +67,11 @@ from payment_simulator.experiments.runner.bootstrap_support import (
     InitialSimulationResult,
     SimulationResult,
 )
+from payment_simulator.experiments.runner.display import (
+    display_experiment_summary,
+    display_iteration_metrics,
+    display_llm_stats,
+)
 from payment_simulator.experiments.runner.policy_stability import PolicyStabilityTracker
 from payment_simulator.experiments.runner.seed_matrix import SeedMatrix
 from payment_simulator.experiments.runner.state_provider import LiveStateProvider
@@ -402,6 +407,7 @@ class OptimizationLoop:
 
         # Verbose logging
         self._verbose_config = verbose_config or VerboseConfig()
+        self._console = console  # Store for direct display functions
         self._verbose_logger: VerboseLogger | None = None
         if self._verbose_config.any:
             self._verbose_logger = VerboseLogger(self._verbose_config, console=console)
@@ -760,9 +766,6 @@ class OptimizationLoop:
             Subclasses or the GenericExperimentRunner should implement
             actual evaluation and policy generation.
         """
-        # Start experiment timing
-        start_time = time.time()
-
         # Record experiment start event
         self._state_provider.record_event(
             iteration=0,
@@ -934,17 +937,30 @@ class OptimizationLoop:
             convergence_reason=convergence_reason,
         )
 
-        # Log experiment summary (verbose metrics)
-        if self._verbose_logger:
-            self._verbose_logger.log_experiment_summary(
-                num_iterations=self._current_iteration,
-                total_duration_seconds=time.time() - start_time,
-                converged=converged,
-                convergence_reason=convergence_reason,
-                final_cost=final_cost,
-                best_cost=self._best_cost,
-                total_llm_calls=self._total_llm_calls,
-                total_tokens=self._total_llm_prompt_tokens + self._total_llm_completion_tokens,
+        # Build experiment_summary event (NO timing/duration for replay identity)
+        experiment_summary_event = {
+            "num_iterations": self._current_iteration,
+            "converged": converged,
+            "convergence_reason": convergence_reason,
+            "final_cost": final_cost,
+            "best_cost": self._best_cost,
+            "total_llm_calls": self._total_llm_calls,
+            "total_tokens": self._total_llm_prompt_tokens
+            + self._total_llm_completion_tokens,
+        }
+
+        # Record event via StateProvider for replay identity
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="experiment_summary",
+            event_data=experiment_summary_event,
+        )
+
+        # Display immediately if verbose metrics enabled
+        if self._verbose_config.metrics and self._console:
+            display_experiment_summary(
+                {"event_type": "experiment_summary", **experiment_summary_event},
+                self._console,
             )
 
         return OptimizationResult(
@@ -961,25 +977,17 @@ class OptimizationLoop:
     def _log_iteration_end(
         self, total_cost: int, per_agent_costs: dict[str, int]
     ) -> None:
-        """Log iteration metrics, timing, and LLM stats at iteration end.
+        """Log iteration metrics and LLM stats at iteration end.
+
+        Records events via StateProvider for replay identity, and displays
+        immediately if verbose metrics are enabled.
+
+        Note: Timing info is NOT recorded in events to maintain replay identity.
 
         Args:
             total_cost: Total cost in integer cents.
             per_agent_costs: Cost per agent in integer cents.
         """
-        if not self._verbose_logger:
-            return
-
-        # Calculate iteration duration
-        iteration_duration = time.time() - self._iteration_start_time
-
-        # Log timing
-        self._verbose_logger.log_iteration_timing(
-            iteration=self._current_iteration,
-            duration_seconds=iteration_duration,
-            breakdown=self._iteration_timings if self._iteration_timings else None,
-        )
-
         # Get liquidity fractions from current policies
         per_agent_liquidity: dict[str, float] = {}
         for agent_id in per_agent_costs:
@@ -994,25 +1002,53 @@ class OptimizationLoop:
                     if frac is not None:
                         per_agent_liquidity[agent_id] = float(frac)
 
-        # Log iteration metrics
-        self._verbose_logger.log_iteration_metrics(
-            iteration=self._current_iteration,
-            total_cost=total_cost,
-            per_agent_costs=per_agent_costs,
-            per_agent_liquidity=per_agent_liquidity if per_agent_liquidity else None,
+        # Build iteration_metrics event data (NO timing info for replay identity)
+        iteration_metrics_event = {
+            "iteration": self._current_iteration,
+            "total_cost": total_cost,
+            "per_agent_costs": per_agent_costs,
+            "per_agent_liquidity": per_agent_liquidity if per_agent_liquidity else {},
+        }
+
+        # Record event via StateProvider for replay identity
+        self._state_provider.record_event(
+            iteration=self._current_iteration - 1,  # 0-indexed
+            event_type="iteration_metrics",
+            event_data=iteration_metrics_event,
         )
 
-        # Log LLM stats for this iteration
-        if self._iteration_llm_calls > 0:
-            self._verbose_logger.log_llm_stats_summary(
-                iteration=self._current_iteration,
-                total_calls=self._iteration_llm_calls,
-                total_prompt_tokens=self._iteration_llm_prompt_tokens,
-                total_completion_tokens=self._iteration_llm_completion_tokens,
-                total_latency_seconds=self._iteration_llm_latency,
-                successful_calls=self._iteration_llm_successes,
-                failed_calls=self._iteration_llm_failures,
+        # Display immediately if verbose metrics enabled
+        if self._verbose_config.metrics and self._console:
+            display_iteration_metrics(
+                {"event_type": "iteration_metrics", **iteration_metrics_event},
+                self._console,
             )
+
+        # Handle LLM stats for this iteration
+        if self._iteration_llm_calls > 0:
+            # Build llm_stats event data (NO timing/latency info for replay identity)
+            llm_stats_event = {
+                "iteration": self._current_iteration,
+                "total_calls": self._iteration_llm_calls,
+                "successful_calls": self._iteration_llm_successes,
+                "failed_calls": self._iteration_llm_failures,
+                "total_prompt_tokens": self._iteration_llm_prompt_tokens,
+                "total_completion_tokens": self._iteration_llm_completion_tokens,
+            }
+
+            # Record event via StateProvider for replay identity
+            self._state_provider.record_event(
+                iteration=self._current_iteration - 1,  # 0-indexed
+                event_type="llm_stats",
+                event_data=llm_stats_event,
+            )
+
+            # Display immediately if verbose metrics enabled
+            if self._verbose_config.metrics and self._console:
+                display_llm_stats(
+                    {"event_type": "llm_stats", **llm_stats_event},
+                    self._console,
+                )
 
         # Accumulate total LLM stats
         self._total_llm_calls += self._iteration_llm_calls
