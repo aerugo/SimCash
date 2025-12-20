@@ -56,6 +56,29 @@ def generate_discussion(provider: DataProvider) -> str:
     exp1_liq_diff = abs(exp1_mean_a_liq - exp1_mean_b_liq)
     exp3_liq_diff = abs(exp3_mean_a_liq - exp3_mean_b_liq)
 
+    # Get individual pass data for detailed analysis
+    exp2_summaries = provider.get_all_pass_summaries("exp2")
+
+    # Identify free-rider patterns (who has lower liquidity in each pass)
+    exp1_freerider_a_count = sum(
+        1 for s in exp1_summaries if s["bank_a_liquidity"] < s["bank_b_liquidity"]
+    )
+    exp3_freerider_a_count = sum(
+        1 for s in exp3_summaries if s["bank_a_liquidity"] < s["bank_b_liquidity"]
+    )
+
+    # Get best and worst total costs for each experiment
+    exp1_best_total = min(s["total_cost"] for s in exp1_summaries)
+    exp1_worst_total = max(s["total_cost"] for s in exp1_summaries)
+    exp3_best_total = min(s["total_cost"] for s in exp3_summaries)
+    exp3_worst_total = max(s["total_cost"] for s in exp3_summaries)
+
+    # Exp2 statistics
+    exp2_mean_a_liq = sum(s["bank_a_liquidity"] for s in exp2_summaries) / len(exp2_summaries)
+    exp2_mean_b_liq = sum(s["bank_b_liquidity"] for s in exp2_summaries) / len(exp2_summaries)
+    exp2_best_total = min(s["total_cost"] for s in exp2_summaries)
+    exp2_worst_total = max(s["total_cost"] for s in exp2_summaries)
+
     return rf"""
 \section{{Discussion}}
 \label{{sec:discussion}}
@@ -67,110 +90,122 @@ validating the framework's robustness.
 
 \subsection{{Theoretical Alignment and Deviations}}
 
-The observed equilibria show both alignment with and deviation from game-theoretic predictions:
+We compare observed equilibria against game-theoretic predictions from Castro et al.\ (2025):
 
+\subsubsection{{Experiment 1: Asymmetric Cost Structure}}
+
+Theory predicts an asymmetric equilibrium where BANK\_A (facing lower delay costs) free-rides
+on BANK\_B's liquidity provision, with expected allocations around A$\approx$0\%, B$\approx$20\%.
+
+Our results \textbf{{partially confirm}} this prediction:
 \begin{{itemize}}
-    \item \textbf{{Experiment 1 (Asymmetric)}}: BANK\_A converged to mean liquidity
-    {exp1_a_liq_fmt} while BANK\_B maintained {exp1_b_liq_fmt}. This {format_percent(exp1_liq_diff)}
-    difference reflects free-rider dynamics, though the \textit{{identity}} of the free-rider
-    varied across passes---demonstrating that the game admits multiple asymmetric equilibria.
+    \item \textbf{{Passes 1--2}}: BANK\_A converged to near-zero liquidity (0.0--0.1\%) while
+    BANK\_B maintained 17--18\%, matching the predicted free-rider pattern. Total costs were
+    efficient at \$27--28.
 
-    \item \textbf{{Experiment 3 (Symmetric)}}: Contrary to the predicted symmetric equilibrium,
-    agents converged to asymmetric outcomes ({exp3_a_liq_fmt} vs {exp3_b_liq_fmt}). This
-    {format_percent(exp3_liq_diff)} difference suggests that even symmetric incentive structures
-    can support asymmetric equilibria when agents engage in sequential best-response dynamics.
+    \item \textbf{{Pass 3}}: The free-rider \textit{{identity flipped}}---BANK\_B converged to
+    0\% while BANK\_A maintained 1.8\%. This role reversal resulted in substantially
+    higher total cost ({format_money(exp1_worst_total)} vs {format_money(exp1_best_total)}),
+    demonstrating that the game admits \textbf{{multiple asymmetric equilibria}} with
+    different efficiency properties.
 \end{{itemize}}
 
-The mean convergence time of {exp1_mean_iters} iterations for Experiment 1
-compared to {exp3_mean_iters} for Experiment 3 indicates similar exploration
-effort regardless of the underlying cost structure.
+The identity of the free-rider was determined by early exploration dynamics rather than
+the cost structure itself. BANK\_A assumed the free-rider role in {exp1_freerider_a_count}
+of 3 passes.
 
-\subsection{{Implications for Payment System Design}}
+\subsubsection{{Experiment 2: Stochastic Environment}}
 
-The emergence of free-rider equilibria in asymmetric cost scenarios (Experiment 1)
-highlights a key challenge for RTGS system designers. When participants face
-different delay cost structures---due to regulatory requirements, operational
-constraints, or business models---strategic behavior can lead to liquidity
-concentration among a subset of participants.
+Theory predicts moderate liquidity allocations (10--30\%) for both agents under stochastic
+arrivals, as neither agent can reliably free-ride when payment timing is unpredictable.
 
-Our results suggest that:
+Our results show \textbf{{broad alignment}} with this prediction:
 \begin{{itemize}}
-    \item Symmetric penalty structures encourage more distributed liquidity provision
-    \item Asymmetric penalties can create systemic dependencies on specific participants
-    \item The liquidity-saving mechanism (LSM) can mitigate but not eliminate
-    strategic liquidity hoarding
+    \item Final liquidity allocations ranged from {format_percent(exp2_mean_a_liq)} (BANK\_A mean)
+    to {format_percent(exp2_mean_b_liq)} (BANK\_B mean), within the expected range.
+
+    \item However, equilibrium \textbf{{efficiency varied substantially}} across passes:
+    total costs ranged from {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}.
+
+    \item The bootstrap convergence criterion (CV $<$ 3\%, no trend, regret $<$ 10\%)
+    identified stable policies, but these stable points differed across independent runs.
 \end{{itemize}}
 
-The total equilibrium cost of {exp1_total_fmt} in Experiment 1 compared to
-{exp3_total_fmt} in Experiment 3 demonstrates the efficiency implications of
-different cost structures.
+\subsubsection{{Experiment 3: Symmetric Cost Structure}}
 
-\subsection{{Methodological Contributions}}
+Theory predicts a \textbf{{symmetric equilibrium}} where both agents allocate similar
+liquidity fractions ($\sim$20\% each), as neither has a structural advantage.
 
-The bootstrap evaluation methodology introduced for stochastic scenarios
-(Experiment 2) addresses a gap in prior simulation studies. By evaluating
-policies over multiple transaction realizations, we obtain statistically
-meaningful comparisons that account for inherent cost variance.
-
-This approach is essential when:
+Our results show a \textbf{{systematic deviation}} from this prediction:
 \begin{{itemize}}
-    \item Transaction amounts are drawn from distributions rather than fixed
-    \item Arrival patterns exhibit day-to-day variation
-    \item Policy differences are subtle relative to stochastic noise
+    \item \textbf{{Passes 1--2}}: Despite symmetric costs, BANK\_A converged to low liquidity
+    (1--5\%) while BANK\_B maintained high liquidity (29--30\%). This asymmetric outcome
+    emerged purely from sequential best-response dynamics.
+
+    \item \textbf{{Pass 3}}: Roles flipped---BANK\_B became the free-rider (0.9\%) while
+    BANK\_A maintained 10\%. Total cost was {format_money(exp3_worst_total)}, more than
+    double the efficient equilibrium ({format_money(exp3_best_total)}).
+
+    \item BANK\_A assumed the free-rider role in {exp3_freerider_a_count} of 3 passes.
 \end{{itemize}}
 
-\subsection{{LLM Reasoning Capabilities}}
+This finding suggests that \textbf{{symmetric games can support asymmetric equilibria}}
+when agents optimize sequentially. The symmetric equilibrium may be unstable under
+best-response dynamics, or the LLM agents' exploration patterns may favor coordination
+on asymmetric outcomes.
 
-The success of LLM-based agents in discovering equilibria provides insights
-into their strategic reasoning capabilities:
+\subsubsection{{Summary of Theoretical Alignment}}
 
-\begin{{enumerate}}
-    \item \textbf{{Policy Optimization}}: Agents effectively explored the
-    continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from {exp1_a_liq_fmt} to {exp1_b_liq_fmt}.
+\begin{{center}}
+\begin{{tabular}}{{lccc}}
+\hline
+Experiment & Predicted & Observed & Alignment \\
+\hline
+Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
+Exp 2 (Stochastic) & Moderate (10--30\%) & 6--20\% & Good \\
+Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
+\hline
+\end{{tabular}}
+\end{{center}}
 
-    \item \textbf{{Implicit Opponent Modeling}}: Despite having no direct visibility into
-    counterparty policies or balances (see Section~\ref{{sec:prompt_anatomy}}), agents
-    converged to coordinated asymmetric equilibria. BANK\_A's low liquidity strategy
-    only works if BANK\_B provides higher liquidity---yet agents achieved this coordination
-    purely through observing their own cost dynamics and incoming payment patterns.
+The key insight is that while agents consistently find \textit{{stable}} equilibria,
+the specific equilibrium selected depends on learning dynamics rather than cost structure
+alone. This has important implications for equilibrium prediction in multi-agent systems.
 
-    \item \textbf{{Convergence Speed}}: Mean convergence in {exp1_mean_iters}--{exp3_mean_iters}
-    iterations suggests efficient exploration of the strategy space.
-\end{{enumerate}}
+\subsection{{LLM Reasoning as a Policy Approximation}}
 
-\subsection{{Behavioral Realism of LLM Agents}}
+A central motivation for using LLM-based agents rather than reinforcement learning
+is the nature of the decision-making process itself. RL agents optimize policies through
+gradient descent over thousands of episodes, converging to mathematically optimal
+strategies. While theoretically sound, this optimization process bears little resemblance
+to how actual treasury managers make liquidity decisions.
 
-A key advantage of using LLM-based reasoning agents over traditional reinforcement learning
-approaches lies in their behavioral realism. Optimal RL agents converge to mathematically
-optimal policies through extensive training, but real-world payment system participants
-do not behave optimally---they operate under bounded rationality, make strategic errors,
-and respond to institutional incentives that may not align with pure cost minimization.
+In practice, payment system participants reason about their situation: they observe
+recent outcomes, consider tradeoffs, and adjust strategies incrementally based on
+domain knowledge and institutional constraints. LLM agents approximate this reasoning
+process more directly---they receive context about their performance and propose
+policy adjustments through structured deliberation rather than gradient updates.
 
-Our experimental results demonstrate this concretely: in Experiment 1 Pass 3, one agent
-persistently attempted a zero-liquidity strategy despite facing costs that made this
-suboptimal given its counterparty's response. This ``mistake'' is precisely the kind of
-behavior observed in real financial institutions, where treasury managers may anchor on
-historical strategies or misread market signals.
-
-LLM agents offer additional modeling flexibility:
+This approach offers several modeling advantages:
 \begin{{itemize}}
+    \item \textbf{{Interpretable decisions}}: LLM agents produce natural language
+    reasoning that researchers can audit, unlike opaque neural network weights.
+
     \item \textbf{{Heterogeneous instructions}}: Different agents can receive tailored
     system prompts emphasizing risk tolerance, regulatory constraints, or strategic
-    objectives---mirroring how different banks operate under different mandates.
+    objectives---approximating how different institutions operate under different mandates.
 
-    \item \textbf{{Bounded rationality}}: Rather than assuming perfect optimization,
-    LLM agents exhibit human-like exploration and exploitation patterns, occasionally
-    getting ``stuck'' in local optima or over-exploring suboptimal regions.
-
-    \item \textbf{{Strategic reasoning}}: Agents can explain their decisions in natural
-    language, enabling researchers to understand \textit{{why}} particular equilibria
-    emerge---not just what the equilibrium is.
+    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--24 iterations
+    rather than requiring thousands of training episodes, enabling rapid exploration
+    of scenario variations.
 \end{{itemize}}
 
-This behavioral richness makes LLM-based simulation more suitable for policy analysis
-where understanding participant responses to regulatory changes is as important as
-predicting equilibrium outcomes.
+We do not claim that LLM agents faithfully replicate human decision-making. Our
+experiments show behaviors that are sometimes suboptimal (e.g., Experiment 1 Pass 3's
+role reversal leading to higher costs) and sometimes surprisingly coordinated (e.g.,
+asymmetric equilibria emerging under information isolation). The value lies not in
+behavioral fidelity but in providing a \textit{{reasoning-based}} alternative to
+gradient-based optimization for multi-agent policy discovery.
 
 \subsection{{Policy Expressiveness and Extensibility}}
 
@@ -223,8 +258,9 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{{Simplified cost model}}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{{Deterministic convergence}}: While we verify reproducibility across
-    {total_passes} passes, learning dynamics could exhibit path-dependence in more
-    complex scenarios.
+    \item \textbf{{Equilibrium variability}}: While all passes converged to \textit{{some}}
+    stable equilibrium, the specific equilibrium varied across runs---different passes
+    found different free-rider assignments and efficiency levels. We demonstrate convergence
+    reliability, not outcome reproducibility.
 \end{{enumerate}}
 """

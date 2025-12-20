@@ -66,10 +66,10 @@ Each agent receives a two-part prompt with no access to counterparty information
 
 The system prompt is identical for all agents and provides domain context:
 \begin{itemize}
-    \item RTGS mechanics, queuing, and LSM netting explanation
+    \item RTGS mechanics and queuing behavior
     \item Cost structure: overdraft, delay, deadline, and EOD penalties
     \item Policy tree architecture: JSON schema for valid policies
-    \item Optimization guidance for cost minimization
+    \item Optimization guidance: e.g., ``lower liquidity reduces holding costs but increases delay risk; find the balance that minimizes total cost''
 \end{itemize}
 
 \subsubsection{User Prompt (Agent-Specific)}
