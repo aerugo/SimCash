@@ -24,7 +24,7 @@ evaluation:
 
 # Convergence criteria
 convergence:
-  max_iterations: 25
+  max_iterations: 50
   stability_threshold: 0.05
   stability_window: 5
 

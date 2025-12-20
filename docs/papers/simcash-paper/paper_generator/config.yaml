@@ -21,9 +21,9 @@ experiments:
   exp2:
     name: "12-Period Stochastic LVTS-Style"
     passes:
-      1: "exp2-20251220-150211-d4978c"
-      2: "exp2-20251220-152234-3c194a"
-      3: "exp2-20251220-155701-121041"
+      1: "exp2-20251220-234947-a937c1"
+      2: "exp2-20251221-000125-ed15a3"
+      3: "exp2-20251221-000800-b6a57c"
 
   exp3:
     name: "3-Period Symmetric Joint Liquidity"
