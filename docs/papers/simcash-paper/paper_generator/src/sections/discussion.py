@@ -172,92 +172,40 @@ The key insight is that while agents consistently find \textit{{stable}} equilib
 the specific equilibrium selected depends on learning dynamics rather than cost structure
 alone. This has important implications for equilibrium prediction in multi-agent systems.
 
-\subsection{{Implications for Payment System Design}}
+\subsection{{LLM Reasoning as a Policy Approximation}}
 
-The emergence of free-rider equilibria in asymmetric cost scenarios (Experiment 1)
-highlights a key challenge for RTGS system designers. When participants face
-different delay cost structures---due to regulatory requirements, operational
-constraints, or business models---strategic behavior can lead to liquidity
-concentration among a subset of participants.
+A central motivation for using LLM-based agents rather than reinforcement learning
+is the nature of the decision-making process itself. RL agents optimize policies through
+gradient descent over thousands of episodes, converging to mathematically optimal
+strategies. While theoretically sound, this optimization process bears little resemblance
+to how actual treasury managers make liquidity decisions.
 
-Our results suggest that:
+In practice, payment system participants reason about their situation: they observe
+recent outcomes, consider tradeoffs, and adjust strategies incrementally based on
+domain knowledge and institutional constraints. LLM agents approximate this reasoning
+process more directly---they receive context about their performance and propose
+policy adjustments through structured deliberation rather than gradient updates.
+
+This approach offers several modeling advantages:
 \begin{{itemize}}
-    \item Symmetric penalty structures encourage more distributed liquidity provision
-    \item Asymmetric penalties can create systemic dependencies on specific participants
-    \item The liquidity-saving mechanism (LSM) can mitigate but not eliminate
-    strategic liquidity hoarding
-\end{{itemize}}
+    \item \textbf{{Interpretable decisions}}: LLM agents produce natural language
+    reasoning that researchers can audit, unlike opaque neural network weights.
 
-The total equilibrium cost of {exp1_total_fmt} in Experiment 1 compared to
-{exp3_total_fmt} in Experiment 3 demonstrates the efficiency implications of
-different cost structures.
-
-\subsection{{Methodological Contributions}}
-
-The bootstrap evaluation methodology introduced for stochastic scenarios
-(Experiment 2) addresses a gap in prior simulation studies. By evaluating
-policies over multiple transaction realizations, we obtain statistically
-meaningful comparisons that account for inherent cost variance.
-
-This approach is essential when:
-\begin{{itemize}}
-    \item Transaction amounts are drawn from distributions rather than fixed
-    \item Arrival patterns exhibit day-to-day variation
-    \item Policy differences are subtle relative to stochastic noise
-\end{{itemize}}
-
-\subsection{{LLM Reasoning Capabilities}}
-
-The success of LLM-based agents in discovering equilibria provides insights
-into their strategic reasoning capabilities:
-
-\begin{{enumerate}}
-    \item \textbf{{Policy Optimization}}: Agents effectively explored the
-    continuous liquidity fraction space, converging from initial 50\% allocations
-    to optimal values ranging from {exp1_a_liq_fmt} to {exp1_b_liq_fmt}.
-
-    \item \textbf{{Implicit Opponent Modeling}}: Despite having no direct visibility into
-    counterparty policies or balances (see Section~\ref{{sec:prompt_anatomy}}), agents
-    converged to coordinated asymmetric equilibria. BANK\_A's low liquidity strategy
-    only works if BANK\_B provides higher liquidity---yet agents achieved this coordination
-    purely through observing their own cost dynamics and incoming payment patterns.
-
-    \item \textbf{{Convergence Speed}}: Mean convergence in {exp1_mean_iters}--{exp3_mean_iters}
-    iterations suggests efficient exploration of the strategy space.
-\end{{enumerate}}
-
-\subsection{{Behavioral Realism of LLM Agents}}
-
-A key advantage of using LLM-based reasoning agents over traditional reinforcement learning
-approaches lies in their behavioral realism. Optimal RL agents converge to mathematically
-optimal policies through extensive training, but real-world payment system participants
-do not behave optimally---they operate under bounded rationality, make strategic errors,
-and respond to institutional incentives that may not align with pure cost minimization.
-
-Our experimental results demonstrate this concretely: in Experiment 1 Pass 3, one agent
-persistently attempted a zero-liquidity strategy despite facing costs that made this
-suboptimal given its counterparty's response. This ``mistake'' is precisely the kind of
-behavior observed in real financial institutions, where treasury managers may anchor on
-historical strategies or misread market signals.
-
-LLM agents offer additional modeling flexibility:
-\begin{{itemize}}
     \item \textbf{{Heterogeneous instructions}}: Different agents can receive tailored
     system prompts emphasizing risk tolerance, regulatory constraints, or strategic
-    objectives---mirroring how different banks operate under different mandates.
+    objectives---approximating how different institutions operate under different mandates.
 
-    \item \textbf{{Bounded rationality}}: Rather than assuming perfect optimization,
-    LLM agents exhibit human-like exploration and exploitation patterns, occasionally
-    getting ``stuck'' in local optima or over-exploring suboptimal regions.
-
-    \item \textbf{{Strategic reasoning}}: Agents can explain their decisions in natural
-    language, enabling researchers to understand \textit{{why}} particular equilibria
-    emerge---not just what the equilibrium is.
+    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--24 iterations
+    rather than requiring thousands of training episodes, enabling rapid exploration
+    of scenario variations.
 \end{{itemize}}
 
-This behavioral richness makes LLM-based simulation more suitable for policy analysis
-where understanding participant responses to regulatory changes is as important as
-predicting equilibrium outcomes.
+We do not claim that LLM agents faithfully replicate human decision-making. Our
+experiments show behaviors that are sometimes suboptimal (e.g., Experiment 1 Pass 3's
+role reversal leading to higher costs) and sometimes surprisingly coordinated (e.g.,
+asymmetric equilibria emerging under information isolation). The value lies not in
+behavioral fidelity but in providing a \textit{{reasoning-based}} alternative to
+gradient-based optimization for multi-agent policy discovery.
 
 \subsection{{Policy Expressiveness and Extensibility}}
 
