@@ -1521,14 +1521,15 @@ class OptimizationLoop:
         return agent_contexts
 
     async def _evaluate_policies(self) -> tuple[int, dict[str, int]]:
-        """Evaluate current policies by running simulation(s).
+        """Evaluate current policies using bootstrap resampling.
 
         For deterministic mode: runs a single simulation.
-        For bootstrap mode: runs N simulations with different seeds, captures
-        events for LLM context, and builds per-agent contexts.
+        For bootstrap mode: evaluates policy on pre-computed bootstrap samples
+        (resampled from the initial simulation's transaction history).
 
         Returns:
             Tuple of (total_cost, per_agent_costs) in integer cents.
+            In bootstrap mode, these are the MEAN costs across all samples.
 
         Side effects:
             - Sets self._current_enriched_results for LLM context
@@ -1567,7 +1568,9 @@ class OptimizationLoop:
 
             return enriched.total_cost, per_agent_costs
 
-        # Bootstrap mode: run multiple simulations with event capture
+        # Bootstrap mode: evaluate current policy on pre-computed bootstrap samples
+        # These samples were created from the initial simulation's transaction history
+        # by _create_bootstrap_samples() at experiment start.
         enriched_results: list[EnrichedEvaluationResult] = []
         total_costs: list[int] = []
         seed_results: list[dict[str, Any]] = []
@@ -1576,46 +1579,73 @@ class OptimizationLoop:
         }
         bootstrap_results: list[BootstrapSampleResult] = []
 
-        for sample_idx in range(num_samples):
-            # Use deterministic seed derivation for reproducibility
-            seed = self._derive_sample_seed(sample_idx)
+        # Evaluate each agent's current policy on their bootstrap samples
+        for agent_id in self.optimized_agents:
+            samples = self._bootstrap_samples.get(agent_id, [])
+            if not samples:
+                continue
 
-            # Run simulation with event capture
-            enriched = self._run_simulation_with_events(seed, sample_idx)
-            enriched_results.append(enriched)
+            # Get current policy for this agent
+            current_policy = self._policies.get(agent_id, {})
 
-            cost = enriched.total_cost
-            total_costs.append(cost)
+            # Create evaluator with agent config (same as in _evaluate_policy_pair)
+            agent_config = self._get_scenario_builder().extract_agent_config(agent_id)
+            evaluator = BootstrapPolicyEvaluator(
+                opening_balance=agent_config.opening_balance,
+                credit_limit=agent_config.credit_limit,
+                cost_rates=self._cost_rates,
+                max_collateral_capacity=agent_config.max_collateral_capacity,
+                liquidity_pool=agent_config.liquidity_pool,
+            )
 
-            # Extract per-agent costs from enriched result
-            for agent_id in self.optimized_agents:
-                agent_cost = enriched.per_agent_costs.get(agent_id, 0)
-                per_agent_totals[agent_id].append(agent_cost)
+            # Evaluate current policy on all bootstrap samples
+            eval_results = evaluator.evaluate_samples(samples, current_policy)
 
-            # Collect bootstrap sample result for verbose logging
-            bootstrap_results.append(
-                BootstrapSampleResult(
-                    seed=seed,
-                    cost=cost,
-                    settled=int(enriched.settlement_rate * 100),
-                    total=100,
-                    settlement_rate=enriched.settlement_rate,
-                    baseline_cost=None,  # First iteration has no baseline
+            # Collect results for this agent
+            for result in eval_results:
+                cost = result.total_cost
+                total_costs.append(cost)
+                per_agent_totals[agent_id].append(cost)
+
+                # Build EnrichedEvaluationResult for context building
+                # Note: event_trace is empty - LLM context comes from initial simulation
+                enriched = EnrichedEvaluationResult(
+                    sample_idx=result.sample_idx,
+                    seed=result.seed,
+                    total_cost=cost,
+                    settlement_rate=result.settlement_rate,
+                    avg_delay=result.avg_delay,
+                    event_trace=(),  # Events come from initial simulation
+                    cost_breakdown=None,
+                    per_agent_costs={agent_id: cost},
                 )
-            )
+                enriched_results.append(enriched)
 
-            # Track seed results for bootstrap event (state provider)
-            seed_results.append(
-                {
-                    "seed": seed,
-                    "cost": cost,
-                    "settled": int(enriched.settlement_rate * 100),
-                    "total": 100,
-                    "settlement_rate": enriched.settlement_rate,
-                }
-            )
+                # Collect for verbose logging
+                bootstrap_results.append(
+                    BootstrapSampleResult(
+                        seed=result.seed,
+                        cost=cost,
+                        settled=int(result.settlement_rate * 100),
+                        total=100,
+                        settlement_rate=result.settlement_rate,
+                        baseline_cost=None,
+                    )
+                )
+
+                # Track for state provider event
+                seed_results.append(
+                    {
+                        "seed": result.seed,
+                        "cost": cost,
+                        "settled": int(result.settlement_rate * 100),
+                        "total": 100,
+                        "settlement_rate": result.settlement_rate,
+                    }
+                )
 
         # Store enriched results for LLM context
+        # Note: _build_agent_contexts uses self._initial_sim_result for event traces
         self._current_enriched_results = enriched_results
         self._current_agent_contexts = self._build_agent_contexts(enriched_results)
 
@@ -1657,67 +1687,6 @@ class OptimizationLoop:
         )
 
         return mean_total, mean_per_agent
-
-    def _derive_sample_seed(self, sample_idx: int) -> int:
-        """Derive a deterministic seed for a bootstrap sample.
-
-        Uses SHA-256 for deterministic derivation, ensuring same
-        sample_idx always produces the same seed (reproducibility).
-
-        Args:
-            sample_idx: Sample index.
-
-        Returns:
-            Derived seed for this sample.
-        """
-        import hashlib
-
-        key = f"{self._config.master_seed}:sample:{sample_idx}"
-        hash_bytes = hashlib.sha256(key.encode()).digest()
-        return int.from_bytes(hash_bytes[:8], byteorder="big") % (2**31)
-
-    def _evaluate_policy_on_samples(
-        self, policy: dict[str, Any], agent_id: str, num_samples: int
-    ) -> list[int]:
-        """Evaluate a policy on multiple samples for paired comparison.
-
-        For deterministic mode (num_samples=1): uses master_seed directly
-        For bootstrap mode (num_samples>1): uses derived seeds for each sample
-
-        Args:
-            policy: Policy dict to evaluate.
-            agent_id: Agent to evaluate for.
-            num_samples: Number of samples to run.
-
-        Returns:
-            List of costs (one per sample).
-        """
-
-        # Temporarily set the policy for evaluation
-        original_policy = self._policies.get(agent_id)
-        self._policies[agent_id] = policy
-
-        costs: list[int] = []
-        eval_mode = self._config.evaluation.mode
-
-        for sample_idx in range(num_samples):
-            # For deterministic mode (temporal or pairwise), use master_seed directly
-            # This ensures consistency with _evaluate_policies
-            if eval_mode.startswith("deterministic") or num_samples == 1:
-                seed = self._config.master_seed
-            else:
-                seed = self._derive_sample_seed(sample_idx)
-
-            _, agent_costs = self._run_single_simulation(seed)
-            costs.append(agent_costs.get(agent_id, 0))
-
-        # Restore original policy
-        if original_policy is not None:
-            self._policies[agent_id] = original_policy
-        elif agent_id in self._policies:
-            del self._policies[agent_id]
-
-        return costs
 
     def _evaluate_policy_pair(
         self,
