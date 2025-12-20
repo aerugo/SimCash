@@ -60,30 +60,30 @@ def generate_discussion(provider: DataProvider) -> str:
 \section{{Discussion}}
 \label{{sec:discussion}}
 
-Our experimental results demonstrate that reinforcement learning agents in the
-SimCash framework successfully discover game-theoretically predicted equilibria
-across varied scenarios. All {total_passes} experiment passes achieved convergence,
+Our experimental results demonstrate that LLM agents in the SimCash framework
+consistently converge to stable equilibria, though not always matching theoretical
+predictions. All {total_passes} experiment passes achieved convergence,
 validating the framework's robustness.
 
-\subsection{{Theoretical Alignment}}
+\subsection{{Theoretical Alignment and Deviations}}
 
-The observed equilibria closely align with game-theoretic predictions:
+The observed equilibria show both alignment with and deviation from game-theoretic predictions:
 
 \begin{{itemize}}
     \item \textbf{{Experiment 1 (Asymmetric)}}: BANK\_A converged to mean liquidity
-    {exp1_a_liq_fmt} while BANK\_B maintained {exp1_b_liq_fmt}. The
-    {format_percent(exp1_liq_diff)} difference reflects the predicted free-rider equilibrium
-    where the bank with lower delay costs under-provides liquidity.
+    {exp1_a_liq_fmt} while BANK\_B maintained {exp1_b_liq_fmt}. This {format_percent(exp1_liq_diff)}
+    difference reflects free-rider dynamics, though the \textit{{identity}} of the free-rider
+    varied across passes---demonstrating that the game admits multiple asymmetric equilibria.
 
-    \item \textbf{{Experiment 3 (Symmetric)}}: Both banks converged to similar
-    liquidity levels ({exp3_a_liq_fmt} vs {exp3_b_liq_fmt}), with only
-    {format_percent(exp3_liq_diff)} difference. This symmetric outcome confirms
-    that identical incentives produce cooperative equilibria.
+    \item \textbf{{Experiment 3 (Symmetric)}}: Contrary to the predicted symmetric equilibrium,
+    agents converged to asymmetric outcomes ({exp3_a_liq_fmt} vs {exp3_b_liq_fmt}). This
+    {format_percent(exp3_liq_diff)} difference suggests that even symmetric incentive structures
+    can support asymmetric equilibria when agents engage in sequential best-response dynamics.
 \end{{itemize}}
 
 The mean convergence time of {exp1_mean_iters} iterations for Experiment 1
-compared to {exp3_mean_iters} for Experiment 3 suggests that asymmetric equilibria
-require more exploration to discover optimal free-riding strategies.
+compared to {exp3_mean_iters} for Experiment 3 indicates similar exploration
+effort regardless of the underlying cost structure.
 
 \subsection{{Implications for Payment System Design}}
 
