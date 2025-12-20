@@ -1616,7 +1616,7 @@ class OptimizationLoop:
                     settlement_rate=result.settlement_rate,
                     avg_delay=result.avg_delay,
                     event_trace=(),  # Events come from initial simulation
-                    cost_breakdown=None,
+                    cost_breakdown=result.cost_breakdown,
                     per_agent_costs={agent_id: cost},
                 )
                 enriched_results.append(enriched)

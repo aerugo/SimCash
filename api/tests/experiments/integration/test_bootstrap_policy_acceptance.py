@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import pytest
 
+from payment_simulator.ai_cash_mgmt.bootstrap.enriched_models import CostBreakdown
 from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import (
     BootstrapPolicyEvaluator,
     EvaluationResult,
@@ -329,12 +330,16 @@ class TestCostsAreIntegerCents:
 
     def test_evaluation_result_cost_is_integer(self) -> None:
         """EvaluationResult.total_cost must be integer cents."""
+        cost_breakdown = CostBreakdown(
+            delay_cost=0, overdraft_cost=0, deadline_penalty=0, eod_penalty=0
+        )
         result = EvaluationResult(
             sample_idx=0,
             seed=12345,
             total_cost=100000,  # $1000.00 in cents
             settlement_rate=1.0,
             avg_delay=0.0,
+            cost_breakdown=cost_breakdown,
         )
 
         assert isinstance(result.total_cost, int)
