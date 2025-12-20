@@ -112,7 +112,9 @@ def generate_combined_convergence_chart(
 ) -> Path:
     """Generate combined convergence chart showing both agents.
 
-    Creates a single chart with both BANK_A and BANK_B cost trajectories.
+    Creates a side-by-side chart with:
+    - Left: Cost convergence for both BANK_A and BANK_B
+    - Right: Liquidity fraction convergence for both agents
 
     Args:
         db_path: Path to experiment database
@@ -129,18 +131,30 @@ def generate_combined_convergence_chart(
     repo = ExperimentRepository(db_path)
     service = ExperimentChartService(repo)
 
-    # Extract data for both agents
+    # Extract cost data for both agents
     data_a = service.extract_chart_data(run_id=run_id, agent_filter="BANK_A")
     data_b = service.extract_chart_data(run_id=run_id, agent_filter="BANK_B")
 
-    # Create combined chart
-    plt.style.use("seaborn-v0_8-whitegrid")
-    fig, ax = plt.subplots(figsize=(10, 6))
+    # Extract liquidity fraction data for both agents
+    data_a_liq = service.extract_chart_data(
+        run_id=run_id,
+        agent_filter="BANK_A",
+        parameter_name="initial_liquidity_fraction",
+    )
+    data_b_liq = service.extract_chart_data(
+        run_id=run_id,
+        agent_filter="BANK_B",
+        parameter_name="initial_liquidity_fraction",
+    )
 
-    # Plot BANK_A
+    # Create side-by-side subplots
+    plt.style.use("seaborn-v0_8-whitegrid")
+    fig, (ax_cost, ax_liq) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # === Left subplot: Cost Convergence ===
     iterations_a = [p.iteration for p in data_a.data_points]
     costs_a = [p.cost_dollars for p in data_a.data_points]
-    ax.plot(
+    ax_cost.plot(
         iterations_a,
         costs_a,
         color=COLORS["bank_a"],
@@ -150,10 +164,9 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Plot BANK_B
     iterations_b = [p.iteration for p in data_b.data_points]
     costs_b = [p.cost_dollars for p in data_b.data_points]
-    ax.plot(
+    ax_cost.plot(
         iterations_b,
         costs_b,
         color=COLORS["bank_b"],
@@ -163,19 +176,60 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Styling
-    title = f"Cost Convergence - {exp_id.upper()} Pass {pass_num}"
-    ax.set_title(title, fontsize=14, fontweight="medium", color=COLORS["text"])
-    ax.set_xlabel("Iteration", fontsize=12, color=COLORS["text"])
-    ax.set_ylabel("Cost ($)", fontsize=12, color=COLORS["text"])
+    ax_cost.set_title("Cost Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
+    ax_cost.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
+    ax_cost.set_ylabel("Cost ($)", fontsize=11, color=COLORS["text"])
+    ax_cost.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))
+    ax_cost.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax_cost.legend(loc="upper right", framealpha=0.9)
+    ax_cost.spines["top"].set_visible(False)
+    ax_cost.spines["right"].set_visible(False)
+    ax_cost.grid(True, alpha=0.3, color=COLORS["grid"])
 
-    ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    # === Right subplot: Liquidity Fraction Convergence ===
+    iterations_a_liq = [p.iteration for p in data_a_liq.data_points]
+    liq_a = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_a_liq.data_points]
+    ax_liq.plot(
+        iterations_a_liq,
+        liq_a,
+        color=COLORS["bank_a"],
+        linewidth=2,
+        label="BANK_A",
+        marker="o",
+        markersize=5,
+    )
 
-    ax.legend(loc="upper right", framealpha=0.9)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.grid(True, alpha=0.3, color=COLORS["grid"])
+    iterations_b_liq = [p.iteration for p in data_b_liq.data_points]
+    liq_b = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_b_liq.data_points]
+    ax_liq.plot(
+        iterations_b_liq,
+        liq_b,
+        color=COLORS["bank_b"],
+        linewidth=2,
+        label="BANK_B",
+        marker="s",
+        markersize=5,
+    )
+
+    ax_liq.set_title("Liquidity Fraction Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
+    ax_liq.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
+    ax_liq.set_ylabel("Liquidity Fraction", fontsize=11, color=COLORS["text"])
+    ax_liq.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.2f"))
+    ax_liq.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax_liq.set_ylim(0, 1)  # Liquidity fraction is always 0-1
+    ax_liq.legend(loc="upper right", framealpha=0.9)
+    ax_liq.spines["top"].set_visible(False)
+    ax_liq.spines["right"].set_visible(False)
+    ax_liq.grid(True, alpha=0.3, color=COLORS["grid"])
+
+    # Overall figure title
+    fig.suptitle(
+        f"{exp_id.upper()} Pass {pass_num}",
+        fontsize=14,
+        fontweight="medium",
+        color=COLORS["text"],
+        y=1.02,
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
