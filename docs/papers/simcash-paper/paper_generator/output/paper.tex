@@ -113,12 +113,62 @@ Agent costs comprise:
 The key innovation is using LLMs to propose policy parameters. At each iteration:
 
 \begin{enumerate}
-    \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
+    \item \textbf{Context Construction}: Agent receives its own policy, filtered simulation trace, and cost history (see Section~\ref{sec:prompt_anatomy})
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
     \item \textbf{Evaluation}: Run simulation(s) with proposed policy
     \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
     \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or multi-criteria cost stability (bootstrap) over 5 iterations
 \end{enumerate}
+
+\subsection{Optimization Prompt Anatomy}
+\label{sec:prompt_anatomy}
+
+A critical aspect of our framework is the \textbf{strict information isolation} between agents.
+Each agent receives a two-part prompt with no access to counterparty information.
+
+\subsubsection{System Prompt (Shared)}
+
+The system prompt is identical for all agents and provides domain context:
+\begin{itemize}
+    \item RTGS mechanics, queuing, and LSM netting explanation
+    \item Cost structure: overdraft, delay, deadline, and EOD penalties
+    \item Policy tree architecture: JSON schema for valid policies
+    \item Optimization guidance for cost minimization
+\end{itemize}
+
+\subsubsection{User Prompt (Agent-Specific)}
+
+The user prompt is constructed individually for each agent and contains \textbf{only} information
+about that agent's own experience:
+
+\begin{enumerate}
+    \item \textbf{Performance metrics}: Agent's own mean cost, standard deviation, settlement rate
+    \item \textbf{Current policy}: Agent's own \texttt{initial\_liquidity\_fraction} parameter
+    \item \textbf{Cost breakdown}: Agent's own costs by type (delay, overdraft, penalties)
+    \item \textbf{Simulation trace}: Filtered event log showing \textbf{only}:
+    \begin{itemize}
+        \item Outgoing transactions FROM this agent
+        \item Incoming payments TO this agent
+        \item Agent's own policy decisions (Submit, Hold, etc.)
+        \item Agent's own balance changes (for settlements it initiated)
+    \end{itemize}
+    \item \textbf{Iteration history}: Agent's own cost trajectory across iterations
+\end{enumerate}
+
+\subsubsection{Information Isolation}
+
+The prompt explicitly excludes all counterparty information:
+\begin{itemize}
+    \item \textbf{No counterparty balances}: Agents cannot observe opponent's reserves
+    \item \textbf{No counterparty policies}: Agents cannot see opponent's liquidity fraction
+    \item \textbf{No counterparty costs}: Agents cannot observe opponent's cost breakdown
+    \item \textbf{No third-party events}: Transactions not involving this agent are filtered
+\end{itemize}
+
+This isolation is enforced programmatically by the \texttt{filter\_events\_for\_agent()} function.
+The only ``signal'' about counterparty behavior comes from \textit{incoming payments}---a realistic
+level of transparency in actual RTGS systems where participants observe settlement messages but not
+others' internal liquidity positions.
 
 \subsection{Evaluation Modes}
 
@@ -621,9 +671,11 @@ into their strategic reasoning capabilities:
     continuous liquidity fraction space, converging from initial 50\% allocations
     to optimal values ranging from 0.6\% to 11.6\%.
 
-    \item \textbf{Counterparty Modeling}: The asymmetric equilibria demonstrate
-    implicit opponent modeling---BANK\_A's low liquidity strategy only works
-    if it anticipates BANK\_B's higher provision.
+    \item \textbf{Implicit Opponent Modeling}: Despite having no direct visibility into
+    counterparty policies or balances (see Section~\ref{sec:prompt_anatomy}), agents
+    converged to coordinated asymmetric equilibria. BANK\_A's low liquidity strategy
+    only works if BANK\_B provides higher liquidity---yet agents achieved this coordination
+    purely through observing their own cost dynamics and incoming payment patterns.
 
     \item \textbf{Convergence Speed}: Mean convergence in 10.3--7.0
     iterations suggests efficient exploration of the strategy space.
@@ -705,8 +757,10 @@ Several limitations of this study warrant acknowledgment:
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.
 
-    \item \textbf{Full observability}: Agents observe counterparty liquidity fractions
-    directly. In practice, banks have limited visibility into others' reserves.
+    \item \textbf{Partial observability}: Agents operate under information isolation
+    (Section~\ref{sec:prompt_anatomy})---they cannot observe counterparty balances
+    or policies. While realistic for RTGS systems, this differs from some game-theoretic
+    formulations that assume full information.
 
     \item \textbf{Simplified cost model}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
@@ -1421,34 +1475,70 @@ all three passes of experiment 3: symmetric equilibrium.
 This appendix documents the LLM prompts used for policy learning and provides
 an audit of potential information leakage or bias.
 
-\subsection{Agent Prompt Structure}
+\subsection{Prompt Structure}
 
-Each agent receives the following information each iteration:
+Each agent receives a \textbf{system prompt} (identical for all agents) and a
+\textbf{user prompt} (agent-specific, filtered).
+
+\subsubsection{System Prompt (Shared)}
+
+The system prompt provides domain context without agent-specific information:
 
 \begin{enumerate}
-    \item \textbf{Current state}: Own balance, counterparty balance, pending transactions
-    \item \textbf{Cost history}: Previous iteration costs for both agents
-    \item \textbf{Policy parameters}: Current liquidity fraction setting
-    \item \textbf{Scenario context}: Cost structure, time horizon, settlement rules
+    \item \textbf{Domain explanation}: RTGS mechanics, queuing, LSM netting
+    \item \textbf{Cost structure}: Overdraft, delay, deadline, and EOD penalties
+    \item \textbf{Policy tree architecture}: JSON schema for valid policies
+    \item \textbf{Optimization guidance}: General strategy for cost minimization
+    \item \textbf{Validation checklist}: Common errors to avoid
+\end{enumerate}
+
+\subsubsection{User Prompt (Agent-Specific)}
+
+The user prompt provides filtered information for the optimizing agent only:
+
+\begin{enumerate}
+    \item \textbf{Performance metrics}: Agent's own mean cost, standard deviation, settlement rate
+    \item \textbf{Current policy}: Agent's own policy parameters (e.g., \texttt{initial\_liquidity\_fraction})
+    \item \textbf{Cost breakdown}: Agent's own costs by type (delay, overdraft, penalties)
+    \item \textbf{Simulation trace}: Filtered event log showing ONLY:
+    \begin{itemize}
+        \item Outgoing transactions FROM this agent
+        \item Incoming payments TO this agent
+        \item Agent's own policy decisions (Submit, Hold, etc.)
+        \item Agent's own balance changes (for outgoing settlements only)
+    \end{itemize}
+    \item \textbf{Iteration history}: Agent's own cost trajectory across iterations
+    \item \textbf{Parameter trajectories}: How agent's parameters evolved
 \end{enumerate}
 
 \subsection{Information Boundaries}
 
-The prompt design ensures:
+\textbf{Critical invariant}: An agent optimizing policy may ONLY observe:
+\begin{itemize}
+    \item Events where they are the sender (outgoing transactions)
+    \item Events where they are the receiver (incoming liquidity)
+    \item Their own state changes (balance, collateral, costs)
+\end{itemize}
+
+\subsubsection{What Agents CANNOT See}
 
 \begin{itemize}
-    \item Agents cannot access counterparty reasoning or internal computations
-    \item Historical data is limited to observable outcomes (costs, acceptances)
-    \item No direct communication channel between agents
-    \item Scenario parameters are identically presented to both agents
+    \item \textbf{Counterparty balances}: No visibility into opponent's reserves
+    \item \textbf{Counterparty policies}: No access to opponent's decision trees
+    \item \textbf{Counterparty costs}: No visibility into opponent's cost breakdown
+    \item \textbf{Counterparty reasoning}: No access to opponent's LLM responses
+    \item \textbf{Third-party transactions}: Events not involving this agent are filtered
 \end{itemize}
+
+This strict isolation is enforced by the \texttt{filter\_events\_for\_agent()} function
+which processes the raw simulation event stream before prompt construction.
 
 \subsection{Prompt Sanitization}
 
 All prompts are sanitized to remove:
 
 \begin{itemize}
-    \item References to "optimal" or "theoretical" equilibria
+    \item References to ``optimal'' or ``theoretical'' equilibria
     \item Hints about expected asymmetric vs symmetric outcomes
     \item Explicit game-theoretic terminology (Nash, Pareto, etc.)
     \item Training data leakage from prior experiments
@@ -1460,17 +1550,18 @@ Based on our review:
 
 \begin{enumerate}
     \item \textbf{No information leakage}: Agents discover equilibria through
-    observed costs, not prompt hints.
+    observed costs, not prompt hints. Counterparty information is strictly filtered.
 
     \item \textbf{Fair competition}: Both agents receive identically structured
-    prompts with symmetric information access.
+    prompts with symmetric information access. Neither agent has visibility into
+    the other's balance, policy, or reasoning.
 
     \item \textbf{Reproducibility}: The same prompts with identical seeds produce
     identical learning trajectories.
 
-    \item \textbf{Balance leakage}: While agents can observe counterparty balance,
-    this reflects realistic RTGS transparency. Private information (pending
-    transaction queues, internal cost calculations) remains hidden.
+    \item \textbf{Strategic opacity}: Agents cannot observe counterparty reserves
+    or pending decisions. The only ``signal'' about counterparty behavior comes
+    from incoming payments, which is realistic RTGS transparency.
 \end{enumerate}
 
 The experiment results demonstrate genuine strategic learning rather than
