@@ -529,3 +529,209 @@ class TestAuditTableSchema:
         ]
         for col in expected_ctx_cols:
             assert col in ctx_col_names, f"Missing column: {col}"
+
+
+class TestLLMReasoningPersistence:
+    """Test LLM reasoning summary persistence end-to-end."""
+
+    def test_reasoning_saved_and_retrieved(
+        self,
+        repository: GameRepository,
+        sample_game_session: GameSessionRecord,
+        sample_policy_iteration: PolicyIterationRecord,
+    ) -> None:
+        """Verify reasoning is correctly saved and retrieved from database."""
+        repository.save_game_session(sample_game_session)
+        repository.save_policy_iteration(sample_policy_iteration)
+
+        reasoning_text = (
+            "I analyzed the payment queue and observed that the threshold "
+            "was too high, causing unnecessary delays. By lowering it from "
+            "5.0 to 3.0, we can release payments earlier while maintaining "
+            "liquidity safety margins."
+        )
+
+        now = datetime.now()
+        record = LLMInteractionRecord(
+            interaction_id="test_reasoning_001",
+            game_id="test_game_001",
+            agent_id="A",
+            iteration_number=1,
+            system_prompt="You are a payment policy optimizer.",
+            user_prompt="Analyze and improve this policy...",
+            raw_response='{"threshold": 3.0}',
+            parsed_policy_json='{"threshold": 3.0}',
+            parsing_error=None,
+            llm_reasoning=reasoning_text,
+            request_timestamp=now,
+            response_timestamp=now,
+        )
+        repository.save_llm_interaction(record)
+
+        # Retrieve and verify
+        results = repository.get_llm_interactions("test_game_001", agent_id="A")
+        assert len(results) == 1
+        assert results[0].llm_reasoning == reasoning_text
+
+    def test_none_reasoning_handled_correctly(
+        self,
+        repository: GameRepository,
+        sample_game_session: GameSessionRecord,
+        sample_policy_iteration: PolicyIterationRecord,
+    ) -> None:
+        """Verify None reasoning is correctly saved and retrieved."""
+        repository.save_game_session(sample_game_session)
+        repository.save_policy_iteration(sample_policy_iteration)
+
+        now = datetime.now()
+        record = LLMInteractionRecord(
+            interaction_id="test_no_reasoning_001",
+            game_id="test_game_001",
+            agent_id="A",
+            iteration_number=1,
+            system_prompt="System prompt",
+            user_prompt="User prompt",
+            raw_response="Response",
+            parsed_policy_json='{"policy": {}}',
+            parsing_error=None,
+            llm_reasoning=None,  # No reasoning captured
+            request_timestamp=now,
+            response_timestamp=now,
+        )
+        repository.save_llm_interaction(record)
+
+        results = repository.get_llm_interactions("test_game_001")
+        assert len(results) == 1
+        assert results[0].llm_reasoning is None
+
+    def test_large_reasoning_text_persisted(
+        self,
+        repository: GameRepository,
+        sample_game_session: GameSessionRecord,
+        sample_policy_iteration: PolicyIterationRecord,
+    ) -> None:
+        """Verify large reasoning text (from extended thinking) is stored."""
+        repository.save_game_session(sample_game_session)
+        repository.save_policy_iteration(sample_policy_iteration)
+
+        # Simulate extended thinking output (10KB+)
+        large_reasoning = (
+            "First, I consider the current state...\n\n" * 500
+            + "In conclusion, I recommend lowering the threshold."
+        )
+        assert len(large_reasoning) > 10000, "Test requires large reasoning text"
+
+        now = datetime.now()
+        record = LLMInteractionRecord(
+            interaction_id="test_large_reasoning_001",
+            game_id="test_game_001",
+            agent_id="A",
+            iteration_number=1,
+            system_prompt="System",
+            user_prompt="Prompt",
+            raw_response="Response",
+            parsed_policy_json=None,
+            parsing_error=None,
+            llm_reasoning=large_reasoning,
+            request_timestamp=now,
+            response_timestamp=now,
+        )
+        repository.save_llm_interaction(record)
+
+        results = repository.get_llm_interactions("test_game_001")
+        assert len(results) == 1
+        assert results[0].llm_reasoning == large_reasoning
+        assert len(results[0].llm_reasoning) > 10000
+
+    def test_multiple_iterations_with_different_reasoning(
+        self,
+        repository: GameRepository,
+        sample_game_session: GameSessionRecord,
+    ) -> None:
+        """Verify reasoning is tracked correctly across iterations."""
+        repository.save_game_session(sample_game_session)
+
+        reasoning_samples = [
+            "Iteration 1: Initial analysis shows high delay costs.",
+            "Iteration 2: After adjusting threshold, delays reduced.",
+            "Iteration 3: Further refinement of collateral strategy.",
+        ]
+
+        now = datetime.now()
+        for i, reasoning in enumerate(reasoning_samples, start=1):
+            # Create policy iteration
+            iter_record = PolicyIterationRecord(
+                game_id="test_game_001",
+                agent_id="A",
+                iteration_number=i,
+                trigger_tick=100 * i,
+                old_policy_json='{"version": ' + str(i - 1) + '}',
+                new_policy_json='{"version": ' + str(i) + '}',
+                old_cost=1000.0 - (i - 1) * 100,
+                new_cost=1000.0 - i * 100,
+                cost_improvement=100.0,
+                was_accepted=True,
+                validation_errors=[],
+                llm_model="openai:o1",
+                llm_latency_seconds=2.5,
+                tokens_used=1500,
+                created_at=now,
+            )
+            repository.save_policy_iteration(iter_record)
+
+            # Create LLM interaction with reasoning
+            llm_record = LLMInteractionRecord(
+                interaction_id=f"test_game_001_A_{i}",
+                game_id="test_game_001",
+                agent_id="A",
+                iteration_number=i,
+                system_prompt="System",
+                user_prompt=f"Iteration {i} prompt",
+                raw_response=f"Response {i}",
+                parsed_policy_json='{"version": ' + str(i) + '}',
+                parsing_error=None,
+                llm_reasoning=reasoning,
+                request_timestamp=now,
+                response_timestamp=now,
+            )
+            repository.save_llm_interaction(llm_record)
+
+        # Retrieve all and verify reasoning order
+        results = repository.get_llm_interactions("test_game_001", agent_id="A")
+        assert len(results) == 3
+        for i, result in enumerate(results):
+            assert result.iteration_number == i + 1
+            assert result.llm_reasoning == reasoning_samples[i]
+
+    def test_reasoning_with_parsing_error(
+        self,
+        repository: GameRepository,
+        sample_game_session: GameSessionRecord,
+        sample_policy_iteration: PolicyIterationRecord,
+    ) -> None:
+        """Verify reasoning is captured even when parsing fails."""
+        repository.save_game_session(sample_game_session)
+        repository.save_policy_iteration(sample_policy_iteration)
+
+        now = datetime.now()
+        record = LLMInteractionRecord(
+            interaction_id="test_failed_with_reasoning_001",
+            game_id="test_game_001",
+            agent_id="A",
+            iteration_number=1,
+            system_prompt="System",
+            user_prompt="Prompt",
+            raw_response="Invalid JSON {broken",
+            parsed_policy_json=None,
+            parsing_error="JSONDecodeError: Expecting property name",
+            llm_reasoning="The model attempted to generate a policy but...",
+            request_timestamp=now,
+            response_timestamp=now,
+        )
+        repository.save_llm_interaction(record)
+
+        # Check via failed parsing query
+        failed = repository.get_failed_parsing_attempts("test_game_001")
+        assert len(failed) == 1
+        assert failed[0].parsing_error is not None
+        assert failed[0].llm_reasoning == "The model attempted to generate a policy but..."
