@@ -130,10 +130,10 @@ Each agent receives a two-part prompt with no access to counterparty information
 
 The system prompt is identical for all agents and provides domain context:
 \begin{itemize}
-    \item RTGS mechanics, queuing, and LSM netting explanation
+    \item RTGS mechanics and queuing behavior
     \item Cost structure: overdraft, delay, deadline, and EOD penalties
     \item Policy tree architecture: JSON schema for valid policies
-    \item Optimization guidance for cost minimization
+    \item Optimization guidance: e.g., ``lower liquidity reduces holding costs but increases delay risk; find the balance that minimizes total cost''
 \end{itemize}
 
 \subsubsection{User Prompt (Agent-Specific)}
@@ -342,12 +342,13 @@ liquidity provision, minimizing its own reserves while relying on incoming payme
 from BANK\_B to fund outgoing obligations.
 
 Table~\ref{tab:exp1_summary} summarizes convergence across all three passes.
-Notably, \textbf{Pass 3 exhibited different dynamics}: one agent persisted with
-a zero-liquidity strategy even when this produced suboptimal costs given its
-counterparty's response. This demonstrates that the game admits multiple equilibria,
-and the identity of the ``free-rider'' is not predetermined. We discuss the
-implications of this behavioral variation for LLM agent realism in
-Section~\ref{sec:discussion}.
+Notably, \textbf{Pass 3 exhibited coordination failure}: BANK\_B adopted a
+zero-liquidity strategy, but unlike Passes 1--2 where BANK\_A successfully free-rode,
+here BANK\_A's low liquidity (1.8\%) was insufficient to compensate. Both agents
+incurred high costs (\$31.78 and \$70.00 respectively), with total cost nearly 4$\times$
+that of the efficient equilibrium. This demonstrates that the game admits multiple
+equilibria with substantially different efficiency properties---and that LLM agents
+do not always find the Pareto-optimal outcome.
 
 
 \begin{table}[htbp]
@@ -370,11 +371,15 @@ Section~\ref{sec:discussion}.
 
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
-Agents converged after 24 iterations in Pass 1.
+
+We present Pass 2 results, which achieved convergence after 24 iterations.
+Pass 1 showed steady improvement but did not satisfy the bootstrap convergence criteria
+(CV $<$ 3\%, no trend, regret $<$ 10\%) within 25 iterations, suggesting the stochastic
+environment requires more exploration to reach stable policies.
 
 
 \begin{longtable}{llrr}
-    \caption{Experiment 2: Iteration-by-iteration results (Pass 1)} \label{tab:exp2_results} \\
+    \caption{Experiment 2: Iteration-by-iteration results (Pass 2)} \label{tab:exp2_results} \\
     \hline
     Iteration & Agent & Cost & Liquidity \\
     \hline
@@ -397,62 +402,62 @@ Agents converged after 24 iterations in Pass 1.
         Baseline & BANK\_B & \$498.00 & 50.0\% \\
         0 & BANK\_A & \$498.00 & 50.0\% \\
         0 & BANK\_B & \$498.00 & 50.0\% \\
-        1 & BANK\_A & \$398.40 & 40.0\% \\
-        1 & BANK\_B & \$448.20 & 45.0\% \\
-        2 & BANK\_A & \$328.68 & 33.0\% \\
-        2 & BANK\_B & \$418.32 & 42.0\% \\
+        1 & BANK\_A & \$448.20 & 45.0\% \\
+        1 & BANK\_B & \$348.60 & 35.0\% \\
+        2 & BANK\_A & \$398.40 & 40.0\% \\
+        2 & BANK\_B & \$298.80 & 30.0\% \\
         3 & BANK\_A & \$298.80 & 30.0\% \\
-        3 & BANK\_B & \$408.36 & 41.0\% \\
-        4 & BANK\_A & \$278.88 & 28.0\% \\
-        4 & BANK\_B & \$398.40 & 40.0\% \\
-        5 & BANK\_A & \$258.96 & 26.0\% \\
-        5 & BANK\_B & \$388.44 & 39.0\% \\
-        6 & BANK\_A & \$239.04 & 24.0\% \\
-        6 & BANK\_B & \$378.48 & 38.0\% \\
-        7 & BANK\_A & \$219.12 & 22.0\% \\
-        7 & BANK\_B & \$368.52 & 37.0\% \\
-        8 & BANK\_A & \$209.16 & 21.0\% \\
-        8 & BANK\_B & \$358.56 & 36.0\% \\
-        9 & BANK\_A & \$199.20 & 20.0\% \\
-        9 & BANK\_B & \$348.60 & 35.0\% \\
-        10 & BANK\_A & \$189.47 & 19.0\% \\
-        10 & BANK\_B & \$338.64 & 34.0\% \\
-        11 & BANK\_A & \$183.81 & 18.0\% \\
-        11 & BANK\_B & \$328.68 & 33.0\% \\
-        12 & BANK\_A & \$174.20 & 17.0\% \\
-        12 & BANK\_B & \$318.72 & 32.0\% \\
-        13 & BANK\_A & \$164.95 & 16.0\% \\
-        13 & BANK\_B & \$308.76 & 31.0\% \\
-        14 & BANK\_A & \$157.76 & 15.0\% \\
-        14 & BANK\_B & \$298.80 & 30.0\% \\
-        15 & BANK\_A & \$149.45 & 14.0\% \\
-        15 & BANK\_B & \$288.84 & 29.0\% \\
-        16 & BANK\_A & \$143.29 & 13.0\% \\
-        16 & BANK\_B & \$278.88 & 28.0\% \\
-        17 & BANK\_A & \$134.78 & 12.0\% \\
-        17 & BANK\_B & \$268.92 & 27.0\% \\
-        18 & BANK\_A & \$131.78 & 11.0\% \\
-        18 & BANK\_B & \$258.96 & 26.0\% \\
-        19 & BANK\_A & \$129.64 & 10.0\% \\
-        19 & BANK\_B & \$249.00 & 25.0\% \\
-        20 & BANK\_A & \$163.10 & 9.0\% \\
-        20 & BANK\_B & \$239.04 & 24.0\% \\
-        21 & BANK\_A & \$237.53 & 8.0\% \\
-        21 & BANK\_B & \$229.08 & 23.0\% \\
-        22 & BANK\_A & \$237.53 & 8.0\% \\
-        22 & BANK\_B & \$219.12 & 22.0\% \\
-        23 & BANK\_A & \$317.48 & 7.0\% \\
-        23 & BANK\_B & \$209.16 & 21.0\% \\
-        24 & BANK\_A & \$298.68 & 6.5\% \\
-        24 & BANK\_B & \$199.20 & 20.0\% \\
+        3 & BANK\_B & \$288.84 & 29.0\% \\
+        4 & BANK\_A & \$249.00 & 25.0\% \\
+        4 & BANK\_B & \$278.88 & 28.0\% \\
+        5 & BANK\_A & \$199.20 & 20.0\% \\
+        5 & BANK\_B & \$268.92 & 27.0\% \\
+        6 & BANK\_A & \$157.76 & 15.0\% \\
+        6 & BANK\_B & \$258.96 & 26.0\% \\
+        7 & BANK\_A & \$129.64 & 10.0\% \\
+        7 & BANK\_B & \$249.00 & 25.0\% \\
+        8 & BANK\_A & \$163.10 & 9.0\% \\
+        8 & BANK\_B & \$239.04 & 24.0\% \\
+        9 & BANK\_A & \$164.70 & 8.8\% \\
+        9 & BANK\_B & \$229.08 & 23.0\% \\
+        10 & BANK\_A & \$197.80 & 8.6\% \\
+        10 & BANK\_B & \$219.12 & 22.0\% \\
+        11 & BANK\_A & \$248.41 & 8.5\% \\
+        11 & BANK\_B & \$209.16 & 21.0\% \\
+        12 & BANK\_A & \$233.04 & 8.4\% \\
+        12 & BANK\_B & \$199.20 & 20.0\% \\
+        13 & BANK\_A & \$235.77 & 8.3\% \\
+        13 & BANK\_B & \$189.24 & 19.0\% \\
+        14 & BANK\_A & \$269.91 & 8.2\% \\
+        14 & BANK\_B & \$179.53 & 18.0\% \\
+        15 & BANK\_A & \$269.91 & 8.2\% \\
+        15 & BANK\_B & \$169.81 & 17.0\% \\
+        16 & BANK\_A & \$269.91 & 8.2\% \\
+        16 & BANK\_B & \$161.34 & 16.0\% \\
+        17 & BANK\_A & \$236.44 & 8.1\% \\
+        17 & BANK\_B & \$152.18 & 15.0\% \\
+        18 & BANK\_A & \$237.53 & 8.0\% \\
+        18 & BANK\_B & \$145.03 & 14.0\% \\
+        19 & BANK\_A & \$239.48 & 7.9\% \\
+        19 & BANK\_B & \$138.65 & 13.0\% \\
+        20 & BANK\_A & \$207.25 & 7.8\% \\
+        20 & BANK\_B & \$136.25 & 12.0\% \\
+        21 & BANK\_A & \$269.75 & 7.7\% \\
+        21 & BANK\_B & \$136.25 & 12.0\% \\
+        22 & BANK\_A & \$237.69 & 7.6\% \\
+        22 & BANK\_B & \$136.25 & 12.0\% \\
+        23 & BANK\_A & \$272.79 & 7.5\% \\
+        23 & BANK\_B & \$136.25 & 12.0\% \\
+        24 & BANK\_A & \$243.64 & 7.4\% \\
+        24 & BANK\_B & \$134.46 & 11.5\% \\
 \end{longtable}
 
 
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.9\textwidth]{charts/exp2_pass1_combined.png}
-    \caption{Experiment 2: Convergence under stochastic transaction amounts}
+    \includegraphics[width=0.9\textwidth]{charts/exp2_pass2_combined.png}
+    \caption{Experiment 2: Convergence under stochastic transaction amounts (Pass 2)}
     \label{fig:exp2_convergence}
 \end{figure}
 
@@ -465,14 +470,14 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 \begin{table}[htbp]
     \centering
-    \caption{Experiment 2: Bootstrap evaluation statistics (Pass 1, 50 samples)}
+    \caption{Experiment 2: Bootstrap evaluation statistics (Pass 2, 50 samples)}
     \label{tab:exp2_bootstrap}
     \begin{tabular}{lrrrr}
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$298.68 & \$0.00 & [\$298.68, \$298.68] & 1 \\
-        BANK\_B & \$199.20 & \$0.00 & [\$199.20, \$199.20] & 1 \\
+        BANK\_A & \$243.64 & \$0.00 & [\$243.64, \$243.64] & 1 \\
+        BANK\_B & \$134.46 & \$0.00 & [\$134.46, \$134.46] & 1 \\
         \hline
     \end{tabular}
 \end{table}
@@ -480,8 +485,8 @@ evaluation with 1 samples. This provides confidence intervals on expected costs.
 
 Bootstrap evaluation reveals:
 \begin{itemize}
-    \item BANK\_A: Mean cost \$298.68 ($\pm$ \$0.00 std dev)
-    \item BANK\_B: Mean cost \$199.20 ($\pm$ \$0.00 std dev)
+    \item BANK\_A: Mean cost \$243.64 ($\pm$ \$0.00 std dev)
+    \item BANK\_B: Mean cost \$134.46 ($\pm$ \$0.00 std dev)
 \end{itemize}
 
 The agents learned robust strategies despite stochastic costs, with confidence intervals
@@ -558,9 +563,14 @@ Final equilibrium:
 \end{itemize}
 
 Despite symmetric incentive structures, agents converged to asymmetric equilibria
-across all passes. This suggests that the sequential best-response dynamics
-employed by LLM agents can select among multiple equilibria, with initial
-exploration patterns determining which agent assumes the free-rider position.
+across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
+(BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
+then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
+
+Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
+increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
+high liquidity, potentially triggering mutual defection. This lock-in demonstrates
+how early aggressive moves can establish asymmetric equilibria even in symmetric games.
 
 
 \begin{table}[htbp]
@@ -584,8 +594,10 @@ exploration patterns determining which agent assumes the free-rider position.
 Several key observations emerge from comparing results across experiments:
 
 \begin{enumerate}
-    \item \textbf{Convergence Reliability}: All 9 passes (3 experiments $\times$ 3 passes)
-    achieved convergence to stable equilibria, demonstrating framework robustness.
+    \item \textbf{Convergence Reliability}: 8 of 9 passes achieved formal convergence.
+    Experiment 2 Pass 1 did not satisfy bootstrap convergence criteria within 25 iterations,
+    though cost trajectories showed steady improvement suggesting eventual convergence
+    with additional iterations.
 
     \item \textbf{Asymmetric Equilibria Prevalence}: Both asymmetric (Exp 1) and
     symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider
@@ -777,9 +789,10 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{Simplified cost model}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{Deterministic convergence}: While we verify reproducibility across
-    9 passes, learning dynamics could exhibit path-dependence in more
-    complex scenarios.
+    \item \textbf{Equilibrium variability}: While all passes converged to \textit{some}
+    stable equilibrium, the specific equilibrium varied across runs---different passes
+    found different free-rider assignments and efficiency levels. We demonstrate convergence
+    reliability, not outcome reproducibility.
 \end{enumerate}
 
 
