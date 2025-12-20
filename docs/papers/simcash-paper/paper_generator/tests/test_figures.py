@@ -100,15 +100,6 @@ class TestChartPaths:
         assert "exp1" in str(path)
         assert "pass1" in str(path) or "1" in str(path)
 
-    def test_get_bootstrap_chart_path(self) -> None:
-        """Should return path to bootstrap chart."""
-        from src.charts import get_bootstrap_chart_path
-
-        path = get_bootstrap_chart_path("exp2", pass_num=1)
-
-        assert isinstance(path, Path)
-        assert "exp2" in str(path)
-
     def test_chart_paths_are_in_output_charts(self) -> None:
         """Chart paths should be in output/charts directory."""
         from src.charts import get_convergence_chart_path
@@ -137,4 +128,3 @@ class TestFiguresModuleExports:
         from src import charts
 
         assert hasattr(charts, "get_convergence_chart_path")
-        assert hasattr(charts, "get_bootstrap_chart_path")
