@@ -129,9 +129,11 @@ into their strategic reasoning capabilities:
     continuous liquidity fraction space, converging from initial 50\% allocations
     to optimal values ranging from {exp1_a_liq_fmt} to {exp1_b_liq_fmt}.
 
-    \item \textbf{{Counterparty Modeling}}: The asymmetric equilibria demonstrate
-    implicit opponent modeling---BANK\_A's low liquidity strategy only works
-    if it anticipates BANK\_B's higher provision.
+    \item \textbf{{Implicit Opponent Modeling}}: Despite having no direct visibility into
+    counterparty policies or balances (see Section~\ref{{sec:prompt_anatomy}}), agents
+    converged to coordinated asymmetric equilibria. BANK\_A's low liquidity strategy
+    only works if BANK\_B provides higher liquidity---yet agents achieved this coordination
+    purely through observing their own cost dynamics and incoming payment patterns.
 
     \item \textbf{{Convergence Speed}}: Mean convergence in {exp1_mean_iters}--{exp3_mean_iters}
     iterations suggests efficient exploration of the strategy space.
@@ -213,8 +215,10 @@ Several limitations of this study warrant acknowledgment:
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.
 
-    \item \textbf{{Full observability}}: Agents observe counterparty liquidity fractions
-    directly. In practice, banks have limited visibility into others' reserves.
+    \item \textbf{{Partial observability}}: Agents operate under information isolation
+    (Section~\ref{{sec:prompt_anatomy}})---they cannot observe counterparty balances
+    or policies. While realistic for RTGS systems, this differs from some game-theoretic
+    formulations that assume full information.
 
     \item \textbf{{Simplified cost model}}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
