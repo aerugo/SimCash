@@ -86,6 +86,7 @@ class GenericExperimentRunner:
         run_id: str | None = None,
         config_dir: Path | None = None,
         persist_bootstrap: bool = False,
+        db_path: Path | None = None,
     ) -> None:
         """Initialize the experiment runner.
 
@@ -96,12 +97,15 @@ class GenericExperimentRunner:
             config_dir: Directory containing the experiment config (for resolving
                         relative scenario paths). If None, uses current directory.
             persist_bootstrap: If True, persist bootstrap sample simulations to database.
+            db_path: Optional database path override. If provided, overrides
+                     config.output.directory/database settings.
         """
         self._config = config
         self._verbose_config = verbose_config or VerboseConfig()
         self._run_id = run_id or _generate_run_id(config.name)
         self._config_dir = config_dir or Path.cwd()
         self._persist_bootstrap = persist_bootstrap
+        self._db_path_override = db_path
 
         # Get constraints from config (inline or module)
         self._constraints: ScenarioConstraints | None = config.get_constraints()
@@ -114,24 +118,31 @@ class GenericExperimentRunner:
         # Store reference to optimization loop for state_provider access
         self._loop: Any = None
 
-        # Initialize repository if output configured
+        # Initialize repository if output configured or db_path override provided
         self._repository: ExperimentRepository | None = None
-        if config.output and config.output.database:
+        if self._db_path_override is not None or (config.output and config.output.database):
             self._init_repository()
 
     def _init_repository(self) -> None:
         """Initialize the experiment repository for persistence.
 
         Creates output directory if needed and opens database connection.
+        Uses db_path_override if provided, otherwise uses config.output settings.
         """
         from payment_simulator.experiments.persistence import ExperimentRepository
 
-        # Type narrowing - this method is only called when output is configured
-        assert self._config.output is not None
+        # Use override if provided, otherwise construct from config
+        if self._db_path_override is not None:
+            db_path = self._db_path_override
+            # Ensure parent directory exists
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            # Type narrowing - this method is only called when output is configured
+            assert self._config.output is not None
+            output_dir = Path(self._config.output.directory)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            db_path = output_dir / self._config.output.database
 
-        output_dir = Path(self._config.output.directory)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        db_path = output_dir / self._config.output.database
         self._repository = ExperimentRepository(db_path)
 
     def _save_experiment_start(self) -> None:
