@@ -248,8 +248,11 @@ def generate_experiment_charts(
 ) -> dict[str, Path]:
     """Generate all charts for an experiment pass.
 
-    Creates BANK_A, BANK_B, and combined charts with flat naming scheme.
+    Creates BANK_A, BANK_B, combined, and variance charts with flat naming scheme.
     Files are named: {exp_id}_pass{pass_num}_{type}.png
+
+    For bootstrap experiments (exp2), also generates variance charts showing
+    cost with confidence interval bands.
 
     Args:
         db_path: Path to experiment database
@@ -293,7 +296,192 @@ def generate_experiment_charts(
         config=config,
     )
 
+    # Bootstrap variance chart (for experiments with bootstrap evaluation)
+    try:
+        paths["variance"] = generate_bootstrap_variance_chart(
+            db_path=db_path,
+            exp_id=exp_id,
+            pass_num=pass_num,
+            output_path=output_dir / f"{exp_id}_pass{pass_num}_variance.png",
+            config=config,
+        )
+    except ValueError:
+        # No policy evaluations available, skip variance chart
+        pass
+
     return paths
+
+
+# =============================================================================
+# Bootstrap Variance Charts
+# =============================================================================
+
+
+def generate_bootstrap_variance_chart(
+    db_path: Path,
+    exp_id: str,
+    pass_num: int,
+    output_path: Path,
+    config: dict,
+) -> Path:
+    """Generate bootstrap variance chart with Gaussian Process-style visualization.
+
+    Creates a side-by-side chart with:
+    - Left: BANK_A cost trajectory with smooth 95% CI band
+    - Right: BANK_B cost trajectory with smooth 95% CI band
+
+    Styled like Gaussian Process regression plots with:
+    - Smooth mean prediction line
+    - Shaded confidence interval band
+    - Distinct markers for observed data points
+
+    This illustrates how risk (variance) may change as agents optimize for lower costs.
+    Requires bootstrap evaluation data in the policy_evaluations table.
+
+    Args:
+        db_path: Path to experiment database
+        exp_id: Experiment identifier
+        pass_num: Pass number
+        output_path: Where to save the chart
+        config: Paper config with explicit run_id mappings (required)
+
+    Returns:
+        Path to generated chart
+    """
+    import numpy as np
+
+    run_id = _get_run_id_for_pass(db_path, exp_id, pass_num, config)
+
+    repo = ExperimentRepository(db_path)
+
+    # Get policy evaluations for both agents
+    evals_a = repo.get_policy_evaluations(run_id, "BANK_A")
+    evals_b = repo.get_policy_evaluations(run_id, "BANK_B")
+
+    if not evals_a or not evals_b:
+        raise ValueError(f"No policy evaluations found for {exp_id} pass {pass_num}")
+
+    # Create side-by-side subplots with white background
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(14, 5), facecolor="white")
+
+    # GP-style colors
+    GP_COLORS = {
+        "bank_a": {
+            "line": "#1f77b4",  # Blue line
+            "band": "#aec7e8",  # Light blue band
+            "points": "#d62728",  # Red observed points
+        },
+        "bank_b": {
+            "line": "#1f77b4",  # Blue line
+            "band": "#aec7e8",  # Light blue band
+            "points": "#d62728",  # Red observed points
+        },
+    }
+
+    def plot_gp_style(
+        ax: plt.Axes, evals: list, agent_id: str, colors: dict
+    ) -> None:
+        """Plot agent data in Gaussian Process regression style."""
+        iterations = []
+        costs = []
+        ci_lower = []
+        ci_upper = []
+
+        for e in evals:
+            iterations.append(e.iteration)
+            # Convert cents to dollars
+            costs.append(e.new_cost / 100.0)
+
+            # Get CI from agent_stats if available, otherwise use confidence_interval_95
+            if e.agent_stats and agent_id in e.agent_stats:
+                agent_stat = e.agent_stats[agent_id]
+                ci_lower.append(agent_stat.get("ci_95_lower", e.new_cost) / 100.0)
+                ci_upper.append(agent_stat.get("ci_95_upper", e.new_cost) / 100.0)
+            elif e.confidence_interval_95:
+                ci_lower.append(e.confidence_interval_95[0] / 100.0)
+                ci_upper.append(e.confidence_interval_95[1] / 100.0)
+            else:
+                # No CI data, use cost as both bounds
+                ci_lower.append(e.new_cost / 100.0)
+                ci_upper.append(e.new_cost / 100.0)
+
+        # Convert to numpy arrays
+        x = np.array(iterations)
+        y_mean = np.array(costs)
+        y_lower = np.array(ci_lower)
+        y_upper = np.array(ci_upper)
+
+        # Plot 95% CI band (prominent, GP-style)
+        ax.fill_between(
+            x,
+            y_lower,
+            y_upper,
+            alpha=0.4,
+            color=colors["band"],
+            label="95% Confidence Interval",
+            edgecolor="none",
+        )
+
+        # Plot mean prediction line (straight lines between points)
+        ax.plot(
+            x,
+            y_mean,
+            color=colors["line"],
+            linewidth=2,
+            label="Mean Prediction",
+        )
+
+        # Plot observed data points (red dots like GP chart)
+        ax.scatter(
+            x,
+            y_mean,
+            color=colors["points"],
+            s=80,
+            zorder=5,
+            label="Observed Data",
+            edgecolors="white",
+            linewidths=1.5,
+        )
+
+        # Styling - clean, minimal like GP plots
+        ax.set_title(agent_id, fontsize=14, fontweight="medium", color=COLORS["text"])
+        ax.set_xlabel("Iteration", fontsize=12, color=COLORS["text"])
+        ax.set_ylabel("Cost ($)", fontsize=12, color=COLORS["text"])
+        ax.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))
+        ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+
+        # Clean legend
+        ax.legend(loc="upper right", framealpha=0.95, fontsize=10)
+
+        # Minimal spines
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#cccccc")
+        ax.spines["bottom"].set_color("#cccccc")
+
+        # Subtle grid
+        ax.grid(True, alpha=0.3, color="#e0e0e0", linestyle="-")
+        ax.set_facecolor("white")
+
+    # Plot both agents in GP style
+    plot_gp_style(ax_a, evals_a, "BANK_A", GP_COLORS["bank_a"])
+    plot_gp_style(ax_b, evals_b, "BANK_B", GP_COLORS["bank_b"])
+
+    # Overall figure title
+    fig.suptitle(
+        f"Cost Variance - {exp_id.upper()} Pass {pass_num}",
+        fontsize=14,
+        fontweight="medium",
+        color=COLORS["text"],
+        y=1.02,
+    )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.tight_layout()
+    fig.savefig(output_path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+    return output_path
 
 
 # =============================================================================
