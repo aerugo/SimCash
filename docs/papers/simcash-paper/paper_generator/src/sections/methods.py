@@ -85,27 +85,39 @@ For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy
 
 \subsection{Experimental Setup}
 
-We implement three canonical scenarios:
+We implement three canonical scenarios from Castro et al.\ (2025):
 
 \textbf{Experiment 1: 2-Period Deterministic} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 2 ticks per day
-    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Asymmetric payment demands: $P^A = [0, 0.15]$, $P^B = [0.15, 0.05]$
+    \item Bank A sends 0.15$B$ at tick 1; Bank B sends 0.15$B$ at tick 0, 0.05$B$ at tick 1
     \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
 \end{itemize}
 
 \textbf{Experiment 2: 12-Period Stochastic} (Bootstrap Mode)
 \begin{itemize}
     \item 12 ticks per day
-    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
-    \item Expected equilibrium: Both agents in 10-30\% range
+    \item Poisson arrivals ($\lambda=2.0$/tick), LogNormal amounts ($\mu$=10k, $\sigma$=5k)
+    \item Expected equilibrium: Both agents in 10--30\% range
 \end{itemize}
 
 \textbf{Experiment 3: 3-Period Symmetric} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 3 ticks per day
-    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Symmetric payment demands: $P^A = P^B = [0.2, 0.2, 0]$
     \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{Comparison with Castro et al.\ (2025)}
+
+Our experiments replicate the scenarios from Castro et al., with key methodological differences:
+
+\begin{itemize}
+    \item \textbf{Optimization method}: Castro uses REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
+    \item \textbf{Action representation}: Castro discretizes $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
+    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or cost plateau (bootstrap) detection
+    \item \textbf{Multi-agent dynamics}: Castro trains two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
 \end{itemize}
 
 \subsection{LLM Configuration}
