@@ -53,7 +53,7 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
     \item \textbf{Evaluation}: Run simulation(s) with proposed policy
     \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
-    \item \textbf{Convergence Check}: Mode-specific convergence criterion
+    \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or cost plateau (bootstrap) for 5 iterations
 \end{enumerate}
 
 \subsection{Evaluation Modes}
