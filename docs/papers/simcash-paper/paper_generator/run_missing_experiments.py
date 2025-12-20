@@ -2,14 +2,29 @@
 """
 Run missing experiments from config.yaml.
 
-This script reads the paper generator config.yaml, identifies experiments
-with empty run_ids, and runs them automatically. Experiments for the same
-database run sequentially (to avoid lock conflicts), while different
-experiments run in parallel.
+This script reads the paper generator config.yaml, validates experiment
+configurations, and runs experiments with empty run_ids. Before running,
+it displays a validation summary showing:
+- Which databases exist and which run_ids are verified
+- Which new databases will be created
+- Which experiments will be run
+- Warnings for referenced run_ids that don't exist in their databases
+
+Experiments for the same database run sequentially (to avoid lock conflicts),
+while different experiments run in parallel.
 
 Usage:
+    # Validate configuration and run missing experiments
     python run_missing_experiments.py config.yaml
-    python run_missing_experiments.py --help
+
+    # Validate only (no confirmation, no running)
+    python run_missing_experiments.py config.yaml --validate-only
+
+    # Dry run - show what would happen
+    python run_missing_experiments.py config.yaml --dry-run
+
+    # Skip confirmation prompt
+    python run_missing_experiments.py config.yaml --yes
 """
 
 from __future__ import annotations
@@ -23,6 +38,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
+import duckdb
 import yaml
 
 
@@ -98,6 +114,206 @@ def find_missing_experiments(
         missing[exp_name].sort(key=lambda x: x.pass_number)
 
     return missing
+
+
+@dataclass
+class ExperimentValidation:
+    """Result of validating an experiment configuration."""
+
+    experiment_name: str
+    pass_number: int
+    run_id: str
+    db_path: Path
+    db_exists: bool
+    run_id_exists: bool | None  # None if db doesn't exist
+
+
+@dataclass
+class ValidationSummary:
+    """Summary of all validation results."""
+
+    existing_runs: list[ExperimentValidation]  # Populated run_ids that exist
+    missing_runs: list[ExperimentValidation]  # Populated run_ids that don't exist
+    new_experiments: list[MissingExperiment]  # Empty run_ids (will be created)
+    new_databases: set[Path]  # Databases that don't exist yet
+
+
+def check_run_id_exists(db_path: Path, run_id: str) -> bool:
+    """Check if a run_id exists in the experiments table.
+
+    Args:
+        db_path: Path to the database file
+        run_id: Experiment run ID to check
+
+    Returns:
+        True if run_id exists in database
+    """
+    try:
+        conn = duckdb.connect(str(db_path), read_only=True)
+        result = conn.execute(
+            "SELECT 1 FROM experiments WHERE run_id = ? LIMIT 1",
+            [run_id],
+        ).fetchone()
+        conn.close()
+        return result is not None
+    except duckdb.CatalogException:
+        # Table doesn't exist
+        return False
+    except Exception:
+        return False
+
+
+def validate_experiments(
+    config: dict, config_dir: Path
+) -> ValidationSummary:
+    """Validate all experiment configurations.
+
+    Checks:
+    1. Which databases exist
+    2. Which referenced run_ids exist in their databases
+    3. Which experiments are missing (empty run_id)
+
+    Args:
+        config: Loaded config.yaml
+        config_dir: Directory containing config.yaml
+
+    Returns:
+        ValidationSummary with categorized results
+    """
+    existing_runs: list[ExperimentValidation] = []
+    missing_runs: list[ExperimentValidation] = []
+    new_experiments: list[MissingExperiment] = []
+    new_databases: set[Path] = set()
+
+    for exp_name, exp_data in config["experiments"].items():
+        db_path = config_dir / config["databases"][exp_name]
+        config_path = config_dir / "configs" / f"{exp_name}.yaml"
+        db_exists = db_path.exists()
+
+        if not db_exists:
+            new_databases.add(db_path)
+
+        for pass_num, run_id in exp_data["passes"].items():
+            if not run_id:  # Empty string means needs to be run
+                new_experiments.append(
+                    MissingExperiment(
+                        experiment_name=exp_name,
+                        pass_number=int(pass_num),
+                        config_path=config_path,
+                        db_path=db_path,
+                    )
+                )
+            else:
+                # Check if the referenced run_id exists
+                if db_exists:
+                    run_id_exists = check_run_id_exists(db_path, run_id)
+                else:
+                    run_id_exists = None  # Can't check - DB doesn't exist
+
+                validation = ExperimentValidation(
+                    experiment_name=exp_name,
+                    pass_number=int(pass_num),
+                    run_id=run_id,
+                    db_path=db_path,
+                    db_exists=db_exists,
+                    run_id_exists=run_id_exists,
+                )
+
+                if run_id_exists is True:
+                    existing_runs.append(validation)
+                else:
+                    missing_runs.append(validation)
+
+    # Sort for consistent output
+    new_experiments.sort(key=lambda x: (x.experiment_name, x.pass_number))
+    existing_runs.sort(key=lambda v: (v.experiment_name, v.pass_number))
+    missing_runs.sort(key=lambda v: (v.experiment_name, v.pass_number))
+
+    return ValidationSummary(
+        existing_runs=existing_runs,
+        missing_runs=missing_runs,
+        new_experiments=new_experiments,
+        new_databases=new_databases,
+    )
+
+
+def print_validation_summary(summary: ValidationSummary) -> bool:
+    """Print validation summary and return whether to proceed.
+
+    Args:
+        summary: Validation results
+
+    Returns:
+        True if there are issues that should block execution
+    """
+    has_errors = False
+
+    print("\n" + "=" * 70)
+    print("EXPERIMENT VALIDATION SUMMARY")
+    print("=" * 70)
+
+    # Section 1: Existing databases and verified run_ids
+    if summary.existing_runs:
+        print(f"\n✓ VERIFIED ({len(summary.existing_runs)} passes):")
+        print("  These run_ids exist in their databases:")
+        for v in summary.existing_runs:
+            print(f"    {v.experiment_name} pass {v.pass_number}: {v.run_id}")
+            print(f"      └── {v.db_path}")
+
+    # Section 2: New databases that will be created
+    if summary.new_databases:
+        print(f"\n📁 NEW DATABASES ({len(summary.new_databases)}):")
+        print("  These databases will be created:")
+        for db_path in sorted(summary.new_databases):
+            print(f"    {db_path}")
+
+    # Section 3: Experiments that will be run
+    if summary.new_experiments:
+        # Group by experiment name
+        by_exp: dict[str, list[MissingExperiment]] = {}
+        for exp in summary.new_experiments:
+            if exp.experiment_name not in by_exp:
+                by_exp[exp.experiment_name] = []
+            by_exp[exp.experiment_name].append(exp)
+
+        print(f"\n🔄 TO BE RUN ({len(summary.new_experiments)} passes):")
+        for exp_name in sorted(by_exp.keys()):
+            passes = by_exp[exp_name]
+            db_path = passes[0].db_path
+            db_status = "NEW" if db_path in summary.new_databases else "exists"
+            pass_nums = ", ".join(str(p.pass_number) for p in passes)
+            print(f"    {exp_name} passes [{pass_nums}]")
+            print(f"      └── {db_path} ({db_status})")
+
+    # Section 4: WARNINGS - referenced run_ids that don't exist
+    if summary.missing_runs:
+        has_errors = True
+        print(f"\n⚠️  WARNINGS ({len(summary.missing_runs)} issues):")
+        print("  These run_ids are referenced but NOT FOUND:")
+        for v in summary.missing_runs:
+            if v.db_exists:
+                print(f"    {v.experiment_name} pass {v.pass_number}: {v.run_id}")
+                print(f"      └── NOT FOUND in {v.db_path}")
+            else:
+                print(f"    {v.experiment_name} pass {v.pass_number}: {v.run_id}")
+                print(f"      └── DATABASE DOES NOT EXIST: {v.db_path}")
+
+    print("\n" + "=" * 70)
+
+    # Summary counts
+    total_passes = (
+        len(summary.existing_runs)
+        + len(summary.missing_runs)
+        + len(summary.new_experiments)
+    )
+    print(f"Total: {total_passes} passes configured")
+    print(f"  ✓ Verified: {len(summary.existing_runs)}")
+    print(f"  🔄 To run: {len(summary.new_experiments)}")
+    if summary.missing_runs:
+        print(f"  ⚠️  Missing: {len(summary.missing_runs)}")
+    print("=" * 70 + "\n")
+
+    return has_errors
 
 
 def run_experiment(
@@ -232,6 +448,16 @@ Examples:
         action="store_true",
         help="Show what would be run without actually running",
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Skip confirmation prompt and proceed automatically",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="Only validate the configuration, don't run experiments",
+    )
 
     args = parser.parse_args()
 
@@ -241,6 +467,47 @@ Examples:
         return 1
 
     config_dir = config_path.parent
+
+    # Load config and validate all experiments first
+    config = load_config(config_path)
+    summary = validate_experiments(config, config_dir)
+
+    # Print validation summary
+    has_warnings = print_validation_summary(summary)
+
+    # Handle validate-only mode
+    if args.validate_only:
+        if has_warnings:
+            print("Validation completed with warnings.")
+            return 1
+        print("Validation completed successfully.")
+        return 0
+
+    # Check if there's anything to run
+    if not summary.new_experiments:
+        print("All experiments are complete! Nothing to run.")
+        return 0
+
+    # Handle dry-run mode
+    if args.dry_run:
+        print("[DRY RUN] Would run the above experiments")
+        return 0
+
+    # Warn about missing run_ids but allow proceeding
+    if has_warnings:
+        print("Note: Some referenced run_ids were not found in their databases.")
+        print("This may indicate data loss or configuration errors.\n")
+
+    # Confirmation prompt (unless --yes flag is used)
+    if not args.yes:
+        try:
+            response = input(f"Proceed with running {len(summary.new_experiments)} experiment(s)? [y/N] ")
+            if response.lower() not in ("y", "yes"):
+                print("Aborted.")
+                return 0
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            return 0
 
     # Find api directory - paper_generator is at docs/papers/simcash-paper/paper_generator
     # So api is at ../../../../api relative to config_dir
@@ -262,24 +529,9 @@ Examples:
         print("Make sure you've run 'uv sync' in the api directory", file=sys.stderr)
         return 1
 
-    # Load config and find missing experiments
-    config = load_config(config_path)
+    # Group experiments by experiment name (for parallel execution)
     missing = find_missing_experiments(config, config_dir)
 
-    if not missing:
-        print("All experiments are complete! Nothing to run.")
-        return 0
-
-    print("Missing experiments:")
-    for exp_name, passes in missing.items():
-        pass_nums = [str(p.pass_number) for p in passes]
-        print(f"  {exp_name}: passes {', '.join(pass_nums)}")
-
-    if args.dry_run:
-        print("\n[DRY RUN] Would run the above experiments")
-        return 0
-
-    print(f"\nRunning {sum(len(p) for p in missing.values())} experiment(s)...")
     print("Different experiments run in parallel, same experiment passes run sequentially.\n")
 
     # Locks for thread safety
