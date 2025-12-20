@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from src.latex.figures import include_figure
 from src.latex.formatting import format_money, format_percent
 from src.latex.tables import (
-    generate_bootstrap_table,
     generate_iteration_table,
     generate_results_summary_table,
 )
@@ -62,11 +61,7 @@ def generate_appendices(provider: DataProvider) -> str:
     )
     appendix_sections.append(exp3_content)
 
-    # Appendix E: Bootstrap Statistics
-    bootstrap_content = _generate_bootstrap_appendix(provider)
-    appendix_sections.append(bootstrap_content)
-
-    # Appendix F: LLM Prompt Audit
+    # Appendix E: LLM Prompt Audit
     prompt_audit = _generate_prompt_audit_appendix(provider)
     appendix_sections.append(prompt_audit)
 
@@ -185,80 +180,6 @@ This appendix provides iteration-by-iteration results and convergence charts for
 all three passes of {title.lower()}.
 
 {content}
-"""
-
-
-def _generate_bootstrap_appendix(provider: DataProvider) -> str:
-    """Generate appendix section for bootstrap statistics.
-
-    Args:
-        provider: DataProvider instance
-
-    Returns:
-        LaTeX string for bootstrap statistics appendix
-    """
-    experiment_sections = []
-
-    for exp_id, exp_name in [("exp1", "Experiment 1"), ("exp2", "Experiment 2"), ("exp3", "Experiment 3")]:
-        pass_content = []
-
-        for pass_num in [1, 2, 3]:
-            stats = provider.get_final_bootstrap_stats(exp_id, pass_num=pass_num)
-            if stats:
-                # Generate table
-                table = generate_bootstrap_table(
-                    stats,
-                    caption=f"{exp_name} Bootstrap Statistics - Pass {pass_num}",
-                    label=f"tab:{exp_id}_bootstrap_pass{pass_num}",
-                )
-
-                # Generate bootstrap charts
-                ci_width_fig = include_figure(
-                    path=f"{CHARTS_DIR}/{exp_id}_pass{pass_num}_ci_width.png",
-                    caption=f"{exp_name} Pass {pass_num}: CI width comparison across iterations",
-                    label=f"fig:{exp_id}_pass{pass_num}_ci_width",
-                    width=0.8,
-                )
-
-                variance_fig = include_figure(
-                    path=f"{CHARTS_DIR}/{exp_id}_pass{pass_num}_variance_evolution.png",
-                    caption=f"{exp_name} Pass {pass_num}: Standard deviation evolution",
-                    label=f"fig:{exp_id}_pass{pass_num}_variance",
-                    width=0.8,
-                )
-
-                sample_fig = include_figure(
-                    path=f"{CHARTS_DIR}/{exp_id}_pass{pass_num}_sample_distribution.png",
-                    caption=f"{exp_name} Pass {pass_num}: Bootstrap sample distribution at convergence",
-                    label=f"fig:{exp_id}_pass{pass_num}_samples",
-                    width=0.8,
-                )
-
-                pass_content.append(
-                    f"\\subsubsection{{Pass {pass_num}}}\n\n"
-                    f"{table}\n\n"
-                    f"{ci_width_fig}\n\n"
-                    f"{variance_fig}\n\n"
-                    f"{sample_fig}"
-                )
-
-        if pass_content:
-            experiment_sections.append(
-                f"\\subsection{{{exp_name}}}\n\n" + "\n\n".join(pass_content)
-            )
-
-    all_content = "\n\n".join(experiment_sections)
-
-    return rf"""
-\section{{Bootstrap Evaluation Statistics}}
-\label{{app:bootstrap}}
-
-This appendix provides bootstrap evaluation statistics and visualizations for all
-experiments and passes. Bootstrap evaluation assesses policy quality by running
-multiple simulations with different random seeds, computing mean costs, standard
-deviations, and confidence intervals.
-
-{all_content}
 """
 
 
