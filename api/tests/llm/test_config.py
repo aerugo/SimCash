@@ -249,3 +249,77 @@ class TestLLMConfigExtended:
         settings = config.to_model_settings()
 
         assert "google_thinking_config" not in settings
+
+
+class TestLLMConfigReasoningSummary:
+    """Tests for reasoning_summary field in LLMConfig.
+
+    These tests verify the OpenAI reasoning summary configuration
+    for capturing LLM reasoning/thinking during policy optimization.
+    """
+
+    def test_reasoning_summary_field_optional(self) -> None:
+        """Verify reasoning_summary defaults to None."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(model="openai:o1")
+        assert config.reasoning_summary is None
+
+    def test_reasoning_summary_accepts_concise(self) -> None:
+        """Verify 'concise' is a valid value."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(model="openai:o1", reasoning_summary="concise")
+        assert config.reasoning_summary == "concise"
+
+    def test_reasoning_summary_accepts_detailed(self) -> None:
+        """Verify 'detailed' is a valid value."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(model="openai:o1", reasoning_summary="detailed")
+        assert config.reasoning_summary == "detailed"
+
+    def test_to_model_settings_includes_reasoning_summary(self) -> None:
+        """Verify to_model_settings includes openai_reasoning_summary."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(
+            model="openai:o1",
+            reasoning_effort="medium",
+            reasoning_summary="detailed",
+        )
+        settings = config.to_model_settings()
+        assert settings.get("openai_reasoning_summary") == "detailed"
+
+    def test_to_model_settings_omits_reasoning_summary_when_none(self) -> None:
+        """Verify reasoning_summary not in settings when None."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(model="openai:o1", reasoning_effort="medium")
+        settings = config.to_model_settings()
+        assert "openai_reasoning_summary" not in settings
+
+    def test_reasoning_summary_ignored_for_anthropic(self) -> None:
+        """Verify reasoning_summary has no effect for non-OpenAI providers."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(
+            model="anthropic:claude-sonnet-4-5",
+            reasoning_summary="detailed",  # Should be ignored
+        )
+        settings = config.to_model_settings()
+        # Should not include OpenAI-specific setting for Anthropic
+        assert "openai_reasoning_summary" not in settings
+
+    def test_reasoning_summary_without_reasoning_effort(self) -> None:
+        """Verify reasoning_summary works independently of reasoning_effort."""
+        from payment_simulator.llm.config import LLMConfig
+
+        config = LLMConfig(
+            model="openai:gpt-4o",
+            reasoning_summary="detailed",
+            # No reasoning_effort set
+        )
+        settings = config.to_model_settings()
+        assert settings.get("openai_reasoning_summary") == "detailed"
+        assert "openai_reasoning_effort" not in settings
