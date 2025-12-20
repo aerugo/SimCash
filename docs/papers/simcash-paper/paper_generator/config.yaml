@@ -9,21 +9,21 @@ databases:
   exp3: data/exp3.db
 
 # Experiment passes - explicit run_ids for each pass
-# Updated 2025-12-19 with fresh runs for reproducibility validation
+# Updated 2025-12-20 with fresh exp2 runs using new convergence criteria
 experiments:
   exp1:
     name: "2-Period Deterministic Nash Equilibrium"
     passes:
-      1: "exp3-20251219-120015-d8d08d"
-      2: "exp3-20251219-155732-9065e9"
-      3: "exp3-20251219-165017-c9b7b1"
+      1: "exp1-20251219-110143-8a916c"
+      2: "exp1-20251219-154942-b68746"
+      3: "exp1-20251220-110405-2799dd"
 
   exp2:
     name: "12-Period Stochastic LVTS-Style"
     passes:
-      1: "exp3-20251219-120015-d8d08d"
-      2: "exp3-20251219-155732-9065e9"
-      3: "exp3-20251219-165017-c9b7b1"
+      1: "exp2-20251220-150211-d4978c"
+      2: "exp2-20251220-152234-3c194a"
+      3: "exp2-20251220-155701-121041"
 
   exp3:
     name: "3-Period Symmetric Joint Liquidity"
