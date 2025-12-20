@@ -464,8 +464,15 @@ environment requires more exploration to reach stable policies.
 
 \subsubsection{Bootstrap Evaluation Methodology}
 
-To account for stochastic variance, we evaluate final policies using bootstrap
-evaluation with 50 samples. This provides confidence intervals on expected costs.
+The iteration table above shows costs from the \textit{context simulation}---the specific
+transaction realization used to provide feedback to the LLM at each iteration. However,
+stochastic scenarios require evaluating policy robustness across many transaction samples.
+
+Table~\ref{tab:exp2_bootstrap} presents bootstrap statistics for the \textbf{final converged
+policies} (iteration 24), evaluated across 50 resampled transaction
+schedules. Note that context simulation costs (e.g., BANK\_A's \$243.64 in iteration 24) may
+differ substantially from bootstrap means (\$77.10) due to transaction variance---this
+difference illustrates why bootstrap evaluation is essential for stochastic scenarios.
 
 
 \begin{table}[htbp]
@@ -483,11 +490,9 @@ evaluation with 50 samples. This provides confidence intervals on expected costs
 \end{table}
 
 
-Bootstrap evaluation reveals:
-\begin{itemize}
-    \item BANK\_A: Mean cost \$77.10 ($\pm$ \$15.81 std dev)
-    \item BANK\_B: Mean cost \$126.95 ($\pm$ \$47.44 std dev)
-\end{itemize}
+The bootstrap evaluation reveals that BANK\_A's policy, despite high variance in individual
+simulations, achieves mean cost \$77.10 ($\pm$ \$15.81). BANK\_B maintains
+more consistent costs at \$126.95 ($\pm$ \$47.44).
 
 \subsubsection{Risk-Return Tradeoff}
 

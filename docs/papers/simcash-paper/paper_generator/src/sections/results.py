@@ -235,16 +235,21 @@ environment requires more exploration to reach stable policies.
 
 \subsubsection{{Bootstrap Evaluation Methodology}}
 
-To account for stochastic variance, we evaluate final policies using bootstrap
-evaluation with {exp2_samples} samples. This provides confidence intervals on expected costs.
+The iteration table above shows costs from the \textit{{context simulation}}---the specific
+transaction realization used to provide feedback to the LLM at each iteration. However,
+stochastic scenarios require evaluating policy robustness across many transaction samples.
+
+Table~\ref{{tab:exp2_bootstrap}} presents bootstrap statistics for the \textbf{{final converged
+policies}} (iteration {exp2_convergence}), evaluated across {exp2_samples} resampled transaction
+schedules. Note that context simulation costs (e.g., BANK\_A's \$243.64 in iteration 24) may
+differ substantially from bootstrap means (\$77.10) due to transaction variance---this
+difference illustrates why bootstrap evaluation is essential for stochastic scenarios.
 
 {exp2_bootstrap_table}
 
-Bootstrap evaluation reveals:
-\begin{{itemize}}
-    \item BANK\_A: Mean cost {exp2_a_mean} ($\pm$ {exp2_a_std} std dev)
-    \item BANK\_B: Mean cost {exp2_b_mean} ($\pm$ {exp2_b_std} std dev)
-\end{{itemize}}
+The bootstrap evaluation reveals that BANK\_A's policy, despite high variance in individual
+simulations, achieves mean cost {exp2_a_mean} ($\pm$ {exp2_a_std}). BANK\_B maintains
+more consistent costs at {exp2_b_mean} ($\pm$ {exp2_b_std}).
 
 \subsubsection{{Risk-Return Tradeoff}}
 
