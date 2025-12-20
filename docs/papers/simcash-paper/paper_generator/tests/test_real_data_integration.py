@@ -164,20 +164,6 @@ class TestBugFixVerification:
                 f"Both show ${bank_a_dollars}"
             )
 
-    def test_exp2_bootstrap_means_are_different(
-        self, provider, generated_paper: str
-    ) -> None:
-        """Bootstrap means for exp2 agents should be different."""
-        stats = provider.get_final_bootstrap_stats("exp2", pass_num=1)
-
-        if "BANK_A" in stats and "BANK_B" in stats:
-            mean_a = stats["BANK_A"]["mean_cost"]
-            mean_b = stats["BANK_B"]["mean_cost"]
-
-            assert mean_a != mean_b, (
-                f"Bootstrap means should differ: BANK_A={mean_a}, BANK_B={mean_b}"
-            )
-
 
 class TestDataProviderConsistency:
     """Verify DataProvider returns consistent data."""
@@ -233,16 +219,3 @@ class TestFigureIncludesInPaper:
                 assert chart_path in generated_paper, (
                     f"Missing convergence chart: {chart_path}"
                 )
-
-    def test_appendix_includes_bootstrap_figures(self, generated_paper: str) -> None:
-        """Bootstrap appendix should include CI and variance charts."""
-        for exp_id in ["exp1", "exp2", "exp3"]:
-            for pass_num in [1, 2, 3]:
-                # Check for bootstrap chart types
-                ci_chart = f"{exp_id}_pass{pass_num}_ci_width.png"
-                var_chart = f"{exp_id}_pass{pass_num}_variance_evolution.png"
-                sample_chart = f"{exp_id}_pass{pass_num}_sample_distribution.png"
-
-                assert ci_chart in generated_paper, f"Missing CI width chart: {ci_chart}"
-                assert var_chart in generated_paper, f"Missing variance chart: {var_chart}"
-                assert sample_chart in generated_paper, f"Missing sample chart: {sample_chart}"

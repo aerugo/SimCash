@@ -139,75 +139,6 @@ class TestConvergenceChartGeneration:
 
 
 # =============================================================================
-# Phase: Bootstrap Chart Tests (RED)
-# =============================================================================
-
-
-class TestBootstrapChartGeneration:
-    """Test bootstrap analysis chart generation."""
-
-    def test_generate_ci_width_chart(
-        self, data_dir: Path, output_dir: Path, config: dict
-    ) -> None:
-        """Should generate CI width comparison chart."""
-        from src.charts.generators import generate_ci_width_chart
-
-        if not (data_dir / "exp2.db").exists():
-            pytest.skip("Data not available")
-
-        output_path = output_dir / "ci_width_comparison.png"
-        generate_ci_width_chart(
-            db_path=data_dir / "exp2.db",
-            exp_id="exp2",
-            pass_num=1,
-            output_path=output_path,
-            config=config,
-        )
-
-        assert output_path.exists()
-
-    def test_generate_variance_evolution_chart(
-        self, data_dir: Path, output_dir: Path, config: dict
-    ) -> None:
-        """Should generate variance evolution over iterations."""
-        from src.charts.generators import generate_variance_evolution_chart
-
-        if not (data_dir / "exp2.db").exists():
-            pytest.skip("Data not available")
-
-        output_path = output_dir / "variance_evolution.png"
-        generate_variance_evolution_chart(
-            db_path=data_dir / "exp2.db",
-            exp_id="exp2",
-            pass_num=1,
-            output_path=output_path,
-            config=config,
-        )
-
-        assert output_path.exists()
-
-    def test_generate_sample_distribution_chart(
-        self, data_dir: Path, output_dir: Path, config: dict
-    ) -> None:
-        """Should generate sample distribution histogram."""
-        from src.charts.generators import generate_sample_distribution_chart
-
-        if not (data_dir / "exp2.db").exists():
-            pytest.skip("Data not available")
-
-        output_path = output_dir / "sample_distribution.png"
-        generate_sample_distribution_chart(
-            db_path=data_dir / "exp2.db",
-            exp_id="exp2",
-            pass_num=1,
-            output_path=output_path,
-            config=config,
-        )
-
-        assert output_path.exists()
-
-
-# =============================================================================
 # Phase: Batch Generation Tests (RED)
 # =============================================================================
 
@@ -278,14 +209,6 @@ class TestChartGeneratorModule:
         assert hasattr(generators, "generate_convergence_chart")
         assert hasattr(generators, "generate_combined_convergence_chart")
         assert hasattr(generators, "generate_experiment_charts")
-
-    def test_module_exports_bootstrap_functions(self) -> None:
-        """Module should export bootstrap chart functions."""
-        from src.charts import generators
-
-        assert hasattr(generators, "generate_ci_width_chart")
-        assert hasattr(generators, "generate_variance_evolution_chart")
-        assert hasattr(generators, "generate_sample_distribution_chart")
 
     def test_module_exports_batch_function(self) -> None:
         """Module should export batch generation function."""
