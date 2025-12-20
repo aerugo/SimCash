@@ -164,10 +164,12 @@ def _generate_experiment_appendix(
             )
 
             # Generate table (may use longtable for long experiments)
+            # Use position="H" to prevent floating in appendices
             table = generate_iteration_table(
                 results,
                 caption=f"{title} - Pass {pass_num}",
                 label=f"tab:{label_prefix}_pass{pass_num}",
+                position="H",  # Force table to stay in place
             )
 
             # Figure before table helps LaTeX place floats correctly
