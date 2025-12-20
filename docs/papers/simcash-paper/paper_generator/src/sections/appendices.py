@@ -153,14 +153,7 @@ def _generate_experiment_appendix(
     for pass_num in [1, 2, 3]:
         results = provider.get_iteration_results(exp_id, pass_num=pass_num)
         if results:
-            # Generate table
-            table = generate_iteration_table(
-                results,
-                caption=f"{title} - Pass {pass_num}",
-                label=f"tab:{label_prefix}_pass{pass_num}",
-            )
-
-            # Generate convergence chart figure
+            # Generate convergence chart figure (placed BEFORE table for better LaTeX float handling)
             figure = include_figure(
                 path=f"{CHARTS_DIR}/{exp_id}_pass{pass_num}_combined.png",
                 caption=f"{title} - Pass {pass_num} convergence",
@@ -168,7 +161,15 @@ def _generate_experiment_appendix(
                 width=0.85,
             )
 
-            pass_sections.append(f"\\subsection{{Pass {pass_num}}}\n\n{table}\n\n{figure}")
+            # Generate table (may use longtable for long experiments)
+            table = generate_iteration_table(
+                results,
+                caption=f"{title} - Pass {pass_num}",
+                label=f"tab:{label_prefix}_pass{pass_num}",
+            )
+
+            # Figure before table helps LaTeX place floats correctly
+            pass_sections.append(f"\\subsection{{Pass {pass_num}}}\n\n{figure}\n\n{table}")
 
     content = "\n\n".join(pass_sections)
 
