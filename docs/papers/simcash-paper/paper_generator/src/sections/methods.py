@@ -51,41 +51,73 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
 \begin{enumerate}
     \item \textbf{Context Construction}: Current policy, recent costs, opponent summary
     \item \textbf{LLM Proposal}: Agent proposes new \texttt{initial\_liquidity\_fraction} parameter
-    \item \textbf{Paired Evaluation}: Run sandboxed simulations with proposed vs. current policy
-    \item \textbf{Acceptance Decision}: Accept if cost improves (cost delta $> 0$)
-    \item \textbf{Convergence Check}: Stable for 5 consecutive iterations
+    \item \textbf{Evaluation}: Run simulation(s) with proposed policy
+    \item \textbf{Update}: Apply mode-specific acceptance rule (see below)
+    \item \textbf{Convergence Check}: Stable \texttt{initial\_liquidity\_fraction} (temporal) or cost plateau (bootstrap) for 5 iterations
 \end{enumerate}
 
 \subsection{Evaluation Modes}
 
+We employ two distinct evaluation methodologies optimized for different scenario types:
+
+\subsubsection{Deterministic-Temporal Mode (Experiments 1 \& 3)}
+
+For scenarios with fixed payment schedules, we use \textbf{temporal policy stability} to identify Nash equilibria:
+
 \begin{itemize}
-    \item \textbf{Deterministic}: Single simulation per evaluation (fixed payments)
-    \item \textbf{Bootstrap}: 50 resampled transaction histories (stochastic payments)
+    \item \textbf{Single simulation} per iteration with deterministic arrivals
+    \item \textbf{Unconditional acceptance}: All LLM-proposed policies are accepted immediately
+    \item \textbf{Rationale}: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies evolve simultaneously
+    \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} unchanged for 5 consecutive iterations, indicating mutual best-response equilibrium
+\end{itemize}
+
+\subsubsection{Bootstrap Mode (Experiment 2)}
+
+For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy evaluation:
+
+\begin{itemize}
+    \item \textbf{Initial collection}: Run one simulation to collect transaction history
+    \item \textbf{Resampling}: Generate 50 transaction schedules by resampling with replacement, preserving settlement offset distributions
+    \item \textbf{Paired comparison}: Evaluate both old and new policy on each sample, computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
+    \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (improvement across all samples)
+    \item \textbf{Convergence criterion}: Cost improvement plateau with coefficient of variation below 5\%
 \end{itemize}
 
 \subsection{Experimental Setup}
 
-We implement three canonical scenarios:
+We implement three canonical scenarios from Castro et al.\ (2025):
 
-\textbf{Experiment 1: 2-Period Deterministic}
+\textbf{Experiment 1: 2-Period Deterministic} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 2 ticks per day
-    \item Fixed payment arrivals at tick 0: BANK\_A sends 0.2, BANK\_B sends 0.2
+    \item Asymmetric payment demands: $P^A = [0, 0.15]$, $P^B = [0.15, 0.05]$
+    \item Bank A sends 0.15$B$ at tick 1; Bank B sends 0.15$B$ at tick 0, 0.05$B$ at tick 1
     \item Expected equilibrium: Asymmetric (A=0\%, B=20\%)
 \end{itemize}
 
-\textbf{Experiment 2: 12-Period Stochastic}
+\textbf{Experiment 2: 12-Period Stochastic} (Bootstrap Mode)
 \begin{itemize}
     \item 12 ticks per day
-    \item Poisson arrivals ($\lambda$=0.5/tick), LogNormal amounts
-    \item Expected equilibrium: Both agents in 10-30\% range
+    \item Poisson arrivals ($\lambda=2.0$/tick), LogNormal amounts ($\mu$=10k, $\sigma$=5k)
+    \item Expected equilibrium: Both agents in 10--30\% range
 \end{itemize}
 
-\textbf{Experiment 3: 3-Period Symmetric}
+\textbf{Experiment 3: 3-Period Symmetric} (Deterministic-Temporal Mode)
 \begin{itemize}
     \item 3 ticks per day
-    \item Fixed symmetric payment demands (0.2, 0.2, 0)
+    \item Symmetric payment demands: $P^A = P^B = [0.2, 0.2, 0]$
     \item Expected equilibrium: Symmetric ($\sim$20\%)
+\end{itemize}
+
+\subsection{Comparison with Castro et al.\ (2025)}
+
+Our experiments replicate the scenarios from Castro et al., with key methodological differences:
+
+\begin{itemize}
+    \item \textbf{Optimization method}: Castro uses REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
+    \item \textbf{Action representation}: Castro discretizes $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
+    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or cost plateau (bootstrap) detection
+    \item \textbf{Multi-agent dynamics}: Castro trains two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
 \end{itemize}
 
 \subsection{LLM Configuration}
@@ -94,9 +126,9 @@ We implement three canonical scenarios:
     \item Model: \texttt{openai:gpt-5.2}
     \item Reasoning effort: \texttt{high}
     \item Temperature: 0.5
-    \item Convergence: 5-iteration stability window, 5\% threshold
+    \item Max iterations: 25 per pass
 \end{itemize}
 
-Each experiment run 3 times (passes) with identical configurations to assess
-convergence reliability.
+Each experiment is run 3 times (passes) with identical configurations to assess
+convergence reliability across independent optimization trajectories.
 """
