@@ -2,8 +2,8 @@
 
 > Statistical justification and design tradeoffs for the policy evaluation system
 
-**Version**: 1.1.0
-**Last Updated**: 2025-12-16
+**Version**: 1.2.0
+**Last Updated**: 2025-12-21
 
 ---
 
@@ -35,6 +35,46 @@ We use **paired comparison** on **bootstrap samples**:
 2. Run **both** policies on the **same** N samples
 3. Compute delta = cost(policy_A) - cost(policy_B) for each sample
 4. Accept new policy if mean(delta) > 0
+
+### Per-Iteration Bootstrap (INV-13)
+
+Each iteration runs its own context simulation and generates fresh bootstrap samples:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Iteration N                                  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. GET ITERATION SEED                                              │
+│     iteration_seed = SeedMatrix.get_iteration_seed(N, agent_id)     │
+│                                                                     │
+│  2. RUN CONTEXT SIMULATION                                          │
+│     Run full simulation with iteration_seed                         │
+│     → Produces unique transaction_history for this iteration        │
+│     → Different iterations see different stochastic arrivals        │
+│                                                                     │
+│  3. GENERATE BOOTSTRAP SAMPLES                                      │
+│     BootstrapSampler(seed=iteration_seed)                           │
+│     → Creates N samples from this iteration's history               │
+│     → Each sample has unique seed: hash(iteration_seed, sample_idx) │
+│                                                                     │
+│  4. PAIRED POLICY COMPARISON                                        │
+│     ┌─────────────────────────────────────────────────────────┐     │
+│     │  For each of N samples:                                 │     │
+│     │    • Evaluate OLD policy → old_cost[i]                  │     │
+│     │    • Evaluate NEW policy → new_cost[i]  (SAME sample!)  │     │
+│     │    • delta[i] = old_cost[i] - new_cost[i]               │     │
+│     │                                                         │     │
+│     │  Accept new policy if mean(delta) > 0                   │     │
+│     └─────────────────────────────────────────────────────────┘     │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+This design ensures:
+- **Stochastic exploration**: Different iterations explore different market conditions
+- **Paired comparison integrity**: Same samples used for both policies within each iteration
+- **Full determinism**: Same master_seed produces identical results (INV-2)
 
 ### Why Paired Comparison?
 
@@ -451,4 +491,4 @@ ci_upper = sample_deltas[int(0.975 * N)]
 
 ---
 
-*Last updated: 2025-12-16*
+*Last updated: 2025-12-21*

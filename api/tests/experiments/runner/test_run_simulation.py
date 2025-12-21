@@ -468,8 +468,9 @@ class TestRunSimulationPersistBootstrapE2E:
             loop._scenario_dict = get_test_scenario_dict()
             loop._persist_bootstrap = True  # Enable --persist-bootstrap
 
-            # Run initial simulation (uses _run_simulation internally)
-            result = loop._run_initial_simulation()
+            # Run initial simulation with iteration seed (INV-13)
+            iteration_seed = loop._seed_matrix.get_iteration_seed(0, "BANK_A")
+            result = loop._run_initial_simulation(seed=iteration_seed, iteration=0)
 
             # Verify events were persisted
             events = repo.get_events("persist-e2e-test", iteration=0)

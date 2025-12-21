@@ -51,6 +51,7 @@ class LLMConfig:
         max_tokens: Maximum tokens in the response (default 30000).
         thinking_budget: Anthropic extended thinking budget tokens.
         reasoning_effort: OpenAI reasoning effort level (low/medium/high).
+        reasoning_summary: OpenAI reasoning summary detail (concise/detailed).
         thinking_config: Google Gemini thinking configuration.
         system_prompt: System prompt for the LLM (loaded from YAML or file).
     """
@@ -67,6 +68,7 @@ class LLMConfig:
     # Provider-specific options (mutually exclusive by convention)
     thinking_budget: int | None = None  # Anthropic extended thinking
     reasoning_effort: str | None = None  # OpenAI: low, medium, high
+    reasoning_summary: str | None = None  # OpenAI: concise, detailed
     thinking_config: dict[str, Any] | None = None  # Google Gemini thinking
 
     # System prompt (from YAML or loaded from file)
@@ -126,12 +128,15 @@ class LLMConfig:
         if provider == "anthropic" and self.thinking_budget:
             # Anthropic extended thinking configuration
             settings["anthropic_thinking"] = {"budget_tokens": self.thinking_budget}
-        elif provider == "openai" and self.reasoning_effort:
-            # OpenAI reasoning effort (for GPT-5, o1, o3 models)
-            settings["openai_reasoning_effort"] = self.reasoning_effort
-            # Reasoning models need more tokens for verbose output
-            if self.reasoning_effort == "high":
-                settings["max_tokens"] = max(self.max_tokens, 30000)
+        elif provider == "openai":
+            # OpenAI reasoning configuration (for GPT-5, o1, o3 models)
+            if self.reasoning_effort:
+                settings["openai_reasoning_effort"] = self.reasoning_effort
+                # Reasoning models need more tokens for verbose output
+                if self.reasoning_effort == "high":
+                    settings["max_tokens"] = max(self.max_tokens, 30000)
+            if self.reasoning_summary:
+                settings["openai_reasoning_summary"] = self.reasoning_summary
         elif provider == "google" and self.thinking_config:
             # Google Gemini thinking config
             settings["google_thinking_config"] = self.thinking_config
