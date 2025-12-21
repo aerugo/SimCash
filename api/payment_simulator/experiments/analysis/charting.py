@@ -6,8 +6,11 @@ and rendering convergence charts with matplotlib.
 All costs are converted from integer cents (INV-1) to dollars for display.
 
 Data is extracted from the experiment_iterations table (authoritative source).
-Policy acceptance is inferred from cost improvement since the accepted_changes
-field has a known bug (always False).
+
+IMPORTANT: In bootstrap mode with per-iteration seeds (INV-13), each iteration
+explores different stochastic conditions. The "accepted trajectory" shows ALL
+costs since absolute cost comparison across iterations is not meaningful - the
+actual acceptance uses paired comparison on same bootstrap samples.
 
 Example:
     >>> from pathlib import Path
@@ -216,20 +219,37 @@ class ExperimentChartService:
 
             cost_dollars = cost_cents / 100.0
 
-            # Determine acceptance based on evaluation mode
-            # In deterministic/temporal modes, ALL policies are unconditionally accepted
-            # Only bootstrap mode uses accept/reject based on cost improvement
+            # Determine acceptance for chart trajectory
+            #
+            # IMPORTANT: In bootstrap mode with per-iteration seeds (INV-13), each
+            # iteration runs a different context simulation with different stochastic
+            # arrivals. This means absolute cost comparison across iterations is
+            # meaningless - a high cost could just mean unlucky arrivals, not a bad
+            # policy. The actual acceptance decision uses paired comparison (same
+            # bootstrap samples for old vs new policy), which we don't have access to
+            # in the iterations table.
+            #
+            # Therefore, for bootstrap mode we mark ALL iterations as accepted.
+            # The "accepted trajectory" line will show all costs, reflecting the
+            # stochastic variation inherent in the methodology.
+            #
+            # For deterministic modes (single fixed scenario), cost comparison is
+            # valid since the same arrivals are used each iteration.
             if evaluation_mode == "bootstrap":
-                if previous_cost is None:
-                    accepted = True  # First iteration (baseline)
-                else:
-                    # Bootstrap mode: accepted only if cost improved (decreased)
-                    accepted = cost_dollars < previous_cost
-            else:
-                # deterministic, deterministic-temporal, temporal → all accepted
+                # Bootstrap with per-iteration seeds: all policies accepted
+                # (paired comparison doesn't map to single-iteration acceptance)
                 accepted = True
+            elif evaluation_mode.startswith("deterministic"):
+                # Deterministic modes: all policies unconditionally accepted
+                accepted = True
+            else:
+                # Unknown mode: infer from cost improvement (legacy behavior)
+                if previous_cost is None:
+                    accepted = True
+                else:
+                    accepted = cost_dollars < previous_cost
 
-            # Update previous cost only when accepted (tracks the "current best")
+            # Update previous cost for legacy inference mode
             if accepted:
                 previous_cost = cost_dollars
 
@@ -335,14 +355,18 @@ class ExperimentChartService:
                     parameter_name,
                 )
 
-            # Determine acceptance based on evaluation mode
-            # In deterministic/temporal modes, ALL policies are unconditionally accepted
-            # Only bootstrap mode uses accept/reject based on cost improvement
+            # Determine acceptance for chart trajectory
+            # See detailed comment in _extract_from_iterations_table for rationale
             if evaluation_mode == "bootstrap":
-                accepted = eval_record.accepted
-            else:
-                # deterministic, deterministic-temporal, temporal → all accepted
+                # Bootstrap with per-iteration seeds: all policies accepted
+                # (paired comparison doesn't map to single-iteration acceptance)
                 accepted = True
+            elif evaluation_mode.startswith("deterministic"):
+                # Deterministic modes: all policies unconditionally accepted
+                accepted = True
+            else:
+                # Unknown mode: use database record
+                accepted = eval_record.accepted
 
             data_points.append(
                 ChartDataPoint(
