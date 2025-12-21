@@ -78,7 +78,7 @@ The user prompt is constructed individually for each agent and contains \textbf{
 about that agent's own experience:
 
 \begin{enumerate}
-    \item \textbf{Performance metrics}: Agent's own mean cost, standard deviation, settlement rate
+    \item \textbf{Performance metrics from past iterations}: Agent's own mean cost, standard deviation, settlement rate
     \item \textbf{Current policy}: Agent's own \texttt{initial\_liquidity\_fraction} parameter
     \item \textbf{Cost breakdown}: Agent's own costs by type (delay, overdraft, penalties)
     \item \textbf{Simulation trace}: Filtered event log showing \textbf{only}:
@@ -105,6 +105,14 @@ This isolation is enforced programmatically by the \texttt{filter\_events\_for\_
 The only ``signal'' about counterparty behavior comes from \textit{incoming payments}---a realistic
 level of transparency in actual RTGS systems where participants observe settlement messages but not
 others' internal liquidity positions.
+
+Crucially, agents receive \textbf{transaction events from the current iteration} alongside
+\textbf{performance metrics from past iterations}, but are never informed that the environment
+is stationary. The agent is not told that all iterations use identical transaction schedules
+(Experiments 1 and 3) or identical stochastic parameters (Experiment 2). From the agent's
+perspective, each iteration could involve a different payment environment---any regularity
+must be inferred from observed patterns rather than assumed from explicit knowledge of the
+experimental design.
 
 \subsection{Evaluation Modes}
 
@@ -169,10 +177,10 @@ We implement three canonical scenarios from Castro et al.\ (2025):
 Our experiments replicate the scenarios from Castro et al., with key methodological differences:
 
 \begin{itemize}
-    \item \textbf{Optimization method}: Castro uses REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
-    \item \textbf{Action representation}: Castro discretizes $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
-    \item \textbf{Convergence}: Castro monitors training loss curves; we use explicit policy stability (temporal) or multi-criteria statistical convergence (bootstrap) detection
-    \item \textbf{Multi-agent dynamics}: Castro trains two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
+    \item \textbf{Optimization method}: Castro et al.\ use REINFORCE (policy gradient with neural networks trained over 50--100 episodes); we use LLM-based policy optimization with natural language reasoning
+    \item \textbf{Action representation}: Castro et al.\ discretize $x_0 \in \{0, 0.05, \ldots, 1\}$ (21 values); our LLM proposes continuous values in $[0,1]$
+    \item \textbf{Convergence}: Castro et al.\ monitor training loss curves; we use explicit policy stability (temporal) or multi-criteria statistical convergence (bootstrap) detection
+    \item \textbf{Multi-agent dynamics}: Castro et al.\ train two neural networks simultaneously with gradient updates; we optimize agents sequentially within each iteration, checking for mutual best-response stability
 \end{itemize}
 
 \subsection{LLM Configuration}
@@ -181,7 +189,7 @@ Our experiments replicate the scenarios from Castro et al., with key methodologi
     \item Model: \texttt{openai:gpt-5.2}
     \item Reasoning effort: \texttt{high}
     \item Temperature: 0.5
-    \item Max iterations: 25 per pass
+    \item Max iterations: 50 per pass
 \end{itemize}
 
 Each experiment is run 3 times (passes) with identical configurations to assess

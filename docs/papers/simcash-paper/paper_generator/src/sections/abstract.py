@@ -33,17 +33,25 @@ def generate_abstract(provider: DataProvider) -> str:
 
     return rf"""
 \begin{{abstract}}
-We present SimCash, a novel framework for discovering Nash equilibria in payment
-system liquidity games using Large Language Models (LLMs). Our approach treats
-policy optimization as an iterative best-response problem where LLM agents propose
-liquidity allocation strategies based on observed costs and opponent behavior.
-Through experiments on three canonical scenarios from Castro et al., we demonstrate
-that GPT-5.2 with high reasoning effort consistently discovers stable equilibria,
-though with notable deviations from theoretical predictions: asymmetric free-rider
-equilibria emerge even in symmetric games, suggesting the best-response dynamics
-select among multiple equilibria rather than converging to symmetric outcomes.
-Our results across {total_passes} independent runs
-({passes_per_exp} passes $\times$ {total_experiments} experiments) show {convergence_pct}\% convergence success with an average
-of {avg_iterations:.1f} iterations to stability.
+We present SimCash, a framework for discovering Nash equilibria in payment system
+liquidity games using Large Language Models (LLMs) as strategic agents. Unlike
+gradient-based reinforcement learning, our approach uses LLM reasoning to propose
+policy adjustments through natural language deliberation, enabling interpretable
+optimization under information isolation---agents observe only their own costs and
+transaction history, not counterparty strategies.
+
+Through {total_passes} independent runs across {total_experiments} canonical scenarios
+from Castro et al., we find that LLM agents reliably converge to stable equilibria
+({convergence_pct}\% success, mean {avg_iterations:.1f} iterations), but with notable
+deviations from game-theoretic predictions. Most strikingly, symmetric cost structures
+yield asymmetric free-rider equilibria: one agent minimizes liquidity while the other
+compensates. The specific equilibrium selected depends on early exploration dynamics
+rather than payoff structure alone, and different runs find equilibria with substantially
+different efficiency---total costs vary by up to 4$\times$ across independent passes.
+
+These results suggest that sequential best-response dynamics in multi-agent LLM systems
+naturally select among multiple equilibria rather than converging to theoretically
+predicted symmetric outcomes, with implications for using LLMs to model strategic
+behavior in financial infrastructure.
 \end{{abstract}}
 """
