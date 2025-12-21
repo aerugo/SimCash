@@ -9,9 +9,17 @@ This project uses [Astral UV](https://docs.astral.sh/uv/) for package management
 ### Initial Setup
 
 ```bash
+# 1. Set up Git LFS (required for database files)
+brew install git-lfs
+git lfs install
+git clone <repo>
+# If repo already cloned, pull LFS files:
+git lfs pull
+
+# 2. Navigate to paper generator
 cd docs/papers/simcash-paper/paper_generator
 
-# Install all dependencies (including payment-simulator from ../../../../api)
+# 3. Install all dependencies (including payment-simulator from ../../../../api)
 uv sync --extra dev
 ```
 

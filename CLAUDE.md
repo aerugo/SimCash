@@ -814,7 +814,19 @@ When starting work on this project:
 4. ✅ Scan `api/CLAUDE.md` for Python patterns
 5. ✅ Review `docs/architecture.md` for system design
 6. ✅ Look at example configs to understand domain
-7. ✅ Build and test:
+7. ✅ Set up Git LFS (required for database files):
+   ```bash
+   # Install Git LFS (macOS)
+   brew install git-lfs
+   git lfs install
+
+   # If cloning fresh:
+   git clone <repo>
+
+   # If repo already cloned, pull LFS files:
+   git lfs pull
+   ```
+8. ✅ Build and test:
    ```bash
    # Setup: Build Rust module and install everything (one command!)
    cd api
@@ -834,7 +846,7 @@ When starting work on this project:
    - After Python changes: No rebuild needed (editable mode)
    - After Rust changes: Add `--reinstall-package payment-simulator` flag
    - Rust tests require `--no-default-features` flag
-8. ✅ Create subagents as needed for specialized work
+9. ✅ Create subagents as needed for specialized work
 
 ---
 
