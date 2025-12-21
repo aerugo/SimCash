@@ -3,7 +3,7 @@
 **Date**: 2025-12-21
 **Priority**: Medium
 **Type**: Investigation
-**Status**: Open
+**Status**: Resolved
 
 ---
 
@@ -128,10 +128,16 @@ ORDER BY iteration
 
 ## Acceptance Criteria
 
-1. [ ] Root cause identified and documented
-2. [ ] If bug found: fix implemented and verified
-3. [ ] If behavior is correct: explanation added to paper/docs clarifying why the pattern appears
-4. [ ] Chart updated or annotated if needed to avoid confusion
+1. [x] Root cause identified and documented
+2. [x] If bug found: fix implemented and verified — **No bug found, behavior is correct**
+3. [x] If behavior is correct: explanation added to paper/docs clarifying why the pattern appears
+4. [ ] Chart updated or annotated if needed to avoid confusion — *Optional enhancement*
+
+## Resolution
+
+**Root Cause**: Bilateral agent dynamics. When BANK_B changes policy, it affects BANK_A's operating environment even when BANK_A's policy remains unchanged. The cost shift reflects the new equilibrium produced by the counterparty's policy change.
+
+See detailed investigation report: [`docs/reports/INV-14-bootstrap-cost-stability-investigation.md`](../reports/INV-14-bootstrap-cost-stability-investigation.md)
 
 ---
 
