@@ -1,7 +1,7 @@
 # Patterns, Invariants, and Conventions
 
-**Version**: 2.1
-**Last Updated**: 2025-12-14
+**Version**: 2.2
+**Last Updated**: 2025-12-21
 
 This document consolidates all architectural patterns, critical invariants, coding conventions, and styleguides for SimCash. This serves as the authoritative reference for Claude Code agents and contributors.
 
@@ -236,6 +236,47 @@ Both layers must enforce isolation. Filtering alone is insufficient—even event
 - `api/payment_simulator/ai_cash_mgmt/bootstrap/context_builder.py` - Event formatting
 - `api/payment_simulator/ai_cash_mgmt/prompts/event_filter.py` - Event filtering
 - `api/tests/ai_cash_mgmt/unit/test_prompt_agent_isolation.py` - Isolation tests
+
+### INV-13: Bootstrap Seed Hierarchy
+
+**Rule**: Bootstrap mode MUST use the full SeedMatrix hierarchy for seed generation.
+
+**Hierarchy**:
+```
+master_seed
+└── iteration_seed (per iteration, per agent)
+    └── bootstrap_sample_seed (per sample within iteration)
+```
+
+**Requirements**:
+- Context simulation runs EACH iteration with `get_iteration_seed(iteration, agent)`
+- Bootstrap samples regenerated EACH iteration using iteration_seed
+- Same sample used for both old and new policy (paired comparison)
+- Total unique seeds = iterations × samples
+
+```python
+# ✅ CORRECT - Per-iteration seeds
+for iteration in range(max_iterations):
+    iteration_seed = seed_matrix.get_iteration_seed(iteration, agent_id)
+    context_result = run_context_simulation(seed=iteration_seed)
+    create_bootstrap_samples(seed=iteration_seed)
+
+# ❌ WRONG - Single master_seed for all iterations
+context_result = run_context_simulation(seed=master_seed)  # Only once!
+create_bootstrap_samples(seed=master_seed)  # Samples never change!
+```
+
+**Where it applies**:
+- `optimization.py._run_initial_simulation()` - uses iteration_seed parameter
+- `optimization.py._create_bootstrap_samples()` - uses iteration_seed parameter
+- `BootstrapSampler` - derives sample seeds from iteration_seed
+
+**Rationale**: Without per-iteration seeds, all 50 iterations would evaluate policies on the same 50 bootstrap samples, limiting stochastic exploration. With proper hierarchy, we get 50 × 50 = 2,500 unique samples across the experiment.
+
+**Related Files**:
+- `api/payment_simulator/experiments/runner/optimization.py` - Iteration loop
+- `api/payment_simulator/experiments/runner/seed_matrix.py` - Seed generation
+- `api/payment_simulator/ai_cash_mgmt/bootstrap/sampler.py` - Sample generation
 
 ---
 
