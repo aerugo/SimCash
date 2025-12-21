@@ -53,7 +53,7 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
 def wrap_document(
     content: str,
     title: str = "SimCash: Multi-Agent Simulation of Strategic Liquidity Management in Payment Systems",
-    author: str = "Anonymous",
+    author: str = "Hugi Aegisberg",
 ) -> str:
     """Wrap content in a complete LaTeX document structure.
 
@@ -88,6 +88,9 @@ def wrap_document(
 % Lists
 \usepackage{{enumitem}}
 
+% Colors for notice box
+\usepackage{{xcolor}}
+
 % Hyperlinks
 \usepackage{{hyperref}}
 \hypersetup{{
@@ -105,6 +108,33 @@ def wrap_document(
 \begin{{document}}
 
 \maketitle
+
+\vspace{{1em}}
+\begin{{center}}
+\colorbox{{red!90}}{{\parbox{{0.92\textwidth}}{{\color{{white}}\centering
+\textbf{{\Large DO NOT CIRCULATE}}\\[0.5em]
+\normalsize
+This is a working document and is not intended for distribution.\\[0.3em]
+This paper and the accompanying SimCash codebase were developed in collaboration\\
+with \textbf{{Claude 4.5 Opus}} (Anthropic), which served as a co-author for both\\
+the research code and this manuscript.
+}}}}
+\end{{center}}
+
+\vspace{{0.5em}}
+\begin{{center}}
+\colorbox{{green!70!black}}{{\parbox{{0.92\textwidth}}{{\color{{white}}
+\textbf{{About This Document}}\\[0.3em]
+This is not a traditional research paper. It is a proposal document designed to
+present a research methodology and preliminary findings to potential collaborators
+by packaging them in paper format.\\[0.3em]
+All tables, figures, and numerical values are \textbf{{programmatically generated}}
+from experimental databases---no results are manually transcribed. The accompanying
+text is generated according to structured instructions from the author specifying
+which conclusions to draw and which aspects of the results to emphasize.
+}}}}
+\end{{center}}
+\vspace{{1em}}
 
 {content}
 
