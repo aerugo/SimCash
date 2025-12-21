@@ -84,13 +84,13 @@ def generate_discussion(provider: DataProvider) -> str:
 \label{{sec:discussion}}
 
 Our experimental results demonstrate that LLM agents in the SimCash framework
-consistently converge to stable equilibria, though not always matching theoretical
+consistently converge to stable policy profiles, though not always matching theoretical
 predictions. All {total_passes} experiment passes achieved convergence,
 validating the framework's robustness.
 
 \subsection{{Theoretical Alignment and Deviations}}
 
-We compare observed equilibria against game-theoretic predictions from Castro et al.\ (2025):
+We compare observed outcomes against game-theoretic predictions from Castro et al.\ (2025):
 
 \subsubsection{{Experiment 1: Asymmetric Cost Structure}}
 
@@ -106,8 +106,10 @@ Our results \textbf{{partially confirm}} this prediction:
     \item \textbf{{Pass 3}}: The free-rider \textit{{identity flipped}}---BANK\_B converged to
     0\% while BANK\_A maintained 1.8\%. This role reversal resulted in substantially
     higher total cost ({format_money(exp1_worst_total)} vs {format_money(exp1_best_total)}),
-    demonstrating that the game admits \textbf{{multiple asymmetric equilibria}} with
-    different efficiency properties.
+    demonstrating that the learning dynamics can converge to \textbf{{multiple asymmetric
+    stable outcomes}} with different efficiency properties. Note that BANK\_B's zero-liquidity
+    outcome, while stable, resulted in \textit{{higher}} costs for both agents---representing
+    a coordination failure rather than successful free-riding.
 \end{{itemize}}
 
 The identity of the free-rider was determined by early exploration dynamics rather than
@@ -157,8 +159,8 @@ Our results show a \textbf{{systematic deviation}} from this prediction:
     \item BANK\_A assumed the free-rider role in {exp3_freerider_a_count} of 3 passes.
 \end{{itemize}}
 
-This finding suggests that \textbf{{symmetric games can support asymmetric equilibria}}
-when agents optimize sequentially. The symmetric equilibrium may be unstable under
+This finding suggests that, \textbf{{under our LLM update dynamics, symmetric games
+tend to converge to asymmetric stable outcomes}}. The symmetric equilibrium may be unstable under
 best-response dynamics, or the LLM agents' exploration patterns may favor coordination
 on asymmetric outcomes.
 
@@ -170,13 +172,13 @@ on asymmetric outcomes.
 Experiment & Predicted & Observed & Alignment \\
 \hline
 Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
-Exp 2 (Stochastic) & Moderate (10--30\%) & 6--20\% & Good \\
+Exp 2 (Stochastic) & Moderate (10--30\%) & 5--12\% & Partial \\
 Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
 \hline
 \end{{tabular}}
 \end{{center}}
 
-The key insight is that while agents consistently find \textit{{stable}} equilibria,
+The key insight is that while agents consistently find \textit{{stable}} outcomes,
 the specific equilibrium selected depends on learning dynamics rather than cost structure
 alone. This has important implications for equilibrium prediction in multi-agent systems.
 
@@ -205,7 +207,9 @@ This approach offers several modeling advantages:
 
     \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--29 iterations
     rather than requiring thousands of training episodes, enabling rapid exploration
-    of scenario variations.
+    of scenario variations. (Note: while each bootstrap iteration involves $\sim$100
+    simulation samples for evaluation, the number of LLM decision points requiring
+    reasoning remains 7--29.)
 \end{{itemize}}
 
 We do not claim that LLM agents faithfully replicate human decision-making. Our
