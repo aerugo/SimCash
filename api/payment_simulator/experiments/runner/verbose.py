@@ -887,3 +887,126 @@ class VerboseLogger:
 
         if seed is not None and self._config.debug:
             self._console.print(f"    [dim]Seed: 0x{seed:08x}[/dim]")
+
+    def log_seed_matrix_summary(
+        self,
+        master_seed: int,
+        max_iterations: int,
+        agents: list[str],
+        num_bootstrap_samples: int,
+        sample_iteration_seeds: dict[tuple[int, str], int] | None = None,
+    ) -> None:
+        """Log seed matrix configuration at experiment start.
+
+        Shows master seed, derived seed counts, and sample iteration seeds
+        to verify the seed hierarchy is working correctly (INV-13).
+
+        Args:
+            master_seed: The master RNG seed.
+            max_iterations: Maximum optimization iterations.
+            agents: List of optimized agent IDs.
+            num_bootstrap_samples: Number of bootstrap samples per evaluation.
+            sample_iteration_seeds: Optional dict of (iteration, agent) -> seed
+                for displaying sample seeds.
+        """
+        if not self._config.iterations:
+            return
+
+        self._console.print("\n[bold cyan]═══ Seed Matrix Configuration (INV-13) ═══[/bold cyan]")
+        self._console.print(f"  Master seed: [yellow]{master_seed}[/yellow] (0x{master_seed:08x})")
+        self._console.print(f"  Max iterations: {max_iterations}")
+        self._console.print(f"  Agents: {', '.join(agents)}")
+        self._console.print(f"  Bootstrap samples per iteration: {num_bootstrap_samples}")
+
+        # Calculate total seeds
+        total_iteration_seeds = max_iterations * len(agents)
+        total_bootstrap_seeds = max_iterations * len(agents) * num_bootstrap_samples
+        self._console.print(f"\n  [dim]Seed counts:[/dim]")
+        self._console.print(f"    Iteration seeds: {total_iteration_seeds:,}")
+        self._console.print(f"    Bootstrap sample seeds: {total_bootstrap_seeds:,}")
+
+        # Show sample iteration seeds for first few iterations
+        if sample_iteration_seeds:
+            self._console.print(f"\n  [dim]Sample iteration seeds (first 3 iterations):[/dim]")
+            table = Table(show_header=True, header_style="bold dim")
+            table.add_column("Iteration", style="dim", justify="right")
+            table.add_column("Agent", style="cyan")
+            table.add_column("Iteration Seed", justify="right")
+
+            # Show first 3 iterations for each agent
+            for iteration in range(min(3, max_iterations)):
+                for agent_id in agents:
+                    key = (iteration, agent_id)
+                    if key in sample_iteration_seeds:
+                        seed = sample_iteration_seeds[key]
+                        table.add_row(
+                            str(iteration),
+                            agent_id,
+                            f"0x{seed:08x}",
+                        )
+
+            self._console.print(table)
+
+        self._console.print("[bold cyan]═══════════════════════════════════════════[/bold cyan]\n")
+
+    def log_iteration_seed(
+        self,
+        iteration: int,
+        agent_id: str,
+        iteration_seed: int,
+        context_sim: bool = True,
+    ) -> None:
+        """Log the iteration seed being used for context simulation.
+
+        Called at the start of each iteration in bootstrap mode (INV-13).
+
+        Args:
+            iteration: Iteration number (1-indexed for display).
+            agent_id: Agent ID used for seed derivation.
+            iteration_seed: The derived iteration seed.
+            context_sim: If True, this seed is for context simulation.
+        """
+        if not self._config.iterations:
+            return
+
+        purpose = "context simulation" if context_sim else "evaluation"
+        self._console.print(
+            f"  [dim]Iteration seed:[/dim] 0x{iteration_seed:08x} "
+            f"[dim](iter {iteration}, agent {agent_id}, {purpose})[/dim]"
+        )
+
+    def log_bootstrap_sample_seeds(
+        self,
+        iteration: int,
+        agent_id: str,
+        sample_seeds: list[int],
+        show_all: bool = False,
+    ) -> None:
+        """Log bootstrap sample seeds for an iteration.
+
+        Called after bootstrap samples are created (INV-13).
+
+        Args:
+            iteration: Iteration number (1-indexed for display).
+            agent_id: Agent ID.
+            sample_seeds: List of seeds for each bootstrap sample.
+            show_all: If True, show all seeds. Otherwise show first/last 3.
+        """
+        if not self._config.bootstrap:
+            return
+
+        num_samples = len(sample_seeds)
+        self._console.print(
+            f"  [dim]Bootstrap samples for {agent_id}:[/dim] {num_samples} samples"
+        )
+
+        if show_all or num_samples <= 6:
+            # Show all seeds
+            seeds_str = ", ".join(f"0x{s:08x}" for s in sample_seeds)
+            self._console.print(f"    Seeds: [{seeds_str}]")
+        else:
+            # Show first 3 and last 3
+            first_three = ", ".join(f"0x{s:08x}" for s in sample_seeds[:3])
+            last_three = ", ".join(f"0x{s:08x}" for s in sample_seeds[-3:])
+            self._console.print(f"    Seeds: [{first_three}, ..., {last_three}]")
+
