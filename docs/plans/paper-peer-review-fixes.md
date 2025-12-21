@@ -41,15 +41,25 @@ should_accept = evaluation.delta_sum > 0
 **Deterministic-temporal mode** (line 2650):
 - Policies are **always accepted** - no cost-based rejection
 
-### Agent Update Order (from `optimization.py` lines 886-888)
+### Agent Update Order (from `optimization.py` lines 810-890)
+
+The iteration loop structure:
+1. **Evaluate policies** (line 834): Run ONE simulation with BOTH agents' current policies
+2. Both agents see their OWN costs from the SAME shared simulation
+3. **Optimize each agent** (lines 886-888): Loop through agents sequentially, each proposes independently
+4. Neither agent ever sees the other's proposal or policy (information isolation)
 
 ```python
 for agent_id in self.optimized_agents:
     await self._optimize_agent(agent_id, ...)
 ```
-- **Sequential within iteration**: Agent A optimized first, then Agent B
-- Agent B sees Agent A's **updated policy from same iteration**
-- This is NOT simultaneous - creates first-mover dynamics
+
+**Key insight**: The sequential execution is purely an implementation detail. It does NOT create asymmetric first-mover dynamics because:
+- Both agents observe costs from the **same** simulation evaluation (step 1)
+- Both agents make proposals **independently** based on their own history
+- Information isolation means neither ever sees the other's policy or costs
+
+So "simultaneously" (information structure) and "sequentially" (code execution) are **not inconsistent** - just potentially confusing to readers.
 
 ---
 
@@ -60,7 +70,7 @@ for agent_id in self.optimized_agents:
 | 1 | "Nash equilibrium" too strong | 🔴 Critical | abstract.py, methods.py, discussion.py, conclusion.py |
 | 2 | Convergence criterion doesn't match tables | 🔴 Critical | methods.py |
 | 3 | Bootstrap acceptance rule mismatch | 🟡 Medium | methods.py |
-| 4 | Sequential vs simultaneous ambiguity | 🟡 Medium | methods.py |
+| 4 | Sequential vs simultaneous ambiguity | 🟢 Minor (not actually inconsistent) | methods.py |
 | 5 | "Successful recovery" claim inaccurate | 🟡 Medium | introduction.py |
 | 6 | Free-rider interpretation issues | 🟡 Medium | discussion.py, results.py |
 | 7 | Stochastic environment looks deterministic | 🟡 Medium | discussion.py |
@@ -160,35 +170,33 @@ But mathematically, ∑ δᵢ > 0 means **positive average improvement**, not "i
 
 ---
 
-### Issue 4: Sequential vs simultaneous ambiguity 🟡
+### Issue 4: Sequential vs simultaneous ambiguity 🟢 (Downgraded)
 
-**Problem:** Two conflicting statements:
+**Problem:** Two seemingly conflicting statements:
 - Section 2.5.1: "counterparty policies evolve simultaneously"
 - Section 2.7: "we optimize agents sequentially within each iteration"
 
 **Root cause (from code analysis):**
 
-The implementation is **SEQUENTIAL** (not simultaneous). From `optimization.py` lines 886-888:
-```python
-for agent_id in self.optimized_agents:
-    await self._optimize_agent(agent_id, ...)
-```
+These are NOT actually inconsistent:
+- **"Simultaneously"** refers to the **information structure**: both agents observe the same shared simulation outcome, neither sees the other's policy or proposal
+- **"Sequentially"** refers to **code execution**: implementation detail of the optimization loop
 
-Agent B sees Agent A's **updated** policy from the same iteration. This creates asymmetric first-mover dynamics.
+Due to **information isolation**, Agent B never sees Agent A's policy at all. Both agents:
+1. See their own costs from the same simulation (evaluated at iteration start)
+2. Make proposals independently based on their own history
+3. Never observe the other's policy, costs, or proposals
 
-**Fix:**
+The sequential execution does NOT create first-mover dynamics.
+
+**Fix (minimal - just clarify):**
 
 #### `src/sections/methods.py`
-- Line 128: REMOVE the word "simultaneously" - it's wrong
-- Change from:
-  > "Rationale: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies evolve simultaneously"
+- Line 128: Leave "simultaneously" but add clarifying note:
+  > "Rationale: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies evolve simultaneously. Note: 'simultaneously' refers to the information structure (neither agent observes the other's policy); the optimization code runs sequentially as an implementation detail."
 
-  To:
-  > "Rationale: Cost-based rejection in deterministic settings would cause oscillation, as the opponent's policy also changes each iteration"
-
-- Line 183: Keep "we optimize agents sequentially" - this is CORRECT
-- Add explicit clarification near line 183:
-  > "Within each iteration, BANK_A is optimized first (holding BANK_B's previous policy fixed), then BANK_B is optimized given BANK_A's newly updated policy. This sequential structure creates first-mover dynamics where the agent order can influence equilibrium selection."
+OR simpler:
+- Just leave as-is since it's not actually wrong, just potentially confusing to readers who don't understand the information isolation
 
 ---
 
@@ -287,7 +295,7 @@ But:
 - Line 45: Change "Asymmetric equilibria dominate" → "Asymmetric outcomes dominate in our experiments"
 
 #### `src/sections/discussion.py`
-- Line 160: Change "This finding suggests that symmetric games can support asymmetric equilibria" → "This finding suggests that, under our sequential LLM update rule, symmetric games tend to converge to asymmetric outcomes"
+- Line 160: Change "This finding suggests that symmetric games can support asymmetric equilibria" → "This finding suggests that, under our LLM update dynamics, symmetric games tend to converge to asymmetric outcomes"
 
 ---
 
@@ -341,11 +349,10 @@ But:
 
 ## Implementation Order
 
-**Phase 1: Critical terminology fixes (Issues 1, 2, 4)** ⏱️ ~2 hours
+**Phase 1: Critical terminology fixes (Issues 1, 2)** ⏱️ ~2 hours
 1. Systematically replace "Nash equilibrium/equilibria" with "stable fixed point" / "equilibrium-like behavior"
 2. Fix convergence criterion: "unchanged" → "stable (relative change ≤ 5%)"
-3. Fix "simultaneously" → sequential update clarification
-4. Regenerate paper and verify changes
+3. Regenerate paper and verify changes
 
 **Phase 2: Accuracy fixes (Issues 3, 5, 6)** ⏱️ ~1 hour
 1. Fix bootstrap acceptance rule: "improvement across all samples" → "positive sum of improvements"
@@ -482,9 +489,8 @@ Before implementing, please confirm:
 # ADD after "Unconditional acceptance" item:
 #     Note: In this mode, ALL LLM-proposed policies are accepted regardless of cost impact
 
-# Line 128: Fix "simultaneously" error
-# OLD: "counterparty policies evolve simultaneously"
-# NEW: "the opponent's policy also changes each iteration"
+# Line 128: Optionally clarify "simultaneously" (NOT actually wrong - see Issue 4 analysis)
+# Leave as-is OR add clarifying note about information isolation
 
 # Line 129: Fix convergence criterion
 # OLD: "Both agents' initial_liquidity_fraction unchanged for 5 consecutive iterations, indicating mutual best-response equilibrium"
@@ -497,8 +503,8 @@ Before implementing, please confirm:
 # Lines 141-146: Add CV clarification
 # ADD note: "The CV threshold is computed over the last 5 \textit{iteration means}, not over individual bootstrap samples within an iteration."
 
-# After line 183: Add sequential dynamics explanation
-# ADD: "Within each iteration, BANK\_A is optimized first (holding BANK\_B's previous policy fixed), then BANK\_B is optimized given BANK\_A's newly updated policy. This sequential structure can influence which stable outcome is selected."
+# After line 183: (OPTIONAL - see Issue 4: sequential execution doesn't create asymmetric dynamics due to information isolation)
+# If clarification desired, add note that "sequential" refers to code execution while "simultaneously" refers to information structure
 ```
 
 ### File: `src/sections/discussion.py`
@@ -529,7 +535,7 @@ Before implementing, please confirm:
 
 # Line 160: Soften generalization
 # OLD: "symmetric games can support asymmetric equilibria"
-# NEW: "under our sequential LLM update rule, symmetric games tend to converge to asymmetric stable outcomes"
+# NEW: "under our LLM update dynamics, symmetric games tend to converge to asymmetric stable outcomes"
 
 # Line 173: Fix observed range
 # OLD: "Observed: 6--20\%"
@@ -615,7 +621,7 @@ Before implementing, please confirm:
 | free-rider equilibrium | free-rider outcome / pattern | Outcome may not be true equilibrium |
 | unchanged for 5 iterations | stable (≤5% change) for 5 iterations | Matches actual implementation |
 | improvement across all samples | positive sum of improvements | Matches actual delta_sum criterion |
-| evolve simultaneously | evolve each iteration | Sequential, not simultaneous |
+| ~~evolve simultaneously~~ | ~~n/a~~ | NOT a change needed - see Issue 4 (information isolation makes both terms valid) |
 
 ---
 
