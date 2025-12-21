@@ -40,8 +40,8 @@ best-response dynamics.
 \begin{{enumerate}}
     \item \textbf{{SimCash Framework}}: A hybrid Rust-Python simulator with LLM-based
     policy optimization
-    \item \textbf{{Empirical Validation}}: Successful recovery of Castro et al.'s
-    theoretical equilibria
+    \item \textbf{{Empirical Comparison}}: Comparison with Castro et al.'s theoretical
+    predictions, showing partial alignment and systematic deviations
     \item \textbf{{Reproducibility Analysis}}: {total_passes} independent runs demonstrating consistent
     convergence
     \item \textbf{{Bootstrap Evaluation}}: Methodology for handling stochastic payment

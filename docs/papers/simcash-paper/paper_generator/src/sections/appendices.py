@@ -38,7 +38,7 @@ def generate_appendices(provider: DataProvider) -> str:
     exp1_content = _generate_experiment_appendix(
         provider,
         exp_id="exp1",
-        title="Experiment 1: Asymmetric Equilibrium",
+        title="Experiment 1: Asymmetric Scenario",
         label_prefix="exp1",
     )
     appendix_sections.append(exp1_content)
@@ -56,7 +56,7 @@ def generate_appendices(provider: DataProvider) -> str:
     exp3_content = _generate_experiment_appendix(
         provider,
         exp_id="exp3",
-        title="Experiment 3: Symmetric Equilibrium",
+        title="Experiment 3: Symmetric Scenario",
         label_prefix="exp3",
     )
     appendix_sections.append(exp3_content)

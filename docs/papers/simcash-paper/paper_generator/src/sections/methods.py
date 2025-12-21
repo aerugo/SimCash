@@ -42,6 +42,7 @@ Agent costs comprise:
     \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
     \item \textbf{Deadline penalty}: Incurred when transactions become overdue
     \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
+    \item \textbf{Overdraft cost}: Fee for negative balance (basis points per day)
 \end{itemize}
 
 \subsection{LLM Policy Optimization}
@@ -120,13 +121,13 @@ We employ two distinct evaluation methodologies optimized for different scenario
 
 \subsubsection{Deterministic-Temporal Mode (Experiments 1 \& 3)}
 
-For scenarios with fixed payment schedules, we use \textbf{temporal policy stability} to identify Nash equilibria:
+For scenarios with fixed payment schedules, we use \textbf{temporal policy stability} to identify stable policy profiles:
 
 \begin{itemize}
     \item \textbf{Single simulation} per iteration with deterministic arrivals
-    \item \textbf{Unconditional acceptance}: All LLM-proposed policies are accepted immediately
-    \item \textbf{Rationale}: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies evolve simultaneously
-    \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} unchanged for 5 consecutive iterations, indicating mutual best-response equilibrium
+    \item \textbf{Unconditional acceptance}: All LLM-proposed policies are accepted immediately, regardless of cost impact
+    \item \textbf{Rationale}: Cost-based rejection would cause oscillation in multi-agent settings where counterparty policies also change each iteration
+    \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} stable (relative change $\leq$ 5\%) for 5 consecutive iterations, indicating policy stability
 \end{itemize}
 
 \subsubsection{Bootstrap Mode (Experiment 2)}
@@ -137,14 +138,16 @@ For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy
     \item \textbf{Initial collection}: Run one simulation to collect transaction history
     \item \textbf{Resampling}: Generate 50 transaction schedules by resampling with replacement, preserving settlement offset distributions
     \item \textbf{Paired comparison}: Evaluate both old and new policy on each sample, computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
-    \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (improvement across all samples)
+    \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (positive sum of improvements across samples)
     \item \textbf{Convergence criterion}: Three criteria must ALL be satisfied over a 5-iteration window:
     \begin{enumerate}
-        \item Coefficient of variation below 3\% (cost stability)
-        \item Mann-Kendall test $p > 0.05$ (no significant trend, i.e., not still improving)
+        \item Coefficient of variation below 3\% (cost stability across iteration means)
+        \item Mann-Kendall test $p > 0.05$ (no significant trend---note: with only 5 iterations, this is a heuristic with limited statistical power)
         \item Regret below 10\% (current cost within 10\% of best observed)
     \end{enumerate}
 \end{itemize}
+
+\textit{Note: The CV threshold is computed over the last 5 iteration means, not over individual bootstrap samples within an iteration (which can exhibit much higher variance).}
 
 \subsection{Experimental Setup}
 
