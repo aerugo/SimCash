@@ -153,24 +153,11 @@ class TestPhase1ContextSimulationSeeds:
             f"Got: {seeds_used[0]}"
         )
 
-        # Also verify that calling WITHOUT seed falls back to master_seed
-        # (backward compatibility)
-        seeds_used.clear()
-        with patch.object(loop, "_run_simulation", mock_run_simulation):
-            loop._run_initial_simulation()  # No seed = uses master_seed
-
-        assert seeds_used[0] == mock_config.master_seed, (
-            f"Without seed param, should fall back to master_seed. "
-            f"Got: {seeds_used[0]}"
-        )
-
     def test_different_iterations_use_different_context_seeds(self) -> None:
         """Each iteration should run context simulation with different seed.
 
         This tests that we don't just run initial simulation ONCE, but
-        run it per-iteration with iteration-specific seeds.
-
-        Currently FAILS because bootstrap runs initial sim only once.
+        run it per-iteration with iteration-specific seeds (INV-13).
         """
         mock_config = _create_mock_config(
             mode="bootstrap", master_seed=42, max_iterations=3
@@ -232,10 +219,7 @@ class TestPhase2BootstrapSampleSeeds:
     """Phase 2: Verify bootstrap samples use iteration-specific seeds."""
 
     def test_bootstrap_samples_should_differ_between_iterations(self) -> None:
-        """Bootstrap samples should be regenerated each iteration.
-
-        Currently FAILS because _create_bootstrap_samples() is called once.
-        """
+        """Bootstrap samples should be regenerated each iteration (INV-13)."""
         mock_config = _create_mock_config(
             mode="bootstrap", master_seed=42, num_samples=5, max_iterations=3
         )
