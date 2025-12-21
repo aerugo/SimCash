@@ -132,22 +132,44 @@ For scenarios with fixed payment schedules, we use \textbf{temporal policy stabi
 
 \subsubsection{Bootstrap Mode (Experiment 2)}
 
-For stochastic scenarios, we use \textbf{bootstrap resampling} for robust policy evaluation:
+For stochastic scenarios, we use \textbf{per-iteration bootstrap resampling} with pre-generated seeds
+for deterministic reproducibility.
 
-\begin{itemize}
-    \item \textbf{Initial collection}: Run one simulation to collect transaction history
-    \item \textbf{Resampling}: Generate 50 transaction schedules by resampling with replacement, preserving settlement offset distributions
-    \item \textbf{Paired comparison}: Evaluate both old and new policy on each sample, computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
-    \item \textbf{Acceptance criterion}: Accept if $\sum_i \delta_i > 0$ (positive sum of improvements across samples)
-    \item \textbf{Convergence criterion}: Three criteria must ALL be satisfied over a 5-iteration window:
-    \begin{enumerate}
-        \item Coefficient of variation below 3\% (cost stability across iteration means)
-        \item Mann-Kendall test $p > 0.05$ (no significant trend---note: with only 5 iterations, this is a heuristic with limited statistical power)
-        \item Regret below 10\% (current cost within 10\% of best observed)
-    \end{enumerate}
-\end{itemize}
+\paragraph{Seed Hierarchy.}
+Seeds are generated deterministically from a single master seed:
+\begin{enumerate}
+    \item \textbf{Master seed}: Fixed per experiment for reproducibility
+    \item \textbf{Iteration seeds}: 50 seeds derived from master (one per iteration per agent)
+    \item \textbf{Bootstrap seeds}: 50 seeds derived from each iteration seed (one per sample)
+\end{enumerate}
+This produces $50 \times 50 = 2{,}500$ unique seeds per agent, ensuring full stochastic exploration
+while maintaining paired comparison integrity within iterations.
 
-\textit{Note: The CV threshold is computed over the last 5 iteration means, not over individual bootstrap samples within an iteration (which can exhibit much higher variance).}
+\paragraph{Per-Iteration Evaluation.}
+Each iteration proceeds as follows:
+\begin{enumerate}
+    \item \textbf{Context simulation}: Run full simulation with the iteration-specific seed,
+    generating a unique transaction history for this iteration (different stochastic arrivals
+    than other iterations)
+    \item \textbf{Bootstrap sampling}: Generate 50 transaction schedules by resampling with
+    replacement from this iteration's history, preserving settlement offset distributions
+    \item \textbf{Paired comparison}: Evaluate both old and new policy on the \textit{same} 50 samples,
+    computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
+    \item \textbf{Acceptance}: Accept if $\sum_i \delta_i > 0$ (net improvement across samples)
+\end{enumerate}
+
+The paired comparison on identical samples eliminates sample-to-sample variance, enabling detection
+of smaller policy improvements than unpaired comparison would allow.
+
+\paragraph{Convergence Criterion.}
+Three criteria must ALL be satisfied over a 5-iteration window:
+\begin{enumerate}
+    \item Coefficient of variation below 3\% (cost stability across iteration means)
+    \item Mann-Kendall test $p > 0.05$ (no significant trend---with only 5 iterations, this is a heuristic)
+    \item Regret below 10\% (current cost within 10\% of best observed)
+\end{enumerate}
+
+\textit{Note: CV is computed over iteration means, not individual bootstrap samples.}
 
 \subsection{Experimental Setup}
 

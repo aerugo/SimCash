@@ -53,11 +53,12 @@ of the free-rider was determined by early exploration rather than cost structure
 In symmetric games, which agent ``moved first'' toward low liquidity locked in the
 asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
 
-\textbf{{3. Stochastic environments produce consistent efficiency.}} While deterministic
-scenarios exhibited 2--4$\times$ cost variation across passes (depending on which
-equilibrium was selected), stochastic environments produced remarkably consistent
-total costs ($\sim$1\% variance). This suggests that environmental noise may constrain
-the set of viable equilibria.
+\textbf{{3. Stochastic environments produce symmetric equilibria with consistent efficiency.}}
+While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
+with 2--4$\times$ cost variation across passes, stochastic environments (Experiment 2) produced
+near-symmetric liquidity allocations (7--9\% for both agents) with only $\sim$6\% total cost
+variance. This aligns with Castro et al.'s theoretical prediction that payment timing uncertainty
+inhibits free-rider dynamics, disciplining both agents toward comparable reserve levels.
 
 \subsection{{Implications}}
 

@@ -128,17 +128,20 @@ distributions---a synthetic approximation that may exhibit different variance ch
 
 Our results show \textbf{{partial alignment}} with theoretical predictions:
 \begin{{itemize}}
-    \item Final liquidity allocations ranged from {format_percent(exp2_mean_a_liq)} (BANK\_A mean)
-    to {format_percent(exp2_mean_b_liq)} (BANK\_B mean). BANK\_A's allocation falls \textit{{below}}
-    the expected 10--30\% range, suggesting possible free-riding even under stochastic conditions.
+    \item Final liquidity allocations were \textbf{{near-symmetric}}: BANK\_A averaged
+    {format_percent(exp2_mean_a_liq)} and BANK\_B averaged {format_percent(exp2_mean_b_liq)}.
+    This contrasts sharply with Experiments 1 and 3, where deterministic schedules enabled
+    asymmetric free-rider equilibria. The symmetric outcome aligns with Castro et al.'s
+    prediction that stochastic arrivals inhibit free-riding.
 
-    \item Unlike Experiments 1 and 3, equilibrium \textbf{{efficiency was remarkably consistent}}:
-    total costs ranged from {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}---only
-    $\sim$1\% variance compared to 2--4$\times$ variation in deterministic scenarios.
+    \item However, the observed 7--9\% range falls \textit{{below}} Castro's predicted 10--30\%,
+    suggesting LLM agents discovered lower-liquidity stable profiles. Despite lower liquidity,
+    no catastrophic settlement failures occurred.
 
-    \item The bootstrap convergence criterion (CV $<$ 3\%, no trend, regret $<$ 10\%)
-    identified stable policies that, despite different liquidity allocations, achieved similar
-    total costs.
+    \item Equilibrium \textbf{{efficiency was remarkably consistent}}: total costs ranged from
+    {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}---only $\sim$6\% variance
+    compared to 2--4$\times$ variation in deterministic scenarios. This supports Castro's insight
+    that stochastic environments produce more robust/unique equilibria.
 \end{{itemize}}
 
 \subsubsection{{Experiment 3: Symmetric Cost Structure}}
@@ -172,7 +175,7 @@ on asymmetric outcomes.
 Experiment & Predicted & Observed & Alignment \\
 \hline
 Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
-Exp 2 (Stochastic) & Moderate (10--30\%) & 5--12\% & Partial \\
+Exp 2 (Stochastic) & Symmetric, 10--30\% & Symmetric, 7--9\% & Partial (lower magnitude) \\
 Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
 \hline
 \end{{tabular}}
@@ -205,11 +208,11 @@ This approach offers several modeling advantages:
     system prompts emphasizing risk tolerance, regulatory constraints, or strategic
     objectives---approximating how different institutions operate under different mandates.
 
-    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--29 iterations
+    \item \textbf{{Few-shot adaptation}}: Agents adjust policies in 7--50 iterations
     rather than requiring thousands of training episodes, enabling rapid exploration
-    of scenario variations. (Note: while each bootstrap iteration involves $\sim$100
+    of scenario variations. (Note: while each bootstrap iteration involves $\sim$50
     simulation samples for evaluation, the number of LLM decision points requiring
-    reasoning remains 7--29.)
+    reasoning remains 7--50.)
 \end{{itemize}}
 
 We do not claim that LLM agents faithfully replicate human decision-making. Our
