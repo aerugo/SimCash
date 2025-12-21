@@ -779,6 +779,24 @@ class OptimizationLoop:
             },
         )
 
+        # Log seed matrix configuration (INV-13 verification)
+        if self._verbose_logger and self._verbose_config.iterations:
+            # Get sample iteration seeds for display
+            sample_seeds: dict[tuple[int, str], int] = {}
+            for iteration in range(min(3, self.max_iterations)):
+                for agent_id in self.optimized_agents:
+                    sample_seeds[(iteration, agent_id)] = (
+                        self._seed_matrix.get_iteration_seed(iteration, agent_id)
+                    )
+
+            self._verbose_logger.log_seed_matrix_summary(
+                master_seed=self._config.master_seed,
+                max_iterations=self.max_iterations,
+                agents=list(self.optimized_agents),
+                num_bootstrap_samples=self._config.evaluation.num_samples or 1,
+                sample_iteration_seeds=sample_seeds,
+            )
+
         # Initialize policies if not set
         for agent_id in self.optimized_agents:
             if agent_id not in self._policies:
@@ -821,6 +839,15 @@ class OptimizationLoop:
                     iteration_idx, agent_id
                 )
 
+                # Log iteration seed (INV-13 verification)
+                if self._verbose_logger and self._verbose_config.iterations:
+                    self._verbose_logger.log_iteration_seed(
+                        iteration=self._current_iteration,
+                        agent_id=agent_id,
+                        iteration_seed=iteration_seed,
+                        context_sim=True,
+                    )
+
                 # Run context simulation with iteration-specific seed
                 self._initial_sim_result = self._run_initial_simulation(
                     seed=iteration_seed, iteration=iteration_idx
@@ -828,6 +855,19 @@ class OptimizationLoop:
 
                 # Create bootstrap samples with iteration-specific seed
                 self._create_bootstrap_samples(seed=iteration_seed)
+
+                # Log bootstrap sample seeds (INV-13 verification)
+                if self._verbose_logger and self._verbose_config.bootstrap:
+                    for aid in self.optimized_agents:
+                        # Get the seeds that were used for this agent's samples
+                        sample_seeds = self._seed_matrix.get_bootstrap_seeds(
+                            iteration_idx, aid
+                        )
+                        self._verbose_logger.log_bootstrap_sample_seeds(
+                            iteration=self._current_iteration,
+                            agent_id=aid,
+                            sample_seeds=sample_seeds,
+                        )
 
                 # Record context simulation event for this iteration
                 self._state_provider.record_event(
