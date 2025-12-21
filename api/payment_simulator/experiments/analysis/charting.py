@@ -216,15 +216,18 @@ class ExperimentChartService:
 
             cost_dollars = cost_cents / 100.0
 
-            # Infer acceptance from cost improvement
-            # First iteration is always "accepted" (it's the baseline)
-            # Subsequent iterations are accepted only if cost strictly improved
-            if previous_cost is None:
-                accepted = True  # First iteration (baseline)
+            # Determine acceptance based on evaluation mode
+            # In deterministic/temporal modes, ALL policies are unconditionally accepted
+            # Only bootstrap mode uses accept/reject based on cost improvement
+            if evaluation_mode == "bootstrap":
+                if previous_cost is None:
+                    accepted = True  # First iteration (baseline)
+                else:
+                    # Bootstrap mode: accepted only if cost improved (decreased)
+                    accepted = cost_dollars < previous_cost
             else:
-                # Accepted only if cost improved (decreased)
-                # Same cost = rejected (no improvement)
-                accepted = cost_dollars < previous_cost
+                # deterministic, deterministic-temporal, temporal → all accepted
+                accepted = True
 
             # Update previous cost only when accepted (tracks the "current best")
             if accepted:
@@ -332,11 +335,20 @@ class ExperimentChartService:
                     parameter_name,
                 )
 
+            # Determine acceptance based on evaluation mode
+            # In deterministic/temporal modes, ALL policies are unconditionally accepted
+            # Only bootstrap mode uses accept/reject based on cost improvement
+            if evaluation_mode == "bootstrap":
+                accepted = eval_record.accepted
+            else:
+                # deterministic, deterministic-temporal, temporal → all accepted
+                accepted = True
+
             data_points.append(
                 ChartDataPoint(
                     iteration=iter_num,
                     cost_dollars=cost_dollars,
-                    accepted=eval_record.accepted,
+                    accepted=accepted,
                     parameter_value=parameter_value,
                 )
             )

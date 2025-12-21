@@ -93,15 +93,8 @@ def _generate_results_summary_appendix(provider: DataProvider) -> str:
         label="tab:results_summary",
     )
 
-    # Calculate aggregate statistics
-    all_summaries = exp1_summaries + exp2_summaries + exp3_summaries
-    total_passes = len(all_summaries)
-    avg_iterations = sum(s["iterations"] for s in all_summaries) / total_passes
-
-    # Calculate per-experiment averages
-    exp1_avg_total = sum(s["total_cost"] for s in exp1_summaries) // len(exp1_summaries)
-    exp2_avg_total = sum(s["total_cost"] for s in exp2_summaries) // len(exp2_summaries)
-    exp3_avg_total = sum(s["total_cost"] for s in exp3_summaries) // len(exp3_summaries)
+    # Calculate total passes for summary text
+    total_passes = len(exp1_summaries) + len(exp2_summaries) + len(exp3_summaries)
 
     return rf"""
 \section{{Results Summary}}
@@ -112,18 +105,6 @@ across {total_passes} passes ({len(exp1_summaries)} per experiment). All values 
 programmatically from the experiment databases to ensure consistency.
 
 {summary_table}
-
-\subsection{{Aggregate Statistics}}
-
-\begin{{itemize}}
-    \item \textbf{{Mean iterations to convergence}}: {avg_iterations:.1f}
-    \item \textbf{{Experiment 1 mean total cost}}: {format_money(exp1_avg_total)}
-    \item \textbf{{Experiment 2 mean total cost}}: {format_money(exp2_avg_total)}
-    \item \textbf{{Experiment 3 mean total cost}}: {format_money(exp3_avg_total)}
-\end{{itemize}}
-
-All {total_passes} passes achieved convergence to stable equilibria, demonstrating
-the robustness and reproducibility of the multi-agent learning framework.
 """
 
 
