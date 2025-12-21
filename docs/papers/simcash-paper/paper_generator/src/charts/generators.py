@@ -35,6 +35,63 @@ COLORS = {
 }
 
 
+def _build_accepted_trajectory(data_points: list) -> list[float]:
+    """Build cost/parameter trajectory following accepted policies.
+
+    For accepted iterations, use the actual value.
+    For rejected iterations, carry forward the previous accepted value.
+
+    Args:
+        data_points: List of ChartDataPoint with accepted flags.
+
+    Returns:
+        List of values representing the accepted trajectory.
+    """
+    result: list[float] = []
+    last_accepted_value: float | None = None
+
+    for point in data_points:
+        # Use cost_dollars for cost charts, parameter_value for param charts
+        value = point.cost_dollars if point.parameter_value is None else point.parameter_value
+        if value is None:
+            value = 0.5  # Default for missing parameter values
+
+        if point.accepted:
+            last_accepted_value = value
+        # Use last accepted value, or current value if none accepted yet
+        result.append(
+            last_accepted_value if last_accepted_value is not None else value
+        )
+    return result
+
+
+def _build_accepted_param_trajectory(data_points: list) -> list[float]:
+    """Build parameter trajectory following accepted policies.
+
+    For accepted iterations, use the parameter value.
+    For rejected iterations, carry forward the previous accepted value.
+
+    Args:
+        data_points: List of ChartDataPoint with accepted flags and parameter_value.
+
+    Returns:
+        List of parameter values representing the accepted trajectory.
+    """
+    result: list[float] = []
+    last_accepted_value: float | None = None
+
+    for point in data_points:
+        value = point.parameter_value if point.parameter_value is not None else 0.5
+
+        if point.accepted:
+            last_accepted_value = value
+        # Use last accepted value, or current value if none accepted yet
+        result.append(
+            last_accepted_value if last_accepted_value is not None else value
+        )
+    return result
+
+
 def _get_run_id_for_pass(
     db_path: Path,
     exp_id: str,
@@ -113,8 +170,8 @@ def generate_combined_convergence_chart(
     """Generate combined convergence chart showing both agents.
 
     Creates a side-by-side chart with:
-    - Left: Cost convergence for both BANK_A and BANK_B
-    - Right: Liquidity fraction convergence for both agents
+    - Left: Liquidity fraction convergence for both agents (cause)
+    - Right: Cost convergence for both BANK_A and BANK_B (effect)
 
     Args:
         db_path: Path to experiment database
@@ -149,31 +206,61 @@ def generate_combined_convergence_chart(
 
     # Create side-by-side subplots
     plt.style.use("seaborn-v0_8-whitegrid")
-    fig, (ax_cost, ax_liq) = plt.subplots(1, 2, figsize=(14, 5))
+    fig, (ax_liq, ax_cost) = plt.subplots(1, 2, figsize=(14, 5))
 
-    # === Left subplot: Cost Convergence ===
+    # === Right subplot: Cost Convergence ===
+    # Build accepted cost trajectory for BANK_A (carry forward last accepted)
     iterations_a = [p.iteration for p in data_a.data_points]
-    costs_a = [p.cost_dollars for p in data_a.data_points]
+    accepted_costs_a = _build_accepted_trajectory(data_a.data_points)
     ax_cost.plot(
         iterations_a,
-        costs_a,
+        accepted_costs_a,
         color=COLORS["bank_a"],
         linewidth=2,
-        label="BANK_A",
+        label="BANK_A (accepted)",
         marker="o",
         markersize=5,
     )
 
+    # Plot ALL proposed policies for BANK_A as X marks (including rejected)
+    all_costs_a = [p.cost_dollars for p in data_a.data_points]
+    ax_cost.scatter(
+        iterations_a,
+        all_costs_a,
+        color=COLORS["bank_a"],
+        marker="x",
+        s=60,
+        linewidths=1.5,
+        alpha=0.6,
+        label="BANK_A (proposed)",
+        zorder=3,
+    )
+
+    # Build accepted cost trajectory for BANK_B
     iterations_b = [p.iteration for p in data_b.data_points]
-    costs_b = [p.cost_dollars for p in data_b.data_points]
+    accepted_costs_b = _build_accepted_trajectory(data_b.data_points)
     ax_cost.plot(
         iterations_b,
-        costs_b,
+        accepted_costs_b,
         color=COLORS["bank_b"],
         linewidth=2,
-        label="BANK_B",
+        label="BANK_B (accepted)",
         marker="s",
         markersize=5,
+    )
+
+    # Plot ALL proposed policies for BANK_B as X marks (including rejected)
+    all_costs_b = [p.cost_dollars for p in data_b.data_points]
+    ax_cost.scatter(
+        iterations_b,
+        all_costs_b,
+        color=COLORS["bank_b"],
+        marker="x",
+        s=60,
+        linewidths=1.5,
+        alpha=0.6,
+        label="BANK_B (proposed)",
+        zorder=3,
     )
 
     ax_cost.set_title("Cost Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
@@ -186,29 +273,59 @@ def generate_combined_convergence_chart(
     ax_cost.spines["right"].set_visible(False)
     ax_cost.grid(True, alpha=0.3, color=COLORS["grid"])
 
-    # === Right subplot: Liquidity Fraction Convergence ===
+    # === Left subplot: Liquidity Fraction Convergence ===
+    # Build accepted liquidity trajectory for BANK_A
     iterations_a_liq = [p.iteration for p in data_a_liq.data_points]
-    liq_a = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_a_liq.data_points]
+    accepted_liq_a = _build_accepted_param_trajectory(data_a_liq.data_points)
     ax_liq.plot(
         iterations_a_liq,
-        liq_a,
+        accepted_liq_a,
         color=COLORS["bank_a"],
         linewidth=2,
-        label="BANK_A",
+        label="BANK_A (accepted)",
         marker="o",
         markersize=5,
     )
 
+    # Plot ALL proposed liquidity fractions for BANK_A as X marks
+    all_liq_a = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_a_liq.data_points]
+    ax_liq.scatter(
+        iterations_a_liq,
+        all_liq_a,
+        color=COLORS["bank_a"],
+        marker="x",
+        s=60,
+        linewidths=1.5,
+        alpha=0.6,
+        label="BANK_A (proposed)",
+        zorder=3,
+    )
+
+    # Build accepted liquidity trajectory for BANK_B
     iterations_b_liq = [p.iteration for p in data_b_liq.data_points]
-    liq_b = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_b_liq.data_points]
+    accepted_liq_b = _build_accepted_param_trajectory(data_b_liq.data_points)
     ax_liq.plot(
         iterations_b_liq,
-        liq_b,
+        accepted_liq_b,
         color=COLORS["bank_b"],
         linewidth=2,
-        label="BANK_B",
+        label="BANK_B (accepted)",
         marker="s",
         markersize=5,
+    )
+
+    # Plot ALL proposed liquidity fractions for BANK_B as X marks
+    all_liq_b = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_b_liq.data_points]
+    ax_liq.scatter(
+        iterations_b_liq,
+        all_liq_b,
+        color=COLORS["bank_b"],
+        marker="x",
+        s=60,
+        linewidths=1.5,
+        alpha=0.6,
+        label="BANK_B (proposed)",
+        zorder=3,
     )
 
     ax_liq.set_title("Liquidity Fraction Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])

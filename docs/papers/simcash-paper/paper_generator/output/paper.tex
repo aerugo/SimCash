@@ -34,7 +34,7 @@
 }
 
 % Title and author
-\title{SimCash: Multi-Agent Simulation of Strategic Liquidity Management in Payment Systems}
+\title{Discovering Nash Equilibria with LLM Agents: A Payment Systems Case Study}
 \author{Hugi Aegisberg}
 \date{\today}
 
@@ -58,39 +58,41 @@ the research code and this manuscript.
 \begin{center}
 \colorbox{green!70!black}{\parbox{0.92\textwidth}{\color{white}
 \textbf{About This Document}\\[0.3em]
-This is not a traditional research paper. It is a proposal document designed to
-present a research methodology and preliminary findings to potential collaborators
-by packaging them in paper format.\\[0.3em]
-All tables, figures, and numerical values are \textbf{programmatically generated}
-from experimental databases---no results are manually transcribed. The accompanying
-text is generated according to structured instructions from the author specifying
-which conclusions to draw and which aspects of the results to emphasize.
+This is a \textbf{research proposal} presenting methodology and preliminary findings
+to potential collaborators. All tables, figures, and statistics are programmatically
+generated from experiment databases (DuckDB $\to$ DataProvider $\to$ LaTeX/charts),
+eliminating manual transcription. The accompanying text is written by an AI assistant
+(Claude) following author guidance on structure and conclusions.\\[0.3em]
+SimCash is a hybrid Rust/Python payment system simulator with deterministic replay,
+configurable policies, and multiple settlement mechanisms (RTGS, queues, LSM). The
+experiment runner uses LLM agents to iteratively optimize policies through natural
+language reasoning, enabling research into multi-agent coordination in financial infrastructure.
 }}
 \end{center}
 \vspace{1em}
 
 
 \begin{abstract}
-We present SimCash, a framework for discovering Nash equilibria in payment system
-liquidity games using Large Language Models (LLMs) as strategic agents. Unlike
-gradient-based reinforcement learning, our approach uses LLM reasoning to propose
-policy adjustments through natural language deliberation, enabling interpretable
-optimization under information isolation---agents observe only their own costs and
-transaction history, not counterparty strategies.
+Can Large Language Models discover Nash equilibria through strategic reasoning alone?
+We explore this question using payment system liquidity management---a domain where
+banks must balance the cost of holding reserves against settlement delays, and where
+game-theoretic equilibria are well-characterized but difficult to find without explicit
+modeling.
 
-Through 9 independent runs across 3 canonical scenarios
-from Castro et al., we find that LLM agents reliably converge to stable equilibria
-(100\% success, mean 12.4 iterations), but with notable
-deviations from game-theoretic predictions. Most strikingly, symmetric cost structures
-yield asymmetric free-rider equilibria: one agent minimizes liquidity while the other
-compensates. The specific equilibrium selected depends on early exploration dynamics
-rather than payoff structure alone, and different runs find equilibria with substantially
-different efficiency---total costs vary by up to 4$\times$ across independent passes.
+We present SimCash, a framework where LLM agents optimize liquidity policies through
+natural language deliberation under information isolation: each agent observes only
+its own costs and transaction history, never counterparty strategies. Through 9
+independent runs across 3 scenarios adapted from Castro et al., agents
+reliably converge to stable equilibria (100\% success, mean 12.4
+iterations). However, equilibrium selection exhibits path-dependence: in symmetric games,
+agents consistently converge to \textit{asymmetric} free-rider equilibria, with the
+identity of the free-rider determined by early exploration rather than cost structure.
 
-These results suggest that sequential best-response dynamics in multi-agent LLM systems
-naturally select among multiple equilibria rather than converging to theoretically
-predicted symmetric outcomes, with implications for using LLMs to model strategic
-behavior in financial infrastructure.
+These preliminary findings suggest that LLM-based policy optimization can discover
+equilibrium behavior without explicit game-theoretic modeling, while also revealing
+that sequential best-response dynamics in multi-agent LLM systems may systematically
+favor asymmetric outcomes. Our small sample (9 runs) requires validation
+through expanded experimentation before drawing strong conclusions.
 \end{abstract}
 
 
@@ -682,16 +684,24 @@ of 3 passes.
 Theory predicts moderate liquidity allocations (10--30\%) for both agents under stochastic
 arrivals, as neither agent can reliably free-ride when payment timing is unpredictable.
 
-Our results show \textbf{broad alignment} with this prediction:
+\textbf{Methodological note:} Castro et al.\ use bootstrap samples of \textit{actual} LVTS
+payment data (380 business days), where each episode samples a historical day. Our implementation
+uses \textit{stochastic transaction arrival} with configurable Poisson rates and amount
+distributions---a synthetic approximation that may exhibit different variance characteristics.
+
+Our results show \textbf{partial alignment} with theoretical predictions:
 \begin{itemize}
     \item Final liquidity allocations ranged from 5.0\% (BANK\_A mean)
-    to 11.7\% (BANK\_B mean), within the expected range.
+    to 11.7\% (BANK\_B mean). BANK\_A's allocation falls \textit{below}
+    the expected 10--30\% range, suggesting possible free-riding even under stochastic conditions.
 
-    \item However, equilibrium \textbf{efficiency varied substantially} across passes:
-    total costs ranged from \$193.85 to \$196.43.
+    \item Unlike Experiments 1 and 3, equilibrium \textbf{efficiency was remarkably consistent}:
+    total costs ranged from \$193.85 to \$196.43---only
+    $\sim$1\% variance compared to 2--4$\times$ variation in deterministic scenarios.
 
     \item The bootstrap convergence criterion (CV $<$ 3\%, no trend, regret $<$ 10\%)
-    identified stable policies, but these stable points differed across independent runs.
+    identified stable policies that, despite different liquidity allocations, achieved similar
+    total costs.
 \end{itemize}
 
 \subsubsection{Experiment 3: Symmetric Cost Structure}
@@ -809,6 +819,11 @@ modifications that researchers can audit and understand.
 Several limitations of this study warrant acknowledgment:
 
 \begin{enumerate}
+    \item \textbf{Small sample size}: With only 9 total runs (3 passes per
+    experiment), our findings are preliminary. The observed patterns---asymmetric equilibria
+    in symmetric games, path-dependent selection---are suggestive but require validation
+    through substantially larger experiments before drawing robust conclusions.
+
     \item \textbf{Two-agent simplification}: Real RTGS systems involve dozens or
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.
@@ -832,28 +847,64 @@ Several limitations of this study warrant acknowledgment:
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper presented SimCash, a multi-agent simulation framework for studying
-strategic liquidity management in RTGS payment systems. Through three experiments,
-we demonstrated that LLM agents consistently converge to stable equilibria:
+We presented SimCash, a framework for discovering Nash equilibria in payment system
+liquidity games using LLM-based policy optimization. Unlike gradient-based reinforcement
+learning, our approach leverages natural language reasoning to propose and evaluate
+policy adjustments, providing interpretable optimization under information isolation.
 
-\begin{enumerate}
-    \item \textbf{Asymmetric equilibrium} (8 iterations): Free-rider behavior
-    emerges when agents face different cost structures, with one agent minimizing
-    liquidity while depending on counterparty provision.
+\subsection{Summary of Findings}
 
-    \item \textbf{Robust learning} (29 iterations): Agents learn effective
-    strategies even under transaction stochasticity, as validated through bootstrap
-    evaluation methodology.
+Across 9 independent runs, LLM agents achieved
+100\% convergence to stable equilibria (mean 12.4 iterations).
+Three key findings emerged:
 
-    \item \textbf{Equilibrium selection} (7 iterations): Even in symmetric
-    games, LLM agents converge to asymmetric equilibria, suggesting that sequential
-    best-response dynamics favor free-rider outcomes over cooperative equilibria.
-\end{enumerate}
+\textbf{1. Asymmetric equilibria dominate.} Even in Experiment 3's symmetric game,
+agents consistently converged to asymmetric free-rider equilibria rather than the
+theoretically predicted symmetric outcome. One agent minimizes liquidity while the
+other compensates---a pattern that emerged in all nine passes across experiments.
 
-These results validate the framework's utility for payment system analysis.
-Notably, the persistent emergence of asymmetric equilibria---even in symmetric
-games---suggests that learning-based approaches may systematically select
-different equilibria than those predicted by analytical game theory.
+\textbf{2. Early dynamics determine equilibrium selection.} The \textit{identity}
+of the free-rider was determined by early exploration rather than cost structure.
+In symmetric games, which agent ``moved first'' toward low liquidity locked in the
+asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
+
+\textbf{3. Stochastic environments produce consistent efficiency.} While deterministic
+scenarios exhibited 2--4$\times$ cost variation across passes (depending on which
+equilibrium was selected), stochastic environments produced remarkably consistent
+total costs ($\sim$1\% variance). This suggests that environmental noise may constrain
+the set of viable equilibria.
+
+\subsection{Implications}
+
+These results have implications for both payment system research and multi-agent AI:
+
+\begin{itemize}
+    \item \textbf{For payment systems:} LLM-based policy optimization can discover
+    equilibrium behavior without explicit game-theoretic modeling, potentially aiding
+    central banks in understanding how algorithmic liquidity management might evolve.
+
+    \item \textbf{For multi-agent AI:} Sequential best-response dynamics in LLM systems
+    naturally select among multiple equilibria based on exploration history, not payoff
+    structure alone. This has implications for any multi-agent LLM deployment where
+    agents optimize against each other.
+\end{itemize}
+
+\subsection{Limitations and Future Work}
+
+The most significant limitation is \textbf{sample size}: with only 9
+total runs, our findings are preliminary. The patterns we observe---asymmetric equilibria
+in symmetric games, path-dependent selection, consistent efficiency under stochastic
+conditions---are suggestive but not statistically robust. Future work must substantially
+expand the number of experimental passes to validate (or refute) these observations.
+
+Additionally, our implementation differs from Castro et al.\ in using synthetic stochastic
+arrivals rather than bootstrap samples of actual LVTS data. Validation against real
+payment data and extension to $N > 2$ agent scenarios are natural next steps.
+
+The interpretability of LLM reasoning also presents opportunities: agents' natural
+language deliberations could be analyzed to understand \textit{why} particular
+equilibria are selected, potentially revealing the implicit heuristics that drive
+equilibrium selection in learning systems.
 
 
 
@@ -892,18 +943,6 @@ programmatically from the experiment databases to ensure consistency.
     \end{tabular}
 \end{table}
 
-
-\subsection{Aggregate Statistics}
-
-\begin{itemize}
-    \item \textbf{Mean iterations to convergence}: 12.4
-    \item \textbf{Experiment 1 mean total cost}: \$52.26
-    \item \textbf{Experiment 2 mean total cost}: \$194.71
-    \item \textbf{Experiment 3 mean total cost}: \$265.25
-\end{itemize}
-
-All 9 passes achieved convergence to stable equilibria, demonstrating
-the robustness and reproducibility of the multi-agent learning framework.
 
 
 

@@ -33,25 +33,25 @@ def generate_abstract(provider: DataProvider) -> str:
 
     return rf"""
 \begin{{abstract}}
-We present SimCash, a framework for discovering Nash equilibria in payment system
-liquidity games using Large Language Models (LLMs) as strategic agents. Unlike
-gradient-based reinforcement learning, our approach uses LLM reasoning to propose
-policy adjustments through natural language deliberation, enabling interpretable
-optimization under information isolation---agents observe only their own costs and
-transaction history, not counterparty strategies.
+Can Large Language Models discover Nash equilibria through strategic reasoning alone?
+We explore this question using payment system liquidity management---a domain where
+banks must balance the cost of holding reserves against settlement delays, and where
+game-theoretic equilibria are well-characterized but difficult to find without explicit
+modeling.
 
-Through {total_passes} independent runs across {total_experiments} canonical scenarios
-from Castro et al., we find that LLM agents reliably converge to stable equilibria
-({convergence_pct}\% success, mean {avg_iterations:.1f} iterations), but with notable
-deviations from game-theoretic predictions. Most strikingly, symmetric cost structures
-yield asymmetric free-rider equilibria: one agent minimizes liquidity while the other
-compensates. The specific equilibrium selected depends on early exploration dynamics
-rather than payoff structure alone, and different runs find equilibria with substantially
-different efficiency---total costs vary by up to 4$\times$ across independent passes.
+We present SimCash, a framework where LLM agents optimize liquidity policies through
+natural language deliberation under information isolation: each agent observes only
+its own costs and transaction history, never counterparty strategies. Through {total_passes}
+independent runs across {total_experiments} scenarios adapted from Castro et al., agents
+reliably converge to stable equilibria ({convergence_pct}\% success, mean {avg_iterations:.1f}
+iterations). However, equilibrium selection exhibits path-dependence: in symmetric games,
+agents consistently converge to \textit{{asymmetric}} free-rider equilibria, with the
+identity of the free-rider determined by early exploration rather than cost structure.
 
-These results suggest that sequential best-response dynamics in multi-agent LLM systems
-naturally select among multiple equilibria rather than converging to theoretically
-predicted symmetric outcomes, with implications for using LLMs to model strategic
-behavior in financial infrastructure.
+These preliminary findings suggest that LLM-based policy optimization can discover
+equilibrium behavior without explicit game-theoretic modeling, while also revealing
+that sequential best-response dynamics in multi-agent LLM systems may systematically
+favor asymmetric outcomes. Our small sample ({total_passes} runs) requires validation
+through expanded experimentation before drawing strong conclusions.
 \end{{abstract}}
 """

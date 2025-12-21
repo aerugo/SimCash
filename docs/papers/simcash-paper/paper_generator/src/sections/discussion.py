@@ -119,16 +119,24 @@ of 3 passes.
 Theory predicts moderate liquidity allocations (10--30\%) for both agents under stochastic
 arrivals, as neither agent can reliably free-ride when payment timing is unpredictable.
 
-Our results show \textbf{{broad alignment}} with this prediction:
+\textbf{{Methodological note:}} Castro et al.\ use bootstrap samples of \textit{{actual}} LVTS
+payment data (380 business days), where each episode samples a historical day. Our implementation
+uses \textit{{stochastic transaction arrival}} with configurable Poisson rates and amount
+distributions---a synthetic approximation that may exhibit different variance characteristics.
+
+Our results show \textbf{{partial alignment}} with theoretical predictions:
 \begin{{itemize}}
     \item Final liquidity allocations ranged from {format_percent(exp2_mean_a_liq)} (BANK\_A mean)
-    to {format_percent(exp2_mean_b_liq)} (BANK\_B mean), within the expected range.
+    to {format_percent(exp2_mean_b_liq)} (BANK\_B mean). BANK\_A's allocation falls \textit{{below}}
+    the expected 10--30\% range, suggesting possible free-riding even under stochastic conditions.
 
-    \item However, equilibrium \textbf{{efficiency varied substantially}} across passes:
-    total costs ranged from {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}.
+    \item Unlike Experiments 1 and 3, equilibrium \textbf{{efficiency was remarkably consistent}}:
+    total costs ranged from {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}---only
+    $\sim$1\% variance compared to 2--4$\times$ variation in deterministic scenarios.
 
     \item The bootstrap convergence criterion (CV $<$ 3\%, no trend, regret $<$ 10\%)
-    identified stable policies, but these stable points differed across independent runs.
+    identified stable policies that, despite different liquidity allocations, achieved similar
+    total costs.
 \end{{itemize}}
 
 \subsubsection{{Experiment 3: Symmetric Cost Structure}}
@@ -246,6 +254,11 @@ modifications that researchers can audit and understand.
 Several limitations of this study warrant acknowledgment:
 
 \begin{{enumerate}}
+    \item \textbf{{Small sample size}}: With only {total_passes} total runs (3 passes per
+    experiment), our findings are preliminary. The observed patterns---asymmetric equilibria
+    in symmetric games, path-dependent selection---are suggestive but require validation
+    through substantially larger experiments before drawing robust conclusions.
+
     \item \textbf{{Two-agent simplification}}: Real RTGS systems involve dozens or
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.

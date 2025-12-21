@@ -52,7 +52,7 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
 
 def wrap_document(
     content: str,
-    title: str = "SimCash: Multi-Agent Simulation of Strategic Liquidity Management in Payment Systems",
+    title: str = "Discovering Nash Equilibria with LLM Agents: A Payment Systems Case Study",
     author: str = "Hugi Aegisberg",
 ) -> str:
     """Wrap content in a complete LaTeX document structure.
@@ -125,13 +125,15 @@ the research code and this manuscript.
 \begin{{center}}
 \colorbox{{green!70!black}}{{\parbox{{0.92\textwidth}}{{\color{{white}}
 \textbf{{About This Document}}\\[0.3em]
-This is not a traditional research paper. It is a proposal document designed to
-present a research methodology and preliminary findings to potential collaborators
-by packaging them in paper format.\\[0.3em]
-All tables, figures, and numerical values are \textbf{{programmatically generated}}
-from experimental databases---no results are manually transcribed. The accompanying
-text is generated according to structured instructions from the author specifying
-which conclusions to draw and which aspects of the results to emphasize.
+This is a \textbf{{research proposal}} presenting methodology and preliminary findings
+to potential collaborators. All tables, figures, and statistics are programmatically
+generated from experiment databases (DuckDB $\to$ DataProvider $\to$ LaTeX/charts),
+eliminating manual transcription. The accompanying text is written by an AI assistant
+(Claude) following author guidance on structure and conclusions.\\[0.3em]
+SimCash is a hybrid Rust/Python payment system simulator with deterministic replay,
+configurable policies, and multiple settlement mechanisms (RTGS, queues, LSM). The
+experiment runner uses LLM agents to iteratively optimize policies through natural
+language reasoning, enabling research into multi-agent coordination in financial infrastructure.
 }}}}
 \end{{center}}
 \vspace{{1em}}
