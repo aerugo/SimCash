@@ -239,16 +239,35 @@ But:
 
 **Problem:** Experiment 2 iteration tables look almost perfectly smooth (near-linear cost decrease), despite being described as stochastic (Poisson arrivals, lognormal amounts).
 
-**Explanation needed:** Context simulation reuses a fixed transaction schedule per iteration, so costs are deterministic functions of liquidity within each iteration. Stochasticity enters via bootstrap resampling.
+**Root cause (from code + data analysis):**
+
+The paper's explanation is **INCORRECT**. It says "context simulation holds transaction path fixed" - but that's not quite right.
+
+**What actually happens:**
+1. **Initial simulation** runs ONCE with `master_seed=42` (same across all passes - explains identical Iter 0 costs)
+2. **Bootstrap samples** (50 of them) are generated from this ONE initial simulation's transaction history
+3. These SAME 50 samples are reused for ALL iterations
+4. Costs in the table are **bootstrap MEANS**, not individual simulation costs
+5. Since all 50 samples are derived from the SAME underlying transaction history (just resampled), costs are highly correlated
+
+**Evidence from data:**
+- All 3 passes have **identical Iter 0 costs** ($498.00, $498.00) - same master_seed
+- Costs change in smooth ~$50 steps - averaging across correlated samples
+
+**The paper currently says:**
+> "The iteration table above shows costs from the context simulation---the specific transaction realization"
+
+**This is misleading.** The costs are actually bootstrap **means** across 50 samples, not a single realization.
 
 **Fix:**
 
-#### `src/sections/discussion.py` (or results.py)
-- Add explicit explanation in Experiment 2 section:
-  > "For the context simulation we hold the transaction path fixed (one sampled day), so costs are deterministic functions of liquidity; stochasticity enters only via the bootstrap resampling used for evaluation."
+#### `src/sections/results.py` (lines 238-245)
+- Change the explanation from "context simulation" to accurate description:
+  > "The iteration table shows **mean costs** across 50 bootstrap samples. All samples are derived from the initial simulation's transaction history (generated once with a fixed seed), which explains why costs change smoothly as liquidity varies---the same underlying transactions are evaluated with different liquidity allocations."
 
-#### `src/sections/results.py`
-- Lines 238-245: Strengthen the explanation of context simulation vs bootstrap
+#### `src/sections/discussion.py`
+- Add clarification:
+  > "The smoothness of iteration costs reflects that all bootstrap samples share the same underlying transaction history (resampled from the initial simulation). Cost variance appears in the final bootstrap statistics (Table X), not in iteration-by-iteration means."
 
 ---
 
@@ -527,11 +546,13 @@ Before implementing, please confirm:
 # OLD: "the game admits \textbf{multiple asymmetric equilibria}"
 # NEW: "the learning dynamics can converge to \textbf{multiple asymmetric stable outcomes}"
 
-# Line 117-140: Add stochastic explanation
+# Line 117-140: Add stochastic explanation (CORRECTED - see Issue 7 analysis)
 # ADD after bootstrap stats discussion:
-#     \textbf{Methodological note on smoothness:} The iteration-by-iteration costs appear nearly
-#     deterministic because the context simulation holds the transaction path fixed (one sampled day);
-#     stochasticity enters only via bootstrap resampling used for policy evaluation.
+#     \textbf{Methodological note on smoothness:} The iteration costs shown are \textbf{bootstrap means}
+#     across 50 samples. All samples are derived from the initial simulation's transaction history
+#     (generated once with a fixed seed), so costs are highly correlated. As liquidity varies,
+#     the mean cost changes smoothly. Cost variance appears in the final bootstrap statistics,
+#     not in the iteration-by-iteration table.
 
 # Line 160: Soften generalization
 # OLD: "symmetric games can support asymmetric equilibria"
