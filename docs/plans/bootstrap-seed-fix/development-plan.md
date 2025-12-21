@@ -377,6 +377,7 @@ master_seed
 | Phase 2 | Complete | Per-iteration bootstrap samples implemented |
 | Phase 3 | Complete | 19 new tests added, all passing |
 | Phase 4 | Complete | INV-13 added to patterns-and-conventions.md |
+| Cleanup | Complete | Removed backward compatibility, made seed required, updated docs |
 
 ---
 
