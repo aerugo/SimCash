@@ -11,13 +11,13 @@ Example:
     ...         prompt: str,
     ...         response_model: type[T],
     ...         system_prompt: str | None = None,
-    ...     ) -> T: ...
+    ...     ) -> LLMResult[T]: ...
     ...
     ...     async def generate_text(
     ...         self,
     ...         prompt: str,
     ...         system_prompt: str | None = None,
-    ...     ) -> str: ...
+    ...     ) -> LLMResult[str]: ...
     >>>
     >>> isinstance(MyLLMClient(), LLMClientProtocol)  # Works with runtime_checkable
     True
@@ -26,6 +26,8 @@ Example:
 from __future__ import annotations
 
 from typing import Protocol, TypeVar, runtime_checkable
+
+from payment_simulator.llm.result import LLMResult
 
 T = TypeVar("T")
 
@@ -50,7 +52,7 @@ class LLMClientProtocol(Protocol):
         prompt: str,
         response_model: type[T],
         system_prompt: str | None = None,
-    ) -> T:
+    ) -> LLMResult[T]:
         """Generate structured output from LLM.
 
         Uses the LLM to generate a response that matches the given
@@ -62,7 +64,7 @@ class LLMClientProtocol(Protocol):
             system_prompt: Optional system prompt for context.
 
         Returns:
-            Instance of response_model populated by LLM.
+            LLMResult containing response_model instance and optional reasoning.
 
         Raises:
             ValueError: If LLM response cannot be parsed into model.
@@ -73,7 +75,7 @@ class LLMClientProtocol(Protocol):
         self,
         prompt: str,
         system_prompt: str | None = None,
-    ) -> str:
+    ) -> LLMResult[str]:
         """Generate plain text from LLM.
 
         Args:
@@ -81,6 +83,6 @@ class LLMClientProtocol(Protocol):
             system_prompt: Optional system prompt for context.
 
         Returns:
-            Text response from LLM.
+            LLMResult containing text response and optional reasoning.
         """
         ...
