@@ -147,7 +147,7 @@ def generate_results(provider: DataProvider) -> str:
     # Generate figure includes for each experiment
     exp1_fig = include_figure(
         path=f"{CHARTS_DIR}/exp1_pass1_combined.png",
-        caption="Experiment 1: Convergence of both agents toward asymmetric equilibrium",
+        caption="Experiment 1: Convergence of both agents toward asymmetric stable outcome",
         label="fig:exp1_convergence",
         width=0.9,
     )
@@ -198,7 +198,7 @@ creating an incentive structure that theoretically favors free-rider behavior by
 
 {exp1_fig}
 
-The agents converged after {exp1_convergence} iterations in Pass 1 to an asymmetric equilibrium:
+The agents converged after {exp1_convergence} iterations in Pass 1 to an asymmetric stable outcome:
 \begin{{itemize}}
     \item BANK\_A achieved {exp1_a_cost} cost with {exp1_a_liq} liquidity allocation
     \item BANK\_B achieved {exp1_b_cost} cost with {exp1_b_liq} liquidity allocation
@@ -213,8 +213,8 @@ Notably, \textbf{{Pass 3 exhibited coordination failure}}: BANK\_B adopted a
 zero-liquidity strategy, but unlike Passes 1--2 where BANK\_A successfully free-rode,
 here BANK\_A's low liquidity (1.8\%) was insufficient to compensate. Both agents
 incurred high costs (\$31.78 and \$70.00 respectively), with total cost nearly 4$\times$
-that of the efficient equilibrium. This demonstrates that the game admits multiple
-equilibria with substantially different efficiency properties---and that LLM agents
+that of the efficient outcome. This demonstrates that the learning dynamics can converge to
+multiple stable outcomes with substantially different efficiency properties---and that LLM agents
 do not always find the Pareto-optimal outcome.
 
 {exp1_summary_table}
@@ -235,14 +235,21 @@ successfully identified stable policies across all passes.
 
 \subsubsection{{Bootstrap Evaluation Methodology}}
 
-The iteration table above shows costs from the \textit{{context simulation}}---the specific
-transaction realization used to provide feedback to the LLM at each iteration. However,
-stochastic scenarios require evaluating policy robustness across many transaction samples.
+% TODO(bootstrap-fix): This section needs revision after fixing the bootstrap implementation.
+% Current issue: All 50 bootstrap samples are derived from ONE initial simulation's transaction
+% history (generated once with a fixed seed). The iteration costs shown are bootstrap MEANS,
+% not individual simulation costs. This explains why costs appear smooth---all samples share
+% the same underlying transactions, so they're highly correlated. Once bootstrap is fixed to
+% use independent samples, revisit this explanation.
+
+The iteration table above shows \textbf{{mean costs}} across 50 bootstrap samples evaluated
+at each iteration. All samples are derived from the initial simulation's transaction history,
+which explains why costs change smoothly as liquidity varies---the same underlying transactions
+are evaluated with different liquidity allocations.
 
 Table~\ref{{tab:exp2_bootstrap}} presents bootstrap statistics for the \textbf{{final converged
-policies}} (iteration {exp2_convergence}), evaluated across {exp2_samples} resampled transaction
-schedules. Context simulation costs may differ from bootstrap means due to transaction variance---this
-difference illustrates why bootstrap evaluation is essential for stochastic scenarios.
+policies}} (iteration {exp2_convergence}), evaluated across {exp2_samples} transaction samples.
+The bootstrap evaluation is essential for assessing policy robustness in stochastic scenarios.
 
 {exp2_bootstrap_table}
 
@@ -279,7 +286,7 @@ Final equilibrium:
     \item BANK\_B: {exp3_b_cost} cost, {exp3_b_liq} liquidity
 \end{{itemize}}
 
-Despite symmetric incentive structures, agents converged to asymmetric equilibria
+Despite symmetric incentive structures, agents converged to asymmetric stable outcomes
 across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
 (BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
 then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
@@ -287,7 +294,7 @@ then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
 Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
 increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
 high liquidity, potentially triggering mutual defection. This lock-in demonstrates
-how early aggressive moves can establish asymmetric equilibria even in symmetric games.
+how early aggressive moves can establish asymmetric stable outcomes even in symmetric games.
 
 {exp3_summary_table}
 
@@ -300,9 +307,9 @@ Several key observations emerge from comparing results across experiments:
     validating the robustness of the bootstrap convergence criteria for stochastic scenarios
     and temporal policy stability for deterministic scenarios.
 
-    \item \textbf{{Asymmetric Equilibria Prevalence}}: Both asymmetric (Exp 1) and
-    symmetric (Exp 3) cost structures produced asymmetric equilibria with free-rider
-    behavior. This suggests the LLM agents' sequential optimization naturally selects
+    \item \textbf{{Asymmetric Outcomes Prevalence}}: Both asymmetric (Exp 1) and
+    symmetric (Exp 3) cost structures produced asymmetric stable outcomes with free-rider
+    behavior. This suggests the LLM agents' optimization dynamics naturally select
     asymmetric outcomes even when symmetric equilibria are theoretically available.
 
     \item \textbf{{Stochastic Robustness}}: The bootstrap evaluation in Experiment 2

@@ -31,7 +31,7 @@ def generate_conclusion(provider: DataProvider) -> str:
 \section{{Conclusion}}
 \label{{sec:conclusion}}
 
-We presented SimCash, a framework for discovering Nash equilibria in payment system
+We presented SimCash, a framework for discovering equilibrium-like behavior in payment system
 liquidity games using LLM-based policy optimization. Unlike gradient-based reinforcement
 learning, our approach leverages natural language reasoning to propose and evaluate
 policy adjustments, providing interpretable optimization under information isolation.
@@ -39,13 +39,14 @@ policy adjustments, providing interpretable optimization under information isola
 \subsection{{Summary of Findings}}
 
 Across {aggregate_stats["total_passes"]} independent runs, LLM agents achieved
-{convergence_pct}\% convergence to stable equilibria (mean {avg_iterations:.1f} iterations).
+{convergence_pct}\% convergence to stable policy profiles (mean {avg_iterations:.1f} iterations).
 Three key findings emerged:
 
-\textbf{{1. Asymmetric equilibria dominate.}} Even in Experiment 3's symmetric game,
-agents consistently converged to asymmetric free-rider equilibria rather than the
-theoretically predicted symmetric outcome. One agent minimizes liquidity while the
-other compensates---a pattern that emerged in all nine passes across experiments.
+\textbf{{1. Asymmetric outcomes dominate in our experiments.}} Even in Experiment 3's symmetric game,
+agents consistently converged to asymmetric free-rider outcomes rather than the
+theoretically predicted symmetric equilibrium. Typically one agent settles on very low liquidity
+while the other maintains higher allocation; even in suboptimal outcomes (Exp 1 Pass 3),
+the results remain asymmetric.
 
 \textbf{{2. Early dynamics determine equilibrium selection.}} The \textit{{identity}}
 of the free-rider was determined by early exploration rather than cost structure.
@@ -68,7 +69,7 @@ These results have implications for both payment system research and multi-agent
     central banks in understanding how algorithmic liquidity management might evolve.
 
     \item \textbf{{For multi-agent AI:}} Sequential best-response dynamics in LLM systems
-    naturally select among multiple equilibria based on exploration history, not payoff
+    naturally select among multiple stable outcomes based on exploration history, not payoff
     structure alone. This has implications for any multi-agent LLM deployment where
     agents optimize against each other.
 \end{{itemize}}

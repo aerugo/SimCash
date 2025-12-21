@@ -52,7 +52,7 @@ DEFAULT_SECTIONS: list[SectionGenerator] = [
 
 def wrap_document(
     content: str,
-    title: str = "Discovering Nash Equilibria with LLM Agents: A Payment Systems Case Study",
+    title: str = "Discovering Equilibrium-like Behavior with LLM Agents: A Payment Systems Case Study",
     author: str = "Hugi Aegisberg",
 ) -> str:
     """Wrap content in a complete LaTeX document structure.
@@ -115,9 +115,9 @@ def wrap_document(
 \textbf{{\Large DO NOT CIRCULATE}}\\[0.5em]
 \normalsize
 This is a working document and is not intended for distribution.\\[0.3em]
-This paper and the accompanying SimCash codebase were developed in collaboration\\
-with \textbf{{Claude 4.5 Opus}} (Anthropic), which served as a co-author for both\\
-the research code and this manuscript.
+This paper and the accompanying SimCash codebase were developed with assistance from\\
+\textbf{{Claude 4.5 Opus}} (Anthropic) and \textbf{{GPT-5.2}} (OpenAI) as coding and\\
+writing tools. All experimental design, analysis, and interpretation are the author's own.
 }}}}
 \end{{center}}
 
