@@ -285,32 +285,3 @@ class TestBootstrapSampleRegeneration:
         assert sampler_seeds == [111, 222, 333], (
             f"Expected seeds [111, 222, 333], got {sampler_seeds}"
         )
-
-    def test_fallback_to_master_seed_when_no_seed_provided(self) -> None:
-        """Without seed param, should fall back to master_seed."""
-        mock_config = _create_bootstrap_config(master_seed=999, num_samples=3)
-        loop = OptimizationLoop(config=mock_config)
-
-        sampler_seeds: list[int] = []
-
-        from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler
-
-        def tracking_init(
-            self: BootstrapSampler, seed: int, **kwargs: Any
-        ) -> None:
-            sampler_seeds.append(seed)
-            self._base_seed = seed
-            self._samples: list = []
-
-        # Set up initial result
-        mock_result = MagicMock()
-        mock_result.agent_histories = {"BANK_A": MagicMock(outgoing=[], incoming=[])}
-        loop._initial_sim_result = mock_result
-
-        with patch.object(BootstrapSampler, "__init__", tracking_init):
-            with patch.object(BootstrapSampler, "generate_samples", return_value=[]):
-                loop._create_bootstrap_samples()  # No seed = master_seed
-
-        assert sampler_seeds == [999], (
-            f"Expected master_seed [999], got {sampler_seeds}"
-        )

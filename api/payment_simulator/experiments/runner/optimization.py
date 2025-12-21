@@ -439,7 +439,7 @@ class OptimizationLoop:
         self._delta_history: list[dict[str, Any]] = []
 
         # Bootstrap evaluation state (for real bootstrap mode)
-        # These are initialized once by _run_initial_simulation()
+        # These are set each iteration by _run_initial_simulation()
         self._initial_sim_result: InitialSimulationResult | None = None
         self._bootstrap_samples: dict[str, list[BootstrapSample]] = {}
         self._bootstrap_sampler: BootstrapSampler | None = None
@@ -784,9 +784,8 @@ class OptimizationLoop:
             if agent_id not in self._policies:
                 self._policies[agent_id] = self._create_default_policy(agent_id)
 
-        # Bootstrap mode: context sim and sample generation moved inside loop
+        # Bootstrap mode: context sim and sample generation run per-iteration
         # per INV-13: Bootstrap Seed Hierarchy
-        # (Previously ran ONCE here with master_seed; now runs per-iteration)
 
         # Track per_agent_costs for final result
         per_agent_costs: dict[str, int] = {}
@@ -1463,7 +1462,7 @@ class OptimizationLoop:
         return ", ".join(parts) if parts else "(no details)"
 
     def _run_initial_simulation(
-        self, seed: int | None = None, iteration: int = 0
+        self, seed: int, iteration: int
     ) -> InitialSimulationResult:
         """Run context simulation to collect historical transactions.
 
@@ -1472,26 +1471,18 @@ class OptimizationLoop:
         stochastic realizations.
 
         Args:
-            seed: The seed to use for this simulation. If None, uses master_seed
-                  (for backward compatibility). Should be iteration_seed.
+            seed: The iteration-specific seed from SeedMatrix.get_iteration_seed().
             iteration: The current iteration number (0-indexed).
 
         Returns:
             InitialSimulationResult with events, history, and costs.
-
-        Note:
-            Prior to INV-13 fix, this ran ONCE with master_seed. Now it runs
-            per-iteration with iteration-specific seeds from SeedMatrix.
         """
-        # Use provided seed or fall back to master_seed (backward compatibility)
-        simulation_seed = seed if seed is not None else self._config.master_seed
-
         # Run simulation using unified method
         # _run_simulation handles: ID generation, verbose logging, event capture,
         # cost extraction, and persistence
         # This IS a primary simulation - persists by default when repository exists
         result = self._run_simulation(
-            seed=simulation_seed,
+            seed=seed,
             purpose="init",
             iteration=iteration,
             is_primary=True,
@@ -1522,7 +1513,7 @@ class OptimizationLoop:
             verbose_output=verbose_output,
         )
 
-    def _create_bootstrap_samples(self, seed: int | None = None) -> None:
+    def _create_bootstrap_samples(self, seed: int) -> None:
         """Create bootstrap samples from context simulation history.
 
         This is called each iteration after _run_initial_simulation() completes.
@@ -1530,18 +1521,15 @@ class OptimizationLoop:
         for each agent.
 
         Args:
-            seed: The seed to use for bootstrap sampling. If None, uses master_seed
-                  (for backward compatibility). Should be iteration_seed per INV-13.
+            seed: The iteration-specific seed from SeedMatrix.get_iteration_seed().
+                  Per INV-13, this must be the same seed used for context simulation.
         """
         if self._initial_sim_result is None:
             msg = "Cannot create bootstrap samples without initial simulation result"
             raise RuntimeError(msg)
 
-        # Use provided seed or fall back to master_seed (backward compatibility)
-        sampler_seed = seed if seed is not None else self._config.master_seed
-
         # Create sampler with iteration-specific seed (INV-13: Bootstrap Seed Hierarchy)
-        self._bootstrap_sampler = BootstrapSampler(seed=sampler_seed)
+        self._bootstrap_sampler = BootstrapSampler(seed=seed)
 
         num_samples = self._config.evaluation.num_samples or 1
         total_ticks = self._config.evaluation.ticks
@@ -1785,9 +1773,9 @@ class OptimizationLoop:
 
             return enriched.total_cost, per_agent_costs
 
-        # Bootstrap mode: evaluate current policy on pre-computed bootstrap samples
-        # These samples were created from the initial simulation's transaction history
-        # by _create_bootstrap_samples() at experiment start.
+        # Bootstrap mode: evaluate current policy on bootstrap samples for this iteration
+        # These samples were created from this iteration's context simulation history
+        # by _create_bootstrap_samples() at the start of each iteration (INV-13).
         enriched_results: list[EnrichedEvaluationResult] = []
         total_costs: list[int] = []
         seed_results: list[dict[str, Any]] = []
@@ -2091,7 +2079,7 @@ class OptimizationLoop:
                 )
 
         # No samples available - this is an error in bootstrap mode
-        # Bootstrap samples should be created by _run_initial_simulation() at start
+        # Bootstrap samples should be created at the start of each iteration (INV-13)
         msg = f"No bootstrap samples available for agent {agent_id}"
         raise RuntimeError(msg)
 
