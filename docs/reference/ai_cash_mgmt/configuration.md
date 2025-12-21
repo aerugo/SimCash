@@ -2,8 +2,8 @@
 
 > Game configuration schemas for AI Cash Management
 
-**Version**: 0.1.0
-**Last Updated**: 2025-12-09
+**Version**: 0.2.0
+**Last Updated**: 2025-12-21
 
 ---
 
@@ -69,13 +69,30 @@ scenario_config: "configs/12period_stochastic.yaml"
 **Required**: Yes
 **Constraint**: `0 <= seed <= 2^63 - 1`
 
-Master RNG seed for deterministic execution. All derived seeds flow from this value.
+Master RNG seed for deterministic execution. All derived seeds flow from this value via the **SeedMatrix hierarchy** (INV-13):
+
+```
+master_seed (42)
+├── iteration_seed[0] = hash(42, iter=0, agent=A)
+│   ├── context_simulation runs with this seed
+│   └── bootstrap_samples[0] seeded by iteration_seed[0]
+│       ├── sample[0] seed = hash(iteration_seed[0], sample=0)
+│       └── ... (num_samples total)
+├── iteration_seed[1] = hash(42, iter=1, agent=A)
+│   └── ... (same structure)
+└── ... (max_iterations total)
+```
 
 ```yaml
 master_seed: 42
 ```
 
 **Determinism Guarantee**: Same `master_seed` produces identical optimization trajectories.
+
+**Seed Counts** (for 50 iterations × 50 samples):
+- 50 iteration seeds (one per iteration)
+- 2,500 bootstrap sample seeds (50 iterations × 50 samples)
+- 5,000 policy evaluations (each sample evaluated twice: old + new policy)
 
 ---
 
