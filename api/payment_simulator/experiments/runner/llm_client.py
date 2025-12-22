@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -302,36 +302,26 @@ class ExperimentLLMClient:
         self,
         prompt: str,
         current_policy: dict[str, Any],
-        context: dict[str, Any],
+        _context: dict[str, Any],
     ) -> str:
-        """Build the user prompt with policy and history.
+        """Build the user prompt with policy.
+
+        Note: Iteration history is already included in the rich prompt via
+        build_single_agent_context(). This method just appends the current
+        policy and final instruction.
 
         Args:
-            prompt: Base optimization prompt.
+            prompt: Base optimization prompt (includes iteration history).
             current_policy: Current policy dict.
-            context: Additional context dict.
+            _context: Additional context dict (unused, kept for compatibility).
 
         Returns:
             Complete user prompt string.
         """
-        history = context.get("history", [])
-        history_str = ""
-        if history:
-            for entry in history[-5:]:
-                iteration = entry.get("iteration", "?")
-                cost = entry.get("cost", "?")
-                if isinstance(cost, int | float):
-                    history_str += f"  Iteration {iteration}: cost=${cost / 100:.2f}\n"
-                else:
-                    history_str += f"  Iteration {iteration}: cost={cost}\n"
-
         return f"""{prompt}
 
 Current policy:
 {json.dumps(current_policy, indent=2)}
-
-Performance history:
-{history_str or '  (none)'}
 
 Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""

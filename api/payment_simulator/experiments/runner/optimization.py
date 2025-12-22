@@ -2184,12 +2184,27 @@ class OptimizationLoop:
         # Get agent context from current evaluation (includes best/worst seed)
         agent_context = self._current_agent_contexts.get(agent_id)
 
-        # INV-12: LLM Context Identity - All modes show only best_seed_output
-        # This ensures identical context format across bootstrap, pairwise, and temporal.
-        # The initial simulation stream was removed as it's stale after iteration 1
-        # and creates inconsistency with deterministic modes.
+        # Get simulation trace for LLM context
+        # - Deterministic modes: use events from the evaluated simulation
+        # - Bootstrap mode: use events from the context simulation (run once per iteration)
+        #   The context simulation is the source of bootstrap samples, so its events
+        #   represent what the agent actually experienced with the current policy.
         combined_best_output: str | None = None
-        if agent_context and agent_context.best_seed_output:
+        eval_mode = self._config.evaluation.mode
+        is_bootstrap = not eval_mode.startswith("deterministic") and (
+            self._config.evaluation.num_samples or 1
+        ) > 1
+
+        if is_bootstrap and self._initial_sim_result is not None:
+            # Bootstrap mode: use context simulation events (filtered for this agent)
+            context_events = list(self._initial_sim_result.events)
+            filtered_events = filter_events_for_agent(agent_id, context_events)
+            if filtered_events:
+                combined_best_output = format_filtered_output(
+                    agent_id, filtered_events, include_tick_headers=True
+                )
+        elif agent_context and agent_context.best_seed_output:
+            # Deterministic modes: use events from the evaluated simulation
             combined_best_output = agent_context.best_seed_output
 
         # Build cost breakdown dict for LLM context
