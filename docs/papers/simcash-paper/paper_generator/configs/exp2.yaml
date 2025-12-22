@@ -38,6 +38,7 @@ llm:
   max_retries: 3
   timeout_seconds: 900
   reasoning_effort: "high"
+  reasoning_summary: "detailed"
 
 # Policy constraints
 # The model has ONE key decision: initial liquidity allocation

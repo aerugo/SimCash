@@ -32,6 +32,7 @@ llm:
   max_retries: 3
   timeout_seconds: 900
   reasoning_effort: "high"
+  reasoning_summary: "detailed"
 
 # Experiment customization - guides LLM without giving away answer
 prompt_customization:

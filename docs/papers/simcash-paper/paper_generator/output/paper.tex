@@ -73,7 +73,7 @@ language reasoning, enabling research into multi-agent coordination in financial
 
 
 \begin{abstract}
-Can Large Language Models discover equilibrium-like behavior through strategic reasoning alone?
+Can Large Language Models discover stable policy profiles through strategic reasoning alone?
 We explore this question using payment system liquidity management---a domain where
 banks must balance the cost of holding reserves against settlement delays, and where
 game-theoretic equilibria are well-characterized but difficult to find without explicit
@@ -83,20 +83,23 @@ We present SimCash, a framework where LLM agents optimize liquidity policies thr
 natural language deliberation under information isolation: each agent observes only
 its own costs and transaction history, never counterparty strategies. Through 9
 independent runs across 3 scenarios adapted from Castro et al., agents
-reliably converge to stable policy profiles (100\% success in 9
-preliminary runs, mean 22.1 iterations). However, outcome selection exhibits
-path-dependence: in deterministic scenarios, agents consistently converge to \textit{asymmetric}
-free-rider outcomes---even when the cost structure is symmetric---with the identity of the
-free-rider determined by early exploration. In contrast, stochastic environments produced
-near-symmetric equilibria with no free-rider emergence.
+reliably converge to stable policy profiles in deterministic scenarios (mean 22.1
+iterations), while stochastic scenarios achieved practical stability but terminated at iteration
+budget without meeting strict statistical convergence criteria. However, \textbf{stability does not imply optimality}: in symmetric deterministic
+games, agents consistently converge to \textit{coordination failures}---Pareto-dominated
+profiles where both agents are worse off than baseline---with the identity of the
+free-rider determined by early aggressive moves. In contrast, stochastic environments with
+bootstrap policy evaluation produced near-symmetric allocations without coordination collapse.
 
 These preliminary findings suggest that LLM-based policy optimization can discover
-equilibrium-like behavior without explicit game-theoretic modeling---though we do not
-formally verify the Nash condition. They also reveal that sequential best-response 
-dynamics in multi-agent LLM systems may systematically favor asymmetric outcomes. 
-Our small sample (9 runs) requires validation through expanded 
+stable profiles without explicit game-theoretic modeling, but also demonstrates that
+greedy, non-communicating agents can reliably converge to coordination traps.
+Our small sample (9 runs) requires validation through expanded
 experimentation before drawing strong conclusions.
 \end{abstract}
+
+\tableofcontents
+\newpage
 
 
 
@@ -110,20 +113,20 @@ depend on counterparty behavior.
 
 Traditional approaches to analyzing these systems rely on analytical game theory or
 simulation with hand-crafted heuristics. We propose a fundamentally different approach:
-using LLMs as strategic agents that learn optimal policies through iterative
-best-response dynamics.
+using LLMs as strategic agents that discover stable policy profiles through iterative
+optimization under information isolation.
 
 \subsection{Contributions}
 
 \begin{enumerate}
     \item \textbf{SimCash Framework}: A hybrid Rust-Python simulator with LLM-based
-    policy optimization
+    policy optimization under strict information isolation
     \item \textbf{Empirical Comparison}: Comparison with Castro et al.'s theoretical
-    predictions, showing partial alignment and systematic deviations
-    \item \textbf{Reproducibility Analysis}: 9 independent runs demonstrating consistent
-    convergence
-    \item \textbf{Bootstrap Evaluation}: Methodology for handling stochastic payment
-    arrivals
+    predictions, revealing both alignment and systematic coordination failures
+    \item \textbf{Coordination Failure Analysis}: Demonstration that greedy, non-communicating
+    agents can converge to stable but Pareto-dominated profiles
+    \item \textbf{Bootstrap Evaluation}: Methodology for policy evaluation under stochastic
+    arrivals with fixed-environment assumptions
 \end{enumerate}
 
 
@@ -147,9 +150,9 @@ Agent costs comprise:
 \begin{itemize}
     \item \textbf{Liquidity opportunity cost}: Proportional to allocated reserves
     \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
-    \item \textbf{Deadline penalty}: Incurred when transactions become overdue
+    \item \textbf{Deadline penalty}: Incurred when transactions become overdue (not used in this paper's experiments)
     \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
-    \item \textbf{Overdraft cost}: Fee for negative balance (basis points per day)
+    \item \textbf{Overdraft cost}: Fee for negative balance (not used in this paper's experiments; agents operate under hard liquidity constraints)
 \end{itemize}
 
 \subsection{LLM Policy Optimization}
@@ -169,6 +172,7 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
 
 A critical aspect of our framework is the \textbf{strict information isolation} between agents.
 Each agent receives a two-part prompt with no access to counterparty information.
+Full prompt examples are provided in Appendix~\ref{app:system_prompt}.
 
 \subsubsection{System Prompt (Shared)}
 
@@ -237,6 +241,8 @@ For scenarios with fixed payment schedules, we use \textbf{temporal policy stabi
     \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} stable (relative change $\leq$ 5\%) for 5 consecutive iterations, indicating policy stability
 \end{itemize}
 
+\textbf{Important limitation}: This mode identifies \textit{stable policy profiles}---points where agents stop adjusting their parameters---not optimal outcomes or game-theoretic equilibria. Unconditional acceptance means agents can ``converge'' to profiles with higher costs than baseline if early myopic improvements lead them into coordination traps. The resulting profiles reflect the dynamics of independent, non-communicating agents optimizing greedily, which may produce coordination failures rather than Pareto-efficient outcomes.
+
 \subsubsection{Bootstrap Mode (Experiment 2)}
 
 For stochastic scenarios, we use \textbf{per-iteration bootstrap resampling} with pre-generated seeds
@@ -259,7 +265,9 @@ Each iteration proceeds as follows:
     generating a unique transaction history for this iteration (different stochastic arrivals
     than other iterations)
     \item \textbf{Bootstrap sampling}: Generate 50 transaction schedules by resampling with
-    replacement from this iteration's history, preserving settlement offset distributions
+    replacement from this iteration's history. Each resampled transaction includes both
+    \textit{payment instruction fields} (arrival tick, amount, deadline, counterparty) and
+    a \texttt{settlement\_offset} field recording when the transaction settled relative to arrival
     \item \textbf{Paired comparison}: Evaluate both old and new policy on the \textit{same} 50 samples,
     computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
     \item \textbf{Acceptance}: Apply risk-adjusted criteria (see below)
@@ -268,23 +276,73 @@ Each iteration proceeds as follows:
 The paired comparison on identical samples eliminates sample-to-sample variance, enabling detection
 of smaller policy improvements than unpaired comparison would allow.
 
+\paragraph{Sandbox Evaluation and Settlement Timing.}
+Each bootstrap sample is evaluated in a \textbf{3-agent sandbox} (SOURCE$\rightarrow$AGENT$\rightarrow$SINK)
+rather than a full multi-agent simulation. The resampled transactions include a \texttt{settlement\_offset}
+field---the time between transaction arrival and settlement observed in the context simulation. This
+offset encodes the liquidity environment's ``market response'' to the agent's transactions.
+
+The sandbox replays this historical timing: SOURCE provides incoming liquidity at the originally-observed
+settlement times, treating settlement timing as an \textbf{exogenous sufficient statistic} for the
+liquidity environment. This design choice has two implications:
+\begin{itemize}
+    \item \textit{Advantage}: Eliminates confounding from counterparty policy changes and LSM cycle
+    dynamics, enabling clean policy comparison.
+    \item \textit{Limitation}: Evaluates policies under \textbf{historical timing}, not the timing
+    that would result from policy-induced changes in system liquidity. Specifically, \textbf{bilateral
+    feedback loops are frozen}: if AGENT pays counterparty B earlier under a new policy, this does
+    not cause B to return liquidity earlier---SOURCE sends incoming payments at fixed historical times
+    regardless of AGENT's actions. The bootstrap answers ``how would this policy perform given the
+    observed market response?'' rather than ``how would this policy perform in the equilibrium it induces?''
+\end{itemize}
+
+This fixed-environment assumption is most restrictive in simplified 2-agent scenarios like our
+experiments, where each agent constitutes 50\% of system volume. In realistic RTGS systems with
+dozens of participants and diverse transaction flows, an individual agent's policy changes have
+smaller marginal effects on system-wide settlement timing, making the exogeneity assumption
+more defensible. The 2-agent experiments here are designed to demonstrate specific strategic
+behaviors under controlled conditions, not to provide practically-applicable bootstrap evaluation
+for production systems.
+
 \paragraph{Risk-Adjusted Acceptance Criteria.}
-Policy acceptance uses a two-stage evaluation to prevent accepting unstable policies:
+Policy acceptance requires three criteria to prevent accepting inferior or unstable policies:
 
 \begin{enumerate}
+    \item \textbf{Mean improvement}: The new policy must have lower mean cost than the current
+    policy ($\mu_{\text{new}} < \mu_{\text{old}}$), computed via paired comparison on the same
+    50 bootstrap samples.
+
     \item \textbf{Statistical significance}: The improvement must be statistically significant.
-    Specifically, the 95\% confidence interval for the cost delta must not cross zero
-    ($\sum_i \delta_i > 0$ is necessary but not sufficient). This prevents accepting policies
-    whose improvement could be due to random chance.
+    Specifically, the 95\% confidence interval for the paired cost delta
+    ($\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$) must not cross zero.
+    This prevents accepting policies whose improvement could be due to random chance.
 
     \item \textbf{Variance guard}: The new policy's coefficient of variation
-    (CV = $\sigma / \mu$) must be below 0.5. This prevents accepting policies with lower
+    (CV = $\sigma_{\text{new}} / \mu_{\text{new}}$), computed over costs across the 50
+    bootstrap samples, must be below 0.5. This prevents accepting policies with lower
     mean cost but unacceptably high variance, which would result in unpredictable performance
     under adverse market conditions.
 \end{enumerate}
 
-Both criteria are configurable per experiment. This approach draws from mean-variance
+All three criteria are configurable per experiment. This approach draws from mean-variance
 optimization principles and ensures that accepted policies are both effective \textit{and} stable.
+
+\paragraph{Bootstrap Variance Limitations.}
+The variance guard uses bootstrap variance as a heuristic filter for sensitivity to timing
+perturbations, but this measure has known limitations. Transaction-level resampling with
+\texttt{settlement\_offset} can create duplicate extreme transactions and non-physical
+correlations between arrivals and settlement timing, potentially amplifying tail events beyond
+what the original generative process and endogenous timing would produce. In our experiments,
+final policies showed CV $\approx$ 2.0 under bootstrap evaluation despite stable policy
+parameters, suggesting the bootstrap CV measures sensitivity to resampled timing rather than
+true cross-day performance variance.
+
+For applications to real RTGS data---which exhibits substantial intra-day variability in
+payment volumes and timing---more sophisticated resampling methods would be necessary.
+\textbf{Block bootstrap} (resampling contiguous time windows) or \textbf{day-level bootstrap}
+(resampling entire business days) would better preserve temporal dependencies. Alternatively,
+\textbf{held-out seed evaluation}---testing final policies on previously-unseen stochastic
+seeds---would measure true cross-day variance rather than resampling sensitivity.
 
 \paragraph{Convergence Criterion.}
 Three criteria must ALL be satisfied over a 5-iteration window:
@@ -356,14 +414,15 @@ conducted across three independent passes to verify reproducibility.
 
 \subsection{Convergence Summary}
 
-Table~\ref{tab:convergence_stats} summarizes convergence behavior across all experiments.
-All passes achieved convergence, with mean iterations ranging from 7.0
-(Experiment 3) to 49.0 (Experiment 2).
+Table~\ref{tab:convergence_stats} summarizes termination behavior across all experiments.
+Experiments 1 and 3 achieved formal convergence via temporal policy stability, with mean iterations
+of 10.3 and 7.0 respectively. Experiment 2's stochastic passes
+terminated at the 50-iteration budget without meeting formal convergence criteria (see Section 3.3).
 
 
 \begin{table}[htbp]
     \centering
-    \caption{Convergence statistics across all experiments}
+    \caption{Termination statistics across all experiments. EXP2 shows budget termination (50 iterations) rather than formal convergence.}
     \label{tab:convergence_stats}
     \begin{tabular}{lrrrr}
         \hline
@@ -466,10 +525,14 @@ do not always find the Pareto-optimal outcome.
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
 
-All three passes achieved convergence at iteration 49 (the maximum allowed). The strict
-bootstrap convergence criteria---requiring CV $<$ 3\%, no significant trend, and regret $<$ 10\%
-over a 5-iteration window---demanded extended observation to confidently identify stable policies
-in this stochastic environment. We present Pass 2 as the exemplar run.
+All three passes \textbf{terminated at the iteration budget} (50 iterations) without
+meeting the formal convergence criteria. The strict bootstrap convergence
+requirements---CV $<$ 3\%, no significant trend, and regret $<$ 10\% sustained over
+a 5-iteration window---proved difficult to satisfy in this stochastic environment.
+However, as we show below, the policies achieved practical stability: liquidity allocations
+settled into consistent ranges and costs remained within narrow bands during the final iterations.
+The strict criteria may be overly conservative for stochastic scenarios where inherent
+variance makes sustained low-CV windows statistically unlikely. We present Pass 2 as the exemplar run.
 
 
 \begin{longtable}{llrr}
@@ -641,6 +704,16 @@ The bootstrap evaluation reveals that BANK\_A's policy, despite high variance in
 simulations, achieves mean cost \$226.15 ($\pm$ \$458.71). BANK\_B maintains
 more consistent costs at \$66.09 ($\pm$ \$15.59).
 
+\textit{Note on per-agent variance}: The high standard deviation for BANK\_A (yielding
+per-agent $CV \approx 2.0$ at the final iteration) does not necessarily indicate
+a violation of the $CV \leq 0.5$ acceptance gate. The gate is checked at the
+moment a policy is \textit{proposed and evaluated for acceptance}---each iteration
+uses different stochastic samples from the seed hierarchy, so the same policy can
+exhibit different CV values across iterations. BANK\_A's current policy was accepted
+at an earlier iteration when its CV (on that iteration's samples) satisfied the
+constraint; the statistics shown here reflect the final iteration's evaluation,
+which may differ due to sample variance.
+
 \subsubsection{Risk-Return Tradeoff}
 
 Figure~\ref{fig:exp2_variance} shows how cost variance evolves during optimization.
@@ -668,11 +741,14 @@ at iteration 22, BANK\_A's proposed policy achieved mean cost \$324 compared to 
 policy's \$915---a \$591 improvement---yet was rejected.
 
 The acceptance criteria implements \textbf{risk-adjusted evaluation}: a policy must satisfy
-both mean improvement \textit{and} variance constraints:
-\begin{itemize}
-    \item Mean improvement: $\mu_{new} < \mu_{old}$ (paired comparison on same bootstrap samples)
-    \item Variance constraint: $CV \leq 0.5$ where $CV = \sigma / \mu$ (coefficient of variation)
-\end{itemize}
+three requirements to be accepted:
+\begin{enumerate}
+    \item \textbf{Mean improvement}: $\mu_{new} < \mu_{old}$ (paired comparison on same bootstrap samples)
+    \item \textbf{Statistical significance}: The 95\% confidence interval for the paired delta
+    ($\delta_i = \text{cost}_{old,i} - \text{cost}_{new,i}$) must not cross zero
+    \item \textbf{Variance constraint}: $CV \leq 0.5$ where $CV = \sigma_{new} / \mu_{new}$
+    (coefficient of variation of the new policy's costs across bootstrap samples)
+\end{enumerate}
 
 At iteration 22, the proposed policy had $\sigma = \$269$ on $\mu = \$324$, yielding $CV = 0.83$.
 Despite the superior mean, the policy was rejected as too volatile. This risk-adjusted acceptance
@@ -680,8 +756,9 @@ explains the apparent paradox in Figure~\ref{fig:exp2_convergence} where some re
 (X markers) appear below the current policy line---they had better average performance but
 unacceptable variance.
 
-This mechanism ensures the framework converges to \textit{stable} equilibria rather than
-policies that perform well on average but could produce catastrophic costs in unlucky scenarios.
+This mechanism biases optimization toward policies that improve mean cost while avoiding
+proposals that are overly sensitive to timing perturbations under the fixed-environment
+bootstrap evaluation.
 
 
 \begin{table}[htbp]
@@ -700,11 +777,13 @@ policies that perform well on average but could produce catastrophic costs in un
 \end{table}
 
 
-\subsection{Experiment 3: Symmetric Game Dynamics}
+\subsection{Experiment 3: Coordination Failure in Symmetric Games}
 
-In this 3-period symmetric scenario, both banks face identical cost structures.
-Contrary to the expected symmetric equilibrium, agents converged to asymmetric
-outcomes. Convergence occurred at iteration 7 in Pass 1.
+In this 3-period symmetric scenario, both banks face identical cost structures and
+begin with identical 50\% liquidity allocations (baseline cost $\sim$\$50 each).
+\textbf{All three passes exhibit coordination failure}: agents converge to stable
+profiles where \textit{both} agents incur higher costs than baseline.
+Policy stability occurred at iteration 7 in Pass 1.
 
 
 \begin{table}[htbp]
@@ -747,21 +826,41 @@ outcomes. Convergence occurred at iteration 7 in Pass 1.
 \end{figure}
 
 
-Final equilibrium:
+Final stable profile:
 \begin{itemize}
     \item BANK\_A: \$120.99 cost, 1.0\% liquidity
     \item BANK\_B: \$69.97 cost, 30.0\% liquidity
 \end{itemize}
 
-Despite symmetric incentive structures, agents converged to asymmetric stable outcomes
-across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
-(BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
-then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
+\textbf{Why coordination fails}: The unconditional acceptance mechanism allows
+agents to follow initially-improving trajectories that lead to collectively
+worse outcomes. In Pass 1, iteration 1 saw both agents reduce liquidity moderately
+(BANK\_A to 30\%, BANK\_B to 40\%), which improved costs for both. Encouraged by
+this success, BANK\_A aggressively dropped to 1\% in iteration 2. This initially
+appeared beneficial to BANK\_A (forcing BANK\_B to provide liquidity), but trapped
+both agents in a suboptimal profile: BANK\_A's costs rose to \$120.99 (more
+than double baseline), while BANK\_B paid \$69.97 to compensate.
 
-Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
-increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
-high liquidity, potentially triggering mutual defection. This lock-in demonstrates
-how early aggressive moves can establish asymmetric stable outcomes even in symmetric games.
+Once in this trap, neither agent can unilaterally improve: BANK\_A increasing
+liquidity would reduce BANK\_B's incentive to maintain high reserves, risking
+mutual defection. BANK\_B reducing liquidity would cause settlement failures.
+The profile is \textit{stable} but \textit{Pareto-dominated} by the baseline.
+
+This result demonstrates a fundamental limitation of greedy, non-communicating
+optimization: agents following myopic improvement gradients can converge to
+coordination traps that leave everyone worse off. The LLM agents are not
+``finding equilibria''---they are exhibiting the same coordination failures
+that occur when rational agents lack mechanisms to coordinate.
+
+\textit{Note on evaluation mode}: These coordination failures arise partly because
+deterministic-temporal mode uses \textbf{unconditional acceptance}---agents cannot
+test proposed policies before committing. In stochastic scenarios using bootstrap
+evaluation (Experiment 2), agents evaluate candidate policies on multiple samples
+before acceptance, providing a mechanism to detect that aggressive liquidity reductions
+lead to worse outcomes. The simplified deterministic scenarios here are designed to
+demonstrate strategic dynamics under controlled conditions; in realistic stochastic
+settings, the bootstrap evaluation mechanism itself may help agents avoid coordination
+traps by revealing the costs of aggressive moves before they become irreversible.
 
 
 \begin{table}[htbp]
@@ -785,24 +884,29 @@ how early aggressive moves can establish asymmetric stable outcomes even in symm
 Several key observations emerge from comparing results across experiments:
 
 \begin{enumerate}
-    \item \textbf{Convergence Reliability}: All 9 passes achieved formal convergence,
-    validating the robustness of the bootstrap convergence criteria for stochastic scenarios
-    and temporal policy stability for deterministic scenarios.
+    \item \textbf{Policy Stability vs.\ Optimality}: All deterministic-mode passes (Experiments 1 and 3)
+    achieved policy stability, but stability does not imply optimality. Experiment 3
+    demonstrates that stable profiles can be Pareto-dominated by baseline. Experiment 2
+    terminated at iteration budget without meeting strict convergence criteria.
 
-    \item \textbf{Asymmetric Outcomes Prevalence}: Both asymmetric (Exp 1) and
-    symmetric (Exp 3) cost structures produced asymmetric stable outcomes with free-rider
-    behavior. This suggests the LLM agents' optimization dynamics naturally select
-    asymmetric outcomes even when symmetric equilibria are theoretically available.
+    \item \textbf{Coordination Failure}: Experiment 3's symmetric game produced coordination
+    failures in all three passes: both agents ended worse off than baseline. This is not
+    a bug but an expected outcome of greedy, non-communicating optimization. Without
+    mechanisms for coordination (communication, commitment devices, or external nudges),
+    agents following myopic improvement paths can become trapped in suboptimal profiles.
 
-    \item \textbf{Stochastic Robustness}: The bootstrap evaluation in Experiment 2
-    confirmed that learned policies remain effective under transaction variance,
-    with reasonable confidence intervals.
+    \item \textbf{Asymmetric Free-Riding}: Experiments 1 and 3 both produced asymmetric
+    outcomes where one agent provides liquidity while the other free-rides. In Exp 1
+    (asymmetric costs), this reflects the underlying incentive structure. In Exp 3
+    (symmetric costs), it reflects path-dependent dynamics where early aggressive moves
+    by one agent force the other into a compensating role.
 
-    \item \textbf{Stochastic Environments Produce Symmetric Outcomes}: While Experiments 1
-    and 3 exhibited asymmetric free-rider equilibria despite varying cost structures,
-    Experiment 2's stochastic arrivals produced near-symmetric allocations (overall range
-    5.7\%--8.5\%). This pattern is consistent with Castro et al.'s prediction that payment
-    timing uncertainty inhibits the free-rider dynamics observed in deterministic scenarios.
+    \item \textbf{Stochastic Environments Inhibit Coordination Failure}: Experiment 2's
+    stochastic arrivals produced near-symmetric allocations (5.7\%--8.5\%
+    range) without the severe coordination failures seen in deterministic scenarios.
+    The inherent uncertainty may prevent the confident aggressive moves that trigger
+    coordination traps, consistent with Castro et al.'s prediction that payment timing
+    uncertainty inhibits free-rider dynamics.
 \end{enumerate}
 
 
@@ -880,28 +984,34 @@ Our results show \textbf{partial alignment} with theoretical predictions:
     dynamics. Further investigation is needed to understand this cost asymmetry.
 \end{itemize}
 
-\subsubsection{Experiment 3: Symmetric Cost Structure}
+\subsubsection{Experiment 3: Coordination Failure}
 
 Theory predicts a \textbf{symmetric equilibrium} where both agents allocate similar
-liquidity fractions ($\sim$20\% each), as neither has a structural advantage.
+liquidity fractions ($\sim$20\% each), as neither has a structural advantage. The
+symmetric equilibrium at $\sim$\$50 total cost (the baseline) is Pareto-efficient.
 
-Our results show a \textbf{systematic deviation} from this prediction:
+\textbf{All three passes exhibit coordination failure}:
 \begin{itemize}
-    \item \textbf{Passes 1--2}: Despite symmetric costs, BANK\_A converged to low liquidity
-    (1--5\%) while BANK\_B maintained high liquidity (29--30\%). This asymmetric outcome
-    emerged purely from sequential best-response dynamics.
+    \item In every pass, agents converged to profiles where \textit{both} agents incur
+    higher costs than the baseline symmetric equilibrium.
 
-    \item \textbf{Pass 3}: Roles flipped---BANK\_B became the free-rider (0.9\%) while
-    BANK\_A maintained 10\%. Total cost was \$410.92, more than
-    double the efficient equilibrium (\$190.96).
+    \item \textbf{Passes 1--2}: BANK\_A dropped to low liquidity (1--5\%) while BANK\_B
+    compensated (29--30\%). Total costs (\$190.96) exceeded baseline (\$100).
+
+    \item \textbf{Pass 3}: Roles flipped but with worse outcomes---total cost was
+    \$410.92, more than double baseline.
 
     \item BANK\_A assumed the free-rider role in 2 of 3 passes.
 \end{itemize}
 
-This finding suggests that, \textbf{under our LLM update dynamics, symmetric games
-tend to converge to asymmetric stable outcomes}. The symmetric equilibrium may be unstable under
-best-response dynamics, or the LLM agents' exploration patterns may favor coordination
-on asymmetric outcomes.
+This is \textbf{not a failure of the LLM agents' reasoning} but rather an expected
+outcome of \textit{unconditional acceptance} dynamics. Each agent follows locally-improving
+gradients that can lead to globally-worse outcomes. Early aggressive moves by one agent
+(e.g., BANK\_A dropping to 1\% in iteration 2 of Pass 1) trap both agents in suboptimal
+profiles from which neither can unilaterally escape.
+
+The results demonstrate that \textbf{stable does not imply optimal}: greedy,
+non-communicating agents can reliably converge to Pareto-dominated coordination traps.
 
 \subsubsection{Summary of Theoretical Alignment}
 
@@ -1006,6 +1116,29 @@ Several limitations of this study warrant acknowledgment:
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.
 
+    \item \textbf{Fixed-environment bootstrap evaluation}: The bootstrap mode evaluates
+    policies under \textit{historical} settlement timing (Section~\ref{sec:methods}),
+    not the timing that would result from policy-induced changes in system liquidity.
+    In our 2-agent experiments, where each agent constitutes 50\% of system volume,
+    this assumption is most restrictive---a policy change by one agent materially affects
+    the other's settlement timing. We do not claim the bootstrap results reflect full
+    equilibrium dynamics; rather, they measure policy quality given the observed
+    market response. This limitation would be less severe in realistic multi-participant
+    systems where individual policy changes have smaller marginal effects.
+
+    \item \textbf{Bootstrap variance artifacts}: The variance guard (CV $<$ 0.5) uses
+    bootstrap variance as a heuristic filter for sensitivity to timing perturbations, but
+    transaction-level resampling with \texttt{settlement\_offset} can create duplicate
+    extreme transactions and non-physical correlations, potentially amplifying tail events
+    beyond what the original generative process would produce. In Experiment 2, some
+    iterations showed 40$\times$ cost ranges across bootstrap samples ($\sim$\$77 to
+    $\sim$\$3,100), consistent with tail amplification from resampling. Final policies
+    showed CV $\approx$ 2.0 under bootstrap evaluation despite stable policy parameters,
+    suggesting the bootstrap CV measures sensitivity to resampled timing rather than true
+    cross-day performance variance. For applications to real RTGS data---which exhibits
+    substantial intra-day variability---block bootstrap or day-level resampling would
+    better preserve temporal dependencies.
+
     \item \textbf{Partial observability}: Agents operate under information isolation
     (Section~\ref{sec:prompt_anatomy})---they cannot observe counterparty balances
     or policies. While realistic for RTGS systems, this differs from some game-theoretic
@@ -1014,18 +1147,57 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{Simplified cost model}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{Equilibrium variability}: While all passes converged to \textit{some}
-    stable equilibrium, the specific equilibrium varied across runs---different passes
-    found different free-rider assignments and efficiency levels. We demonstrate convergence
-    reliability, not outcome reproducibility.
+    \item \textbf{Stable but suboptimal outcomes}: While all deterministic-mode passes
+    achieved policy stability, stability does not guarantee optimality. Experiment 3
+    demonstrates that agents can converge to profiles where both are worse off than
+    baseline. The unconditional acceptance mechanism permits following locally-improving
+    gradients into coordination traps.
+
+    \item \textbf{Equilibrium variability}: The specific stable profile varied across
+    runs---different passes found different free-rider assignments and efficiency levels.
+    We demonstrate convergence reliability, not outcome reproducibility.
 \end{enumerate}
+
+\subsection{Future Work: Coordination Mechanisms}
+
+The coordination failures observed in Experiment 3 suggest an important direction for
+future research: \textbf{mechanisms that help non-communicating agents escape suboptimal
+coordination traps}.
+
+Several approaches warrant investigation:
+
+\begin{enumerate}
+    \item \textbf{Regulatory nudges}: Could a central bank or regulator provide
+    anonymized aggregate information (e.g., ``system-wide liquidity is below efficient
+    levels'') that helps agents recognize coordination failures without revealing
+    competitive information? Such nudges preserve the information isolation constraint
+    while providing directional guidance.
+
+    \item \textbf{Commitment devices}: Mechanisms that allow agents to conditionally
+    commit to liquidity allocations (e.g., ``I will maintain 20\% if my counterparty
+    does the same'') could help coordinate on efficient symmetric outcomes.
+
+    \item \textbf{Cost-aware acceptance}: Modifying the unconditional acceptance
+    mechanism to reject policies that increase total system cost (observable via
+    aggregate settlement statistics) could prevent the race-to-the-bottom dynamics
+    observed in Experiment 3.
+
+    \item \textbf{Staged adjustment}: Limiting how much an agent can change its
+    liquidity allocation per iteration could prevent the aggressive early moves that
+    trap agents in suboptimal profiles.
+\end{enumerate}
+
+These mechanisms could be tested within the SimCash framework to understand how
+LLM agents respond to different coordination assistance. The goal would be to identify
+minimal interventions that help agents find Pareto-efficient outcomes while preserving
+realistic information constraints.
 
 
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented SimCash, a framework for discovering equilibrium-like behavior in payment system
+We presented SimCash, a framework for discovering stable policy profiles in payment system
 liquidity games using LLM-based policy optimization. Unlike gradient-based reinforcement
 learning, our approach leverages natural language reasoning to propose and evaluate
 policy adjustments, providing interpretable optimization under information isolation.
@@ -1033,29 +1205,33 @@ policy adjustments, providing interpretable optimization under information isola
 \subsection{Summary of Findings}
 
 Across 9 independent runs, LLM agents achieved
-100\% convergence to stable policy profiles (mean 22.1 iterations).
+policy stability in deterministic scenarios (mean 22.1 iterations),
+while stochastic scenarios achieved practical stability but terminated at iteration budget
+without meeting strict statistical convergence thresholds (the CV $<$ 3\% requirement
+proved overly conservative for environments with inherent cost variance).
 Three key findings emerged:
 
-\textbf{1. Asymmetric outcomes dominate in our experiments.} Even in Experiment 3's symmetric game,
-agents consistently converged to asymmetric free-rider outcomes rather than the
-theoretically predicted symmetric equilibrium. Typically one agent settles on very low liquidity
-while the other maintains higher allocation; even in suboptimal outcomes (Exp 1 Pass 3),
-the results remain asymmetric.
+\textbf{1. Stability does not imply optimality.} In Experiment 3's symmetric game,
+agents consistently converged to \textit{coordination failures}---stable profiles where
+both agents incur higher costs than the Pareto-efficient baseline. The unconditional
+acceptance mechanism in deterministic mode allows agents to follow locally-improving
+gradients into globally-worse outcomes. This demonstrates that LLM agents exhibit the
+same coordination failures as any greedy, non-communicating optimizers.
 
-\textbf{2. Early dynamics determine equilibrium selection.} The \textit{identity}
-of the free-rider was determined by early exploration rather than cost structure.
-In symmetric games, which agent ``moved first'' toward low liquidity locked in the
-asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
+\textbf{2. Early dynamics determine outcome selection.} The \textit{identity}
+of the free-rider was determined by early aggressive moves rather than cost structure.
+In symmetric games, which agent ``moved first'' toward low liquidity trapped both
+agents in an asymmetric profile, demonstrating path-dependence in multi-agent LLM systems.
 
-\textbf{3. Stochastic environments produced symmetric outcomes in all passes.}
-While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
+\textbf{3. Stochastic environments with bootstrap evaluation avoided coordination collapse.}
+While deterministic scenarios (Experiments 1 and 3) exhibited coordination failures
 with liquidity ratios exceeding 6$\times$, stochastic environments (Experiment 2) produced
-symmetric allocations in all 3 passes (ratios below 2$\times$, overall range
-5.7\%--8.5\%). This pattern
-is consistent with Castro et al.'s prediction that payment timing uncertainty inhibits
-free-riding, though the small sample size (n=3) warrants further validation. The magnitude
-(5.7\%--8.5\%) fell below Castro's predicted
-10--30\%, suggesting LLM agents discovered lower-liquidity equilibria.
+near-symmetric allocations in all 3 passes (ratios below 2$\times$, overall range
+5.7\%--8.5\%). The bootstrap evaluation
+mechanism---which tests candidate policies before acceptance---may help agents avoid
+aggressive moves that trigger coordination traps. However, Experiment 2 terminated at
+iteration budget rather than achieving formal convergence, and the small sample size (n=3)
+warrants further validation.
 
 \subsection{Implications}
 
@@ -1063,20 +1239,22 @@ These results have implications for both payment system research and multi-agent
 
 \begin{itemize}
     \item \textbf{For payment systems:} LLM-based policy optimization can discover
-    equilibrium behavior without explicit game-theoretic modeling, potentially aiding
-    central banks in understanding how algorithmic liquidity management might evolve.
+    stable profiles without explicit game-theoretic modeling, but stability alone does
+    not guarantee efficiency. Central banks studying algorithmic liquidity management
+    should anticipate that decentralized optimizers may converge to coordination traps.
 
-    \item \textbf{For multi-agent AI:} Sequential best-response dynamics in LLM systems
-    naturally select among multiple stable outcomes based on exploration history, not payoff
-    structure alone. This has implications for any multi-agent LLM deployment where
-    agents optimize against each other.
+    \item \textbf{For multi-agent AI:} Sequential optimization in LLM systems can
+    produce coordination failures where all agents are worse off. This has implications
+    for any multi-agent LLM deployment: without mechanisms for coordination (communication,
+    commitment devices, or external guidance), agents may reliably converge to suboptimal
+    outcomes.
 \end{itemize}
 
 \subsection{Limitations and Future Work}
 
 The most significant limitation is \textbf{sample size}: with only 9
-total runs, our findings are preliminary. The patterns we observe---asymmetric equilibria
-in symmetric games, path-dependent selection, consistent efficiency under stochastic
+total runs, our findings are preliminary. The patterns we observe---coordination failures
+in symmetric games, path-dependent selection, near-symmetric outcomes under stochastic
 conditions---are suggestive but not statistically robust. Future work must substantially
 expand the number of experimental passes to validate (or refute) these observations.
 
@@ -1084,10 +1262,19 @@ Additionally, our implementation differs from Castro et al.\ in using synthetic 
 arrivals rather than bootstrap samples of actual LVTS data. Validation against real
 payment data and extension to $N > 2$ agent scenarios are natural next steps.
 
-The interpretability of LLM reasoning also presents opportunities: agents' natural
-language deliberations could be analyzed to understand \textit{why} particular
-equilibria are selected, potentially revealing the implicit heuristics that drive
-equilibrium selection in learning systems.
+The bootstrap evaluation methodology also warrants refinement. Transaction-level resampling
+with settlement offsets can create non-physical correlations that potentially amplify tail
+events beyond what the original generative process would produce. For real RTGS data with
+intra-day variability, \textbf{block bootstrap} (resampling contiguous time windows) or
+\textbf{day-level bootstrap} (resampling entire business days) would better preserve temporal
+dependencies. Alternatively, evaluating final policies on held-out stochastic seeds would
+measure true cross-day variance rather than resampling sensitivity.
+
+The coordination failures in Experiment 3 suggest a promising research direction:
+\textbf{mechanisms that help non-communicating agents escape suboptimal profiles}.
+Regulatory nudges, commitment devices, and cost-aware acceptance criteria could be
+tested within SimCash to identify minimal interventions that improve coordination
+while preserving realistic information constraints.
 
 
 
@@ -2342,63 +2529,66 @@ Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation.
 \end{verbatim}
 
-\subsubsection{Simulation Trace (Exp 2, Pass 2)}
+\subsubsection{Simulation Trace (Exp 2, Pass 2, BANK\_A)}
 
 The prompt includes a tick-by-tick simulation trace showing transaction arrivals,
-settlements, and balance changes. This example is from Experiment 2 (stochastic
-scenario) showing the first 40 events from a representative simulation:
+settlements, and balance changes. This trace is extracted directly from the
+database-stored prompt sent to BANK\_A, demonstrating agent isolation: only
+BANK\_A's own balance changes are visible (counterparty balances are hidden):
 
 \begin{verbatim}
+
 ═══ Tick 0 ═══
-💰 Deferred Credit: BANK_A received $301.58
-• RtgsSubmission:  fc963c63
-✅ RTGS Settled: BANK_B → BANK_A | $186.57
-   Balance: $534.99 → $348.42
-💸 Costs (BANK_A): total: $7.06
-📋 Submit: TX 0253cb8a...
-📤 Arrival: BANK_B → BANK_A | $45.36 | Deadline: Tick 4
-✅ RTGS Settled: BANK_B → BANK_A | $45.36
-   Balance: $650.00 → $604.64
-✅ RTGS Settled: BANK_A → BANK_B | $92.78
-   Balance: $851.00 → $758.22
-💸 Costs (BANK_B): total: $5.40
-📋 Submit: TX 3757d3cd...
-💰 Deferred Credit: BANK_B received $92.78
-• RtgsSubmission:  3757d3cd
-• RtgsSubmission:  0253cb8a
-📋 Submit: TX 46436b60...
-📤 Arrival: BANK_A → BANK_B | $92.78 | Deadline: Tick 8
-✅ RTGS Settled: BANK_B → BANK_A | $69.65
-   Balance: $604.64 → $534.99
-📤 Arrival: BANK_B → BANK_A | $186.57 | Deadline: Tick 7
-• RtgsSubmission:  46436b60
-📤 Arrival: BANK_B → BANK_A | $69.65 | Deadline: Tick 6
-📋 Submit: TX fc963c63...
+
+✅ RTGS Settled (outgoing): BANK_A → BANK_B | $65.13
+  Balance: $851.00 → $785.87
+📥 Incoming TX 8ccbb45e...: BANK_B → BANK_A
+  $70.39 | Priority: 5 | Deadline: Tick 5
+📥 Incoming TX 62723300...: BANK_B → BANK_A
+  $35.49 | Priority: 5 | Deadline: Tick 3
+📥 Incoming TX 3e598836...: BANK_B → BANK_A
+  $65.24 | Priority: 5 | Deadline: Tick 6
+📤 Outgoing TX 7f70bd71...: BANK_A → BANK_B
+  $65.13 | Priority: 5 | Deadline: Tick 7
+📥 Incoming TX e89ee92d...: BANK_B → BANK_A
+  $41.03 | Priority: 5 | Deadline: Tick 3
+💰 Received: BANK_B → BANK_A | $65.24
+💰 Received: BANK_B → BANK_A | $70.39
+💰 Received: BANK_B → BANK_A | $155.47
+💰 Received: BANK_B → BANK_A | $151.16
+✅ RTGS Settled (outgoing): BANK_A → BANK_B | $140.58
+  Balance: $785.87 → $645.29
+📥 Incoming TX 4f3ff626...: BANK_B → BANK_A
+  $151.16 | Priority: 5 | Deadline: Tick 7
+📥 Incoming TX 2a1b2cc2...: BANK_B → BANK_A
+  $90.91 | Priority: 5 | Deadline: Tick 8
+💰 Received: BANK_B → BANK_A | $90.91
+💰 Received: BANK_B → BANK_A | $35.49
+💸 Costs: total: $7.06
+📋 Decision: Submit TX d298986b...
+📋 Decision: Submit TX 7f70bd71...
+💰 Received: BANK_B → BANK_A | $41.03
+📥 Incoming TX d4c21a94...: BANK_B → BANK_A
+  $155.47 | Priority: 5 | Deadline: Tick 4
+📤 Outgoing TX d298986b...: BANK_A → BANK_B
+  $140.58 | Priority: 5 | Deadline: Tick 5
 
 ═══ Tick 1 ═══
-💸 Costs (BANK_B): total: $5.40
-💰 Deferred Credit: BANK_B received $111.10
-✅ RTGS Settled: BANK_A → BANK_B | $57.43
-   Balance: $1,006.13 → $948.70
-📋 Submit: TX e94b6a42...
-📤 Arrival: BANK_A → BANK_B | $53.67 | Deadline: Tick 8
-📤 Arrival: BANK_B → BANK_A | $77.62 | Deadline: Tick 8
-• RtgsSubmission:  e94b6a42
-📋 Submit: TX f18e9699...
-✅ RTGS Settled: BANK_B → BANK_A | $51.07
-   Balance: $441.20 → $390.13
-• RtgsSubmission:  f18e9699
-💰 Deferred Credit: BANK_A received $272.98
-📋 Submit: TX 9dbe9b13...
-📤 Arrival: BANK_B → BANK_A | $144.29 | Deadline: Tick 9
-📋 Submit: TX da729533...
-📤 Arrival: BANK_A → BANK_B | $57.43 | Deadline: Tick 5
-• RtgsSubmission:  f8ed1e01
-• RtgsSubmission:  da729533
-• RtgsSubmission:  9dbe9b13
-💸 Costs (BANK_A): total: $7.06
-✅ RTGS Settled: BANK_A → BANK_B | $53.67
-   Balance: $1,059.80 → $1,006.13
+
+✅ RTGS Settled (outgoing): BANK_A → BANK_B | $124.09
+  Balance: $937.79 → $813.70
+✅ RTGS Settled (outgoing): BANK_A → BANK_B | $62.35
+  Balance: $1,254.98 → $1,192.63
+✅ RTGS Settled (outgoing): BANK_A → BANK_B | $68.09
+  Balance: $813.70 → $745.61
+📋 Decision: Submit TX 8ab1abd7...
+📤 Outgoing TX 07bcc93d...: BANK_A → BANK_B
+  $68.09 | Priority: 5 | Deadline: Tick 6
+📤 Outgoing TX 0f8adb8d...: BANK_A → BANK_B
+  $124.09 | Priority: 5 | Deadline: Tick 9
+📋 Decision: Submit TX 07bcc93d...
+
+[... truncated ...]
 \end{verbatim}
 
 

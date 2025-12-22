@@ -50,7 +50,7 @@ def generate_conclusion(provider: DataProvider) -> str:
 \section{{Conclusion}}
 \label{{sec:conclusion}}
 
-We presented SimCash, a framework for discovering equilibrium-like behavior in payment system
+We presented SimCash, a framework for discovering stable policy profiles in payment system
 liquidity games using LLM-based policy optimization. Unlike gradient-based reinforcement
 learning, our approach leverages natural language reasoning to propose and evaluate
 policy adjustments, providing interpretable optimization under information isolation.
@@ -58,29 +58,33 @@ policy adjustments, providing interpretable optimization under information isola
 \subsection{{Summary of Findings}}
 
 Across {aggregate_stats["total_passes"]} independent runs, LLM agents achieved
-{convergence_pct}\% convergence to stable policy profiles (mean {avg_iterations:.1f} iterations).
+policy stability in deterministic scenarios (mean {avg_iterations:.1f} iterations),
+while stochastic scenarios achieved practical stability but terminated at iteration budget
+without meeting strict statistical convergence thresholds (the CV $<$ 3\% requirement
+proved overly conservative for environments with inherent cost variance).
 Three key findings emerged:
 
-\textbf{{1. Asymmetric outcomes dominate in our experiments.}} Even in Experiment 3's symmetric game,
-agents consistently converged to asymmetric free-rider outcomes rather than the
-theoretically predicted symmetric equilibrium. Typically one agent settles on very low liquidity
-while the other maintains higher allocation; even in suboptimal outcomes (Exp 1 Pass 3),
-the results remain asymmetric.
+\textbf{{1. Stability does not imply optimality.}} In Experiment 3's symmetric game,
+agents consistently converged to \textit{{coordination failures}}---stable profiles where
+both agents incur higher costs than the Pareto-efficient baseline. The unconditional
+acceptance mechanism in deterministic mode allows agents to follow locally-improving
+gradients into globally-worse outcomes. This demonstrates that LLM agents exhibit the
+same coordination failures as any greedy, non-communicating optimizers.
 
-\textbf{{2. Early dynamics determine equilibrium selection.}} The \textit{{identity}}
-of the free-rider was determined by early exploration rather than cost structure.
-In symmetric games, which agent ``moved first'' toward low liquidity locked in the
-asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
+\textbf{{2. Early dynamics determine outcome selection.}} The \textit{{identity}}
+of the free-rider was determined by early aggressive moves rather than cost structure.
+In symmetric games, which agent ``moved first'' toward low liquidity trapped both
+agents in an asymmetric profile, demonstrating path-dependence in multi-agent LLM systems.
 
-\textbf{{3. Stochastic environments produced symmetric outcomes in all passes.}}
-While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
+\textbf{{3. Stochastic environments with bootstrap evaluation avoided coordination collapse.}}
+While deterministic scenarios (Experiments 1 and 3) exhibited coordination failures
 with liquidity ratios exceeding 6$\times$, stochastic environments (Experiment 2) produced
-symmetric allocations in all {exp2_symmetric_count} passes (ratios below 2$\times$, overall range
-{format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}). This pattern
-is consistent with Castro et al.'s prediction that payment timing uncertainty inhibits
-free-riding, though the small sample size (n=3) warrants further validation. The magnitude
-({format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}) fell below Castro's predicted
-10--30\%, suggesting LLM agents discovered lower-liquidity equilibria.
+near-symmetric allocations in all {exp2_symmetric_count} passes (ratios below 2$\times$, overall range
+{format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}). The bootstrap evaluation
+mechanism---which tests candidate policies before acceptance---may help agents avoid
+aggressive moves that trigger coordination traps. However, Experiment 2 terminated at
+iteration budget rather than achieving formal convergence, and the small sample size (n=3)
+warrants further validation.
 
 \subsection{{Implications}}
 
@@ -88,20 +92,22 @@ These results have implications for both payment system research and multi-agent
 
 \begin{{itemize}}
     \item \textbf{{For payment systems:}} LLM-based policy optimization can discover
-    equilibrium behavior without explicit game-theoretic modeling, potentially aiding
-    central banks in understanding how algorithmic liquidity management might evolve.
+    stable profiles without explicit game-theoretic modeling, but stability alone does
+    not guarantee efficiency. Central banks studying algorithmic liquidity management
+    should anticipate that decentralized optimizers may converge to coordination traps.
 
-    \item \textbf{{For multi-agent AI:}} Sequential best-response dynamics in LLM systems
-    naturally select among multiple stable outcomes based on exploration history, not payoff
-    structure alone. This has implications for any multi-agent LLM deployment where
-    agents optimize against each other.
+    \item \textbf{{For multi-agent AI:}} Sequential optimization in LLM systems can
+    produce coordination failures where all agents are worse off. This has implications
+    for any multi-agent LLM deployment: without mechanisms for coordination (communication,
+    commitment devices, or external guidance), agents may reliably converge to suboptimal
+    outcomes.
 \end{{itemize}}
 
 \subsection{{Limitations and Future Work}}
 
 The most significant limitation is \textbf{{sample size}}: with only {aggregate_stats["total_passes"]}
-total runs, our findings are preliminary. The patterns we observe---asymmetric equilibria
-in symmetric games, path-dependent selection, consistent efficiency under stochastic
+total runs, our findings are preliminary. The patterns we observe---coordination failures
+in symmetric games, path-dependent selection, near-symmetric outcomes under stochastic
 conditions---are suggestive but not statistically robust. Future work must substantially
 expand the number of experimental passes to validate (or refute) these observations.
 
@@ -109,8 +115,17 @@ Additionally, our implementation differs from Castro et al.\ in using synthetic 
 arrivals rather than bootstrap samples of actual LVTS data. Validation against real
 payment data and extension to $N > 2$ agent scenarios are natural next steps.
 
-The interpretability of LLM reasoning also presents opportunities: agents' natural
-language deliberations could be analyzed to understand \textit{{why}} particular
-equilibria are selected, potentially revealing the implicit heuristics that drive
-equilibrium selection in learning systems.
+The bootstrap evaluation methodology also warrants refinement. Transaction-level resampling
+with settlement offsets can create non-physical correlations that potentially amplify tail
+events beyond what the original generative process would produce. For real RTGS data with
+intra-day variability, \textbf{{block bootstrap}} (resampling contiguous time windows) or
+\textbf{{day-level bootstrap}} (resampling entire business days) would better preserve temporal
+dependencies. Alternatively, evaluating final policies on held-out stochastic seeds would
+measure true cross-day variance rather than resampling sensitivity.
+
+The coordination failures in Experiment 3 suggest a promising research direction:
+\textbf{{mechanisms that help non-communicating agents escape suboptimal profiles}}.
+Regulatory nudges, commitment devices, and cost-aware acceptance criteria could be
+tested within SimCash to identify minimal interventions that improve coordination
+while preserving realistic information constraints.
 """

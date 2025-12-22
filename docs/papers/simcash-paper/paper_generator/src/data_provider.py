@@ -843,7 +843,7 @@ class DatabaseDataProvider:
         return event_data.get("user_prompt")
 
     def get_simulation_trace(
-        self, exp_id: str, pass_num: int, max_events: int = 30
+        self, exp_id: str, pass_num: int, max_events: int = 30, agent_id: str | None = None
     ) -> str:
         """Get a formatted simulation trace from the database.
 
@@ -854,6 +854,8 @@ class DatabaseDataProvider:
             exp_id: Experiment identifier
             pass_num: Pass number
             max_events: Maximum number of events to include
+            agent_id: If specified, filter to show only events visible to this agent
+                (enforces agent isolation for LLM prompt demonstration)
 
         Returns:
             Formatted trace string grouped by tick
@@ -893,18 +895,9 @@ class DatabaseDataProvider:
         if not events:
             return "(No events captured)"
 
-        # Format events grouped by tick
-        lines: list[str] = []
-        current_tick = -1
-
-        for tick, event_type, agent_id, tx_id, details_str in events:
-            if tick != current_tick:
-                if current_tick >= 0:
-                    lines.append("")  # Blank line between ticks
-                lines.append(f"═══ Tick {tick} ═══")
-                current_tick = tick
-
-            # Parse details JSON if available
+        # Convert database rows to event dicts for filtering
+        event_dicts = []
+        for tick, event_type, evt_agent_id, tx_id, details_str in events:
             details = {}
             if details_str:
                 try:
@@ -912,8 +905,43 @@ class DatabaseDataProvider:
                 except (json.JSONDecodeError, TypeError):
                     pass
 
+            event_dict = {
+                "tick": tick,
+                "event_type": event_type,
+                "agent_id": evt_agent_id,
+                "tx_id": tx_id,
+                **details,
+            }
+            event_dicts.append(event_dict)
+
+        # If agent_id specified, filter to only show events visible to that agent
+        if agent_id is not None:
+            from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+                filter_events_for_agent,
+                format_filtered_output,
+            )
+
+            filtered = filter_events_for_agent(agent_id, event_dicts)
+            return format_filtered_output(agent_id, filtered, include_tick_headers=True)
+
+        # Format events grouped by tick (unfiltered view)
+        lines: list[str] = []
+        current_tick = -1
+
+        for event_dict in event_dicts:
+            tick = event_dict["tick"]
+            event_type = event_dict["event_type"]
+            evt_agent_id = event_dict.get("agent_id")
+            tx_id = event_dict.get("tx_id")
+
+            if tick != current_tick:
+                if current_tick >= 0:
+                    lines.append("")  # Blank line between ticks
+                lines.append(f"═══ Tick {tick} ═══")
+                current_tick = tick
+
             # Format based on event type
-            formatted = self._format_event(event_type, agent_id, tx_id, details)
+            formatted = self._format_event(event_type, evt_agent_id, tx_id, event_dict)
             if formatted:
                 lines.append(formatted)
 

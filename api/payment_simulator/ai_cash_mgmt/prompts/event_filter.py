@@ -368,8 +368,49 @@ def _format_single_event(agent_id: str, event: dict[str, Any]) -> str:
         penalties = event.get("total_penalties", 0)
         return f"🌙 End of Day {day}: {unsettled} unsettled | Penalties: {_format_amount(penalties)}"
 
-    # Generic fallback
-    return f"• {event_type}: {event}"
+    # RtgsSubmission - already covered by PolicySubmit decision, skip to avoid duplication
+    if event_type == "RtgsSubmission":
+        return ""
+
+    if event_type == "RtgsWithdrawal":
+        tx_id = event.get("tx_id", "?")
+        return f"↩️ Withdrew TX {tx_id[:8]}... from queue"
+
+    if event_type == "RtgsResubmission":
+        tx_id = event.get("tx_id", "?")
+        return f"🔄 Resubmitted TX {tx_id[:8]}... to queue"
+
+    if event_type == "QueuedRtgs":
+        tx_id = event.get("tx_id", "?")
+        reason = event.get("reason", "insufficient liquidity")
+        return f"📋 Queued TX {tx_id[:8]}... ({reason})"
+
+    if event_type == "PriorityEscalated":
+        tx_id = event.get("tx_id", "?")
+        old_priority = event.get("old_priority", "?")
+        new_priority = event.get("new_priority", "?")
+        return f"⬆️ Priority escalated TX {tx_id[:8]}...: {old_priority} → {new_priority}"
+
+    if event_type == "TransactionReprioritized":
+        tx_id = event.get("tx_id", "?")
+        new_priority = event.get("new_priority", "?")
+        return f"🔀 Reprioritized TX {tx_id[:8]}... to priority {new_priority}"
+
+    # Skip events that don't add useful information for optimization
+    if event_type in (
+        "ScenarioEventExecuted",
+        "AlgorithmExecution",
+        "StateRegisterSet",
+        "BilateralLimitExceeded",
+        "MultilateralLimitExceeded",
+        "CollateralTimerWithdrawn",
+        "CollateralTimerBlocked",
+        "EntryDispositionOffset",
+    ):
+        return ""
+
+    # Generic fallback - show event type only, not raw dict
+    return f"• {event_type}"
 
 
 def _format_amount(cents: int | float) -> str:

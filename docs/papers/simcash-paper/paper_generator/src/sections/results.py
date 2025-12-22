@@ -116,7 +116,7 @@ def generate_results(provider: DataProvider) -> str:
     # Generate convergence statistics table
     convergence_table = generate_convergence_table(
         [exp1_conv_stats, exp2_conv_stats, exp3_conv_stats],
-        caption="Convergence statistics across all experiments",
+        caption="Termination statistics across all experiments. EXP2 shows budget termination (50 iterations) rather than formal convergence.",
         label="tab:convergence_stats",
     )
 
@@ -190,9 +190,10 @@ conducted across three independent passes to verify reproducibility.
 
 \subsection{{Convergence Summary}}
 
-Table~\ref{{tab:convergence_stats}} summarizes convergence behavior across all experiments.
-All passes achieved convergence, with mean iterations ranging from {exp3_mean_iters}
-(Experiment 3) to {exp2_mean_iters} (Experiment 2).
+Table~\ref{{tab:convergence_stats}} summarizes termination behavior across all experiments.
+Experiments 1 and 3 achieved formal convergence via temporal policy stability, with mean iterations
+of {exp1_mean_iters} and {exp3_mean_iters} respectively. Experiment 2's stochastic passes
+terminated at the 50-iteration budget without meeting formal convergence criteria (see Section 3.3).
 
 {convergence_table}
 
@@ -231,10 +232,14 @@ do not always find the Pareto-optimal outcome.
 Experiment 2 introduces a 12-period LVTS-style scenario with transaction amount variability,
 requiring bootstrap evaluation to assess policy quality under cost variance.
 
-All three passes achieved convergence at iteration 49 (the maximum allowed). The strict
-bootstrap convergence criteria---requiring CV $<$ 3\%, no significant trend, and regret $<$ 10\%
-over a 5-iteration window---demanded extended observation to confidently identify stable policies
-in this stochastic environment. We present Pass 2 as the exemplar run.
+All three passes \textbf{{terminated at the iteration budget}} (50 iterations) without
+meeting the formal convergence criteria. The strict bootstrap convergence
+requirements---CV $<$ 3\%, no significant trend, and regret $<$ 10\% sustained over
+a 5-iteration window---proved difficult to satisfy in this stochastic environment.
+However, as we show below, the policies achieved practical stability: liquidity allocations
+settled into consistent ranges and costs remained within narrow bands during the final iterations.
+The strict criteria may be overly conservative for stochastic scenarios where inherent
+variance makes sustained low-CV windows statistically unlikely. We present Pass 2 as the exemplar run.
 
 {exp2_iter_table}
 
@@ -261,6 +266,16 @@ The bootstrap evaluation reveals that BANK\_A's policy, despite high variance in
 simulations, achieves mean cost {exp2_a_mean} ($\pm$ {exp2_a_std}). BANK\_B maintains
 more consistent costs at {exp2_b_mean} ($\pm$ {exp2_b_std}).
 
+\textit{{Note on per-agent variance}}: The high standard deviation for BANK\_A (yielding
+per-agent $CV \approx 2.0$ at the final iteration) does not necessarily indicate
+a violation of the $CV \leq 0.5$ acceptance gate. The gate is checked at the
+moment a policy is \textit{{proposed and evaluated for acceptance}}---each iteration
+uses different stochastic samples from the seed hierarchy, so the same policy can
+exhibit different CV values across iterations. BANK\_A's current policy was accepted
+at an earlier iteration when its CV (on that iteration's samples) satisfied the
+constraint; the statistics shown here reflect the final iteration's evaluation,
+which may differ due to sample variance.
+
 \subsubsection{{Risk-Return Tradeoff}}
 
 Figure~\ref{{fig:exp2_variance}} shows how cost variance evolves during optimization.
@@ -281,11 +296,14 @@ at iteration 22, BANK\_A's proposed policy achieved mean cost \$324 compared to 
 policy's \$915---a \$591 improvement---yet was rejected.
 
 The acceptance criteria implements \textbf{{risk-adjusted evaluation}}: a policy must satisfy
-both mean improvement \textit{{and}} variance constraints:
-\begin{{itemize}}
-    \item Mean improvement: $\mu_{{new}} < \mu_{{old}}$ (paired comparison on same bootstrap samples)
-    \item Variance constraint: $CV \leq 0.5$ where $CV = \sigma / \mu$ (coefficient of variation)
-\end{{itemize}}
+three requirements to be accepted:
+\begin{{enumerate}}
+    \item \textbf{{Mean improvement}}: $\mu_{{new}} < \mu_{{old}}$ (paired comparison on same bootstrap samples)
+    \item \textbf{{Statistical significance}}: The 95\% confidence interval for the paired delta
+    ($\delta_i = \text{{cost}}_{{old,i}} - \text{{cost}}_{{new,i}}$) must not cross zero
+    \item \textbf{{Variance constraint}}: $CV \leq 0.5$ where $CV = \sigma_{{new}} / \mu_{{new}}$
+    (coefficient of variation of the new policy's costs across bootstrap samples)
+\end{{enumerate}}
 
 At iteration 22, the proposed policy had $\sigma = \$269$ on $\mu = \$324$, yielding $CV = 0.83$.
 Despite the superior mean, the policy was rejected as too volatile. This risk-adjusted acceptance
@@ -293,36 +311,59 @@ explains the apparent paradox in Figure~\ref{{fig:exp2_convergence}} where some 
 (X markers) appear below the current policy line---they had better average performance but
 unacceptable variance.
 
-This mechanism ensures the framework converges to \textit{{stable}} equilibria rather than
-policies that perform well on average but could produce catastrophic costs in unlucky scenarios.
+This mechanism biases optimization toward policies that improve mean cost while avoiding
+proposals that are overly sensitive to timing perturbations under the fixed-environment
+bootstrap evaluation.
 
 {exp2_summary_table}
 
-\subsection{{Experiment 3: Symmetric Game Dynamics}}
+\subsection{{Experiment 3: Coordination Failure in Symmetric Games}}
 
-In this 3-period symmetric scenario, both banks face identical cost structures.
-Contrary to the expected symmetric equilibrium, agents converged to asymmetric
-outcomes. Convergence occurred at iteration {exp3_convergence} in Pass 1.
+In this 3-period symmetric scenario, both banks face identical cost structures and
+begin with identical 50\% liquidity allocations (baseline cost $\sim$\$50 each).
+\textbf{{All three passes exhibit coordination failure}}: agents converge to stable
+profiles where \textit{{both}} agents incur higher costs than baseline.
+Policy stability occurred at iteration {exp3_convergence} in Pass 1.
 
 {exp3_iter_table}
 
 {exp3_fig}
 
-Final equilibrium:
+Final stable profile:
 \begin{{itemize}}
     \item BANK\_A: {exp3_a_cost} cost, {exp3_a_liq} liquidity
     \item BANK\_B: {exp3_b_cost} cost, {exp3_b_liq} liquidity
 \end{{itemize}}
 
-Despite symmetric incentive structures, agents converged to asymmetric stable outcomes
-across all passes. Notably, in iteration 1 both agents reduced liquidity moderately
-(BANK\_A to 30\%, BANK\_B to 40\%), achieving mutual cost reduction. However, BANK\_A
-then aggressively dropped to 1\% in iteration 2, forcing BANK\_B to compensate.
+\textbf{{Why coordination fails}}: The unconditional acceptance mechanism allows
+agents to follow initially-improving trajectories that lead to collectively
+worse outcomes. In Pass 1, iteration 1 saw both agents reduce liquidity moderately
+(BANK\_A to 30\%, BANK\_B to 40\%), which improved costs for both. Encouraged by
+this success, BANK\_A aggressively dropped to 1\% in iteration 2. This initially
+appeared beneficial to BANK\_A (forcing BANK\_B to provide liquidity), but trapped
+both agents in a suboptimal profile: BANK\_A's costs rose to {exp3_a_cost} (more
+than double baseline), while BANK\_B paid {exp3_b_cost} to compensate.
 
-Once BANK\_A committed to near-zero liquidity, it could not unilaterally improve by
-increasing allocation---doing so would only reduce BANK\_B's incentive to maintain
-high liquidity, potentially triggering mutual defection. This lock-in demonstrates
-how early aggressive moves can establish asymmetric stable outcomes even in symmetric games.
+Once in this trap, neither agent can unilaterally improve: BANK\_A increasing
+liquidity would reduce BANK\_B's incentive to maintain high reserves, risking
+mutual defection. BANK\_B reducing liquidity would cause settlement failures.
+The profile is \textit{{stable}} but \textit{{Pareto-dominated}} by the baseline.
+
+This result demonstrates a fundamental limitation of greedy, non-communicating
+optimization: agents following myopic improvement gradients can converge to
+coordination traps that leave everyone worse off. The LLM agents are not
+``finding equilibria''---they are exhibiting the same coordination failures
+that occur when rational agents lack mechanisms to coordinate.
+
+\textit{{Note on evaluation mode}}: These coordination failures arise partly because
+deterministic-temporal mode uses \textbf{{unconditional acceptance}}---agents cannot
+test proposed policies before committing. In stochastic scenarios using bootstrap
+evaluation (Experiment 2), agents evaluate candidate policies on multiple samples
+before acceptance, providing a mechanism to detect that aggressive liquidity reductions
+lead to worse outcomes. The simplified deterministic scenarios here are designed to
+demonstrate strategic dynamics under controlled conditions; in realistic stochastic
+settings, the bootstrap evaluation mechanism itself may help agents avoid coordination
+traps by revealing the costs of aggressive moves before they become irreversible.
 
 {exp3_summary_table}
 
@@ -331,23 +372,28 @@ how early aggressive moves can establish asymmetric stable outcomes even in symm
 Several key observations emerge from comparing results across experiments:
 
 \begin{{enumerate}}
-    \item \textbf{{Convergence Reliability}}: All {total_passes} passes achieved formal convergence,
-    validating the robustness of the bootstrap convergence criteria for stochastic scenarios
-    and temporal policy stability for deterministic scenarios.
+    \item \textbf{{Policy Stability vs.\ Optimality}}: All deterministic-mode passes (Experiments 1 and 3)
+    achieved policy stability, but stability does not imply optimality. Experiment 3
+    demonstrates that stable profiles can be Pareto-dominated by baseline. Experiment 2
+    terminated at iteration budget without meeting strict convergence criteria.
 
-    \item \textbf{{Asymmetric Outcomes Prevalence}}: Both asymmetric (Exp 1) and
-    symmetric (Exp 3) cost structures produced asymmetric stable outcomes with free-rider
-    behavior. This suggests the LLM agents' optimization dynamics naturally select
-    asymmetric outcomes even when symmetric equilibria are theoretically available.
+    \item \textbf{{Coordination Failure}}: Experiment 3's symmetric game produced coordination
+    failures in all three passes: both agents ended worse off than baseline. This is not
+    a bug but an expected outcome of greedy, non-communicating optimization. Without
+    mechanisms for coordination (communication, commitment devices, or external nudges),
+    agents following myopic improvement paths can become trapped in suboptimal profiles.
 
-    \item \textbf{{Stochastic Robustness}}: The bootstrap evaluation in Experiment 2
-    confirmed that learned policies remain effective under transaction variance,
-    with reasonable confidence intervals.
+    \item \textbf{{Asymmetric Free-Riding}}: Experiments 1 and 3 both produced asymmetric
+    outcomes where one agent provides liquidity while the other free-rides. In Exp 1
+    (asymmetric costs), this reflects the underlying incentive structure. In Exp 3
+    (symmetric costs), it reflects path-dependent dynamics where early aggressive moves
+    by one agent force the other into a compensating role.
 
-    \item \textbf{{Stochastic Environments Produce Symmetric Outcomes}}: While Experiments 1
-    and 3 exhibited asymmetric free-rider equilibria despite varying cost structures,
-    Experiment 2's stochastic arrivals produced near-symmetric allocations (overall range
-    {exp2_liq_min}--{exp2_liq_max}). This pattern is consistent with Castro et al.'s prediction that payment
-    timing uncertainty inhibits the free-rider dynamics observed in deterministic scenarios.
+    \item \textbf{{Stochastic Environments Inhibit Coordination Failure}}: Experiment 2's
+    stochastic arrivals produced near-symmetric allocations ({exp2_liq_min}--{exp2_liq_max}
+    range) without the severe coordination failures seen in deterministic scenarios.
+    The inherent uncertainty may prevent the confident aggressive moves that trigger
+    coordination traps, consistent with Castro et al.'s prediction that payment timing
+    uncertainty inhibits free-rider dynamics.
 \end{{enumerate}}
 """

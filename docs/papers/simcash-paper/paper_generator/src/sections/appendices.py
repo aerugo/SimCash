@@ -365,9 +365,16 @@ def _generate_system_prompt_appendix(provider: DataProvider) -> str:
     history = user_prompt_sections.get("history", "")
     instructions = user_prompt_sections.get("instructions", "")
 
-    # Get simulation trace from exp2 simulation_events table
-    # The events are stored in the database even though they weren't captured in prompts
-    simulation_trace = provider.get_simulation_trace("exp2", pass_num=2, max_events=40)
+    # Get simulation trace using the same pretty format as CLI verbose output
+    # agent_id="BANK_A" applies agent isolation (only events visible to BANK_A)
+    simulation_trace = provider.get_simulation_trace(
+        "exp2", pass_num=2, max_events=100, agent_id="BANK_A"
+    )
+    # Truncate to keep appendix manageable
+    trace_lines = simulation_trace.split("\n")
+    max_lines = 50
+    if len(trace_lines) > max_lines:
+        simulation_trace = "\n".join(trace_lines[:max_lines]) + "\n\n[... truncated ...]"
 
     return rf"""
 \section{{LLM System Prompt Documentation}}
@@ -490,11 +497,12 @@ prompt at iteration 6 of Experiment 2, Pass 2:
 {instructions}
 \end{{verbatim}}
 
-\subsubsection{{Simulation Trace (Exp 2, Pass 2)}}
+\subsubsection{{Simulation Trace (Exp 2, Pass 2, BANK\_A)}}
 
 The prompt includes a tick-by-tick simulation trace showing transaction arrivals,
-settlements, and balance changes. This example is from Experiment 2 (stochastic
-scenario) showing the first 40 events from a representative simulation:
+settlements, and balance changes. This trace is extracted directly from the
+database-stored prompt sent to BANK\_A, demonstrating agent isolation: only
+BANK\_A's own balance changes are visible (counterparty balances are hidden):
 
 \begin{{verbatim}}
 {simulation_trace}

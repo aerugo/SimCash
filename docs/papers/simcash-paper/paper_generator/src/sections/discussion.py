@@ -174,28 +174,34 @@ Our results show \textbf{{partial alignment}} with theoretical predictions:
     dynamics. Further investigation is needed to understand this cost asymmetry.
 \end{{itemize}}
 
-\subsubsection{{Experiment 3: Symmetric Cost Structure}}
+\subsubsection{{Experiment 3: Coordination Failure}}
 
 Theory predicts a \textbf{{symmetric equilibrium}} where both agents allocate similar
-liquidity fractions ($\sim$20\% each), as neither has a structural advantage.
+liquidity fractions ($\sim$20\% each), as neither has a structural advantage. The
+symmetric equilibrium at $\sim$\$50 total cost (the baseline) is Pareto-efficient.
 
-Our results show a \textbf{{systematic deviation}} from this prediction:
+\textbf{{All three passes exhibit coordination failure}}:
 \begin{{itemize}}
-    \item \textbf{{Passes 1--2}}: Despite symmetric costs, BANK\_A converged to low liquidity
-    (1--5\%) while BANK\_B maintained high liquidity (29--30\%). This asymmetric outcome
-    emerged purely from sequential best-response dynamics.
+    \item In every pass, agents converged to profiles where \textit{{both}} agents incur
+    higher costs than the baseline symmetric equilibrium.
 
-    \item \textbf{{Pass 3}}: Roles flipped---BANK\_B became the free-rider (0.9\%) while
-    BANK\_A maintained 10\%. Total cost was {format_money(exp3_worst_total)}, more than
-    double the efficient equilibrium ({format_money(exp3_best_total)}).
+    \item \textbf{{Passes 1--2}}: BANK\_A dropped to low liquidity (1--5\%) while BANK\_B
+    compensated (29--30\%). Total costs ({format_money(exp3_best_total)}) exceeded baseline (\$100).
+
+    \item \textbf{{Pass 3}}: Roles flipped but with worse outcomes---total cost was
+    {format_money(exp3_worst_total)}, more than double baseline.
 
     \item BANK\_A assumed the free-rider role in {exp3_freerider_a_count} of 3 passes.
 \end{{itemize}}
 
-This finding suggests that, \textbf{{under our LLM update dynamics, symmetric games
-tend to converge to asymmetric stable outcomes}}. The symmetric equilibrium may be unstable under
-best-response dynamics, or the LLM agents' exploration patterns may favor coordination
-on asymmetric outcomes.
+This is \textbf{{not a failure of the LLM agents' reasoning}} but rather an expected
+outcome of \textit{{unconditional acceptance}} dynamics. Each agent follows locally-improving
+gradients that can lead to globally-worse outcomes. Early aggressive moves by one agent
+(e.g., BANK\_A dropping to 1\% in iteration 2 of Pass 1) trap both agents in suboptimal
+profiles from which neither can unilaterally escape.
+
+The results demonstrate that \textbf{{stable does not imply optimal}}: greedy,
+non-communicating agents can reliably converge to Pareto-dominated coordination traps.
 
 \subsubsection{{Summary of Theoretical Alignment}}
 
@@ -300,6 +306,29 @@ Several limitations of this study warrant acknowledgment:
     hundreds of participants with heterogeneous characteristics. Scaling to larger
     networks remains for future work.
 
+    \item \textbf{{Fixed-environment bootstrap evaluation}}: The bootstrap mode evaluates
+    policies under \textit{{historical}} settlement timing (Section~\ref{{sec:methods}}),
+    not the timing that would result from policy-induced changes in system liquidity.
+    In our 2-agent experiments, where each agent constitutes 50\% of system volume,
+    this assumption is most restrictive---a policy change by one agent materially affects
+    the other's settlement timing. We do not claim the bootstrap results reflect full
+    equilibrium dynamics; rather, they measure policy quality given the observed
+    market response. This limitation would be less severe in realistic multi-participant
+    systems where individual policy changes have smaller marginal effects.
+
+    \item \textbf{{Bootstrap variance artifacts}}: The variance guard (CV $<$ 0.5) uses
+    bootstrap variance as a heuristic filter for sensitivity to timing perturbations, but
+    transaction-level resampling with \texttt{{settlement\_offset}} can create duplicate
+    extreme transactions and non-physical correlations, potentially amplifying tail events
+    beyond what the original generative process would produce. In Experiment 2, some
+    iterations showed 40$\times$ cost ranges across bootstrap samples ($\sim$\$77 to
+    $\sim$\$3,100), consistent with tail amplification from resampling. Final policies
+    showed CV $\approx$ 2.0 under bootstrap evaluation despite stable policy parameters,
+    suggesting the bootstrap CV measures sensitivity to resampled timing rather than true
+    cross-day performance variance. For applications to real RTGS data---which exhibits
+    substantial intra-day variability---block bootstrap or day-level resampling would
+    better preserve temporal dependencies.
+
     \item \textbf{{Partial observability}}: Agents operate under information isolation
     (Section~\ref{{sec:prompt_anatomy}})---they cannot observe counterparty balances
     or policies. While realistic for RTGS systems, this differs from some game-theoretic
@@ -308,9 +337,48 @@ Several limitations of this study warrant acknowledgment:
     \item \textbf{{Simplified cost model}}: Our linear cost functions may not capture
     all complexities of real holding and delay costs.
 
-    \item \textbf{{Equilibrium variability}}: While all passes converged to \textit{{some}}
-    stable equilibrium, the specific equilibrium varied across runs---different passes
-    found different free-rider assignments and efficiency levels. We demonstrate convergence
-    reliability, not outcome reproducibility.
+    \item \textbf{{Stable but suboptimal outcomes}}: While all deterministic-mode passes
+    achieved policy stability, stability does not guarantee optimality. Experiment 3
+    demonstrates that agents can converge to profiles where both are worse off than
+    baseline. The unconditional acceptance mechanism permits following locally-improving
+    gradients into coordination traps.
+
+    \item \textbf{{Equilibrium variability}}: The specific stable profile varied across
+    runs---different passes found different free-rider assignments and efficiency levels.
+    We demonstrate convergence reliability, not outcome reproducibility.
 \end{{enumerate}}
+
+\subsection{{Future Work: Coordination Mechanisms}}
+
+The coordination failures observed in Experiment 3 suggest an important direction for
+future research: \textbf{{mechanisms that help non-communicating agents escape suboptimal
+coordination traps}}.
+
+Several approaches warrant investigation:
+
+\begin{{enumerate}}
+    \item \textbf{{Regulatory nudges}}: Could a central bank or regulator provide
+    anonymized aggregate information (e.g., ``system-wide liquidity is below efficient
+    levels'') that helps agents recognize coordination failures without revealing
+    competitive information? Such nudges preserve the information isolation constraint
+    while providing directional guidance.
+
+    \item \textbf{{Commitment devices}}: Mechanisms that allow agents to conditionally
+    commit to liquidity allocations (e.g., ``I will maintain 20\% if my counterparty
+    does the same'') could help coordinate on efficient symmetric outcomes.
+
+    \item \textbf{{Cost-aware acceptance}}: Modifying the unconditional acceptance
+    mechanism to reject policies that increase total system cost (observable via
+    aggregate settlement statistics) could prevent the race-to-the-bottom dynamics
+    observed in Experiment 3.
+
+    \item \textbf{{Staged adjustment}}: Limiting how much an agent can change its
+    liquidity allocation per iteration could prevent the aggressive early moves that
+    trap agents in suboptimal profiles.
+\end{{enumerate}}
+
+These mechanisms could be tested within the SimCash framework to understand how
+LLM agents respond to different coordination assistance. The goal would be to identify
+minimal interventions that help agents find Pareto-efficient outcomes while preserving
+realistic information constraints.
 """

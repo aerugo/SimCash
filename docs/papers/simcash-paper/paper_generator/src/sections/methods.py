@@ -40,9 +40,9 @@ Agent costs comprise:
 \begin{itemize}
     \item \textbf{Liquidity opportunity cost}: Proportional to allocated reserves
     \item \textbf{Delay penalty}: Accumulated per tick for pending transactions
-    \item \textbf{Deadline penalty}: Incurred when transactions become overdue
+    \item \textbf{Deadline penalty}: Incurred when transactions become overdue (not used in this paper's experiments)
     \item \textbf{End-of-day penalty}: Large cost for unsettled transactions at day end
-    \item \textbf{Overdraft cost}: Fee for negative balance (basis points per day)
+    \item \textbf{Overdraft cost}: Fee for negative balance (not used in this paper's experiments; agents operate under hard liquidity constraints)
 \end{itemize}
 
 \subsection{LLM Policy Optimization}
@@ -62,6 +62,7 @@ The key innovation is using LLMs to propose policy parameters. At each iteration
 
 A critical aspect of our framework is the \textbf{strict information isolation} between agents.
 Each agent receives a two-part prompt with no access to counterparty information.
+Full prompt examples are provided in Appendix~\ref{app:system_prompt}.
 
 \subsubsection{System Prompt (Shared)}
 
@@ -130,6 +131,8 @@ For scenarios with fixed payment schedules, we use \textbf{temporal policy stabi
     \item \textbf{Convergence criterion}: Both agents' \texttt{initial\_liquidity\_fraction} stable (relative change $\leq$ 5\%) for 5 consecutive iterations, indicating policy stability
 \end{itemize}
 
+\textbf{Important limitation}: This mode identifies \textit{stable policy profiles}---points where agents stop adjusting their parameters---not optimal outcomes or game-theoretic equilibria. Unconditional acceptance means agents can ``converge'' to profiles with higher costs than baseline if early myopic improvements lead them into coordination traps. The resulting profiles reflect the dynamics of independent, non-communicating agents optimizing greedily, which may produce coordination failures rather than Pareto-efficient outcomes.
+
 \subsubsection{Bootstrap Mode (Experiment 2)}
 
 For stochastic scenarios, we use \textbf{per-iteration bootstrap resampling} with pre-generated seeds
@@ -152,7 +155,9 @@ Each iteration proceeds as follows:
     generating a unique transaction history for this iteration (different stochastic arrivals
     than other iterations)
     \item \textbf{Bootstrap sampling}: Generate 50 transaction schedules by resampling with
-    replacement from this iteration's history, preserving settlement offset distributions
+    replacement from this iteration's history. Each resampled transaction includes both
+    \textit{payment instruction fields} (arrival tick, amount, deadline, counterparty) and
+    a \texttt{settlement\_offset} field recording when the transaction settled relative to arrival
     \item \textbf{Paired comparison}: Evaluate both old and new policy on the \textit{same} 50 samples,
     computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
     \item \textbf{Acceptance}: Apply risk-adjusted criteria (see below)
@@ -161,23 +166,73 @@ Each iteration proceeds as follows:
 The paired comparison on identical samples eliminates sample-to-sample variance, enabling detection
 of smaller policy improvements than unpaired comparison would allow.
 
+\paragraph{Sandbox Evaluation and Settlement Timing.}
+Each bootstrap sample is evaluated in a \textbf{3-agent sandbox} (SOURCE$\rightarrow$AGENT$\rightarrow$SINK)
+rather than a full multi-agent simulation. The resampled transactions include a \texttt{settlement\_offset}
+field---the time between transaction arrival and settlement observed in the context simulation. This
+offset encodes the liquidity environment's ``market response'' to the agent's transactions.
+
+The sandbox replays this historical timing: SOURCE provides incoming liquidity at the originally-observed
+settlement times, treating settlement timing as an \textbf{exogenous sufficient statistic} for the
+liquidity environment. This design choice has two implications:
+\begin{itemize}
+    \item \textit{Advantage}: Eliminates confounding from counterparty policy changes and LSM cycle
+    dynamics, enabling clean policy comparison.
+    \item \textit{Limitation}: Evaluates policies under \textbf{historical timing}, not the timing
+    that would result from policy-induced changes in system liquidity. Specifically, \textbf{bilateral
+    feedback loops are frozen}: if AGENT pays counterparty B earlier under a new policy, this does
+    not cause B to return liquidity earlier---SOURCE sends incoming payments at fixed historical times
+    regardless of AGENT's actions. The bootstrap answers ``how would this policy perform given the
+    observed market response?'' rather than ``how would this policy perform in the equilibrium it induces?''
+\end{itemize}
+
+This fixed-environment assumption is most restrictive in simplified 2-agent scenarios like our
+experiments, where each agent constitutes 50\% of system volume. In realistic RTGS systems with
+dozens of participants and diverse transaction flows, an individual agent's policy changes have
+smaller marginal effects on system-wide settlement timing, making the exogeneity assumption
+more defensible. The 2-agent experiments here are designed to demonstrate specific strategic
+behaviors under controlled conditions, not to provide practically-applicable bootstrap evaluation
+for production systems.
+
 \paragraph{Risk-Adjusted Acceptance Criteria.}
-Policy acceptance uses a two-stage evaluation to prevent accepting unstable policies:
+Policy acceptance requires three criteria to prevent accepting inferior or unstable policies:
 
 \begin{enumerate}
+    \item \textbf{Mean improvement}: The new policy must have lower mean cost than the current
+    policy ($\mu_{\text{new}} < \mu_{\text{old}}$), computed via paired comparison on the same
+    50 bootstrap samples.
+
     \item \textbf{Statistical significance}: The improvement must be statistically significant.
-    Specifically, the 95\% confidence interval for the cost delta must not cross zero
-    ($\sum_i \delta_i > 0$ is necessary but not sufficient). This prevents accepting policies
-    whose improvement could be due to random chance.
+    Specifically, the 95\% confidence interval for the paired cost delta
+    ($\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$) must not cross zero.
+    This prevents accepting policies whose improvement could be due to random chance.
 
     \item \textbf{Variance guard}: The new policy's coefficient of variation
-    (CV = $\sigma / \mu$) must be below 0.5. This prevents accepting policies with lower
+    (CV = $\sigma_{\text{new}} / \mu_{\text{new}}$), computed over costs across the 50
+    bootstrap samples, must be below 0.5. This prevents accepting policies with lower
     mean cost but unacceptably high variance, which would result in unpredictable performance
     under adverse market conditions.
 \end{enumerate}
 
-Both criteria are configurable per experiment. This approach draws from mean-variance
+All three criteria are configurable per experiment. This approach draws from mean-variance
 optimization principles and ensures that accepted policies are both effective \textit{and} stable.
+
+\paragraph{Bootstrap Variance Limitations.}
+The variance guard uses bootstrap variance as a heuristic filter for sensitivity to timing
+perturbations, but this measure has known limitations. Transaction-level resampling with
+\texttt{settlement\_offset} can create duplicate extreme transactions and non-physical
+correlations between arrivals and settlement timing, potentially amplifying tail events beyond
+what the original generative process and endogenous timing would produce. In our experiments,
+final policies showed CV $\approx$ 2.0 under bootstrap evaluation despite stable policy
+parameters, suggesting the bootstrap CV measures sensitivity to resampled timing rather than
+true cross-day performance variance.
+
+For applications to real RTGS data---which exhibits substantial intra-day variability in
+payment volumes and timing---more sophisticated resampling methods would be necessary.
+\textbf{Block bootstrap} (resampling contiguous time windows) or \textbf{day-level bootstrap}
+(resampling entire business days) would better preserve temporal dependencies. Alternatively,
+\textbf{held-out seed evaluation}---testing final policies on previously-unseen stochastic
+seeds---would measure true cross-day variance rather than resampling sensitivity.
 
 \paragraph{Convergence Criterion.}
 Three criteria must ALL be satisfied over a 5-iteration window:

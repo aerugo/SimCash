@@ -34,6 +34,7 @@ llm:
   max_retries: 3
   timeout_seconds: 900
   reasoning_effort: "high"
+  reasoning_summary: "detailed"
 
 # Policy constraints MINIMAL SET
 # The Initial Liquidity Game has ONE decision: what fraction of liquidity_pool to allocate
