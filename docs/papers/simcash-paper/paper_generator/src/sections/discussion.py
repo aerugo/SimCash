@@ -79,6 +79,11 @@ def generate_discussion(provider: DataProvider) -> str:
     exp2_best_total = min(s["total_cost"] for s in exp2_summaries)
     exp2_worst_total = max(s["total_cost"] for s in exp2_summaries)
 
+    # Exp2 cost asymmetry analysis
+    exp2_mean_a_cost = sum(s["bank_a_cost"] for s in exp2_summaries) // len(exp2_summaries)
+    exp2_mean_b_cost = sum(s["bank_b_cost"] for s in exp2_summaries) // len(exp2_summaries)
+    exp2_cost_ratio = exp2_mean_b_cost / exp2_mean_a_cost if exp2_mean_a_cost > 0 else 0
+
     # Compute exp2 liquidity range and symmetry metrics
     exp2_all_liqs = [s["bank_a_liquidity"] for s in exp2_summaries] + [
         s["bank_b_liquidity"] for s in exp2_summaries
@@ -160,6 +165,13 @@ Our results show \textbf{{partial alignment}} with theoretical predictions:
     While this represents meaningful variation, the key finding is that \textit{{all passes}}
     produced symmetric liquidity outcomes---unlike deterministic experiments where free-rider
     dynamics dominated.
+
+    \item Notably, while liquidity allocations were symmetric, \textbf{{cost outcomes remained
+    asymmetric}}: BANK\_B incurred approximately {exp2_cost_ratio:.1f}$\times$ higher costs than
+    BANK\_A on average ({format_money(exp2_mean_b_cost)} vs {format_money(exp2_mean_a_cost)}).
+    This suggests that similar liquidity allocations can produce different cost outcomes under
+    stochastic arrivals, potentially due to differences in payment timing exposure or queue
+    dynamics. Further investigation is needed to understand this cost asymmetry.
 \end{{itemize}}
 
 \subsubsection{{Experiment 3: Symmetric Cost Structure}}

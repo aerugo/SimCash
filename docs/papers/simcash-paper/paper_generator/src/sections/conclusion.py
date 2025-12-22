@@ -75,8 +75,8 @@ asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
 \textbf{{3. Stochastic environments produced symmetric outcomes in all passes.}}
 While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
 with liquidity ratios exceeding 6$\times$, stochastic environments (Experiment 2) produced
-symmetric allocations in all {exp2_symmetric_count} passes (ratios below 2$\times$, allocations
-{format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)} for both agents). This pattern
+symmetric allocations in all {exp2_symmetric_count} passes (ratios below 2$\times$, overall range
+{format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}). This pattern
 is consistent with Castro et al.'s prediction that payment timing uncertainty inhibits
 free-riding, though the small sample size (n=3) warrants further validation. The magnitude
 ({format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}) fell below Castro's predicted

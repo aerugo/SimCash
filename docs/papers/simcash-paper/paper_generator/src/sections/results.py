@@ -161,7 +161,7 @@ def generate_results(provider: DataProvider) -> str:
 
     exp2_fig = include_figure(
         path=f"{CHARTS_DIR}/exp2_pass2_combined.png",
-        caption="Experiment 2: Convergence under stochastic transaction amounts (Pass 2)",
+        caption="Experiment 2: Convergence under stochastic transaction amounts (Pass 2). Cost values are means across 50 bootstrap samples per iteration.",
         label="fig:exp2_convergence",
         width=0.9,
     )
@@ -248,10 +248,12 @@ resamples transactions from that iteration's context simulation. Different itera
 stochastic market conditions (unique arrival patterns), while paired comparison within each iteration
 enables variance reduction for policy acceptance decisions.
 
-Table~\ref{{tab:exp2_bootstrap}} presents bootstrap statistics for the \textbf{{final converged
-policies}} (iteration {exp2_convergence}), evaluated across {exp2_samples} transaction samples.
-The bootstrap evaluation assesses policy robustness under the stochastic conditions encountered
-in that iteration.
+Table~\ref{{tab:exp2_bootstrap}} presents bootstrap statistics for the \textbf{{final accepted
+policies}}, evaluated across {exp2_samples} transaction samples. Note that these statistics
+reflect the last policy evaluation before convergence---each policy acceptance decision
+involves bootstrap sampling to assess robustness. The mean costs shown here differ from
+the summary table's final iteration costs because they represent averages across 50 stochastic
+scenarios, while final costs reflect a single context simulation.
 
 {exp2_bootstrap_table}
 
@@ -262,13 +264,37 @@ more consistent costs at {exp2_b_mean} ($\pm$ {exp2_b_std}).
 \subsubsection{{Risk-Return Tradeoff}}
 
 Figure~\ref{{fig:exp2_variance}} shows how cost variance evolves during optimization.
-As agents reduce liquidity toward their final allocations, variance behavior diverges:
-BANK\_B's variance increases as it reduces liquidity, demonstrating a risk-return tradeoff
-where lower liquidity reduces mean holding costs but increases exposure to stochastic
-payment timing. BANK\_A's variance remains relatively stable at its low liquidity position,
-suggesting it has reached a risk plateau where further reductions would incur settlement failures.
+Both agents exhibit high variance in cost outcomes---BANK\_A's bootstrap evaluation
+shows standard deviation of {exp2_a_std}, reflecting substantial exposure to stochastic
+payment timing. BANK\_B maintains lower variance ({exp2_b_std}) despite similar liquidity
+allocations. This asymmetry in cost variance, combined with the relatively symmetric
+liquidity allocations, suggests that payment timing exposure affects agents differently
+even when they hold comparable reserves.
 
 {exp2_variance_fig}
+
+\subsubsection{{Risk-Adjusted Policy Acceptance}}
+
+The convergence chart (Figure~\ref{{fig:exp2_convergence}}) reveals cases where proposed
+policies with \textit{{dramatically better}} mean costs were nonetheless rejected. For example,
+at iteration 22, BANK\_A's proposed policy achieved mean cost \$324 compared to the current
+policy's \$915---a \$591 improvement---yet was rejected.
+
+The acceptance criteria implements \textbf{{risk-adjusted evaluation}}: a policy must satisfy
+both mean improvement \textit{{and}} variance constraints:
+\begin{{itemize}}
+    \item Mean improvement: $\mu_{{new}} < \mu_{{old}}$ (paired comparison on same bootstrap samples)
+    \item Variance constraint: $CV \leq 0.5$ where $CV = \sigma / \mu$ (coefficient of variation)
+\end{{itemize}}
+
+At iteration 22, the proposed policy had $\sigma = \$269$ on $\mu = \$324$, yielding $CV = 0.83$.
+Despite the superior mean, the policy was rejected as too volatile. This risk-adjusted acceptance
+explains the apparent paradox in Figure~\ref{{fig:exp2_convergence}} where some rejected proposals
+(X markers) appear below the current policy line---they had better average performance but
+unacceptable variance.
+
+This mechanism ensures the framework converges to \textit{{stable}} equilibria rather than
+policies that perform well on average but could produce catastrophic costs in unlucky scenarios.
 
 {exp2_summary_table}
 
@@ -320,8 +346,8 @@ Several key observations emerge from comparing results across experiments:
 
     \item \textbf{{Stochastic Environments Produce Symmetric Outcomes}}: While Experiments 1
     and 3 exhibited asymmetric free-rider equilibria despite varying cost structures,
-    Experiment 2's stochastic arrivals produced near-symmetric allocations ({exp2_liq_min}--{exp2_liq_max} for
-    both agents). This pattern is consistent with Castro et al.'s prediction that payment
+    Experiment 2's stochastic arrivals produced near-symmetric allocations (overall range
+    {exp2_liq_min}--{exp2_liq_max}). This pattern is consistent with Castro et al.'s prediction that payment
     timing uncertainty inhibits the free-rider dynamics observed in deterministic scenarios.
 \end{{enumerate}}
 """

@@ -32,6 +32,8 @@ COLORS = {
     "grid": "#e2e8f0",
     "text": "#334155",
     "ci_band": "#dbeafe",
+    "bank_a_current": "#93c5fd",  # Light blue - current policy cost
+    "bank_b_current": "#fca5a5",  # Light red - current policy cost
 }
 
 
@@ -222,6 +224,29 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
+    # Plot CURRENT POLICY cost for BANK_A (old_cost) - reveals hidden variance
+    # Only shown in bootstrap mode where same policy has different costs per iteration
+    if data_a.evaluation_mode == "bootstrap":
+        current_iters_a = [
+            p.iteration for p in data_a.data_points if p.old_cost_dollars is not None
+        ]
+        current_costs_a = [
+            p.old_cost_dollars for p in data_a.data_points if p.old_cost_dollars is not None
+        ]
+        if current_iters_a:
+            ax_cost.plot(
+                current_iters_a,
+                current_costs_a,
+                color=COLORS["bank_a_current"],
+                linewidth=1.5,
+                linestyle="--",
+                label="BANK_A (current policy)",
+                marker=".",
+                markersize=4,
+                alpha=0.8,
+                zorder=2,
+            )
+
     # Plot REJECTED costs for BANK_A as X marks
     # Only rejected proposals are shown to avoid overlap with accepted trajectory
     rejected_iters_a = [p.iteration for p in data_a.data_points if not p.accepted]
@@ -252,6 +277,29 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
+    # Plot CURRENT POLICY cost for BANK_B (old_cost) - reveals hidden variance
+    # Only shown in bootstrap mode where same policy has different costs per iteration
+    if data_b.evaluation_mode == "bootstrap":
+        current_iters_b = [
+            p.iteration for p in data_b.data_points if p.old_cost_dollars is not None
+        ]
+        current_costs_b = [
+            p.old_cost_dollars for p in data_b.data_points if p.old_cost_dollars is not None
+        ]
+        if current_iters_b:
+            ax_cost.plot(
+                current_iters_b,
+                current_costs_b,
+                color=COLORS["bank_b_current"],
+                linewidth=1.5,
+                linestyle="--",
+                label="BANK_B (current policy)",
+                marker=".",
+                markersize=4,
+                alpha=0.8,
+                zorder=2,
+            )
+
     # Plot REJECTED costs for BANK_B as X marks
     # Only rejected proposals are shown to avoid overlap with accepted trajectory
     rejected_iters_b = [p.iteration for p in data_b.data_points if not p.accepted]
@@ -269,7 +317,11 @@ def generate_combined_convergence_chart(
             zorder=5,
         )
 
-    ax_cost.set_title("Cost Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
+    # Set cost title based on evaluation mode (bootstrap shows mean across samples)
+    cost_title = "Cost Convergence"
+    if data_a.evaluation_mode == "bootstrap":
+        cost_title = "Cost Convergence (Bootstrap Mean)"
+    ax_cost.set_title(cost_title, fontsize=12, fontweight="medium", color=COLORS["text"])
     ax_cost.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
     ax_cost.set_ylabel("Cost ($)", fontsize=11, color=COLORS["text"])
     ax_cost.yaxis.set_major_formatter(ticker.FormatStrFormatter("$%.2f"))

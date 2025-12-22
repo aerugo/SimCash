@@ -56,15 +56,21 @@ class ChartDataPoint:
 
     Attributes:
         iteration: Iteration number (1-indexed for display).
-        cost_dollars: Cost in dollars (converted from cents).
+        cost_dollars: Cost in dollars (converted from cents). This is the
+            proposed policy's cost (new_cost from evaluation).
         accepted: Whether this policy was accepted.
         parameter_value: Optional parameter value (when --parameter used).
+        old_cost_dollars: Cost of the CURRENT policy on this iteration's
+            samples (old_cost from evaluation). None for iteration 0 (baseline).
+            In bootstrap mode, this reveals hidden variance: the current policy
+            also has high costs on challenging iterations, not just rejected proposals.
     """
 
     iteration: int
     cost_dollars: float
     accepted: bool
     parameter_value: float | None = None
+    old_cost_dollars: float | None = None
 
 
 @dataclass(frozen=True)
@@ -335,6 +341,7 @@ class ExperimentChartService:
                 cost_dollars=baseline_cost_dollars,
                 accepted=True,  # Baseline is always "accepted" as starting point
                 parameter_value=baseline_param,
+                old_cost_dollars=None,  # No "current policy" at iteration 0
             )
         )
 
@@ -346,6 +353,11 @@ class ExperimentChartService:
             # - bootstrap: mean cost across N samples (statistical estimate)
             cost_cents = eval_record.new_cost
             cost_dollars = cost_cents / 100.0
+
+            # old_cost is the CURRENT policy's cost on this iteration's samples
+            # In bootstrap mode, this reveals hidden variance: the current policy
+            # also has high costs on challenging iterations, not just rejected proposals.
+            old_cost_dollars = eval_record.old_cost / 100.0
 
             # Extract parameter value if requested
             parameter_value: float | None = None
@@ -367,6 +379,7 @@ class ExperimentChartService:
                     cost_dollars=cost_dollars,
                     accepted=accepted,
                     parameter_value=parameter_value,
+                    old_cost_dollars=old_cost_dollars,
                 )
             )
 
