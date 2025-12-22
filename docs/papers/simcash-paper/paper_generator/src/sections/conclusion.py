@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from src.latex.formatting import format_percent
+
 if TYPE_CHECKING:
     from src.data_provider import DataProvider
 
@@ -26,6 +28,23 @@ def generate_conclusion(provider: DataProvider) -> str:
     aggregate_stats = provider.get_aggregate_stats()
     convergence_pct = int(aggregate_stats["overall_convergence_rate"] * 100)
     avg_iterations = aggregate_stats["overall_mean_iterations"]
+
+    # Get exp2 data for Finding #3
+    exp2_summaries = provider.get_all_pass_summaries("exp2")
+    exp2_all_liqs = [s["bank_a_liquidity"] for s in exp2_summaries] + [
+        s["bank_b_liquidity"] for s in exp2_summaries
+    ]
+    exp2_liq_min = min(exp2_all_liqs)
+    exp2_liq_max = max(exp2_all_liqs)
+
+    # Count symmetric passes (ratio < 2x considered symmetric)
+    exp2_symmetric_count = sum(
+        1
+        for s in exp2_summaries
+        if max(s["bank_a_liquidity"], s["bank_b_liquidity"])
+        / max(min(s["bank_a_liquidity"], s["bank_b_liquidity"]), 0.001)
+        < 2.0
+    )
 
     return rf"""
 \section{{Conclusion}}
@@ -53,12 +72,15 @@ of the free-rider was determined by early exploration rather than cost structure
 In symmetric games, which agent ``moved first'' toward low liquidity locked in the
 asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
 
-\textbf{{3. Stochastic environments produce symmetric equilibria with consistent efficiency.}}
+\textbf{{3. Stochastic environments produced symmetric outcomes in all passes.}}
 While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
-with 2--4$\times$ cost variation across passes, stochastic environments (Experiment 2) produced
-near-symmetric liquidity allocations (7--9\% for both agents) with only $\sim$6\% total cost
-variance. This aligns with Castro et al.'s theoretical prediction that payment timing uncertainty
-inhibits free-rider dynamics, disciplining both agents toward comparable reserve levels.
+with liquidity ratios exceeding 6$\times$, stochastic environments (Experiment 2) produced
+symmetric allocations in all {exp2_symmetric_count} passes (ratios below 2$\times$, allocations
+{format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)} for both agents). This pattern
+is consistent with Castro et al.'s prediction that payment timing uncertainty inhibits
+free-riding, though the small sample size (n=3) warrants further validation. The magnitude
+({format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)}) fell below Castro's predicted
+10--30\%, suggesting LLM agents discovered lower-liquidity equilibria.
 
 \subsection{{Implications}}
 

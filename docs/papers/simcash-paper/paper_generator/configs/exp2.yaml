@@ -21,6 +21,9 @@ evaluation:
   mode: bootstrap
   num_samples: 50  # For statistical rigor
   ticks: 12
+  acceptance:
+    require_statistical_significance: true    # Reject if 95% CI crosses zero
+    max_coefficient_of_variation: 0.5         # Reject if CV > 0.5
 
 # Convergence criteria
 convergence:

@@ -85,16 +85,17 @@ its own costs and transaction history, never counterparty strategies. Through 9
 independent runs across 3 scenarios adapted from Castro et al., agents
 reliably converge to stable policy profiles (100\% success in 9
 preliminary runs, mean 22.1 iterations). However, outcome selection exhibits
-path-dependence: in deterministic symmetric games, agents consistently converge to \textit{asymmetric}
-free-rider outcomes, while stochastic environments produce near-symmetric equilibria---with the
-identity of the free-rider (when one emerges) determined by early exploration rather than cost structure.
+path-dependence: in deterministic scenarios, agents consistently converge to \textit{asymmetric}
+free-rider outcomes---even when the cost structure is symmetric---with the identity of the
+free-rider determined by early exploration. In contrast, stochastic environments produced
+near-symmetric equilibria with no free-rider emergence.
 
 These preliminary findings suggest that LLM-based policy optimization can discover
 equilibrium-like behavior without explicit game-theoretic modeling---though we do not
-formally verify the Nash condition (no unilateral deviation check). They also reveal
-that sequential best-response dynamics in multi-agent LLM systems may systematically
-favor asymmetric outcomes. Our small sample (9 runs) requires validation
-through expanded experimentation before drawing strong conclusions.
+formally verify the Nash condition. They also reveal that sequential best-response 
+dynamics in multi-agent LLM systems may systematically favor asymmetric outcomes. 
+Our small sample (9 runs) requires validation through expanded 
+experimentation before drawing strong conclusions.
 \end{abstract}
 
 
@@ -261,11 +262,29 @@ Each iteration proceeds as follows:
     replacement from this iteration's history, preserving settlement offset distributions
     \item \textbf{Paired comparison}: Evaluate both old and new policy on the \textit{same} 50 samples,
     computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
-    \item \textbf{Acceptance}: Accept if $\sum_i \delta_i > 0$ (net improvement across samples)
+    \item \textbf{Acceptance}: Apply risk-adjusted criteria (see below)
 \end{enumerate}
 
 The paired comparison on identical samples eliminates sample-to-sample variance, enabling detection
 of smaller policy improvements than unpaired comparison would allow.
+
+\paragraph{Risk-Adjusted Acceptance Criteria.}
+Policy acceptance uses a two-stage evaluation to prevent accepting unstable policies:
+
+\begin{enumerate}
+    \item \textbf{Statistical significance}: The improvement must be statistically significant.
+    Specifically, the 95\% confidence interval for the cost delta must not cross zero
+    ($\sum_i \delta_i > 0$ is necessary but not sufficient). This prevents accepting policies
+    whose improvement could be due to random chance.
+
+    \item \textbf{Variance guard}: The new policy's coefficient of variation
+    (CV = $\sigma / \mu$) must be below 0.5. This prevents accepting policies with lower
+    mean cost but unacceptably high variance, which would result in unpredictable performance
+    under adverse market conditions.
+\end{enumerate}
+
+Both criteria are configurable per experiment. This approach draws from mean-variance
+optimization principles and ensures that accepted policies are both effective \textit{and} stable.
 
 \paragraph{Convergence Criterion.}
 Three criteria must ALL be satisfied over a 5-iteration window:
@@ -479,102 +498,102 @@ in this stochastic environment. We present Pass 2 as the exemplar run.
         0 & BANK\_B & \$498.00 & 50.0\% \\
         1 & BANK\_A & \$448.20 & 45.0\% \\
         1 & BANK\_B & \$398.40 & 40.0\% \\
-        2 & BANK\_A & \$398.40 & 40.0\% \\
+        2 & BANK\_A & \$418.32 & 42.0\% \\
         2 & BANK\_B & \$348.60 & 35.0\% \\
-        3 & BANK\_A & \$378.48 & 38.0\% \\
+        3 & BANK\_A & \$398.40 & 40.0\% \\
         3 & BANK\_B & \$298.80 & 30.0\% \\
-        4 & BANK\_A & \$358.56 & 36.0\% \\
+        4 & BANK\_A & \$378.48 & 38.0\% \\
         4 & BANK\_B & \$249.00 & 25.0\% \\
-        5 & BANK\_A & \$338.64 & 34.0\% \\
+        5 & BANK\_A & \$358.56 & 36.0\% \\
         5 & BANK\_B & \$199.20 & 20.0\% \\
-        6 & BANK\_A & \$318.72 & 32.0\% \\
-        6 & BANK\_B & \$263.65 & 18.0\% \\
-        7 & BANK\_A & \$298.80 & 30.0\% \\
-        7 & BANK\_B & \$179.28 & 18.0\% \\
-        8 & BANK\_A & \$278.88 & 28.0\% \\
-        8 & BANK\_B & \$169.32 & 17.0\% \\
-        9 & BANK\_A & \$258.96 & 26.0\% \\
-        9 & BANK\_B & \$159.36 & 16.0\% \\
-        10 & BANK\_A & \$239.04 & 24.0\% \\
-        10 & BANK\_B & \$149.40 & 15.0\% \\
-        11 & BANK\_A & \$219.12 & 22.0\% \\
-        11 & BANK\_B & \$141.35 & 14.0\% \\
-        12 & BANK\_A & \$199.20 & 20.0\% \\
-        12 & BANK\_B & \$129.48 & 13.0\% \\
-        13 & BANK\_A & \$179.28 & 18.0\% \\
-        13 & BANK\_B & \$199.60 & 12.0\% \\
-        14 & BANK\_A & \$160.15 & 16.0\% \\
-        14 & BANK\_B & \$119.52 & 12.0\% \\
-        15 & BANK\_A & \$140.25 & 14.0\% \\
-        15 & BANK\_B & \$115.05 & 11.5\% \\
-        16 & BANK\_A & \$285.45 & 12.0\% \\
-        16 & BANK\_B & \$109.56 & 11.0\% \\
-        17 & BANK\_A & \$119.52 & 12.0\% \\
-        17 & BANK\_B & \$106.97 & 10.5\% \\
-        18 & BANK\_A & \$109.56 & 11.0\% \\
-        18 & BANK\_B & \$94.68 & 9.5\% \\
-        19 & BANK\_A & \$99.60 & 10.0\% \\
-        19 & BANK\_B & \$107.36 & 9.0\% \\
-        20 & BANK\_A & \$342.37 & 9.0\% \\
-        20 & BANK\_B & \$91.12 & 9.0\% \\
-        21 & BANK\_A & \$219.40 & 9.0\% \\
-        21 & BANK\_B & \$90.72 & 8.5\% \\
-        22 & BANK\_A & \$863.36 & 9.0\% \\
-        22 & BANK\_B & \$84.72 & 8.5\% \\
-        23 & BANK\_A & \$115.88 & 9.0\% \\
-        23 & BANK\_B & \$87.02 & 8.0\% \\
-        24 & BANK\_A & \$181.66 & 8.5\% \\
-        24 & BANK\_B & \$74.76 & 7.5\% \\
-        25 & BANK\_A & \$89.28 & 8.9\% \\
-        25 & BANK\_B & \$85.77 & 7.5\% \\
-        26 & BANK\_A & \$95.25 & 8.8\% \\
-        26 & BANK\_B & \$138.27 & 7.5\% \\
-        27 & BANK\_A & \$92.69 & 8.8\% \\
-        27 & BANK\_B & \$96.79 & 7.5\% \\
-        28 & BANK\_A & \$92.13 & 8.8\% \\
-        28 & BANK\_B & \$119.21 & 7.0\% \\
-        29 & BANK\_A & \$97.91 & 8.8\% \\
-        29 & BANK\_B & \$94.66 & 7.4\% \\
-        30 & BANK\_A & \$95.62 & 8.8\% \\
-        30 & BANK\_B & \$73.68 & 7.4\% \\
-        31 & BANK\_A & \$93.90 & 8.8\% \\
-        31 & BANK\_B & \$81.21 & 7.3\% \\
-        32 & BANK\_A & \$88.08 & 8.8\% \\
-        32 & BANK\_B & \$740.76 & 7.2\% \\
-        33 & BANK\_A & \$88.08 & 8.8\% \\
-        33 & BANK\_B & \$122.32 & 7.3\% \\
-        34 & BANK\_A & \$91.97 & 8.8\% \\
-        34 & BANK\_B & \$128.53 & 7.4\% \\
-        35 & BANK\_A & \$88.08 & 8.8\% \\
-        35 & BANK\_B & \$179.80 & 7.3\% \\
-        36 & BANK\_A & \$90.87 & 8.8\% \\
-        36 & BANK\_B & \$89.48 & 7.3\% \\
-        37 & BANK\_A & \$89.84 & 8.8\% \\
-        37 & BANK\_B & \$245.74 & 7.3\% \\
-        38 & BANK\_A & \$96.03 & 8.8\% \\
-        38 & BANK\_B & \$73.37 & 7.3\% \\
-        39 & BANK\_A & \$88.08 & 8.8\% \\
-        39 & BANK\_B & \$75.37 & 7.3\% \\
-        40 & BANK\_A & \$88.51 & 8.8\% \\
-        40 & BANK\_B & \$599.34 & 7.3\% \\
-        41 & BANK\_A & \$87.73 & 8.8\% \\
-        41 & BANK\_B & \$145.93 & 7.3\% \\
-        42 & BANK\_A & \$241.24 & 8.8\% \\
-        42 & BANK\_B & \$75.08 & 7.3\% \\
-        43 & BANK\_A & \$282.25 & 8.8\% \\
-        43 & BANK\_B & \$73.20 & 7.3\% \\
-        44 & BANK\_A & \$143.63 & 8.8\% \\
-        44 & BANK\_B & \$75.07 & 7.3\% \\
-        45 & BANK\_A & \$87.48 & 8.8\% \\
-        45 & BANK\_B & \$503.39 & 7.3\% \\
-        46 & BANK\_A & \$90.75 & 8.8\% \\
-        46 & BANK\_B & \$101.06 & 7.3\% \\
-        47 & BANK\_A & \$448.61 & 8.8\% \\
-        47 & BANK\_B & \$72.72 & 7.3\% \\
-        48 & BANK\_A & \$181.22 & 8.8\% \\
-        48 & BANK\_B & \$73.71 & 7.3\% \\
-        49 & BANK\_A & \$90.32 & 8.8\% \\
-        49 & BANK\_B & \$125.35 & 7.3\% \\
+        6 & BANK\_A & \$338.64 & 34.0\% \\
+        6 & BANK\_B & \$360.05 & 15.0\% \\
+        7 & BANK\_A & \$328.68 & 33.0\% \\
+        7 & BANK\_B & \$149.40 & 15.0\% \\
+        8 & BANK\_A & \$318.72 & 32.0\% \\
+        8 & BANK\_B & \$139.44 & 14.0\% \\
+        9 & BANK\_A & \$308.76 & 31.0\% \\
+        9 & BANK\_B & \$129.48 & 13.0\% \\
+        10 & BANK\_A & \$298.80 & 30.0\% \\
+        10 & BANK\_B & \$119.52 & 12.0\% \\
+        11 & BANK\_A & \$288.84 & 29.0\% \\
+        11 & BANK\_B & \$121.51 & 11.0\% \\
+        12 & BANK\_A & \$278.88 & 28.0\% \\
+        12 & BANK\_B & \$109.56 & 11.0\% \\
+        13 & BANK\_A & \$268.92 & 27.0\% \\
+        13 & BANK\_B & \$361.08 & 10.0\% \\
+        14 & BANK\_A & \$258.96 & 26.0\% \\
+        14 & BANK\_B & \$99.60 & 10.0\% \\
+        15 & BANK\_A & \$249.00 & 25.0\% \\
+        15 & BANK\_B & \$102.30 & 9.0\% \\
+        16 & BANK\_A & \$239.04 & 24.0\% \\
+        16 & BANK\_B & \$89.64 & 9.0\% \\
+        17 & BANK\_A & \$229.08 & 23.0\% \\
+        17 & BANK\_B & \$97.68 & 8.5\% \\
+        18 & BANK\_A & \$219.12 & 22.0\% \\
+        18 & BANK\_B & \$85.20 & 8.5\% \\
+        19 & BANK\_A & \$199.20 & 20.0\% \\
+        19 & BANK\_B & \$114.10 & 8.0\% \\
+        20 & BANK\_A & \$187.87 & 18.0\% \\
+        20 & BANK\_B & \$83.40 & 8.0\% \\
+        21 & BANK\_A & \$160.30 & 16.0\% \\
+        21 & BANK\_B & \$83.06 & 7.5\% \\
+        22 & BANK\_A & \$369.60 & 15.0\% \\
+        22 & BANK\_B & \$74.76 & 7.5\% \\
+        23 & BANK\_A & \$149.40 & 15.0\% \\
+        23 & BANK\_B & \$90.19 & 7.0\% \\
+        24 & BANK\_A & \$146.20 & 14.5\% \\
+        24 & BANK\_B & \$69.72 & 7.0\% \\
+        25 & BANK\_A & \$141.48 & 14.2\% \\
+        25 & BANK\_B & \$88.67 & 6.5\% \\
+        26 & BANK\_A & \$141.48 & 14.2\% \\
+        26 & BANK\_B & \$162.47 & 6.5\% \\
+        27 & BANK\_A & \$139.44 & 14.0\% \\
+        27 & BANK\_B & \$95.79 & 6.5\% \\
+        28 & BANK\_A & \$134.52 & 13.5\% \\
+        28 & BANK\_B & \$127.63 & 6.5\% \\
+        29 & BANK\_A & \$129.71 & 13.0\% \\
+        29 & BANK\_B & \$95.47 & 6.5\% \\
+        30 & BANK\_A & \$119.52 & 12.0\% \\
+        30 & BANK\_B & \$65.14 & 6.5\% \\
+        31 & BANK\_A & \$109.56 & 11.0\% \\
+        31 & BANK\_B & \$86.00 & 6.0\% \\
+        32 & BANK\_A & \$100.56 & 10.0\% \\
+        32 & BANK\_B & \$959.15 & 6.0\% \\
+        33 & BANK\_A & \$94.68 & 9.5\% \\
+        33 & BANK\_B & \$150.40 & 6.0\% \\
+        34 & BANK\_A & \$93.39 & 9.0\% \\
+        34 & BANK\_B & \$142.78 & 6.0\% \\
+        35 & BANK\_A & \$89.64 & 9.0\% \\
+        35 & BANK\_B & \$223.14 & 6.0\% \\
+        36 & BANK\_A & \$90.39 & 8.8\% \\
+        36 & BANK\_B & \$98.93 & 6.0\% \\
+        37 & BANK\_A & \$87.83 & 8.5\% \\
+        37 & BANK\_B & \$353.79 & 6.0\% \\
+        38 & BANK\_A & \$94.91 & 8.5\% \\
+        38 & BANK\_B & \$61.37 & 6.0\% \\
+        39 & BANK\_A & \$84.72 & 8.5\% \\
+        39 & BANK\_B & \$71.00 & 5.5\% \\
+        40 & BANK\_A & \$88.97 & 8.3\% \\
+        40 & BANK\_B & \$829.10 & 5.5\% \\
+        41 & BANK\_A & \$86.29 & 8.2\% \\
+        41 & BANK\_B & \$195.76 & 5.5\% \\
+        42 & BANK\_A & \$265.18 & 8.2\% \\
+        42 & BANK\_B & \$59.65 & 5.5\% \\
+        43 & BANK\_A & \$317.76 & 8.2\% \\
+        43 & BANK\_B & \$57.75 & 5.3\% \\
+        44 & BANK\_A & \$157.40 & 8.2\% \\
+        44 & BANK\_B & \$75.80 & 5.3\% \\
+        45 & BANK\_A & \$82.05 & 8.2\% \\
+        45 & BANK\_B & \$765.19 & 5.3\% \\
+        46 & BANK\_A & \$89.11 & 8.2\% \\
+        46 & BANK\_B & \$125.27 & 5.3\% \\
+        47 & BANK\_A & \$574.67 & 8.2\% \\
+        47 & BANK\_B & \$57.23 & 5.3\% \\
+        48 & BANK\_A & \$199.90 & 8.2\% \\
+        48 & BANK\_B & \$59.21 & 5.4\% \\
+        49 & BANK\_A & \$84.38 & 8.2\% \\
+        49 & BANK\_B & \$184.36 & 5.4\% \\
 \end{longtable}
 
 
@@ -609,16 +628,16 @@ in that iteration.
         \hline
         Agent & Mean Cost & Std Dev & 95\% CI & Samples \\
         \hline
-        BANK\_A & \$181.22 & \$205.27 & [\$122.55, \$239.89] & 50 \\
-        BANK\_B & \$73.59 & \$7.01 & [\$71.58, \$75.59] & 50 \\
+        BANK\_A & \$200.63 & \$236.66 & [\$132.99, \$268.27] & 50 \\
+        BANK\_B & \$59.45 & \$22.99 & [\$52.88, \$66.03] & 50 \\
         \hline
     \end{tabular}
 \end{table}
 
 
 The bootstrap evaluation reveals that BANK\_A's policy, despite high variance in individual
-simulations, achieves mean cost \$181.22 ($\pm$ \$205.27). BANK\_B maintains
-more consistent costs at \$73.59 ($\pm$ \$7.01).
+simulations, achieves mean cost \$200.63 ($\pm$ \$236.66). BANK\_B maintains
+more consistent costs at \$59.45 ($\pm$ \$22.99).
 
 \subsubsection{Risk-Return Tradeoff}
 
@@ -647,9 +666,9 @@ suggesting it has reached a risk plateau where further reductions would incur se
         \hline
         Pass & Iterations & BANK\_A Liq. & BANK\_B Liq. & BANK\_A Cost & BANK\_B Cost & Total Cost \\
         \hline
-        1 & 49 & 7.0\% & 8.4\% & \$79.78 & \$125.53 & \$205.31 \\
-        2 & 49 & 8.8\% & 7.3\% & \$90.32 & \$125.35 & \$215.67 \\
-        3 & 49 & 7.6\% & 7.8\% & \$83.28 & \$135.70 & \$218.98 \\
+        1 & 49 & 5.0\% & 6.6\% & \$75.97 & \$245.27 & \$321.24 \\
+        2 & 49 & 8.2\% & 5.4\% & \$84.38 & \$184.36 & \$268.74 \\
+        3 & 49 & 8.4\% & 8.0\% & \$87.86 & \$108.66 & \$196.52 \\
         \hline
     \end{tabular}
 \end{table}
@@ -755,9 +774,9 @@ Several key observations emerge from comparing results across experiments:
 
     \item \textbf{Stochastic Environments Produce Symmetric Outcomes}: While Experiments 1
     and 3 exhibited asymmetric free-rider equilibria despite varying cost structures,
-    Experiment 2's stochastic arrivals produced near-symmetric allocations (7--9\% for
-    both agents). This suggests payment timing uncertainty inhibits the free-rider dynamics
-    observed in deterministic scenarios, aligning with Castro et al.'s theoretical predictions.
+    Experiment 2's stochastic arrivals produced near-symmetric allocations (5.0\%--8.4\% for
+    both agents). This pattern is consistent with Castro et al.'s prediction that payment
+    timing uncertainty inhibits the free-rider dynamics observed in deterministic scenarios.
 \end{enumerate}
 
 
@@ -811,19 +830,21 @@ distributions---a synthetic approximation that may exhibit different variance ch
 Our results show \textbf{partial alignment} with theoretical predictions:
 \begin{itemize}
     \item Final liquidity allocations were \textbf{near-symmetric}: BANK\_A averaged
-    7.8\% and BANK\_B averaged 7.8\%.
-    This contrasts sharply with Experiments 1 and 3, where deterministic schedules enabled
-    asymmetric free-rider equilibria. The symmetric outcome aligns with Castro et al.'s
-    prediction that stochastic arrivals inhibit free-riding.
+    7.2\% and BANK\_B averaged 6.7\%.
+    Notably, all 3 passes produced symmetric outcomes (liquidity ratios
+    below 2$\times$), contrasting sharply with Experiments 1 and 3 where deterministic schedules
+    enabled asymmetric free-rider equilibria with ratios exceeding 6$\times$. This pattern
+    is consistent with Castro et al.'s prediction that stochastic arrivals inhibit free-riding.
 
-    \item However, the observed 7--9\% range falls \textit{below} Castro's predicted 10--30\%,
-    suggesting LLM agents discovered lower-liquidity stable profiles. Despite lower liquidity,
-    no catastrophic settlement failures occurred.
+    \item However, the observed 5.0\%--8.4\% range
+    falls \textit{below} Castro's predicted 10--30\%, suggesting LLM agents discovered
+    lower-liquidity stable profiles. Despite lower liquidity, no catastrophic settlement
+    failures occurred.
 
-    \item Equilibrium \textbf{efficiency was remarkably consistent}: total costs ranged from
-    \$205.31 to \$218.98---only $\sim$6\% variance
-    compared to 2--4$\times$ variation in deterministic scenarios. This supports Castro's insight
-    that stochastic environments produce more robust/unique equilibria.
+    \item Total costs ranged from \$196.52 to \$321.24.
+    While this represents meaningful variation, the key finding is that \textit{all passes}
+    produced symmetric liquidity outcomes---unlike deterministic experiments where free-rider
+    dynamics dominated.
 \end{itemize}
 
 \subsubsection{Experiment 3: Symmetric Cost Structure}
@@ -857,7 +878,7 @@ on asymmetric outcomes.
 Experiment & Predicted & Observed & Alignment \\
 \hline
 Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
-Exp 2 (Stochastic) & Symmetric, 10--30\% & Symmetric, 7--9\% & Partial (lower magnitude) \\
+Exp 2 (Stochastic) & Symmetric, 10--30\% & Symmetric, 5.0\%--8.4\% & Partial (symmetric, lower magnitude) \\
 Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
 \hline
 \end{tabular}
@@ -993,12 +1014,15 @@ of the free-rider was determined by early exploration rather than cost structure
 In symmetric games, which agent ``moved first'' toward low liquidity locked in the
 asymmetric outcome, demonstrating path-dependence in multi-agent LLM systems.
 
-\textbf{3. Stochastic environments produce symmetric equilibria with consistent efficiency.}
+\textbf{3. Stochastic environments produced symmetric outcomes in all passes.}
 While deterministic scenarios (Experiments 1 and 3) exhibited asymmetric free-rider outcomes
-with 2--4$\times$ cost variation across passes, stochastic environments (Experiment 2) produced
-near-symmetric liquidity allocations (7--9\% for both agents) with only $\sim$6\% total cost
-variance. This aligns with Castro et al.'s theoretical prediction that payment timing uncertainty
-inhibits free-rider dynamics, disciplining both agents toward comparable reserve levels.
+with liquidity ratios exceeding 6$\times$, stochastic environments (Experiment 2) produced
+symmetric allocations in all 3 passes (ratios below 2$\times$, allocations
+5.0\%--8.4\% for both agents). This pattern
+is consistent with Castro et al.'s prediction that payment timing uncertainty inhibits
+free-riding, though the small sample size (n=3) warrants further validation. The magnitude
+(5.0\%--8.4\%) fell below Castro's predicted
+10--30\%, suggesting LLM agents discovered lower-liquidity equilibria.
 
 \subsection{Implications}
 
@@ -1058,9 +1082,9 @@ programmatically from the experiment databases to ensure consistency.
          & 2 & 12 & 0.0\% & 17.9\% & \$0.00 & \$27.90 & \$27.90 \\
          & 3 & 11 & 1.8\% & 0.0\% & \$31.78 & \$70.00 & \$101.78 \\
         \hline
-        Exp2 & 1 & 49 & 7.0\% & 8.4\% & \$79.78 & \$125.53 & \$205.31 \\
-         & 2 & 49 & 8.8\% & 7.3\% & \$90.32 & \$125.35 & \$215.67 \\
-         & 3 & 49 & 7.6\% & 7.8\% & \$83.28 & \$135.70 & \$218.98 \\
+        Exp2 & 1 & 49 & 5.0\% & 6.6\% & \$75.97 & \$245.27 & \$321.24 \\
+         & 2 & 49 & 8.2\% & 5.4\% & \$84.38 & \$184.36 & \$268.74 \\
+         & 3 & 49 & 8.4\% & 8.0\% & \$87.86 & \$108.66 & \$196.52 \\
         \hline
         Exp3 & 1 & 7 & 1.0\% & 30.0\% & \$120.99 & \$69.97 & \$190.96 \\
          & 2 & 7 & 4.9\% & 29.0\% & \$124.89 & \$68.98 & \$193.87 \\
@@ -1271,104 +1295,104 @@ all three passes of experiment 2: stochastic environment.
         Baseline & BANK\_B & \$498.00 & 50.0\% \\
         0 & BANK\_A & \$498.00 & 50.0\% \\
         0 & BANK\_B & \$498.00 & 50.0\% \\
-        1 & BANK\_A & \$122.40 & 10.0\% \\
-        1 & BANK\_B & \$448.20 & 45.0\% \\
-        2 & BANK\_A & \$99.60 & 10.0\% \\
-        2 & BANK\_B & \$348.60 & 35.0\% \\
-        3 & BANK\_A & \$517.51 & 8.0\% \\
-        3 & BANK\_B & \$298.80 & 30.0\% \\
-        4 & BANK\_A & \$79.68 & 8.0\% \\
-        4 & BANK\_B & \$249.00 & 25.0\% \\
-        5 & BANK\_A & \$138.59 & 7.5\% \\
-        5 & BANK\_B & \$199.20 & 20.0\% \\
-        6 & BANK\_A & \$74.76 & 7.5\% \\
-        6 & BANK\_B & \$263.65 & 18.0\% \\
-        7 & BANK\_A & \$206.70 & 7.0\% \\
-        7 & BANK\_B & \$179.28 & 18.0\% \\
-        8 & BANK\_A & \$85.77 & 7.0\% \\
-        8 & BANK\_B & \$169.32 & 17.0\% \\
-        9 & BANK\_A & \$191.43 & 6.8\% \\
-        9 & BANK\_B & \$164.40 & 16.5\% \\
-        10 & BANK\_A & \$227.05 & 6.9\% \\
-        10 & BANK\_B & \$159.36 & 16.0\% \\
-        11 & BANK\_A & \$71.56 & 7.0\% \\
-        11 & BANK\_B & \$151.31 & 15.0\% \\
+        1 & BANK\_A & \$398.40 & 40.0\% \\
+        1 & BANK\_B & \$199.20 & 20.0\% \\
+        2 & BANK\_A & \$348.60 & 35.0\% \\
+        2 & BANK\_B & \$149.40 & 15.0\% \\
+        3 & BANK\_A & \$298.80 & 30.0\% \\
+        3 & BANK\_B & \$149.40 & 15.0\% \\
+        4 & BANK\_A & \$249.00 & 25.0\% \\
+        4 & BANK\_B & \$139.44 & 14.0\% \\
+        5 & BANK\_A & \$199.20 & 20.0\% \\
+        5 & BANK\_B & \$129.48 & 13.0\% \\
+        6 & BANK\_A & \$149.40 & 15.0\% \\
+        6 & BANK\_B & \$548.36 & 12.0\% \\
+        7 & BANK\_A & \$124.06 & 10.0\% \\
+        7 & BANK\_B & \$119.52 & 12.0\% \\
+        8 & BANK\_A & \$101.03 & 10.0\% \\
+        8 & BANK\_B & \$109.56 & 11.0\% \\
+        9 & BANK\_A & \$149.89 & 8.0\% \\
+        9 & BANK\_B & \$100.61 & 10.0\% \\
+        10 & BANK\_A & \$171.28 & 8.0\% \\
+        10 & BANK\_B & \$89.64 & 9.0\% \\
+        11 & BANK\_A & \$79.68 & 8.0\% \\
+        11 & BANK\_B & \$120.59 & 8.0\% \\
         12 & BANK\_A & \$69.94 & 7.0\% \\
-        12 & BANK\_B & \$139.44 & 14.0\% \\
-        13 & BANK\_A & \$69.48 & 7.0\% \\
-        13 & BANK\_B & \$177.63 & 13.0\% \\
-        14 & BANK\_A & \$275.58 & 7.0\% \\
-        14 & BANK\_B & \$129.48 & 13.0\% \\
-        15 & BANK\_A & \$91.81 & 7.0\% \\
-        15 & BANK\_B & \$124.76 & 12.5\% \\
-        16 & BANK\_A & \$888.34 & 7.0\% \\
-        16 & BANK\_B & \$119.52 & 12.0\% \\
-        17 & BANK\_A & \$70.38 & 7.0\% \\
-        17 & BANK\_B & \$115.34 & 11.5\% \\
-        18 & BANK\_A & \$84.74 & 7.0\% \\
-        18 & BANK\_B & \$109.56 & 11.0\% \\
-        19 & BANK\_A & \$69.36 & 7.0\% \\
-        19 & BANK\_B & \$109.33 & 10.5\% \\
-        20 & BANK\_A & \$495.77 & 7.0\% \\
-        20 & BANK\_B & \$100.59 & 10.0\% \\
-        21 & BANK\_A & \$320.96 & 7.0\% \\
-        21 & BANK\_B & \$105.54 & 10.0\% \\
-        22 & BANK\_A & \$1,245.15 & 7.0\% \\
-        22 & BANK\_B & \$94.68 & 9.5\% \\
-        23 & BANK\_A & \$127.40 & 7.0\% \\
-        23 & BANK\_B & \$97.67 & 9.5\% \\
-        24 & BANK\_A & \$291.23 & 7.0\% \\
-        24 & BANK\_B & \$89.64 & 9.0\% \\
-        25 & BANK\_A & \$73.82 & 7.0\% \\
-        25 & BANK\_B & \$90.11 & 8.5\% \\
-        26 & BANK\_A & \$82.31 & 7.0\% \\
-        26 & BANK\_B & \$127.08 & 8.0\% \\
-        27 & BANK\_A & \$86.98 & 7.0\% \\
-        27 & BANK\_B & \$97.07 & 8.3\% \\
-        28 & BANK\_A & \$87.53 & 7.0\% \\
-        28 & BANK\_B & \$108.00 & 8.3\% \\
-        29 & BANK\_A & \$98.99 & 7.0\% \\
-        29 & BANK\_B & \$96.25 & 8.5\% \\
-        30 & BANK\_A & \$124.94 & 7.0\% \\
-        30 & BANK\_B & \$83.64 & 8.4\% \\
-        31 & BANK\_A & \$98.99 & 7.0\% \\
-        31 & BANK\_B & \$84.41 & 8.4\% \\
-        32 & BANK\_A & \$69.36 & 7.0\% \\
-        32 & BANK\_B & \$607.78 & 8.4\% \\
-        33 & BANK\_A & \$72.47 & 7.0\% \\
-        33 & BANK\_B & \$122.82 & 8.4\% \\
-        34 & BANK\_A & \$85.58 & 7.0\% \\
-        34 & BANK\_B & \$121.81 & 8.4\% \\
-        35 & BANK\_A & \$69.36 & 7.0\% \\
-        35 & BANK\_B & \$164.09 & 8.4\% \\
-        36 & BANK\_A & \$81.45 & 7.0\% \\
-        36 & BANK\_B & \$94.14 & 8.4\% \\
-        37 & BANK\_A & \$70.21 & 7.0\% \\
-        37 & BANK\_B & \$207.37 & 8.4\% \\
-        38 & BANK\_A & \$102.46 & 7.0\% \\
-        38 & BANK\_B & \$83.64 & 8.4\% \\
-        39 & BANK\_A & \$71.14 & 7.0\% \\
-        39 & BANK\_B & \$83.85 & 8.4\% \\
-        40 & BANK\_A & \$76.23 & 7.0\% \\
-        40 & BANK\_B & \$486.31 & 8.4\% \\
-        41 & BANK\_A & \$73.86 & 7.0\% \\
-        41 & BANK\_B & \$137.38 & 8.5\% \\
-        42 & BANK\_A & \$331.80 & 7.0\% \\
-        42 & BANK\_B & \$84.72 & 8.5\% \\
-        43 & BANK\_A & \$433.82 & 7.0\% \\
-        43 & BANK\_B & \$83.96 & 8.4\% \\
-        44 & BANK\_A & \$211.51 & 7.0\% \\
-        44 & BANK\_B & \$85.95 & 8.4\% \\
-        45 & BANK\_A & \$69.36 & 7.0\% \\
-        45 & BANK\_B & \$342.59 & 8.4\% \\
-        46 & BANK\_A & \$86.55 & 7.0\% \\
-        46 & BANK\_B & \$102.04 & 8.4\% \\
-        47 & BANK\_A & \$719.63 & 7.0\% \\
-        47 & BANK\_B & \$83.40 & 8.4\% \\
-        48 & BANK\_A & \$266.54 & 7.0\% \\
-        48 & BANK\_B & \$84.39 & 8.4\% \\
-        49 & BANK\_A & \$79.78 & 7.0\% \\
-        49 & BANK\_B & \$125.53 & 8.4\% \\
+        12 & BANK\_B & \$84.61 & 8.0\% \\
+        13 & BANK\_A & \$61.60 & 6.0\% \\
+        13 & BANK\_B & \$603.95 & 7.5\% \\
+        14 & BANK\_A & \$398.21 & 6.0\% \\
+        14 & BANK\_B & \$74.76 & 7.5\% \\
+        15 & BANK\_A & \$87.69 & 6.0\% \\
+        15 & BANK\_B & \$101.82 & 7.5\% \\
+        16 & BANK\_A & \$989.65 & 6.0\% \\
+        16 & BANK\_B & \$131.29 & 7.5\% \\
+        17 & BANK\_A & \$63.47 & 6.0\% \\
+        17 & BANK\_B & \$99.14 & 7.5\% \\
+        18 & BANK\_A & \$95.06 & 5.5\% \\
+        18 & BANK\_B & \$76.64 & 7.5\% \\
+        19 & BANK\_A & \$55.30 & 5.5\% \\
+        19 & BANK\_B & \$127.45 & 7.2\% \\
+        20 & BANK\_A & \$771.86 & 5.2\% \\
+        20 & BANK\_B & \$86.68 & 7.2\% \\
+        21 & BANK\_A & \$494.56 & 5.2\% \\
+        21 & BANK\_B & \$135.56 & 7.2\% \\
+        22 & BANK\_A & \$1,701.02 & 5.2\% \\
+        22 & BANK\_B & \$71.76 & 7.2\% \\
+        23 & BANK\_A & \$158.95 & 5.2\% \\
+        23 & BANK\_B & \$101.73 & 7.0\% \\
+        24 & BANK\_A & \$399.65 & 5.2\% \\
+        24 & BANK\_B & \$71.32 & 7.0\% \\
+        25 & BANK\_A & \$72.98 & 5.2\% \\
+        25 & BANK\_B & \$95.82 & 6.9\% \\
+        26 & BANK\_A & \$96.37 & 5.2\% \\
+        26 & BANK\_B & \$156.66 & 6.9\% \\
+        27 & BANK\_A & \$108.14 & 5.2\% \\
+        27 & BANK\_B & \$94.22 & 6.9\% \\
+        28 & BANK\_A & \$90.57 & 5.2\% \\
+        28 & BANK\_B & \$121.66 & 6.9\% \\
+        29 & BANK\_A & \$138.98 & 5.2\% \\
+        29 & BANK\_B & \$107.29 & 6.9\% \\
+        30 & BANK\_A & \$143.17 & 5.2\% \\
+        30 & BANK\_B & \$69.10 & 6.9\% \\
+        31 & BANK\_A & \$137.89 & 5.2\% \\
+        31 & BANK\_B & \$80.09 & 6.8\% \\
+        32 & BANK\_A & \$72.22 & 5.2\% \\
+        32 & BANK\_B & \$842.89 & 6.8\% \\
+        33 & BANK\_A & \$65.26 & 5.2\% \\
+        33 & BANK\_B & \$153.48 & 6.8\% \\
+        34 & BANK\_A & \$97.87 & 5.2\% \\
+        34 & BANK\_B & \$220.17 & 6.8\% \\
+        35 & BANK\_A & \$54.30 & 5.2\% \\
+        35 & BANK\_B & \$194.24 & 6.8\% \\
+        36 & BANK\_A & \$87.34 & 5.0\% \\
+        36 & BANK\_B & \$112.54 & 6.8\% \\
+        37 & BANK\_A & \$61.34 & 5.0\% \\
+        37 & BANK\_B & \$274.07 & 6.8\% \\
+        38 & BANK\_A & \$155.69 & 5.0\% \\
+        38 & BANK\_B & \$68.08 & 6.8\% \\
+        39 & BANK\_A & \$61.95 & 5.0\% \\
+        39 & BANK\_B & \$72.20 & 6.7\% \\
+        40 & BANK\_A & \$88.16 & 5.0\% \\
+        40 & BANK\_B & \$673.03 & 6.6\% \\
+        41 & BANK\_A & \$69.48 & 5.0\% \\
+        41 & BANK\_B & \$160.59 & 6.6\% \\
+        42 & BANK\_A & \$509.17 & 5.0\% \\
+        42 & BANK\_B & \$74.97 & 6.6\% \\
+        43 & BANK\_A & \$678.72 & 5.0\% \\
+        43 & BANK\_B & \$71.58 & 6.6\% \\
+        44 & BANK\_A & \$393.85 & 5.0\% \\
+        44 & BANK\_B & \$99.72 & 6.6\% \\
+        45 & BANK\_A & \$50.94 & 5.0\% \\
+        45 & BANK\_B & \$574.09 & 6.6\% \\
+        46 & BANK\_A & \$97.13 & 5.0\% \\
+        46 & BANK\_B & \$114.14 & 6.6\% \\
+        47 & BANK\_A & \$1,096.25 & 5.0\% \\
+        47 & BANK\_B & \$68.10 & 6.6\% \\
+        48 & BANK\_A & \$444.36 & 5.0\% \\
+        48 & BANK\_B & \$75.19 & 6.6\% \\
+        49 & BANK\_A & \$75.97 & 5.0\% \\
+        49 & BANK\_B & \$245.27 & 6.6\% \\
 \end{longtable}
 
 
@@ -1410,102 +1434,102 @@ all three passes of experiment 2: stochastic environment.
         0 & BANK\_B & \$498.00 & 50.0\% \\
         1 & BANK\_A & \$448.20 & 45.0\% \\
         1 & BANK\_B & \$398.40 & 40.0\% \\
-        2 & BANK\_A & \$398.40 & 40.0\% \\
+        2 & BANK\_A & \$418.32 & 42.0\% \\
         2 & BANK\_B & \$348.60 & 35.0\% \\
-        3 & BANK\_A & \$378.48 & 38.0\% \\
+        3 & BANK\_A & \$398.40 & 40.0\% \\
         3 & BANK\_B & \$298.80 & 30.0\% \\
-        4 & BANK\_A & \$358.56 & 36.0\% \\
+        4 & BANK\_A & \$378.48 & 38.0\% \\
         4 & BANK\_B & \$249.00 & 25.0\% \\
-        5 & BANK\_A & \$338.64 & 34.0\% \\
+        5 & BANK\_A & \$358.56 & 36.0\% \\
         5 & BANK\_B & \$199.20 & 20.0\% \\
-        6 & BANK\_A & \$318.72 & 32.0\% \\
-        6 & BANK\_B & \$263.65 & 18.0\% \\
-        7 & BANK\_A & \$298.80 & 30.0\% \\
-        7 & BANK\_B & \$179.28 & 18.0\% \\
-        8 & BANK\_A & \$278.88 & 28.0\% \\
-        8 & BANK\_B & \$169.32 & 17.0\% \\
-        9 & BANK\_A & \$258.96 & 26.0\% \\
-        9 & BANK\_B & \$159.36 & 16.0\% \\
-        10 & BANK\_A & \$239.04 & 24.0\% \\
-        10 & BANK\_B & \$149.40 & 15.0\% \\
-        11 & BANK\_A & \$219.12 & 22.0\% \\
-        11 & BANK\_B & \$141.35 & 14.0\% \\
-        12 & BANK\_A & \$199.20 & 20.0\% \\
-        12 & BANK\_B & \$129.48 & 13.0\% \\
-        13 & BANK\_A & \$179.28 & 18.0\% \\
-        13 & BANK\_B & \$199.60 & 12.0\% \\
-        14 & BANK\_A & \$160.15 & 16.0\% \\
-        14 & BANK\_B & \$119.52 & 12.0\% \\
-        15 & BANK\_A & \$140.25 & 14.0\% \\
-        15 & BANK\_B & \$115.05 & 11.5\% \\
-        16 & BANK\_A & \$285.45 & 12.0\% \\
-        16 & BANK\_B & \$109.56 & 11.0\% \\
-        17 & BANK\_A & \$119.52 & 12.0\% \\
-        17 & BANK\_B & \$106.97 & 10.5\% \\
-        18 & BANK\_A & \$109.56 & 11.0\% \\
-        18 & BANK\_B & \$94.68 & 9.5\% \\
-        19 & BANK\_A & \$99.60 & 10.0\% \\
-        19 & BANK\_B & \$107.36 & 9.0\% \\
-        20 & BANK\_A & \$342.37 & 9.0\% \\
-        20 & BANK\_B & \$91.12 & 9.0\% \\
-        21 & BANK\_A & \$219.40 & 9.0\% \\
-        21 & BANK\_B & \$90.72 & 8.5\% \\
-        22 & BANK\_A & \$863.36 & 9.0\% \\
-        22 & BANK\_B & \$84.72 & 8.5\% \\
-        23 & BANK\_A & \$115.88 & 9.0\% \\
-        23 & BANK\_B & \$87.02 & 8.0\% \\
-        24 & BANK\_A & \$181.66 & 8.5\% \\
-        24 & BANK\_B & \$74.76 & 7.5\% \\
-        25 & BANK\_A & \$89.28 & 8.9\% \\
-        25 & BANK\_B & \$85.77 & 7.5\% \\
-        26 & BANK\_A & \$95.25 & 8.8\% \\
-        26 & BANK\_B & \$138.27 & 7.5\% \\
-        27 & BANK\_A & \$92.69 & 8.8\% \\
-        27 & BANK\_B & \$96.79 & 7.5\% \\
-        28 & BANK\_A & \$92.13 & 8.8\% \\
-        28 & BANK\_B & \$119.21 & 7.0\% \\
-        29 & BANK\_A & \$97.91 & 8.8\% \\
-        29 & BANK\_B & \$94.66 & 7.4\% \\
-        30 & BANK\_A & \$95.62 & 8.8\% \\
-        30 & BANK\_B & \$73.68 & 7.4\% \\
-        31 & BANK\_A & \$93.90 & 8.8\% \\
-        31 & BANK\_B & \$81.21 & 7.3\% \\
-        32 & BANK\_A & \$88.08 & 8.8\% \\
-        32 & BANK\_B & \$740.76 & 7.2\% \\
-        33 & BANK\_A & \$88.08 & 8.8\% \\
-        33 & BANK\_B & \$122.32 & 7.3\% \\
-        34 & BANK\_A & \$91.97 & 8.8\% \\
-        34 & BANK\_B & \$128.53 & 7.4\% \\
-        35 & BANK\_A & \$88.08 & 8.8\% \\
-        35 & BANK\_B & \$179.80 & 7.3\% \\
-        36 & BANK\_A & \$90.87 & 8.8\% \\
-        36 & BANK\_B & \$89.48 & 7.3\% \\
-        37 & BANK\_A & \$89.84 & 8.8\% \\
-        37 & BANK\_B & \$245.74 & 7.3\% \\
-        38 & BANK\_A & \$96.03 & 8.8\% \\
-        38 & BANK\_B & \$73.37 & 7.3\% \\
-        39 & BANK\_A & \$88.08 & 8.8\% \\
-        39 & BANK\_B & \$75.37 & 7.3\% \\
-        40 & BANK\_A & \$88.51 & 8.8\% \\
-        40 & BANK\_B & \$599.34 & 7.3\% \\
-        41 & BANK\_A & \$87.73 & 8.8\% \\
-        41 & BANK\_B & \$145.93 & 7.3\% \\
-        42 & BANK\_A & \$241.24 & 8.8\% \\
-        42 & BANK\_B & \$75.08 & 7.3\% \\
-        43 & BANK\_A & \$282.25 & 8.8\% \\
-        43 & BANK\_B & \$73.20 & 7.3\% \\
-        44 & BANK\_A & \$143.63 & 8.8\% \\
-        44 & BANK\_B & \$75.07 & 7.3\% \\
-        45 & BANK\_A & \$87.48 & 8.8\% \\
-        45 & BANK\_B & \$503.39 & 7.3\% \\
-        46 & BANK\_A & \$90.75 & 8.8\% \\
-        46 & BANK\_B & \$101.06 & 7.3\% \\
-        47 & BANK\_A & \$448.61 & 8.8\% \\
-        47 & BANK\_B & \$72.72 & 7.3\% \\
-        48 & BANK\_A & \$181.22 & 8.8\% \\
-        48 & BANK\_B & \$73.71 & 7.3\% \\
-        49 & BANK\_A & \$90.32 & 8.8\% \\
-        49 & BANK\_B & \$125.35 & 7.3\% \\
+        6 & BANK\_A & \$338.64 & 34.0\% \\
+        6 & BANK\_B & \$360.05 & 15.0\% \\
+        7 & BANK\_A & \$328.68 & 33.0\% \\
+        7 & BANK\_B & \$149.40 & 15.0\% \\
+        8 & BANK\_A & \$318.72 & 32.0\% \\
+        8 & BANK\_B & \$139.44 & 14.0\% \\
+        9 & BANK\_A & \$308.76 & 31.0\% \\
+        9 & BANK\_B & \$129.48 & 13.0\% \\
+        10 & BANK\_A & \$298.80 & 30.0\% \\
+        10 & BANK\_B & \$119.52 & 12.0\% \\
+        11 & BANK\_A & \$288.84 & 29.0\% \\
+        11 & BANK\_B & \$121.51 & 11.0\% \\
+        12 & BANK\_A & \$278.88 & 28.0\% \\
+        12 & BANK\_B & \$109.56 & 11.0\% \\
+        13 & BANK\_A & \$268.92 & 27.0\% \\
+        13 & BANK\_B & \$361.08 & 10.0\% \\
+        14 & BANK\_A & \$258.96 & 26.0\% \\
+        14 & BANK\_B & \$99.60 & 10.0\% \\
+        15 & BANK\_A & \$249.00 & 25.0\% \\
+        15 & BANK\_B & \$102.30 & 9.0\% \\
+        16 & BANK\_A & \$239.04 & 24.0\% \\
+        16 & BANK\_B & \$89.64 & 9.0\% \\
+        17 & BANK\_A & \$229.08 & 23.0\% \\
+        17 & BANK\_B & \$97.68 & 8.5\% \\
+        18 & BANK\_A & \$219.12 & 22.0\% \\
+        18 & BANK\_B & \$85.20 & 8.5\% \\
+        19 & BANK\_A & \$199.20 & 20.0\% \\
+        19 & BANK\_B & \$114.10 & 8.0\% \\
+        20 & BANK\_A & \$187.87 & 18.0\% \\
+        20 & BANK\_B & \$83.40 & 8.0\% \\
+        21 & BANK\_A & \$160.30 & 16.0\% \\
+        21 & BANK\_B & \$83.06 & 7.5\% \\
+        22 & BANK\_A & \$369.60 & 15.0\% \\
+        22 & BANK\_B & \$74.76 & 7.5\% \\
+        23 & BANK\_A & \$149.40 & 15.0\% \\
+        23 & BANK\_B & \$90.19 & 7.0\% \\
+        24 & BANK\_A & \$146.20 & 14.5\% \\
+        24 & BANK\_B & \$69.72 & 7.0\% \\
+        25 & BANK\_A & \$141.48 & 14.2\% \\
+        25 & BANK\_B & \$88.67 & 6.5\% \\
+        26 & BANK\_A & \$141.48 & 14.2\% \\
+        26 & BANK\_B & \$162.47 & 6.5\% \\
+        27 & BANK\_A & \$139.44 & 14.0\% \\
+        27 & BANK\_B & \$95.79 & 6.5\% \\
+        28 & BANK\_A & \$134.52 & 13.5\% \\
+        28 & BANK\_B & \$127.63 & 6.5\% \\
+        29 & BANK\_A & \$129.71 & 13.0\% \\
+        29 & BANK\_B & \$95.47 & 6.5\% \\
+        30 & BANK\_A & \$119.52 & 12.0\% \\
+        30 & BANK\_B & \$65.14 & 6.5\% \\
+        31 & BANK\_A & \$109.56 & 11.0\% \\
+        31 & BANK\_B & \$86.00 & 6.0\% \\
+        32 & BANK\_A & \$100.56 & 10.0\% \\
+        32 & BANK\_B & \$959.15 & 6.0\% \\
+        33 & BANK\_A & \$94.68 & 9.5\% \\
+        33 & BANK\_B & \$150.40 & 6.0\% \\
+        34 & BANK\_A & \$93.39 & 9.0\% \\
+        34 & BANK\_B & \$142.78 & 6.0\% \\
+        35 & BANK\_A & \$89.64 & 9.0\% \\
+        35 & BANK\_B & \$223.14 & 6.0\% \\
+        36 & BANK\_A & \$90.39 & 8.8\% \\
+        36 & BANK\_B & \$98.93 & 6.0\% \\
+        37 & BANK\_A & \$87.83 & 8.5\% \\
+        37 & BANK\_B & \$353.79 & 6.0\% \\
+        38 & BANK\_A & \$94.91 & 8.5\% \\
+        38 & BANK\_B & \$61.37 & 6.0\% \\
+        39 & BANK\_A & \$84.72 & 8.5\% \\
+        39 & BANK\_B & \$71.00 & 5.5\% \\
+        40 & BANK\_A & \$88.97 & 8.3\% \\
+        40 & BANK\_B & \$829.10 & 5.5\% \\
+        41 & BANK\_A & \$86.29 & 8.2\% \\
+        41 & BANK\_B & \$195.76 & 5.5\% \\
+        42 & BANK\_A & \$265.18 & 8.2\% \\
+        42 & BANK\_B & \$59.65 & 5.5\% \\
+        43 & BANK\_A & \$317.76 & 8.2\% \\
+        43 & BANK\_B & \$57.75 & 5.3\% \\
+        44 & BANK\_A & \$157.40 & 8.2\% \\
+        44 & BANK\_B & \$75.80 & 5.3\% \\
+        45 & BANK\_A & \$82.05 & 8.2\% \\
+        45 & BANK\_B & \$765.19 & 5.3\% \\
+        46 & BANK\_A & \$89.11 & 8.2\% \\
+        46 & BANK\_B & \$125.27 & 5.3\% \\
+        47 & BANK\_A & \$574.67 & 8.2\% \\
+        47 & BANK\_B & \$57.23 & 5.3\% \\
+        48 & BANK\_A & \$199.90 & 8.2\% \\
+        48 & BANK\_B & \$59.21 & 5.4\% \\
+        49 & BANK\_A & \$84.38 & 8.2\% \\
+        49 & BANK\_B & \$184.36 & 5.4\% \\
 \end{longtable}
 
 
@@ -1545,104 +1569,104 @@ all three passes of experiment 2: stochastic environment.
         Baseline & BANK\_B & \$498.00 & 50.0\% \\
         0 & BANK\_A & \$498.00 & 50.0\% \\
         0 & BANK\_B & \$498.00 & 50.0\% \\
-        1 & BANK\_A & \$498.00 & 50.0\% \\
-        1 & BANK\_B & \$168.99 & 5.0\% \\
-        2 & BANK\_A & \$498.00 & 50.0\% \\
-        2 & BANK\_B & \$131.43 & 10.0\% \\
-        3 & BANK\_A & \$398.40 & 40.0\% \\
-        3 & BANK\_B & \$99.60 & 10.0\% \\
-        4 & BANK\_A & \$348.60 & 35.0\% \\
-        4 & BANK\_B & \$95.73 & 9.0\% \\
-        5 & BANK\_A & \$298.80 & 30.0\% \\
-        5 & BANK\_B & \$85.66 & 8.5\% \\
-        6 & BANK\_A & \$249.00 & 25.0\% \\
-        6 & BANK\_B & \$906.98 & 8.3\% \\
-        7 & BANK\_A & \$199.20 & 20.0\% \\
-        7 & BANK\_B & \$83.24 & 8.3\% \\
-        8 & BANK\_A & \$179.28 & 18.0\% \\
-        8 & BANK\_B & \$86.03 & 8.1\% \\
-        9 & BANK\_A & \$159.36 & 16.0\% \\
-        9 & BANK\_B & \$79.73 & 7.9\% \\
-        10 & BANK\_A & \$142.92 & 14.0\% \\
-        10 & BANK\_B & \$78.72 & 7.9\% \\
-        11 & BANK\_A & \$119.52 & 12.0\% \\
-        11 & BANK\_B & \$124.68 & 7.8\% \\
-        12 & BANK\_A & \$99.60 & 10.0\% \\
-        12 & BANK\_B & \$83.46 & 7.8\% \\
-        13 & BANK\_A & \$89.64 & 9.0\% \\
-        13 & BANK\_B & \$588.76 & 7.7\% \\
-        14 & BANK\_A & \$222.85 & 8.0\% \\
-        14 & BANK\_B & \$78.33 & 7.8\% \\
-        15 & BANK\_A & \$98.01 & 8.0\% \\
-        15 & BANK\_B & \$100.57 & 7.8\% \\
-        16 & BANK\_A & \$841.50 & 7.0\% \\
-        16 & BANK\_B & \$93.44 & 7.8\% \\
-        17 & BANK\_A & \$77.64 & 7.8\% \\
-        17 & BANK\_B & \$98.62 & 7.8\% \\
-        18 & BANK\_A & \$84.00 & 7.7\% \\
-        18 & BANK\_B & \$78.00 & 7.8\% \\
-        19 & BANK\_A & \$76.68 & 7.7\% \\
-        19 & BANK\_B & \$114.26 & 7.8\% \\
-        20 & BANK\_A & \$452.19 & 7.6\% \\
-        20 & BANK\_B & \$81.58 & 7.8\% \\
-        21 & BANK\_A & \$282.07 & 7.6\% \\
-        21 & BANK\_B & \$105.29 & 7.8\% \\
-        22 & BANK\_A & \$1,130.53 & 7.6\% \\
-        22 & BANK\_B & \$77.52 & 7.8\% \\
-        23 & BANK\_A & \$119.99 & 7.6\% \\
-        23 & BANK\_B & \$87.32 & 7.8\% \\
-        24 & BANK\_A & \$258.68 & 7.6\% \\
-        24 & BANK\_B & \$77.88 & 7.8\% \\
-        25 & BANK\_A & \$77.11 & 7.5\% \\
-        25 & BANK\_B & \$89.90 & 7.8\% \\
-        26 & BANK\_A & \$85.13 & 7.5\% \\
-        26 & BANK\_B & \$133.61 & 7.8\% \\
-        27 & BANK\_A & \$88.40 & 7.5\% \\
-        27 & BANK\_B & \$96.72 & 7.8\% \\
-        28 & BANK\_A & \$88.39 & 7.5\% \\
-        28 & BANK\_B & \$111.75 & 7.8\% \\
-        29 & BANK\_A & \$99.06 & 7.5\% \\
-        29 & BANK\_B & \$95.90 & 7.8\% \\
-        30 & BANK\_A & \$105.04 & 7.6\% \\
-        30 & BANK\_B & \$77.52 & 7.8\% \\
-        31 & BANK\_A & \$93.07 & 7.6\% \\
-        31 & BANK\_B & \$81.83 & 7.8\% \\
-        32 & BANK\_A & \$75.48 & 7.6\% \\
-        32 & BANK\_B & \$672.57 & 7.8\% \\
-        33 & BANK\_A & \$76.41 & 7.6\% \\
-        33 & BANK\_B & \$118.66 & 7.8\% \\
-        34 & BANK\_A & \$84.93 & 7.6\% \\
-        34 & BANK\_B & \$124.43 & 7.8\% \\
-        35 & BANK\_A & \$75.36 & 7.6\% \\
-        35 & BANK\_B & \$148.77 & 7.8\% \\
-        36 & BANK\_A & \$84.09 & 7.6\% \\
-        36 & BANK\_B & \$92.26 & 7.8\% \\
-        37 & BANK\_A & \$75.80 & 7.6\% \\
-        37 & BANK\_B & \$227.07 & 7.8\% \\
-        38 & BANK\_A & \$96.58 & 7.6\% \\
-        38 & BANK\_B & \$77.52 & 7.8\% \\
-        39 & BANK\_A & \$75.95 & 7.6\% \\
-        39 & BANK\_B & \$78.35 & 7.8\% \\
-        40 & BANK\_A & \$79.73 & 7.6\% \\
-        40 & BANK\_B & \$557.47 & 7.8\% \\
-        41 & BANK\_A & \$78.43 & 7.6\% \\
-        41 & BANK\_B & \$136.42 & 7.8\% \\
-        42 & BANK\_A & \$297.10 & 7.6\% \\
-        42 & BANK\_B & \$78.24 & 7.8\% \\
-        43 & BANK\_A & \$378.16 & 7.6\% \\
-        43 & BANK\_B & \$77.96 & 7.8\% \\
-        44 & BANK\_A & \$184.43 & 7.6\% \\
-        44 & BANK\_B & \$85.41 & 7.8\% \\
-        45 & BANK\_A & \$75.48 & 7.6\% \\
-        45 & BANK\_B & \$436.59 & 7.8\% \\
-        46 & BANK\_A & \$85.83 & 7.6\% \\
-        46 & BANK\_B & \$101.13 & 7.8\% \\
-        47 & BANK\_A & \$591.19 & 7.6\% \\
-        47 & BANK\_B & \$78.36 & 7.8\% \\
-        48 & BANK\_A & \$262.18 & 7.6\% \\
-        48 & BANK\_B & \$78.51 & 7.8\% \\
-        49 & BANK\_A & \$83.28 & 7.6\% \\
-        49 & BANK\_B & \$135.70 & 7.8\% \\
+        1 & BANK\_A & \$348.60 & 35.0\% \\
+        1 & BANK\_B & \$398.40 & 40.0\% \\
+        2 & BANK\_A & \$298.80 & 30.0\% \\
+        2 & BANK\_B & \$348.60 & 35.0\% \\
+        3 & BANK\_A & \$249.00 & 25.0\% \\
+        3 & BANK\_B & \$298.80 & 30.0\% \\
+        4 & BANK\_A & \$199.20 & 20.0\% \\
+        4 & BANK\_B & \$249.00 & 25.0\% \\
+        5 & BANK\_A & \$149.84 & 15.0\% \\
+        5 & BANK\_B & \$199.20 & 20.0\% \\
+        6 & BANK\_A & \$149.40 & 15.0\% \\
+        6 & BANK\_B & \$360.05 & 15.0\% \\
+        7 & BANK\_A & \$140.54 & 14.0\% \\
+        7 & BANK\_B & \$149.40 & 15.0\% \\
+        8 & BANK\_A & \$129.48 & 13.0\% \\
+        8 & BANK\_B & \$139.44 & 14.0\% \\
+        9 & BANK\_A & \$129.99 & 12.0\% \\
+        9 & BANK\_B & \$129.48 & 13.0\% \\
+        10 & BANK\_A & \$128.05 & 11.0\% \\
+        10 & BANK\_B & \$119.52 & 12.0\% \\
+        11 & BANK\_A & \$109.56 & 11.0\% \\
+        11 & BANK\_B & \$121.51 & 11.0\% \\
+        12 & BANK\_A & \$109.56 & 11.0\% \\
+        12 & BANK\_B & \$109.56 & 11.0\% \\
+        13 & BANK\_A & \$104.64 & 10.5\% \\
+        13 & BANK\_B & \$361.08 & 10.0\% \\
+        14 & BANK\_A & \$161.57 & 10.0\% \\
+        14 & BANK\_B & \$99.60 & 10.0\% \\
+        15 & BANK\_A & \$107.39 & 10.0\% \\
+        15 & BANK\_B & \$105.53 & 9.5\% \\
+        16 & BANK\_A & \$485.02 & 9.5\% \\
+        16 & BANK\_B & \$96.04 & 9.5\% \\
+        17 & BANK\_A & \$94.68 & 9.5\% \\
+        17 & BANK\_B & \$97.96 & 9.2\% \\
+        18 & BANK\_A & \$93.79 & 9.3\% \\
+        18 & BANK\_B & \$88.68 & 8.9\% \\
+        19 & BANK\_A & \$89.64 & 9.0\% \\
+        19 & BANK\_B & \$108.23 & 8.7\% \\
+        20 & BANK\_A & \$363.78 & 8.7\% \\
+        20 & BANK\_B & \$88.35 & 8.7\% \\
+        21 & BANK\_A & \$230.54 & 8.7\% \\
+        21 & BANK\_B & \$95.45 & 8.5\% \\
+        22 & BANK\_A & \$919.18 & 8.7\% \\
+        22 & BANK\_B & \$85.68 & 8.6\% \\
+        23 & BANK\_A & \$116.16 & 8.7\% \\
+        23 & BANK\_B & \$91.41 & 8.4\% \\
+        24 & BANK\_A & \$174.26 & 8.7\% \\
+        24 & BANK\_B & \$82.68 & 8.3\% \\
+        25 & BANK\_A & \$87.24 & 8.7\% \\
+        25 & BANK\_B & \$87.45 & 8.2\% \\
+        26 & BANK\_A & \$91.77 & 8.5\% \\
+        26 & BANK\_B & \$124.49 & 8.2\% \\
+        27 & BANK\_A & \$92.18 & 8.4\% \\
+        27 & BANK\_B & \$97.87 & 8.2\% \\
+        28 & BANK\_A & \$90.62 & 8.6\% \\
+        28 & BANK\_B & \$107.40 & 8.2\% \\
+        29 & BANK\_A & \$97.09 & 8.5\% \\
+        29 & BANK\_B & \$96.44 & 8.2\% \\
+        30 & BANK\_A & \$94.00 & 8.5\% \\
+        30 & BANK\_B & \$81.72 & 8.2\% \\
+        31 & BANK\_A & \$91.69 & 8.5\% \\
+        31 & BANK\_B & \$83.29 & 8.1\% \\
+        32 & BANK\_A & \$84.72 & 8.5\% \\
+        32 & BANK\_B & \$652.18 & 8.0\% \\
+        33 & BANK\_A & \$84.24 & 8.5\% \\
+        33 & BANK\_B & \$117.50 & 8.0\% \\
+        34 & BANK\_A & \$90.40 & 8.5\% \\
+        34 & BANK\_B & \$118.66 & 8.0\% \\
+        35 & BANK\_A & \$84.24 & 8.5\% \\
+        35 & BANK\_B & \$144.26 & 8.0\% \\
+        36 & BANK\_A & \$89.32 & 8.5\% \\
+        36 & BANK\_B & \$91.41 & 8.0\% \\
+        37 & BANK\_A & \$84.12 & 8.4\% \\
+        37 & BANK\_B & \$216.59 & 8.1\% \\
+        38 & BANK\_A & \$94.29 & 8.4\% \\
+        38 & BANK\_B & \$80.40 & 8.1\% \\
+        39 & BANK\_A & \$83.76 & 8.4\% \\
+        39 & BANK\_B & \$80.61 & 8.1\% \\
+        40 & BANK\_A & \$84.13 & 8.4\% \\
+        40 & BANK\_B & \$504.39 & 8.1\% \\
+        41 & BANK\_A & \$84.25 & 8.4\% \\
+        41 & BANK\_B & \$135.69 & 8.1\% \\
+        42 & BANK\_A & \$257.11 & 8.4\% \\
+        42 & BANK\_B & \$81.08 & 8.1\% \\
+        43 & BANK\_A & \$320.47 & 8.4\% \\
+        43 & BANK\_B & \$80.16 & 8.1\% \\
+        44 & BANK\_A & \$152.64 & 8.4\% \\
+        44 & BANK\_B & \$82.11 & 8.0\% \\
+        45 & BANK\_A & \$83.76 & 8.4\% \\
+        45 & BANK\_B & \$429.24 & 8.0\% \\
+        46 & BANK\_A & \$88.80 & 8.4\% \\
+        46 & BANK\_B & \$101.58 & 8.0\% \\
+        47 & BANK\_A & \$523.38 & 8.4\% \\
+        47 & BANK\_B & \$79.92 & 8.0\% \\
+        48 & BANK\_A & \$191.13 & 8.4\% \\
+        48 & BANK\_B & \$80.91 & 8.0\% \\
+        49 & BANK\_A & \$87.86 & 8.4\% \\
+        49 & BANK\_B & \$108.66 & 8.0\% \\
 \end{longtable}
 
 
@@ -1782,6 +1806,571 @@ all three passes of experiment 3: symmetric scenario.
     \end{tabular}
 \end{table}
 
+
+
+
+\section{LLM System Prompt Documentation}
+\label{app:system_prompt}
+
+This appendix documents the system prompt provided to LLM agents during policy
+optimization. The content is extracted programmatically from the SimCash codebase
+to ensure this documentation remains synchronized with the actual implementation.
+
+The system prompt establishes the agent's role, provides domain context, and
+specifies the format requirements for policy proposals. Additional sections
+(policy schema, cost rates, and constraint-specific guidance) are injected
+dynamically based on experiment configuration.
+
+\subsection{Expert Introduction}
+
+The prompt begins by establishing the agent's role as a payment system optimization expert:
+
+\begin{verbatim}
+You are an expert in payment system optimization.
+Your job is to generate valid JSON policies for the SimCash payment simulator.
+
+You are an optimization agent in a simulation of an interbank payment settlement
+in a real-time gross settlement (RTGS) environment. Each agent represents a bank
+with a settlement account at the central bank.
+\end{verbatim}
+
+\subsection{Domain Context}
+
+The agent receives detailed context about RTGS settlement mechanics:
+
+\begin{verbatim}
+## Domain Context: Interbank Payment Settlement
+
+### Real-Time Gross Settlement (RTGS)
+Payments arrive throughout the simulated trading day with specified amounts,
+counterparties, deadlines, and priority levels. Settlement occurs immediately
+when the sending bank has sufficient balance or available credit.
+
+### Queuing Mechanism
+When liquidity is insufficient, payments enter a queue:
+- **Queue 1**: Immediate settlement attempts (holds payments briefly)
+- **Queue 2**: Longer-term holding when liquidity is constrained
+
+Queued payments accumulate delay costs until settled.
+### Key Concepts
+- **Balance**: Current reserves in settlement account (integer cents)
+- **Effective Liquidity**: Balance + credit limit - pending obligations
+- **Credit Limit**: Available daylight overdraft or collateralized credit
+- **Collateral**: Assets posted to central bank to secure credit
+\end{verbatim}
+
+\subsection{Cost Structure and Objectives}
+
+The optimization objective and cost components are explained:
+
+\begin{verbatim}
+## Cost Structure and Objectives
+
+**Your objective is to minimize total cost.**
+
+Costs include:
+1. **Overdraft Charges**: Basis points on negative balance positions
+2. **Delay Penalties**: Per-tick costs for each transaction waiting in queue
+3. **Deadline Penalties**: One-time charge when a payment becomes overdue
+4. **Overdue Multiplier**: Increased delay costs after deadline passes
+5. **End-of-Day Penalties**: Severe charges for unsettled payments at close
+
+### Why This is Non-Trivial
+Actions have delayed consequences:
+- Releasing liquidity early may reduce delay cost but increase overdraft exposure
+- Holding payments preserves liquidity but risks deadline penalties
+- Optimal behavior requires balancing immediate costs against future states
+
+### Strategic Considerations
+- High-priority payments have higher delay costs
+- Payments close to deadline should often be released
+- Incoming payments may provide liquidity to release queued payments
+- End-of-day penalties are typically very high - avoid unsettled transactions
+\end{verbatim}
+
+\subsection{Optimization Process}
+
+The iterative optimization workflow is described:
+
+\begin{verbatim}
+## Optimization Process
+
+You will be provided with:
+1. **Current policy tree**: The policy to improve
+2. **Simulation output**: Tick-by-tick logs from recent runs
+3. **Iteration history**: How the policy has evolved and cost changes
+
+### Your Task
+Analyze the provided data, identify inefficiencies or suboptimal decisions,
+and propose modifications to the policy tree that reduce total costs.
+
+Focus on:
+- Decisions that led to deadline penalties or high delay costs
+- Opportunities to release payments earlier with available liquidity
+- Conditions that are too aggressive (causing overdrafts) or too conservative
+
+### Output Requirements
+Return a complete, valid JSON policy with:
+- All tree types that are enabled in this scenario
+- All parameters defined before they are referenced
+- Unique node_id for every node
+\end{verbatim}
+
+\subsection{Pre-Generation Checklist}
+
+Before generating policies, agents must verify compliance:
+
+\begin{verbatim}
+################################################################################
+#                     MANDATORY PRE-GENERATION CHECKLIST                       #
+################################################################################
+
+BEFORE generating ANY policy, verify you will satisfy ALL of these:
+
+  [ ] Every {"param": "X"} has a matching "X" key in the "parameters" object
+  [ ] Every action matches its tree type (see allowed actions below)
+  [ ] Every node has a unique "node_id" string
+  [ ] Arithmetic expressions are wrapped in {"compute": {...}}
+  [ ] Only use fields and parameters from the ALLOWED sections
+  [ ] No undefined field references
+  [ ] No mixing of action types between trees
+
+################################################################################
+\end{verbatim}
+
+\subsection{Final Instructions}
+
+The prompt concludes with output requirements:
+
+\begin{verbatim}
+################################################################################
+#                         FINAL INSTRUCTIONS                                   #
+################################################################################
+
+1. Generate a COMPLETE policy JSON with all required trees
+2. Ensure EVERY node has a unique node_id
+3. Define ALL parameters before referencing them
+4. Use ONLY allowed actions for each tree type
+5. Wrap ALL arithmetic in {"compute": {...}}
+6. Keep trees reasonably simple (3-5 levels max) for robustness
+7. Focus improvements on areas identified in the simulation output
+
+The policy MUST be syntactically valid JSON that passes validation.
+\end{verbatim}
+
+\subsection{Dynamic Sections}
+
+The following sections are injected dynamically based on experiment configuration.
+We show examples from Experiment 2 (12-Period Stochastic) to illustrate the content.
+
+\subsubsection{Experiment Customization (Exp 2)}
+
+Each experiment can provide scenario-specific guidance:
+
+\begin{verbatim}
+################################################################################
+#                       EXPERIMENT CUSTOMIZATION                               #
+################################################################################
+
+This scenario tests a fundamental tradeoff in payment systems:
+- Allocating liquidity from the pool allows you to settle payments
+- But allocated liquidity has an opportunity cost
+
+The KEY DECISION in this scenario is: What fraction of the liquidity pool
+should be allocated at the START of the day?
+
+IMPORTANT: Focus your optimization on the `initial_liquidity_fraction` parameter.
+The payment_tree should remain a simple Release action - the real optimization
+is in how much liquidity to commit upfront.
+
+With a hard liquidity constraint (no overdraft allowed), you must have
+sufficient balance to settle each payment. Incoming payments from the
+counterparty provide liquidity that can be recycled for your outgoing payments.
+
+################################################################################
+\end{verbatim}
+
+\subsubsection{Policy Constraints (Exp 2)}
+
+The policy schema is filtered to show only allowed elements:
+
+\begin{verbatim}
+### ALLOWED PARAMETERS
+
+Define these in the `parameters` object:
+
+  initial_liquidity_fraction (float): 0.0 to 1.0
+    Fraction of liquidity_pool to allocate at simulation start. Value between 0.0 and 1.0.
+
+### ALLOWED FIELDS
+
+Reference with {"field": "name"}:
+
+  - system_tick_in_day
+  - balance
+  - amount
+  - remaining_amount
+  - ticks_to_deadline
+
+### ALLOWED ACTIONS BY TREE TYPE
+
+  payment_tree:  Release, Hold
+  bank_tree:  NoAction
+\end{verbatim}
+
+\subsubsection{Cost Parameters (Exp 2)}
+
+Current cost rates from the experiment configuration:
+
+\begin{verbatim}
+## COST PARAMETERS
+
+Per-Tick Costs:
+  - liquidity_cost_per_tick_bps: 83 (0.1 / 12 ticks)
+  - delay_cost_per_tick_per_cent: 0.2
+
+One-Time Costs:
+  - deadline_penalty: 50,000 cents
+  - eod_penalty_per_transaction: 100,000 cents
+
+Disabled in this scenario:
+  - overdraft_bps_per_tick: 0 (hard liquidity constraint)
+  - collateral_cost_per_tick_bps: 0 (using liquidity_pool mode)
+\end{verbatim}
+
+\subsection{User Prompt Example (Exp 2, Pass 2, Iteration 6)}
+
+Each iteration, agents receive a comprehensive user prompt containing their
+performance history and current context. The full prompt ($\sim$10,000 tokens)
+includes the following sections. We show condensed excerpts from BANK\_A's
+prompt at iteration 6 of Experiment 2, Pass 2:
+
+\subsubsection{Current State Summary}
+
+\begin{verbatim}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POLICY OPTIMIZATION CONTEXT - BANK_A - ITERATION 6
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This document provides complete context for optimizing YOUR payment policy.
+Analyze the simulation outputs and historical data to identify improvements.
+
+NOTE: You are optimizing policy for BANK_A ONLY. Focus on YOUR decisions.
+
+TABLE OF CONTENTS:
+1. Current State Summary
+2. Cost Analysis
+3. Optimization Guidance
+4. Simulation Output
+5. Full Iteration History
+6. Parameter Trajectories
+7. Final Instructions
+
+## 1. CURRENT STATE SUMMARY
+
+### Performance Metrics (Iteration 6)
+
+| Metric | Value |
+|--------|-------|
+| **Mean Total Cost** | $35,856 (↓0.0% from previous) |
+| **Cost Std Dev** | ±$8,008 |
+| **Sample Cost** | $19,920 (Seed #1547979735) |
+| **Settlement Rate** | 0.0% |
+| **Failure Rate** | 0% |
+
+### Current Policy Parameters (BANK_A)
+
+```json
+{
+  "initial_liquidity_fraction": 0.36
+}
+```
+\end{verbatim}
+
+\subsubsection{Cost Breakdown and Rates}
+
+\begin{verbatim}
+## 2. COST ANALYSIS
+
+### Cost Breakdown (Last Iteration)
+
+| Cost Type | Amount | % of Total | Priority |
+|-----------|--------|------------|----------|
+| delay_cost | $0 | 0.0% | 🟢 LOW |
+| overdraft_cost | $0 | 0.0% | 🟢 LOW |
+| deadline_penalty | $0 | 0.0% | 🟢 LOW |
+| eod_penalty | $0 | 0.0% | 🟢 LOW |
+
+### Cost Rate Configuration
+```json
+{
+  "overdraft_bps_per_tick": 0.0,
+  "delay_cost_per_tick_per_cent": 0.2,
+  "collateral_cost_per_tick_bps": 0.0,
+  "eod_penalty_per_transaction": 100000,
+  "deadline_penalty": 50000,
+  "split_friction_cost": 0,
+  "overdue_delay_multiplier": 5.0,
+  "liquidity_cost_per_tick_bps": 83.0
+}
+```
+\end{verbatim}
+
+\subsubsection{Iteration History and Parameter Trajectories}
+
+\begin{verbatim}
+## 5. FULL ITERATION HISTORY
+
+### Metrics Summary Table
+
+| Iter | Status | Mean Cost | Std Dev | Settlement | Best Seed | Worst Seed |
+|------|--------|-----------|---------|------------|-----------|------------|
+| 1 | ⭐ BEST | $44,820 | ±$0 | 0.0% | $0 | $0 |
+| 2 | ⭐ BEST | $41,832 | ±$0 | 0.0% | $0 | $0 |
+| 3 | ⭐ BEST | $39,840 | ±$0 | 0.0% | $0 | $0 |
+| 4 | ⭐ BEST | $37,848 | ±$0 | 0.0% | $0 | $0 |
+| 5 | ⭐ BEST | $35,856 | ±$0 | 0.0% | $0 | $0 |
+
+### Current Best Policy
+The best policy so far was discovered in **iteration 5** with mean cost **$35,856**.
+
+
+### Detailed Changes Per Iteration
+
+#### ⭐ Iteration 1 (BEST POLICY)
+
+**Performance:** Mean cost $44,820, Settlement 0.0%
+
+**BANK_A Parameters at this iteration:**
+```json
+{
+  "initial_liquidity_fraction": 0.45
+}
+```
+
+#### ⭐ Iteration 2 (BEST POLICY)
+
+**Performance:** Mean cost $41,832, Settlement 0.0%
+**Comparison:** -$29.88 vs best (NEW BEST)
+
+**BANK_A Changes:**
+  - Changed 'initial_liquidity_fraction': 0.45 → 0.42 (↓0.03)
+
+**BANK_A Parameters at this iteration:**
+```json
+{
+  "initial_liquidity_fraction": 0.42
+}
+```
+
+#### ⭐ Iteration 3 (BEST POLICY)
+
+**Performance:** Mean cost $39,840, Settlement 0.0%
+**Comparison:** -$19.92 vs best (NEW BEST)
+
+**BANK_A Changes:**
+  - Changed 'initial_liquidity_fraction': 0.42 → 0.4 (↓0.02)
+
+**BANK_A Parameters at this iteration:**
+```json
+{
+  "initial_liquidity_fraction": 0.4
+}
+```
+
+#### ⭐ Iteration 4 (BEST POLICY)
+
+**Performance:** Mean cost $37,848, Settlement 0.0%
+**Comparison:** -$19.92 vs best (NEW BEST)
+
+**BANK_A Changes:**
+  - Changed 'initial_liquidity_fraction': 0.4 → 0.38 (↓0.02)
+
+**BANK_A Parameters at this iteration:**
+```json
+{
+  "initial_liquidity_fraction": 0.38
+}
+```
+
+#### ⭐ Iteration 5 (BEST POLICY)
+
+**Performance:** Mean cost $35,856, Settlement 0.0%
+**Comparison:** -$19.92 vs best (NEW BEST)
+
+**BANK_A Changes:**
+  - Changed 'initial_liquidity_fraction': 0.38 → 0.36 (↓0.02)
+
+**BANK_A Parameters at this iteration:**
+```json
+{
+  "initial_liquidity_fraction": 0.36
+}
+```
+
+
+## 6. PARAMETER TRAJECTORIES
+
+Track how each BANK_A parameter evolved across iterations:
+
+### initial_liquidity_fraction
+
+| Iteration | Value |
+|-----------|-------|
+| 1 | 0.450 |
+| 2 | 0.420 |
+| 3 | 0.400 |
+| 4 | 0.380 |
+| 5 | 0.360 |
+
+*Overall: decreased 20.0% from 0.450 to 0.360*
+\end{verbatim}
+
+\subsubsection{Final Instructions}
+
+\begin{verbatim}
+## 7. FINAL INSTRUCTIONS
+
+Based on the above analysis, generate an improved policy for **BANK_A** that:
+
+1. **Beats the current best policy** - your policy must have LOWER cost than the best
+2. **Maintains 100% settlement rate** - this is non-negotiable
+3. **Makes incremental adjustments** - avoid drastic changes unless clearly needed
+4. **Learns from REJECTED policies** - don't repeat changes that made things worse
+
+📌 **Current Best**: Iteration 5 with mean cost $35,856.
+Your goal is to beat this. If your policy is worse, it will be rejected and we will
+continue optimizing from the current best policy.
+
+### What to Consider:
+
+- **Simulation trace analysis**: What decisions in seed #1547979735 drove costs?
+- **Cost breakdown**: Which cost types (delay, collateral, overdraft) dominate?
+- **REJECTED policies**: Why did they fail? What changes should you avoid?
+- **Parameter trends**: Which parameters correlate with cost improvements?
+- **Trade-offs**: Balance delay costs vs collateral costs vs overdraft costs
+
+### Output Requirements:
+
+Generate a complete, valid policy JSON that:
+- Defines all parameters before using them
+- Uses only allowed fields and actions
+- Includes unique node_id for every node
+- Wraps arithmetic in {"compute": {...}}
+
+Focus your changes on the areas with highest impact potential. Remember: if your
+policy is worse than the current best, it will be REJECTED and you'll need to try
+a different approach.
+
+============================================================
+CURRENT POLICY FOR BANK_A
+============================================================
+
+```json
+{
+  "version": "2.0",
+  "policy_id": "BANK_A_liquidity_opt_iter6",
+  "parameters": {
+    "initial_liquidity_fraction": 0.36
+  },
+  "bank_tree": {
+    "type": "action",
+    "node_id": "B1_no_action_iter6",
+    "action": "NoAction"
+  },
+  "payment_tree": {
+    "type": "action",
+    "node_id": "P1_release_all_iter6",
+    "action": "Release"
+  }
+}
+```
+
+Current policy:
+{
+  "version": "2.0",
+  "policy_id": "BANK_A_liquidity_opt_iter6",
+  "parameters": {
+    "initial_liquidity_fraction": 0.36
+  },
+  "bank_tree": {
+    "type": "action",
+    "node_id": "B1_no_action_iter6",
+    "action": "NoAction"
+  },
+  "payment_tree": {
+    "type": "action",
+    "node_id": "P1_release_all_iter6",
+    "action": "Release"
+  }
+}
+
+Performance history:
+  (none)
+
+Generate an improved policy that reduces total cost.
+Output ONLY the JSON policy, no explanation.
+\end{verbatim}
+
+\subsubsection{Simulation Trace (Exp 2, Pass 2)}
+
+The prompt includes a tick-by-tick simulation trace showing transaction arrivals,
+settlements, and balance changes. This example is from Experiment 2 (stochastic
+scenario) showing the first 40 events from a representative simulation:
+
+\begin{verbatim}
+═══ Tick 0 ═══
+💸 Costs (BANK_A): total: $19.92
+✅ RTGS Settled: BANK_B → BANK_A | $73.29
+   Balance: $900.00 → $826.71
+📤 Arrival: BANK_B → BANK_A | $55.12 | Deadline: Tick 4
+• RtgsSubmission:  777e8c63
+💸 Costs (BANK_B): total: $7.47
+✅ RTGS Settled: BANK_B → BANK_A | $55.12
+   Balance: $826.71 → $771.59
+📋 Submit: TX 9cf923fd...
+💰 Deferred Credit: BANK_B received $339.78
+📋 Submit: TX 33ac0de0...
+• RtgsSubmission:  e232bf4c
+• RtgsSubmission:  9cf923fd
+📋 Submit: TX 1d45deb5...
+• RtgsSubmission:  33ac0de0
+✅ RTGS Settled: BANK_A → BANK_B | $191.32
+   Balance: $2,319.53 → $2,128.21
+• RtgsSubmission:  1d45deb5
+📤 Arrival: BANK_A → BANK_B | $191.32 | Deadline: Tick 4
+📋 Submit: TX 777e8c63...
+✅ RTGS Settled: BANK_A → BANK_B | $67.99
+   Balance: $2,128.21 → $2,060.22
+📤 Arrival: BANK_A → BANK_B | $80.47 | Deadline: Tick 4
+📋 Submit: TX e232bf4c...
+💰 Deferred Credit: BANK_A received $128.41
+✅ RTGS Settled: BANK_A → BANK_B | $80.47
+   Balance: $2,400.00 → $2,319.53
+📤 Arrival: BANK_A → BANK_B | $67.99 | Deadline: Tick 8
+📤 Arrival: BANK_B → BANK_A | $73.29 | Deadline: Tick 3
+
+═══ Tick 1 ═══
+• RtgsSubmission:  236d214b
+• RtgsSubmission:  aa4517b1
+📋 Submit: TX 236d214b...
+📤 Arrival: BANK_B → BANK_A | $79.08 | Deadline: Tick 8
+✅ RTGS Settled: BANK_B → BANK_A | $79.08
+   Balance: $1,065.22 → $986.14
+• RtgsSubmission:  9c5f26de
+• RtgsSubmission:  abb02131
+📋 Submit: TX 9c5f26de...
+✅ RTGS Settled: BANK_A → BANK_B | $101.35
+   Balance: $1,929.00 → $1,827.65
+✅ RTGS Settled: BANK_A → BANK_B | $157.00
+   Balance: $2,188.63 → $2,031.63
+📤 Arrival: BANK_A → BANK_B | $101.35 | Deadline: Tick 4
+💸 Costs (BANK_A): total: $19.92
+📋 Submit: TX aa4517b1...
+📋 Submit: TX 5c56090e...
+📤 Arrival: BANK_B → BANK_A | $46.15 | Deadline: Tick 8
+• RtgsSubmission:  5c56090e
+\end{verbatim}
 
 
 

@@ -50,6 +50,58 @@ def escape_latex(text: str) -> str:
     return result
 
 
+def escape_latex_full(text: str) -> str:
+    r"""Escape all LaTeX special characters including braces and dollars.
+
+    More comprehensive escaping for text that may contain JSON or code.
+
+    Args:
+        text: Plain text string
+
+    Returns:
+        LaTeX-safe string with all special characters escaped
+
+    Example:
+        >>> escape_latex_full('{"field": "value"}')
+        '\\{\"field\": \"value\"\\}'
+    """
+    # Order matters - escape backslash first
+    replacements = [
+        ("\\", r"\textbackslash{}"),
+        ("{", r"\{"),
+        ("}", r"\}"),
+        ("$", r"\$"),
+        ("_", r"\_"),
+        ("&", r"\&"),
+        ("%", r"\%"),
+        ("#", r"\#"),
+        ("^", r"\^{}"),
+        ("~", r"\~{}"),
+    ]
+    result = text
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result
+
+
+def format_verbatim_text(text: str, max_line_length: int = 85) -> str:
+    r"""Format text for inclusion in a LaTeX verbatim environment.
+
+    Prepares text for ``\begin{verbatim}...\end{verbatim}`` by cleaning up
+    leading/trailing whitespace while preserving internal structure.
+
+    Args:
+        text: Raw text content
+        max_line_length: Maximum line length before wrapping (not enforced,
+                        just a hint for manual review)
+
+    Returns:
+        Cleaned text suitable for verbatim environment
+    """
+    # Strip leading/trailing whitespace from the whole block
+    return text.strip()
+
+
 def format_money(cents: int) -> str:
     r"""Format cents as LaTeX dollars string.
 

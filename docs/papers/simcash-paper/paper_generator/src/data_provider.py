@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Protocol, TypedDict, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 import duckdb
+import yaml
 
 
 class AgentIterationResult(TypedDict):
@@ -271,6 +272,59 @@ class DataProvider(Protocol):
 
         Returns:
             AggregateStats with total passes, mean iterations, convergence rate
+        """
+        ...
+
+    def get_experiment_config(self, exp_id: str) -> dict[str, Any]:
+        """Load experiment configuration YAML file.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            Parsed YAML configuration dict
+        """
+        ...
+
+    def get_scenario_config(self, exp_id: str) -> dict[str, Any]:
+        """Load scenario configuration YAML file.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            Parsed YAML scenario configuration dict
+        """
+        ...
+
+    def get_user_prompt(
+        self, exp_id: str, pass_num: int, iteration: int, agent_id: str
+    ) -> str | None:
+        """Get the user prompt sent to an agent at a specific iteration.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number
+            iteration: Iteration number
+            agent_id: Agent identifier
+
+        Returns:
+            User prompt string, or None if not found
+        """
+        ...
+
+    def get_simulation_trace(
+        self, exp_id: str, pass_num: int, max_events: int = 30
+    ) -> str:
+        """Get a formatted simulation trace from the database.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number
+            max_events: Maximum number of events to include
+
+        Returns:
+            Formatted trace string grouped by tick
         """
         ...
 
@@ -698,3 +752,252 @@ class DatabaseDataProvider:
             convergence_rate=convergence_rate,
             num_passes=len(summaries),
         )
+
+    def get_experiment_config(self, exp_id: str) -> dict[str, Any]:
+        """Load experiment configuration YAML file.
+
+        Args:
+            exp_id: Experiment identifier ("exp1", "exp2", "exp3")
+
+        Returns:
+            Parsed YAML configuration dict containing prompt_customization,
+            policy_constraints, and other experiment settings
+        """
+        # Experiment configs are in configs/ directory relative to data_provider.py
+        config_dir = Path(__file__).parent.parent / "configs"
+        config_path = config_dir / f"{exp_id}.yaml"
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"Experiment config not found: {config_path}")
+
+        with open(config_path) as f:
+            return yaml.safe_load(f)
+
+    def get_scenario_config(self, exp_id: str) -> dict[str, Any]:
+        """Load scenario configuration YAML file for an experiment.
+
+        The scenario config contains cost_rates, agent settings, and simulation
+        parameters referenced by the experiment config.
+
+        Args:
+            exp_id: Experiment identifier
+
+        Returns:
+            Parsed YAML scenario configuration dict
+        """
+        exp_config = self.get_experiment_config(exp_id)
+
+        # Scenario path is relative to the experiment config file
+        config_dir = Path(__file__).parent.parent / "configs"
+        scenario_rel_path = exp_config.get("scenario", f"./{exp_id}_scenario.yaml")
+
+        # Handle relative paths like "./exp2_12period.yaml"
+        if scenario_rel_path.startswith("./"):
+            scenario_rel_path = scenario_rel_path[2:]
+
+        scenario_path = config_dir / scenario_rel_path
+
+        if not scenario_path.exists():
+            raise FileNotFoundError(f"Scenario config not found: {scenario_path}")
+
+        with open(scenario_path) as f:
+            return yaml.safe_load(f)
+
+    def get_user_prompt(
+        self, exp_id: str, pass_num: int, iteration: int, agent_id: str
+    ) -> str | None:
+        """Get the user prompt sent to an agent at a specific iteration.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number (1, 2, or 3)
+            iteration: Iteration number
+            agent_id: Agent identifier ("BANK_A" or "BANK_B")
+
+        Returns:
+            User prompt string, or None if not found
+        """
+        run_id = self.get_run_id(exp_id, pass_num)
+        conn = self._get_connection(exp_id)
+
+        result = conn.execute(
+            """
+            SELECT event_data
+            FROM experiment_events
+            WHERE run_id = ?
+              AND iteration = ?
+              AND event_type = 'llm_interaction'
+              AND json_extract_string(event_data, 'agent_id') = ?
+            LIMIT 1
+            """,
+            [run_id, iteration, agent_id],
+        ).fetchone()
+
+        if result is None:
+            return None
+
+        event_data = result[0]
+        if isinstance(event_data, str):
+            event_data = json.loads(event_data)
+
+        return event_data.get("user_prompt")
+
+    def get_simulation_trace(
+        self, exp_id: str, pass_num: int, max_events: int = 30
+    ) -> str:
+        """Get a formatted simulation trace from the database.
+
+        Queries the simulation_events table and formats events into a
+        pretty-printed trace suitable for display.
+
+        Args:
+            exp_id: Experiment identifier
+            pass_num: Pass number
+            max_events: Maximum number of events to include
+
+        Returns:
+            Formatted trace string grouped by tick
+        """
+        run_id = self.get_run_id(exp_id, pass_num)
+        conn = self._get_connection(exp_id)
+
+        # Find a simulation with events for this run
+        sim_result = conn.execute(
+            """
+            SELECT DISTINCT simulation_id
+            FROM simulation_events
+            WHERE simulation_id LIKE ?
+            LIMIT 1
+            """,
+            [f"{run_id}%"],
+        ).fetchone()
+
+        if sim_result is None:
+            return "(No simulation events found)"
+
+        simulation_id = sim_result[0]
+
+        # Get events for this simulation, ordered by tick
+        events = conn.execute(
+            """
+            SELECT tick, event_type, agent_id, tx_id,
+                   details::VARCHAR as details
+            FROM simulation_events
+            WHERE simulation_id = ?
+            ORDER BY tick, event_id
+            LIMIT ?
+            """,
+            [simulation_id, max_events],
+        ).fetchall()
+
+        if not events:
+            return "(No events captured)"
+
+        # Format events grouped by tick
+        lines: list[str] = []
+        current_tick = -1
+
+        for tick, event_type, agent_id, tx_id, details_str in events:
+            if tick != current_tick:
+                if current_tick >= 0:
+                    lines.append("")  # Blank line between ticks
+                lines.append(f"═══ Tick {tick} ═══")
+                current_tick = tick
+
+            # Parse details JSON if available
+            details = {}
+            if details_str:
+                try:
+                    details = json.loads(details_str)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            # Format based on event type
+            formatted = self._format_event(event_type, agent_id, tx_id, details)
+            if formatted:
+                lines.append(formatted)
+
+        return "\n".join(lines)
+
+    def _format_event(
+        self,
+        event_type: str,
+        agent_id: str | None,
+        tx_id: str | None,
+        details: dict,
+    ) -> str:
+        """Format a single event for display.
+
+        Args:
+            event_type: Type of the event
+            agent_id: Agent ID if applicable
+            tx_id: Transaction ID if applicable
+            details: Event details dict
+
+        Returns:
+            Formatted event string
+        """
+
+        def fmt_amount(cents: int) -> str:
+            return f"${cents/100:,.2f}"
+
+        tx_short = tx_id[:8] if tx_id else "?"
+
+        if event_type == "Arrival":
+            sender = details.get("sender_id", "?")
+            receiver = details.get("receiver_id", "?")
+            amount = details.get("amount", 0)
+            deadline = details.get("deadline", 0)
+            return f"📤 Arrival: {sender} → {receiver} | {fmt_amount(amount)} | Deadline: Tick {deadline}"
+
+        if event_type == "RtgsImmediateSettlement":
+            sender = details.get("sender", "?")
+            receiver = details.get("receiver", "?")
+            amount = details.get("amount", 0)
+            bal_before = details.get("sender_balance_before")
+            bal_after = details.get("sender_balance_after")
+            result = f"✅ RTGS Settled: {sender} → {receiver} | {fmt_amount(amount)}"
+            if bal_before is not None and bal_after is not None:
+                result += f"\n   Balance: {fmt_amount(bal_before)} → {fmt_amount(bal_after)}"
+            return result
+
+        if event_type == "Queue2LiquidityRelease":
+            sender = details.get("sender", "?")
+            receiver = details.get("receiver", "?")
+            amount = details.get("amount", 0)
+            wait = details.get("queue_wait_ticks", 0)
+            return f"✅ Queue Released: {sender} → {receiver} | {fmt_amount(amount)} (waited {wait} ticks)"
+
+        if event_type == "PolicySubmit":
+            return f"📋 Submit: TX {tx_short}..."
+
+        if event_type == "PolicyHold":
+            return f"📋 Hold: TX {tx_short}..."
+
+        if event_type == "QueuedRtgs":
+            sender = details.get("sender_id", agent_id or "?")
+            return f"⏳ Queued: TX {tx_short}... from {sender}"
+
+        if event_type == "CostAccrual":
+            costs = details.get("costs", {})
+            if isinstance(costs, dict):
+                nonzero = {k: v for k, v in costs.items() if v}
+                if nonzero:
+                    parts = [f"{k}: {fmt_amount(v)}" for k, v in nonzero.items()]
+                    return f"💸 Costs ({agent_id}): {', '.join(parts)}"
+            return ""
+
+        if event_type == "DeferredCreditApplied":
+            amount = details.get("amount", 0)
+            return f"💰 Deferred Credit: {agent_id} received {fmt_amount(amount)}"
+
+        if event_type == "TransactionWentOverdue":
+            sender = details.get("sender_id", "?")
+            return f"⚠️ OVERDUE: TX {tx_short}... from {sender}"
+
+        if event_type == "EndOfDay":
+            day = details.get("day", 0)
+            return f"🌙 End of Day {day}"
+
+        # Generic fallback for other events
+        return f"• {event_type}: {agent_id or ''} {tx_short if tx_id else ''}"

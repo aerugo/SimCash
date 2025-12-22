@@ -154,6 +154,120 @@ class PolicyPairEvaluation:
         return len(self.sample_results)
 
 
+# =============================================================================
+# Risk-Adjusted Acceptance Functions
+# =============================================================================
+
+
+def _is_improvement_significant(
+    evaluation: PolicyPairEvaluation,
+) -> tuple[bool, str]:
+    """Check if policy improvement is statistically significant.
+
+    Uses 95% confidence interval to determine if improvement is significant.
+    For significance, the CI lower bound must be strictly positive.
+
+    This prevents accepting policies that appear better on average but
+    where the improvement could be due to random chance.
+
+    Args:
+        evaluation: PolicyPairEvaluation with optional CI data.
+
+    Returns:
+        Tuple of (is_significant, reason_message).
+
+    Example:
+        >>> eval_result = PolicyPairEvaluation(
+        ...     sample_results=[],
+        ...     delta_sum=1000,
+        ...     mean_old_cost=10000,
+        ...     mean_new_cost=9000,
+        ...     confidence_interval_95=[500, 1500],
+        ... )
+        >>> is_sig, reason = _is_improvement_significant(eval_result)
+        >>> is_sig
+        True
+    """
+    # First check: mean improvement must be positive
+    if evaluation.delta_sum <= 0:
+        return False, (
+            f"Mean improvement is negative or zero (delta_sum={evaluation.delta_sum})"
+        )
+
+    # If no CI data available, fall back to mean-only check
+    if evaluation.confidence_interval_95 is None:
+        return True, "No CI data available, using mean-only acceptance"
+
+    ci_lower, ci_upper = evaluation.confidence_interval_95
+
+    # Significance: CI lower bound must be strictly > 0
+    if ci_lower > 0:
+        return True, (
+            f"Improvement is statistically significant (CI: [{ci_lower}, {ci_upper}])"
+        )
+    else:
+        return False, (
+            f"Improvement not statistically significant: "
+            f"95% CI [{ci_lower}, {ci_upper}] includes zero"
+        )
+
+
+def _is_variance_acceptable(
+    evaluation: PolicyPairEvaluation,
+    max_cv: float = 0.5,
+) -> tuple[bool, str]:
+    """Check if policy variance is within acceptable limits.
+
+    Uses coefficient of variation (CV = std_dev / mean) as the metric.
+    CV > max_cv indicates the policy is too unstable.
+
+    This prevents accepting policies that have low mean cost but high
+    variance, which would result in unpredictable performance.
+
+    Args:
+        evaluation: PolicyPairEvaluation with optional std_dev data.
+        max_cv: Maximum acceptable coefficient of variation. Default 0.5 (50%).
+
+    Returns:
+        Tuple of (is_acceptable, reason_message).
+
+    Example:
+        >>> eval_result = PolicyPairEvaluation(
+        ...     sample_results=[],
+        ...     delta_sum=1000,
+        ...     mean_old_cost=10000,
+        ...     mean_new_cost=9000,
+        ...     cost_std_dev=900,  # CV = 0.1
+        ... )
+        >>> is_ok, reason = _is_variance_acceptable(eval_result, max_cv=0.5)
+        >>> is_ok
+        True
+    """
+    # If no std_dev data, skip check (don't block)
+    if evaluation.cost_std_dev is None:
+        return True, "No std_dev data available, skipping variance check"
+
+    # Handle zero or negative mean (can't compute CV)
+    if evaluation.mean_new_cost <= 0:
+        # Skip the check rather than blocking - zero cost is unusual but valid
+        return True, (
+            f"Skipping CV check: mean_new_cost is {evaluation.mean_new_cost} "
+            f"(zero or negative)"
+        )
+
+    # Compute coefficient of variation
+    cv = evaluation.cost_std_dev / evaluation.mean_new_cost
+
+    if cv <= max_cv:
+        return True, f"Variance acceptable (CV={cv:.2f} <= {max_cv})"
+    else:
+        return False, (
+            f"Variance too high: CV={cv:.2f} exceeds threshold {max_cv}. "
+            f"Policy is unstable (std_dev=${evaluation.cost_std_dev/100:.2f}, "
+            f"mean=${evaluation.mean_new_cost/100:.2f})"
+        )
+
+
 def _generate_run_id(experiment_name: str) -> str:
     """Generate a unique run ID.
 
@@ -2398,6 +2512,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 deltas,
                 delta_sum,
                 evaluation,
+                acceptance_reason,
             ) = await self._should_accept_policy(
                 agent_id=agent_id,
                 old_policy=current_policy,
@@ -2419,7 +2534,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                 new_cost=eval_new_cost,
                 context_simulation_cost=current_cost,
                 accepted=should_accept,
-                acceptance_reason="cost_improved" if should_accept else "cost_not_improved",
+                acceptance_reason=acceptance_reason,
                 delta_sum=delta_sum,
                 num_samples=evaluation.num_samples,
                 sample_details=[
@@ -2464,6 +2579,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
                         accepted=should_accept,
                         old_policy_mean_cost=eval_old_cost,
                         new_policy_mean_cost=eval_new_cost,
+                        acceptance_reason=acceptance_reason,
                     )
                 )
 
@@ -2872,7 +2988,7 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         old_policy: dict[str, Any],
         new_policy: dict[str, Any],
         current_cost: int,
-    ) -> tuple[bool, int, int, list[int], int, PolicyPairEvaluation]:
+    ) -> tuple[bool, int, int, list[int], int, PolicyPairEvaluation, str]:
         """Determine whether to accept a new policy using paired bootstrap evaluation.
 
         Uses SeedMatrix for agent-specific bootstrap seeds, ensuring:
@@ -2882,6 +2998,10 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
 
         This method MUST be called AFTER policy generation (not before).
 
+        Risk-adjusted acceptance criteria (if configured):
+        - require_statistical_significance: Reject if 95% CI includes zero
+        - max_coefficient_of_variation: Reject if CV exceeds threshold
+
         Args:
             agent_id: Agent being optimized.
             old_policy: Current policy.
@@ -2889,13 +3009,14 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             current_cost: Current cost for this agent (from context simulation).
 
         Returns:
-            Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum, evaluation):
-            - should_accept: True if delta_sum > 0 (new policy is cheaper)
+            Tuple of (should_accept, old_cost, new_cost, deltas, delta_sum, evaluation, reason):
+            - should_accept: True if policy passes all acceptance criteria
             - old_cost: ACTUAL mean cost with old policy (from evaluation)
             - new_cost: ACTUAL mean cost with new policy (from evaluation)
             - deltas: List of per-sample (old_cost - new_cost) deltas
             - delta_sum: Sum of deltas (positive = improvement)
             - evaluation: Full PolicyPairEvaluation for persistence
+            - reason: Human-readable explanation of acceptance/rejection
         """
         # Get full evaluation with ACTUAL costs (not estimates)
         evaluation = self._evaluate_policy_pair(
@@ -2904,19 +3025,80 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
             new_policy=new_policy,
         )
 
-        # Accept if delta_sum > 0 (new policy is cheaper overall)
-        # Note: Using delta_sum (not mean_delta) for acceptance
-        # This means total improvement across all samples, not average
-        should_accept = evaluation.delta_sum > 0
+        # Get acceptance criteria config
+        acceptance_config = self._config.evaluation.acceptance
 
-        # Return ACTUAL costs from evaluation, not estimates
+        # Baseline check: mean improvement must be positive
+        if evaluation.delta_sum <= 0:
+            # No improvement on average - reject
+            reason = "delta_sum ≤ 0"
+            return (
+                False,
+                evaluation.mean_old_cost,
+                evaluation.mean_new_cost,
+                evaluation.deltas,
+                evaluation.delta_sum,
+                evaluation,
+                reason,
+            )
+
+        # Risk-adjusted check 1: Statistical significance (if enabled)
+        if acceptance_config.require_statistical_significance:
+            is_significant, sig_reason = _is_improvement_significant(evaluation)
+            if not is_significant:
+                # Log rejection reason for debugging
+                if self._verbose_logger:
+                    self._verbose_logger._console.print(
+                        f"  [yellow]Risk check:[/yellow] {sig_reason}"
+                    )
+                return (
+                    False,
+                    evaluation.mean_old_cost,
+                    evaluation.mean_new_cost,
+                    evaluation.deltas,
+                    evaluation.delta_sum,
+                    evaluation,
+                    sig_reason,
+                )
+
+        # Risk-adjusted check 2: Variance guard (if enabled)
+        if acceptance_config.max_coefficient_of_variation is not None:
+            is_acceptable, cv_reason = _is_variance_acceptable(
+                evaluation,
+                max_cv=acceptance_config.max_coefficient_of_variation,
+            )
+            if not is_acceptable:
+                # Log rejection reason for debugging
+                if self._verbose_logger:
+                    self._verbose_logger._console.print(
+                        f"  [yellow]Risk check:[/yellow] {cv_reason}"
+                    )
+                return (
+                    False,
+                    evaluation.mean_old_cost,
+                    evaluation.mean_new_cost,
+                    evaluation.deltas,
+                    evaluation.delta_sum,
+                    evaluation,
+                    cv_reason,
+                )
+
+        # All checks passed - build acceptance reason
+        checks_passed = ["delta_sum > 0"]
+        if acceptance_config.require_statistical_significance:
+            checks_passed.append("CI > 0")
+        if acceptance_config.max_coefficient_of_variation is not None:
+            checks_passed.append(f"CV ≤ {acceptance_config.max_coefficient_of_variation}")
+        accept_reason = "passed: " + ", ".join(checks_passed)
+
         return (
-            should_accept,
-            evaluation.mean_old_cost,  # ACTUAL, not current_cost
-            evaluation.mean_new_cost,  # ACTUAL, not estimate
+            True,
+            evaluation.mean_old_cost,
+            evaluation.mean_new_cost,
             evaluation.deltas,
             evaluation.delta_sum,
             evaluation,
+            accept_reason,
         )
 
     def _evaluate_temporal_acceptance(

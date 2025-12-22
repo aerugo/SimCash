@@ -222,19 +222,22 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Plot ALL proposed policies for BANK_A as X marks (including rejected)
-    all_costs_a = [p.cost_dollars for p in data_a.data_points]
-    ax_cost.scatter(
-        iterations_a,
-        all_costs_a,
-        color=COLORS["bank_a"],
-        marker="x",
-        s=60,
-        linewidths=1.5,
-        alpha=0.6,
-        label="BANK_A (proposed)",
-        zorder=3,
-    )
+    # Plot REJECTED costs for BANK_A as X marks
+    # Only rejected proposals are shown to avoid overlap with accepted trajectory
+    rejected_iters_a = [p.iteration for p in data_a.data_points if not p.accepted]
+    rejected_costs_a = [p.cost_dollars for p in data_a.data_points if not p.accepted]
+    if rejected_iters_a:
+        ax_cost.scatter(
+            rejected_iters_a,
+            rejected_costs_a,
+            color=COLORS["bank_a"],
+            marker="x",
+            s=80,
+            linewidths=2,
+            alpha=0.8,
+            label="BANK_A (rejected)",
+            zorder=5,
+        )
 
     # Build accepted cost trajectory for BANK_B
     iterations_b = [p.iteration for p in data_b.data_points]
@@ -249,19 +252,22 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Plot ALL proposed policies for BANK_B as X marks (including rejected)
-    all_costs_b = [p.cost_dollars for p in data_b.data_points]
-    ax_cost.scatter(
-        iterations_b,
-        all_costs_b,
-        color=COLORS["bank_b"],
-        marker="x",
-        s=60,
-        linewidths=1.5,
-        alpha=0.6,
-        label="BANK_B (proposed)",
-        zorder=3,
-    )
+    # Plot REJECTED costs for BANK_B as X marks
+    # Only rejected proposals are shown to avoid overlap with accepted trajectory
+    rejected_iters_b = [p.iteration for p in data_b.data_points if not p.accepted]
+    rejected_costs_b = [p.cost_dollars for p in data_b.data_points if not p.accepted]
+    if rejected_iters_b:
+        ax_cost.scatter(
+            rejected_iters_b,
+            rejected_costs_b,
+            color=COLORS["bank_b"],
+            marker="x",
+            s=80,
+            linewidths=2,
+            alpha=0.8,
+            label="BANK_B (rejected)",
+            zorder=5,
+        )
 
     ax_cost.set_title("Cost Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
     ax_cost.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])
@@ -287,19 +293,22 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Plot ALL proposed liquidity fractions for BANK_A as X marks
-    all_liq_a = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_a_liq.data_points]
-    ax_liq.scatter(
-        iterations_a_liq,
-        all_liq_a,
-        color=COLORS["bank_a"],
-        marker="x",
-        s=60,
-        linewidths=1.5,
-        alpha=0.6,
-        label="BANK_A (proposed)",
-        zorder=3,
-    )
+    # Plot REJECTED liquidity fractions for BANK_A as X marks
+    # Only rejected proposals are shown to avoid overlap with accepted trajectory
+    rejected_iters_a_liq = [p.iteration for p in data_a_liq.data_points if not p.accepted]
+    rejected_liq_a = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_a_liq.data_points if not p.accepted]
+    if rejected_iters_a_liq:
+        ax_liq.scatter(
+            rejected_iters_a_liq,
+            rejected_liq_a,
+            color=COLORS["bank_a"],
+            marker="x",
+            s=80,
+            linewidths=2,
+            alpha=0.8,
+            label="BANK_A (rejected)",
+            zorder=5,
+        )
 
     # Build accepted liquidity trajectory for BANK_B
     iterations_b_liq = [p.iteration for p in data_b_liq.data_points]
@@ -314,19 +323,22 @@ def generate_combined_convergence_chart(
         markersize=5,
     )
 
-    # Plot ALL proposed liquidity fractions for BANK_B as X marks
-    all_liq_b = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_b_liq.data_points]
-    ax_liq.scatter(
-        iterations_b_liq,
-        all_liq_b,
-        color=COLORS["bank_b"],
-        marker="x",
-        s=60,
-        linewidths=1.5,
-        alpha=0.6,
-        label="BANK_B (proposed)",
-        zorder=3,
-    )
+    # Plot REJECTED liquidity fractions for BANK_B as X marks
+    # Only rejected proposals are shown to avoid overlap with accepted trajectory
+    rejected_iters_b_liq = [p.iteration for p in data_b_liq.data_points if not p.accepted]
+    rejected_liq_b = [p.parameter_value if p.parameter_value is not None else 0.5 for p in data_b_liq.data_points if not p.accepted]
+    if rejected_iters_b_liq:
+        ax_liq.scatter(
+            rejected_iters_b_liq,
+            rejected_liq_b,
+            color=COLORS["bank_b"],
+            marker="x",
+            s=80,
+            linewidths=2,
+            alpha=0.8,
+            label="BANK_B (rejected)",
+            zorder=5,
+        )
 
     ax_liq.set_title("Liquidity Fraction Convergence", fontsize=12, fontweight="medium", color=COLORS["text"])
     ax_liq.set_xlabel("Iteration", fontsize=11, color=COLORS["text"])

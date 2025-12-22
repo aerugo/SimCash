@@ -144,6 +144,13 @@ def generate_results(provider: DataProvider) -> str:
     exp2_mean_iters = f"{exp2_conv_stats['mean_iterations']:.1f}"
     exp3_mean_iters = f"{exp3_conv_stats['mean_iterations']:.1f}"
 
+    # Compute exp2 liquidity range for cross-experiment summary
+    exp2_all_liqs = [s["bank_a_liquidity"] for s in exp2_summaries] + [
+        s["bank_b_liquidity"] for s in exp2_summaries
+    ]
+    exp2_liq_min = format_percent(min(exp2_all_liqs))
+    exp2_liq_max = format_percent(max(exp2_all_liqs))
+
     # Generate figure includes for each experiment
     exp1_fig = include_figure(
         path=f"{CHARTS_DIR}/exp1_pass1_combined.png",
@@ -313,8 +320,8 @@ Several key observations emerge from comparing results across experiments:
 
     \item \textbf{{Stochastic Environments Produce Symmetric Outcomes}}: While Experiments 1
     and 3 exhibited asymmetric free-rider equilibria despite varying cost structures,
-    Experiment 2's stochastic arrivals produced near-symmetric allocations (7--9\% for
-    both agents). This suggests payment timing uncertainty inhibits the free-rider dynamics
-    observed in deterministic scenarios, aligning with Castro et al.'s theoretical predictions.
+    Experiment 2's stochastic arrivals produced near-symmetric allocations ({exp2_liq_min}--{exp2_liq_max} for
+    both agents). This pattern is consistent with Castro et al.'s prediction that payment
+    timing uncertainty inhibits the free-rider dynamics observed in deterministic scenarios.
 \end{{enumerate}}
 """

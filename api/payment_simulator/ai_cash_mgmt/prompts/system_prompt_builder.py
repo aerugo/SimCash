@@ -633,3 +633,77 @@ def _build_final_instructions() -> str:
 
 The policy MUST be syntactically valid JSON that passes validation.
 """
+
+
+# =============================================================================
+# Public API for Documentation
+# =============================================================================
+
+
+def get_expert_introduction() -> str:
+    """Get the expert role introduction text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Returns:
+        The expert introduction prompt text.
+    """
+    return _build_expert_introduction()
+
+
+def get_domain_explanation(lsm_enabled: bool = True) -> str:
+    """Get the domain explanation text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Args:
+        lsm_enabled: Whether to include LSM section.
+
+    Returns:
+        The domain explanation prompt text.
+    """
+    return _build_domain_explanation_base(lsm_enabled=lsm_enabled)
+
+
+def get_cost_objectives() -> str:
+    """Get the cost objectives text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Returns:
+        The cost objectives prompt text.
+    """
+    return _build_cost_objectives()
+
+
+def get_optimization_process() -> str:
+    """Get the optimization process explanation text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Returns:
+        The optimization process prompt text.
+    """
+    return _build_optimization_process()
+
+
+def get_checklist() -> str:
+    """Get the pre-generation checklist text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Returns:
+        The checklist prompt text.
+    """
+    return _build_checklist()
+
+
+def get_final_instructions() -> str:
+    """Get the final instructions text.
+
+    Public API for documentation purposes (e.g., paper appendix).
+
+    Returns:
+        The final instructions prompt text.
+    """
+    return _build_final_instructions()

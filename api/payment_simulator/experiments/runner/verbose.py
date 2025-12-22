@@ -228,6 +228,7 @@ class BootstrapDeltaResult:
         old_policy_mean_cost: Mean cost with old policy (integer cents).
         new_policy_mean_cost: Mean cost with new policy (integer cents).
         num_samples: Number of bootstrap samples.
+        acceptance_reason: Human-readable reason for acceptance/rejection decision.
     """
 
     agent_id: str
@@ -236,6 +237,7 @@ class BootstrapDeltaResult:
     accepted: bool
     old_policy_mean_cost: int | None = None
     new_policy_mean_cost: int | None = None
+    acceptance_reason: str | None = None
 
     @property
     def num_samples(self) -> int:
@@ -656,11 +658,13 @@ class VerboseLogger:
 
         self._console.print(f"  Mean delta: {mean_delta_cents:,.1f}¢ per sample")
 
-        # Decision
+        # Decision with reason
         if result.accepted:
-            self._console.print("  Decision: [green]ACCEPTED[/green] (delta_sum > 0)")
+            reason = result.acceptance_reason or "delta_sum > 0"
+            self._console.print(f"  Decision: [green]ACCEPTED[/green] ({reason})")
         else:
-            self._console.print("  Decision: [red]REJECTED[/red] (delta_sum ≤ 0)")
+            reason = result.acceptance_reason or "delta_sum ≤ 0"
+            self._console.print(f"  Decision: [red]REJECTED[/red] ({reason})")
 
         self._console.print()
 

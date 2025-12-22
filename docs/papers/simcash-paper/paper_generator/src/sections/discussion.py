@@ -79,6 +79,22 @@ def generate_discussion(provider: DataProvider) -> str:
     exp2_best_total = min(s["total_cost"] for s in exp2_summaries)
     exp2_worst_total = max(s["total_cost"] for s in exp2_summaries)
 
+    # Compute exp2 liquidity range and symmetry metrics
+    exp2_all_liqs = [s["bank_a_liquidity"] for s in exp2_summaries] + [
+        s["bank_b_liquidity"] for s in exp2_summaries
+    ]
+    exp2_liq_min = min(exp2_all_liqs)
+    exp2_liq_max = max(exp2_all_liqs)
+
+    # Count symmetric passes (ratio < 2x considered symmetric)
+    exp2_symmetric_count = sum(
+        1
+        for s in exp2_summaries
+        if max(s["bank_a_liquidity"], s["bank_b_liquidity"])
+        / max(min(s["bank_a_liquidity"], s["bank_b_liquidity"]), 0.001)
+        < 2.0
+    )
+
     return rf"""
 \section{{Discussion}}
 \label{{sec:discussion}}
@@ -130,18 +146,20 @@ Our results show \textbf{{partial alignment}} with theoretical predictions:
 \begin{{itemize}}
     \item Final liquidity allocations were \textbf{{near-symmetric}}: BANK\_A averaged
     {format_percent(exp2_mean_a_liq)} and BANK\_B averaged {format_percent(exp2_mean_b_liq)}.
-    This contrasts sharply with Experiments 1 and 3, where deterministic schedules enabled
-    asymmetric free-rider equilibria. The symmetric outcome aligns with Castro et al.'s
-    prediction that stochastic arrivals inhibit free-riding.
+    Notably, all {exp2_symmetric_count} passes produced symmetric outcomes (liquidity ratios
+    below 2$\times$), contrasting sharply with Experiments 1 and 3 where deterministic schedules
+    enabled asymmetric free-rider equilibria with ratios exceeding 6$\times$. This pattern
+    is consistent with Castro et al.'s prediction that stochastic arrivals inhibit free-riding.
 
-    \item However, the observed 7--9\% range falls \textit{{below}} Castro's predicted 10--30\%,
-    suggesting LLM agents discovered lower-liquidity stable profiles. Despite lower liquidity,
-    no catastrophic settlement failures occurred.
+    \item However, the observed {format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)} range
+    falls \textit{{below}} Castro's predicted 10--30\%, suggesting LLM agents discovered
+    lower-liquidity stable profiles. Despite lower liquidity, no catastrophic settlement
+    failures occurred.
 
-    \item Equilibrium \textbf{{efficiency was remarkably consistent}}: total costs ranged from
-    {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}---only $\sim$6\% variance
-    compared to 2--4$\times$ variation in deterministic scenarios. This supports Castro's insight
-    that stochastic environments produce more robust/unique equilibria.
+    \item Total costs ranged from {format_money(exp2_best_total)} to {format_money(exp2_worst_total)}.
+    While this represents meaningful variation, the key finding is that \textit{{all passes}}
+    produced symmetric liquidity outcomes---unlike deterministic experiments where free-rider
+    dynamics dominated.
 \end{{itemize}}
 
 \subsubsection{{Experiment 3: Symmetric Cost Structure}}
@@ -175,7 +193,7 @@ on asymmetric outcomes.
 Experiment & Predicted & Observed & Alignment \\
 \hline
 Exp 1 (Asymmetric) & Asymmetric & Asymmetric (role varies) & Partial \\
-Exp 2 (Stochastic) & Symmetric, 10--30\% & Symmetric, 7--9\% & Partial (lower magnitude) \\
+Exp 2 (Stochastic) & Symmetric, 10--30\% & Symmetric, {format_percent(exp2_liq_min)}--{format_percent(exp2_liq_max)} & Partial (symmetric, lower magnitude) \\
 Exp 3 (Symmetric) & Symmetric & Asymmetric & Deviation \\
 \hline
 \end{{tabular}}

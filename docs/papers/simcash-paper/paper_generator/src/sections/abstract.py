@@ -45,15 +45,16 @@ its own costs and transaction history, never counterparty strategies. Through {t
 independent runs across {total_experiments} scenarios adapted from Castro et al., agents
 reliably converge to stable policy profiles ({convergence_pct}\% success in {total_passes}
 preliminary runs, mean {avg_iterations:.1f} iterations). However, outcome selection exhibits
-path-dependence: in deterministic symmetric games, agents consistently converge to \textit{{asymmetric}}
-free-rider outcomes, while stochastic environments produce near-symmetric equilibria---with the
-identity of the free-rider (when one emerges) determined by early exploration rather than cost structure.
+path-dependence: in deterministic scenarios, agents consistently converge to \textit{{asymmetric}}
+free-rider outcomes---even when the cost structure is symmetric---with the identity of the
+free-rider determined by early exploration. In contrast, stochastic environments produced
+near-symmetric equilibria with no free-rider emergence.
 
 These preliminary findings suggest that LLM-based policy optimization can discover
 equilibrium-like behavior without explicit game-theoretic modeling---though we do not
-formally verify the Nash condition (no unilateral deviation check). They also reveal
-that sequential best-response dynamics in multi-agent LLM systems may systematically
-favor asymmetric outcomes. Our small sample ({total_passes} runs) requires validation
-through expanded experimentation before drawing strong conclusions.
+formally verify the Nash condition. They also reveal that sequential best-response 
+dynamics in multi-agent LLM systems may systematically favor asymmetric outcomes. 
+Our small sample ({total_passes} runs) requires validation through expanded 
+experimentation before drawing strong conclusions.
 \end{{abstract}}
 """

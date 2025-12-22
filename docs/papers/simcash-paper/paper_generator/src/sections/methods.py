@@ -155,11 +155,29 @@ Each iteration proceeds as follows:
     replacement from this iteration's history, preserving settlement offset distributions
     \item \textbf{Paired comparison}: Evaluate both old and new policy on the \textit{same} 50 samples,
     computing $\delta_i = \text{cost}_{\text{old},i} - \text{cost}_{\text{new},i}$
-    \item \textbf{Acceptance}: Accept if $\sum_i \delta_i > 0$ (net improvement across samples)
+    \item \textbf{Acceptance}: Apply risk-adjusted criteria (see below)
 \end{enumerate}
 
 The paired comparison on identical samples eliminates sample-to-sample variance, enabling detection
 of smaller policy improvements than unpaired comparison would allow.
+
+\paragraph{Risk-Adjusted Acceptance Criteria.}
+Policy acceptance uses a two-stage evaluation to prevent accepting unstable policies:
+
+\begin{enumerate}
+    \item \textbf{Statistical significance}: The improvement must be statistically significant.
+    Specifically, the 95\% confidence interval for the cost delta must not cross zero
+    ($\sum_i \delta_i > 0$ is necessary but not sufficient). This prevents accepting policies
+    whose improvement could be due to random chance.
+
+    \item \textbf{Variance guard}: The new policy's coefficient of variation
+    (CV = $\sigma / \mu$) must be below 0.5. This prevents accepting policies with lower
+    mean cost but unacceptably high variance, which would result in unpredictable performance
+    under adverse market conditions.
+\end{enumerate}
+
+Both criteria are configurable per experiment. This approach draws from mean-variance
+optimization principles and ensures that accepted policies are both effective \textit{and} stable.
 
 \paragraph{Convergence Criterion.}
 Three criteria must ALL be satisfied over a 5-iteration window:

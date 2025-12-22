@@ -17,6 +17,34 @@ from payment_simulator.llm.config import LLMConfig
 
 
 @dataclass(frozen=True)
+class AcceptanceCriteriaConfig:
+    """Configuration for risk-adjusted policy acceptance criteria.
+
+    Controls additional checks beyond mean improvement to prevent accepting
+    unstable policies with high variance.
+
+    Attributes:
+        require_statistical_significance: If True, require 95% CI lower bound > 0.
+            Prevents accepting improvements that could be due to random chance.
+            Default False for backward compatibility.
+        max_coefficient_of_variation: Maximum acceptable CV (std_dev / mean).
+            If set, policies with CV > this threshold are rejected.
+            None means disabled. Common value: 0.5 (50%).
+
+    Example YAML:
+        evaluation:
+          mode: bootstrap
+          num_samples: 30
+          acceptance:
+            require_statistical_significance: true
+            max_coefficient_of_variation: 0.5
+    """
+
+    require_statistical_significance: bool = False
+    max_coefficient_of_variation: float | None = None
+
+
+@dataclass(frozen=True)
 class EvaluationConfig:
     """Evaluation mode configuration.
 
@@ -30,11 +58,15 @@ class EvaluationConfig:
             - 'deterministic-pairwise': Same iteration, compare old vs new on same seed
             - 'deterministic-temporal': Compare cost across iterations
         num_samples: Number of bootstrap samples (for bootstrap mode).
+        acceptance: Risk-adjusted acceptance criteria configuration.
     """
 
     ticks: int
     mode: str = "bootstrap"
     num_samples: int | None = 10
+    acceptance: AcceptanceCriteriaConfig = field(
+        default_factory=AcceptanceCriteriaConfig
+    )
 
     # Valid evaluation modes
     VALID_MODES: frozenset[str] = frozenset({
@@ -297,10 +329,23 @@ class ExperimentConfig:
 
         # Parse evaluation config
         eval_data = data["evaluation"]
+
+        # Parse acceptance criteria config (if present)
+        acceptance_data = eval_data.get("acceptance", {})
+        acceptance = AcceptanceCriteriaConfig(
+            require_statistical_significance=acceptance_data.get(
+                "require_statistical_significance", False
+            ),
+            max_coefficient_of_variation=acceptance_data.get(
+                "max_coefficient_of_variation", None
+            ),
+        )
+
         evaluation = EvaluationConfig(
             mode=eval_data.get("mode", "bootstrap"),
             num_samples=eval_data.get("num_samples", 10),
             ticks=eval_data["ticks"],
+            acceptance=acceptance,
         )
 
         # Parse convergence config

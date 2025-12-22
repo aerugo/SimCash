@@ -356,17 +356,10 @@ class ExperimentChartService:
                 )
 
             # Determine acceptance for chart trajectory
-            # See detailed comment in _extract_from_iterations_table for rationale
-            if evaluation_mode == "bootstrap":
-                # Bootstrap with per-iteration seeds: all policies accepted
-                # (paired comparison doesn't map to single-iteration acceptance)
-                accepted = True
-            elif evaluation_mode.startswith("deterministic"):
-                # Deterministic modes: all policies unconditionally accepted
-                accepted = True
-            else:
-                # Unknown mode: use database record
-                accepted = eval_record.accepted
+            # Use actual acceptance decision from database. For bootstrap mode,
+            # eval_record.accepted reflects the paired comparison result (whether
+            # new policy beat old policy on the same bootstrap samples).
+            accepted = eval_record.accepted
 
             data_points.append(
                 ChartDataPoint(
