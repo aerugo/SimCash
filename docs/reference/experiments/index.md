@@ -176,26 +176,6 @@ Experiment stops when:
 - Cost stable within `stability_threshold` for `stability_window` iterations, OR
 - No improvement greater than `improvement_threshold`
 
-## Integration with Castro
-
-The Castro experiments demonstrate YAML-only experiment configuration:
-
-```bash
-# List Castro experiments
-payment-sim experiment list experiments/castro/experiments/
-
-# Validate Castro experiment
-payment-sim experiment validate experiments/castro/experiments/exp1.yaml
-
-# Run Castro experiment (uses GenericExperimentRunner)
-payment-sim experiment run experiments/castro/experiments/exp1.yaml
-
-# With verbose output
-payment-sim experiment run experiments/castro/experiments/exp1.yaml --verbose
-```
-
-Castro experiments include inline `system_prompt` and `policy_constraints` - no Python code required.
-
 ## Module Structure
 
 ```
