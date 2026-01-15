@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
-A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) systems like TARGET2, Fedwire, and CHAPS. Built for financial researchers, central banks, and policy analysts who need deterministic, high-performance payment system simulation.
+A hybrid Rust-Python simulator for modeling Real-Time Gross Settlement (RTGS) systems. Built for financial researchers who need deterministic, high-performance payment system simulation, or simply those who need a simulator in which to test multi-agent interactions with LLMs.
 
 ## What is This?
 
