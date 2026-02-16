@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import type { SimulationState, SimEvent } from '../types';
 import { fmtCost, getAgentColor } from '../utils';
 import { exportSimulation } from '../api';
@@ -92,10 +92,10 @@ export function AnalysisView({ state, events, simId }: { state: SimulationState;
               <h3 className="text-sm font-semibold text-slate-300 mb-2">{id} — {fmtCost(agent.costs.total)}</h3>
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
-                  <Pie data={data} dataKey="value" cx="50%" cy="50%" outerRadius={60} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={data} dataKey="value" cx="50%" cy="50%" outerRadius={60} label={({ name, percent }: { name?: string; percent?: number }) => `${name ?? ''} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                     {data.map((_, i) => <Cell key={i} fill={COST_COLORS[i % COST_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} formatter={(v: number) => fmtCost(v)} />
+                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }} formatter={((v: any) => fmtCost(Number(v))) as any} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

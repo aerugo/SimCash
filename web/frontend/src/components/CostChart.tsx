@@ -67,7 +67,8 @@ export function CostChart({ history }: { history: Record<string, CostBreakdown[]
           <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
           <XAxis dataKey="tick" stroke="#64748b" tick={{ fontSize: 12 }} />
           <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
-          <Tooltip {...tooltipStyle} labelFormatter={(l) => `Tick ${l}`} formatter={(v: number, n: string) => [`$${v.toFixed(2)}`, n]} />
+          <Tooltip {...tooltipStyle} labelFormatter={(l) => `Tick ${l}`} // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          formatter={((v: any, n: any) => [`$${Number(v ?? 0).toFixed(2)}`, n ?? '']) as any} />
           <Legend />
           {agents.map((agent, i) => (
             <Line key={agent} type="monotone" dataKey={agent} stroke={getAgentColor(agent, i)} strokeWidth={2} dot={{ r: 3 }} />

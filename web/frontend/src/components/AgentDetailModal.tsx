@@ -50,7 +50,7 @@ export function AgentDetailModal({ agentId, agent, balanceHistory, costHistory, 
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis dataKey="tick" stroke="#64748b" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(v: number) => `$${v}`} />
-                <Tooltip {...tooltipStyle} formatter={(v: number) => [`$${v.toFixed(2)}`, 'Balance']} />
+                <Tooltip {...tooltipStyle} formatter={((v: any) => [`$${Number(v??0).toFixed(2)}`, 'Balance']) as any} />
                 <Line type="monotone" dataKey="balance" stroke="#38bdf8" strokeWidth={2} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>

@@ -1,5 +1,5 @@
 import type { SimulationState } from '../types';
-import { fmtDollars, fmtCost } from '../utils';
+import { fmtCost } from '../utils';
 
 export function SimulationSummary({ state }: { state: SimulationState }) {
   if (!state.is_complete) return null;

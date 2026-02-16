@@ -43,7 +43,8 @@ export function BalanceChart({ history }: { history: Record<string, number[]> })
         <Tooltip
           contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' }}
           labelStyle={{ color: '#94a3b8' }}
-          formatter={(value: number, name: string) => [`$${value.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, name]}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          formatter={((value: any, name: any) => [`$${Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, name ?? '']) as any}
           labelFormatter={(label) => `Tick ${label}`}
         />
         <Legend onClick={(e) => { if (e.dataKey) toggleAgent(String(e.dataKey)); }} wrapperStyle={{ cursor: 'pointer' }} />
