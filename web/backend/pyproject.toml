@@ -1,0 +1,21 @@
+[project]
+name = "simcash-web"
+version = "0.1.0"
+description = "SimCash Interactive Web Sandbox"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "websockets>=14.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "openai>=1.60.0",
+    "python-dotenv>=1.0",
+    "payment-simulator",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.uv.sources]
+payment-simulator = { path = "../../api" }

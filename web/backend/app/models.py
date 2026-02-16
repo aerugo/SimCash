@@ -1,0 +1,95 @@
+"""Pydantic models for the web API."""
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+
+class PresetScenario(str, Enum):
+    EXP1 = "exp1"
+    EXP2 = "exp2"
+    EXP3 = "exp3"
+
+
+class AgentType(str, Enum):
+    AI = "ai"
+    HUMAN = "human"
+    FIFO = "fifo"
+
+
+class AgentSetup(BaseModel):
+    id: str
+    agent_type: AgentType = AgentType.AI
+    liquidity_pool: int = 100_000
+    opening_balance: int = 0
+    unsecured_cap: int = 0
+
+
+class ScenarioConfig(BaseModel):
+    """Configuration for creating a simulation."""
+    preset: PresetScenario | None = None
+    # Custom config overrides (used when preset is None)
+    ticks_per_day: int = 3
+    num_days: int = 1
+    rng_seed: int = 42
+    agents: list[AgentSetup] | None = None
+    # Cost parameters
+    liquidity_cost_per_tick_bps: float = 333
+    delay_cost_per_tick_per_cent: float = 0.2
+    eod_penalty_per_transaction: int = 100_000
+    deadline_penalty: int = 50_000
+    deferred_crediting: bool = True
+    deadline_cap_at_eod: bool = True
+
+
+class SimulationState(BaseModel):
+    """Current state of a simulation."""
+    sim_id: str
+    current_tick: int
+    current_day: int
+    total_ticks: int
+    is_complete: bool
+    agents: dict[str, AgentState]
+    events: list[dict[str, Any]] = []
+
+
+class AgentState(BaseModel):
+    balance: int = 0
+    available_liquidity: int = 0
+    queue1_size: int = 0
+    posted_collateral: int = 0
+    costs: CostBreakdown = Field(default_factory=lambda: CostBreakdown())
+
+
+class CostBreakdown(BaseModel):
+    liquidity_cost: float = 0.0
+    delay_cost: float = 0.0
+    penalty_cost: float = 0.0
+    total: float = 0.0
+
+
+class TickResult(BaseModel):
+    tick: int
+    num_arrivals: int = 0
+    num_settlements: int = 0
+    agents: dict[str, AgentState]
+    events: list[dict[str, Any]] = []
+    llm_decisions: dict[str, Any] = {}
+
+
+class PaymentDecision(str, Enum):
+    RELEASE = "Release"
+    HOLD = "Hold"
+
+
+class HumanDecision(BaseModel):
+    """Human player's decisions for a tick."""
+    payment_decisions: dict[str, PaymentDecision] = {}  # tx_id -> decision
+    initial_liquidity_fraction: float | None = None
+
+
+class CreateSimResponse(BaseModel):
+    sim_id: str
+    config: dict[str, Any]
