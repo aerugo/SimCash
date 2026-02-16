@@ -1,49 +1,71 @@
 import type { SimEvent } from '../types';
 
 const EVENT_COLORS: Record<string, string> = {
-  arrival: 'text-sky-300',
-  policy_submit: 'text-green-300',
-  policy_hold: 'text-amber-300',
-  rtgs_immediate_settlement: 'text-emerald-300',
-  cost_accrual: 'text-slate-400',
-  end_of_day: 'text-violet-300',
-  scenario_event_executed: 'text-cyan-300',
-  deferred_credit_applied: 'text-blue-300',
-  transaction_went_overdue: 'text-red-300',
-  queue2_liquidity_release: 'text-lime-300',
+  Arrival: 'text-sky-300',
+  PolicySubmit: 'text-green-300',
+  PolicyHold: 'text-amber-300',
+  RtgsImmediateSettlement: 'text-emerald-300',
+  CostAccrual: 'text-slate-400',
+  EndOfDay: 'text-violet-300',
+  ScenarioEventExecuted: 'text-cyan-300',
+  DeferredCreditApplied: 'text-blue-300',
+  TransactionWentOverdue: 'text-red-300',
+  Queue2LiquidityRelease: 'text-lime-300',
+  RtgsSubmission: 'text-teal-300',
+  RtgsQueue2Settle: 'text-indigo-300',
 };
+
+const EVENT_ICONS: Record<string, string> = {
+  Arrival: '📥',
+  PolicySubmit: '📤',
+  PolicyHold: '⏳',
+  RtgsImmediateSettlement: '✅',
+  CostAccrual: '💰',
+  EndOfDay: '🏁',
+  ScenarioEventExecuted: '⚡',
+  DeferredCreditApplied: '💳',
+  TransactionWentOverdue: '⚠️',
+  RtgsSubmission: '📋',
+  RtgsQueue2Settle: '🔄',
+};
+
+function fmt$(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
 
 function formatEvent(ev: SimEvent): string {
   const t = ev.event_type;
-  if (t === 'arrival') {
-    return `📥 Arrival: ${ev.sender_id} → ${ev.receiver_id} $${((ev.amount as number) / 100).toFixed(2)} (deadline: tick ${ev.deadline})`;
+  const icon = EVENT_ICONS[t] || '•';
+
+  switch (t) {
+    case 'Arrival':
+      return `${icon} ${ev.sender_id} → ${ev.receiver_id}: ${fmt$(ev.amount as number)} (deadline t=${ev.deadline})`;
+    case 'PolicySubmit':
+      return `${icon} ${ev.agent_id} submits ${(ev.tx_id as string).slice(0, 8)}…`;
+    case 'PolicyHold':
+      return `${icon} ${ev.agent_id} holds ${(ev.tx_id as string).slice(0, 8)}… — ${ev.reason}`;
+    case 'RtgsImmediateSettlement':
+      return `${icon} ${ev.sender} → ${ev.receiver}: ${fmt$(ev.amount as number)}`;
+    case 'CostAccrual': {
+      const c = ev.costs as Record<string, number> | undefined;
+      if (!c) return `${icon} ${ev.agent_id}: costs accrued`;
+      return `${icon} ${ev.agent_id}: liq=${c.liquidity_cost?.toFixed(1)} delay=${c.delay_cost?.toFixed(1)} total=${c.total?.toFixed(1)}`;
+    }
+    case 'EndOfDay':
+      return `${icon} End of Day ${ev.day}: ${ev.unsettled_count} unsettled`;
+    case 'ScenarioEventExecuted':
+      return `${icon} ${ev.scenario_event_type}`;
+    case 'DeferredCreditApplied':
+      return `${icon} ${ev.agent_id} credited ${fmt$(ev.amount as number)}`;
+    case 'TransactionWentOverdue':
+      return `${icon} ${(ev.tx_id as string).slice(0, 8)}… overdue (${ev.sender_id} → ${ev.receiver_id})`;
+    case 'RtgsSubmission':
+      return `${icon} ${ev.sender} → ${ev.receiver}: ${fmt$(ev.amount as number)} submitted to RTGS`;
+    case 'RtgsQueue2Settle':
+      return `${icon} ${ev.sender} → ${ev.receiver}: ${fmt$(ev.amount as number)} settled from queue`;
+    default:
+      return `${icon} ${t}`;
   }
-  if (t === 'policy_submit') {
-    return `📤 Submit: ${ev.agent_id} submits ${ev.tx_id}`;
-  }
-  if (t === 'policy_hold') {
-    return `⏳ Hold: ${ev.agent_id} holds ${ev.tx_id} — ${ev.reason}`;
-  }
-  if (t === 'rtgs_immediate_settlement') {
-    return `✅ Settlement: ${ev.sender} → ${ev.receiver} $${((ev.amount as number) / 100).toFixed(2)}`;
-  }
-  if (t === 'cost_accrual') {
-    const costs = ev.costs as Record<string, number>;
-    return `💰 Costs ${ev.agent_id}: liq=${costs?.liquidity_cost?.toFixed(2)} delay=${costs?.delay_cost?.toFixed(2)}`;
-  }
-  if (t === 'end_of_day') {
-    return `🏁 End of Day ${ev.day}: ${ev.unsettled_count} unsettled, penalties=$${ev.total_penalties}`;
-  }
-  if (t === 'scenario_event_executed') {
-    return `⚡ Scenario event: ${ev.scenario_event_type}`;
-  }
-  if (t === 'deferred_credit_applied') {
-    return `💳 Deferred credit: ${ev.agent_id} +$${((ev.amount as number) / 100).toFixed(2)}`;
-  }
-  if (t === 'transaction_went_overdue') {
-    return `⚠️ Overdue: ${ev.tx_id} (${ev.sender_id} → ${ev.receiver_id})`;
-  }
-  return `${t}: ${JSON.stringify(ev).slice(0, 100)}`;
 }
 
 export function EventLog({ events }: { events: SimEvent[] }) {
@@ -51,12 +73,29 @@ export function EventLog({ events }: { events: SimEvent[] }) {
     return <div className="text-slate-500 text-sm italic">No events yet. Click Step or Play to start.</div>;
   }
 
+  // Group by tick
+  const byTick = new Map<number, SimEvent[]>();
+  for (const ev of events) {
+    const list = byTick.get(ev.tick) || [];
+    list.push(ev);
+    byTick.set(ev.tick, list);
+  }
+
   return (
-    <div className="max-h-80 overflow-y-auto space-y-0.5 font-mono text-xs">
-      {events.map((ev, i) => (
-        <div key={i} className={`py-1 px-2 rounded hover:bg-slate-700/50 ${EVENT_COLORS[ev.event_type] || 'text-slate-300'}`}>
-          <span className="text-slate-500 mr-2">t={ev.tick}</span>
-          {formatEvent(ev)}
+    <div className="max-h-80 overflow-y-auto space-y-2 font-mono text-xs">
+      {[...byTick.entries()].map(([tick, tickEvents]) => (
+        <div key={tick}>
+          <div className="text-slate-500 font-semibold text-[10px] uppercase tracking-wider mb-1">
+            Tick {tick}
+          </div>
+          {tickEvents.map((ev, i) => (
+            <div
+              key={`${tick}-${i}`}
+              className={`py-0.5 px-2 rounded hover:bg-slate-700/50 ${EVENT_COLORS[ev.event_type] || 'text-slate-300'}`}
+            >
+              {formatEvent(ev)}
+            </div>
+          ))}
         </div>
       ))}
     </div>
