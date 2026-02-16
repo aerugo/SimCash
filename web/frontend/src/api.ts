@@ -1,4 +1,4 @@
-import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult } from './types';
+import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult, AgentReasoning } from './types';
 
 const BASE = '/api';
 
@@ -86,6 +86,12 @@ export async function saveScenario(scenario: { name: string; description: string
 
 export async function deleteScenario(id: string): Promise<void> {
   await fetch(`${BASE}/scenarios/${id}`, { method: 'DELETE' });
+}
+
+export async function getReasoning(simId: string): Promise<Record<string, AgentReasoning[]>> {
+  const res = await fetch(`${BASE}/simulations/${simId}/reasoning`);
+  const data = await res.json();
+  return data.reasoning;
 }
 
 export function connectWebSocket(simId: string): WebSocket {

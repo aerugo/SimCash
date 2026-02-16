@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig } from './types';
+import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning } from './types';
 import { createSimulation, getPresets, connectWebSocket } from './api';
 import { ToastContainer, toast } from './components/Toast';
 import { HomeView } from './views/HomeView';
@@ -9,10 +9,12 @@ import { ConfigView } from './views/ConfigView';
 import { ReplayView } from './views/ReplayView';
 import { AnalysisView } from './views/AnalysisView';
 import { LibraryView } from './views/LibraryView';
+import { AgentsView } from './views/AgentsView';
 
 const TABS: { id: TabId; label: string; icon: string; requiresSim: boolean }[] = [
   { id: 'home', label: 'Setup', icon: '🏠', requiresSim: false },
   { id: 'dashboard', label: 'Dashboard', icon: '📊', requiresSim: true },
+  { id: 'agents', label: 'Agents', icon: '🧠', requiresSim: true },
   { id: 'events', label: 'Events', icon: '📋', requiresSim: true },
   { id: 'config', label: 'Config', icon: '⚙️', requiresSim: true },
   { id: 'replay', label: 'Replay', icon: '🔄', requiresSim: true },
@@ -26,6 +28,7 @@ function App() {
   const [simId, setSimId] = useState<string | null>(null);
   const [state, setState] = useState<SimulationState | null>(null);
   const [events, setEvents] = useState<SimEvent[]>([]);
+  const [reasoning, setReasoning] = useState<Record<string, AgentReasoning[]>>({});
   const [isRunning, setIsRunning] = useState(false);
   const [speed, setSpeed] = useState(500);
   const wsRef = useRef<WebSocket | null>(null);
@@ -39,6 +42,7 @@ function App() {
       const res = await createSimulation(configOrPreset);
       setSimId(res.sim_id);
       setEvents([]);
+      setReasoning({});
       setIsRunning(false);
       setTab('dashboard');
       toast(`Simulation ${res.sim_id} created`, 'success');
@@ -65,6 +69,18 @@ function App() {
             cost_history: tick.cost_history,
           } : prev);
           setEvents(prev => [...prev, ...tick.events]);
+          // Capture reasoning data
+          const tickReasoning = (msg.data as Record<string, unknown>).reasoning as Record<string, AgentReasoning> | undefined;
+          if (tickReasoning) {
+            setReasoning(prev => {
+              const next = { ...prev };
+              for (const [aid, trace] of Object.entries(tickReasoning)) {
+                if (!next[aid]) next[aid] = [];
+                next[aid] = [...next[aid], trace];
+              }
+              return next;
+            });
+          }
           if (tick.is_complete) {
             setIsRunning(false);
             toast('Simulation complete!', 'success');
@@ -98,6 +114,7 @@ function App() {
     setSimId(null);
     setState(null);
     setEvents([]);
+    setReasoning({});
     setIsRunning(false);
     setTab('home');
   }, []);
@@ -183,7 +200,13 @@ function App() {
             onPause={handlePause}
             onReset={handleReset}
             onSpeedChange={setSpeed}
+            reasoning={reasoning}
+            onNavigateToAgents={() => setTab('agents')}
           />
+        )}
+
+        {tab === 'agents' && (
+          <AgentsView reasoning={reasoning} />
         )}
 
         {tab === 'events' && (

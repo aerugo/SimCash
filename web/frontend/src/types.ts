@@ -85,6 +85,8 @@ export interface ScenarioConfig {
   payment_schedule: PaymentEntry[] | null;
   enable_bilateral_lsm: boolean;
   enable_cycle_lsm: boolean;
+  use_llm: boolean;
+  mock_reasoning: boolean;
 }
 
 export interface SavedScenario {
@@ -102,4 +104,18 @@ export interface CompareResult {
   error?: string;
 }
 
-export type TabId = 'home' | 'dashboard' | 'events' | 'config' | 'replay' | 'analysis' | 'library';
+export interface AgentReasoning {
+  tick: number;
+  agent_id: string;
+  phase: 'thinking' | 'decided';
+  decision_type: 'liquidity_allocation' | 'payment_timing';
+  decision: string;
+  reasoning: string;
+  reasoning_summary: string;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  error?: string;
+  fallback?: boolean;
+}
+
+export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library';

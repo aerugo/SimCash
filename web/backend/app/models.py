@@ -49,6 +49,9 @@ class ScenarioConfig(BaseModel):
     # LSM toggles
     enable_bilateral_lsm: bool = False
     enable_cycle_lsm: bool = False
+    # LLM reasoning
+    use_llm: bool = False
+    mock_reasoning: bool = True
 
 
 class PaymentEntry(BaseModel):

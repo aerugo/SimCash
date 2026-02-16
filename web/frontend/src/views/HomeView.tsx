@@ -19,6 +19,8 @@ const DEFAULT_CONFIG: ScenarioConfig = {
   payment_schedule: [],
   enable_bilateral_lsm: false,
   enable_cycle_lsm: false,
+  use_llm: false,
+  mock_reasoning: true,
 };
 
 interface Props {
@@ -33,7 +35,12 @@ export function HomeView({ presets, onLaunch }: Props) {
 
   const handleLaunch = () => {
     if (mode === 'preset') {
-      onLaunch(selectedPreset);
+      if (config.use_llm) {
+        // Pass LLM config with preset
+        onLaunch({ ...DEFAULT_CONFIG, preset: selectedPreset, use_llm: config.use_llm, mock_reasoning: config.mock_reasoning });
+      } else {
+        onLaunch(selectedPreset);
+      }
     } else {
       onLaunch(config);
     }
@@ -326,6 +333,28 @@ export function HomeView({ presets, onLaunch }: Props) {
           </div>
         </div>
       )}
+
+      {/* AI Reasoning */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-300">🧠 AI Agent Reasoning (GPT-5.2)</h3>
+            <p className="text-xs text-slate-500 mt-1">Watch agents think through decisions in real-time</p>
+          </div>
+          <Toggle label="" value={config.use_llm} onChange={v => setConfig({ ...config, use_llm: v })} />
+        </div>
+        {config.use_llm && (
+          <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
+            <div>
+              <span className="text-xs text-slate-400">Mock Mode</span>
+              <span className="text-[10px] text-slate-600 ml-2">
+                {config.mock_reasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
+              </span>
+            </div>
+            <Toggle label="" value={config.mock_reasoning} onChange={v => setConfig({ ...config, mock_reasoning: v })} />
+          </div>
+        )}
+      </div>
 
       <button
         onClick={handleLaunch}

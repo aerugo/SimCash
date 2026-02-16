@@ -193,6 +193,17 @@ def replay_info(sim_id: str):
     }
 
 
+# ---- Reasoning ----
+
+@app.get("/api/simulations/{sim_id}/reasoning")
+def get_reasoning(sim_id: str):
+    """Get all reasoning traces for a simulation."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {"reasoning": sim.reasoning_history}
+
+
 # ---- Scenario Events ----
 
 @app.get("/api/simulations/{sim_id}/events")
@@ -351,7 +362,10 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
     async def auto_run():
         nonlocal running
         while running and not sim.is_complete:
-            result = sim.do_tick()
+            if sim.use_llm:
+                result = await sim.do_tick_async()
+            else:
+                result = sim.do_tick()
             await websocket.send_json({"type": "tick", "data": result})
             await asyncio.sleep(speed_ms / 1000.0)
         if sim.is_complete:
@@ -373,7 +387,10 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
 
             if action == "tick":
                 if not sim.is_complete:
-                    result = sim.do_tick()
+                    if sim.use_llm:
+                        result = await sim.do_tick_async()
+                    else:
+                        result = sim.do_tick()
                     await websocket.send_json({"type": "tick", "data": result})
                 else:
                     await websocket.send_json({"type": "complete", "data": sim.get_state()})

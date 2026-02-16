@@ -16,6 +16,7 @@ from payment_simulator._core import Orchestrator  # type: ignore[import-untyped]
 from payment_simulator.config.schemas import SimulationConfig  # type: ignore[import-untyped]
 
 from .models import AgentSetup, AgentType, PresetScenario, ScenarioConfig
+from .llm_agent import get_llm_decision
 
 CONFIGS_DIR = Path(__file__).resolve().parents[3] / "docs" / "papers" / "simcash-paper" / "paper_generator" / "configs"
 
@@ -112,6 +113,9 @@ class SimulationManager:
             ffi_config=ffi_config,
             total_ticks=total_ticks,
             agent_types=agent_types,
+            use_llm=config.use_llm,
+            mock_reasoning=config.mock_reasoning,
+            scenario_config=config,
         )
         self.simulations[sim_id] = instance
         return sim_id
@@ -132,6 +136,9 @@ class SimulationInstance:
         ffi_config: dict[str, Any],
         total_ticks: int,
         agent_types: dict[str, AgentType],
+        use_llm: bool = False,
+        mock_reasoning: bool = True,
+        scenario_config: ScenarioConfig | None = None,
     ) -> None:
         self.sim_id = sim_id
         self.orch = orchestrator
@@ -142,6 +149,10 @@ class SimulationInstance:
         self.tick_history: list[dict[str, Any]] = []
         self.balance_history: dict[str, list[int]] = {}
         self.cost_history: dict[str, list[dict[str, float]]] = {}
+        self.use_llm = use_llm
+        self.mock_reasoning = mock_reasoning
+        self.scenario_config = scenario_config
+        self.reasoning_history: dict[str, list[dict[str, Any]]] = {}
 
     @property
     def is_complete(self) -> bool:
@@ -179,11 +190,52 @@ class SimulationInstance:
             "cost_history": self.cost_history,
         }
 
+    def _get_scenario_context(self) -> dict[str, Any]:
+        sc = self.scenario_config
+        return {
+            "liquidity_cost_bps": sc.liquidity_cost_per_tick_bps if sc else 333,
+            "delay_cost": sc.delay_cost_per_tick_per_cent if sc else 0.2,
+            "deadline_penalty": sc.deadline_penalty if sc else 50_000,
+            "deferred_crediting": sc.deferred_crediting if sc else True,
+        }
+
+    async def do_tick_async(self) -> dict[str, Any]:
+        """Async version that supports LLM reasoning."""
+        if self.is_complete:
+            return {"error": "Simulation complete"}
+
+        tick_num = self.orch.current_tick()
+        reasoning: dict[str, Any] = {}
+
+        if self.use_llm:
+            ctx = self._get_scenario_context()
+            for aid in self.get_agent_ids():
+                agent_state = self._get_agent_data(aid)
+                trace = await get_llm_decision(
+                    agent_id=aid,
+                    tick=tick_num,
+                    agent_state=agent_state,
+                    scenario_context=ctx,
+                    mock=self.mock_reasoning,
+                )
+                reasoning[aid] = trace
+                if aid not in self.reasoning_history:
+                    self.reasoning_history[aid] = []
+                self.reasoning_history[aid].append(trace)
+
+        result = self._execute_tick(tick_num)
+        if reasoning:
+            result["reasoning"] = reasoning
+        return result
+
     def do_tick(self) -> dict[str, Any]:
         if self.is_complete:
             return {"error": "Simulation complete"}
 
         tick_num = self.orch.current_tick()
+        return self._execute_tick(tick_num)
+
+    def _execute_tick(self, tick_num: int) -> dict[str, Any]:
         result = self.orch.tick()
         events = self.orch.get_tick_events(tick_num)
 

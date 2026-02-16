@@ -1,4 +1,4 @@
-import type { SimulationState, SimEvent } from '../types';
+import type { SimulationState, SimEvent, AgentReasoning } from '../types';
 import { BalanceChart } from '../components/BalanceChart';
 import { CostChart } from '../components/CostChart';
 import { EventLog } from '../components/EventLog';
@@ -7,6 +7,7 @@ import { Controls } from '../components/Controls';
 import { QueueVisualization } from '../components/QueueVisualization';
 import { PaymentFlow } from '../components/PaymentFlow';
 import { SimulationSummary } from '../components/SimulationSummary';
+import { AgentReasoningPanel } from '../components/AgentReasoningPanel';
 
 interface Props {
   state: SimulationState;
@@ -18,9 +19,11 @@ interface Props {
   onPause: () => void;
   onReset: () => void;
   onSpeedChange: (ms: number) => void;
+  reasoning?: Record<string, AgentReasoning[]>;
+  onNavigateToAgents?: () => void;
 }
 
-export function DashboardView({ state, events, isRunning, speed, onTick, onRun, onPause, onReset, onSpeedChange }: Props) {
+export function DashboardView({ state, events, isRunning, speed, onTick, onRun, onPause, onReset, onSpeedChange, reasoning, onNavigateToAgents }: Props) {
   return (
     <div className="space-y-6">
       {/* Summary when complete */}
@@ -44,6 +47,13 @@ export function DashboardView({ state, events, isRunning, speed, onTick, onRun, 
         balanceHistory={state.balance_history}
         costHistory={state.cost_history}
       />
+
+      {/* Reasoning Preview */}
+      {reasoning && Object.keys(reasoning).length > 0 && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
+          <AgentReasoningPanel reasoning={reasoning} compact onNavigateToAgents={onNavigateToAgents} />
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

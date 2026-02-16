@@ -1,212 +1,298 @@
-"""LLM Agent for SimCash interactive sandbox.
+"""LLM-based agent reasoning for SimCash simulations.
 
-Uses OpenAI GPT-5.2 with high reasoning to make bank decisions:
-1. Initial liquidity allocation (what fraction of pool to commit)
-2. Per-tick payment decisions (Release/Hold)
+Supports real OpenAI calls (GPT-5.2) and mock reasoning mode.
 """
-
 from __future__ import annotations
 
-import json
-import logging
-import os
+import random
+import time
 from typing import Any
 
-from openai import AsyncOpenAI
 
-logger = logging.getLogger(__name__)
-
-MODEL = "gpt-5.2"
-REASONING_EFFORT = "high"
-
-
-def _get_client() -> AsyncOpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY not set")
-    return AsyncOpenAI(api_key=api_key)
-
-
-def _format_scenario_context(scenario: dict[str, Any], agent_id: str) -> str:
-    """Format scenario into a readable context for the LLM."""
-    cost_rates = scenario.get("cost_rates", {})
-    agents = scenario.get("agents", [])
-    agent_info = next((a for a in agents if a["id"] == agent_id), {})
-    
-    # Format payment schedule
-    events = scenario.get("scenario_events", [])
-    payment_schedule = []
-    for ev in events:
-        if ev.get("from_agent") == agent_id:
-            payment_schedule.append(
-                f"  - Send ${ev['amount']/100:.2f} to {ev['to_agent']} at tick {ev['schedule']['tick']}, deadline {ev['deadline']}"
-            )
-    
-    incoming = []
-    for ev in events:
-        if ev.get("to_agent") == agent_id:
-            incoming.append(
-                f"  - Receive ${ev['amount']/100:.2f} from {ev['from_agent']} at tick {ev['schedule']['tick']}"
-            )
-    
-    # Arrival config (for stochastic scenarios)
-    arrival_info = ""
-    if "arrival_config" in agent_info:
-        ac = agent_info["arrival_config"]
-        arrival_info = f"""
-Stochastic Arrivals:
-  Rate: {ac['rate_per_tick']} payments/tick (Poisson)
-  Amount distribution: {ac['amount_distribution']['type']} (mean={ac['amount_distribution'].get('mean', 'N/A')})
-  Deadline range: {ac.get('deadline_range', 'N/A')} ticks"""
-    
-    return f"""
-=== SCENARIO CONTEXT FOR {agent_id} ===
-
-Simulation: {scenario['ticks_per_day']} ticks per day, {scenario['num_days']} day(s)
-
-Your Bank ({agent_id}):
-  Liquidity Pool: ${agent_info.get('liquidity_pool', 0)/100:.2f}
-  Opening Balance: ${agent_info.get('opening_balance', 0)/100:.2f}
-  Unsecured Credit Cap: ${agent_info.get('unsecured_cap', 0)/100:.2f}
-
-Cost Rates:
-  Liquidity cost: {cost_rates.get('liquidity_cost_per_tick_bps', 0)} bps/tick
-  Delay cost: {cost_rates.get('delay_cost_per_tick_per_cent', 0)} per cent per tick
-  Overdraft: {cost_rates.get('overdraft_bps_per_tick', 0)} bps/tick
-  EOD penalty: ${cost_rates.get('eod_penalty_per_transaction', 0)/100:.2f} per transaction
-  Deadline penalty: ${cost_rates.get('deadline_penalty', 0)/100:.2f}
-
-Outgoing Payments:
-{chr(10).join(payment_schedule) if payment_schedule else '  (stochastic - see arrival config)'}
-
-Expected Incoming:
-{chr(10).join(incoming) if incoming else '  (stochastic - see arrival config)'}
-{arrival_info}
-
-Other Banks: {', '.join(a['id'] for a in agents if a['id'] != agent_id)}
-
-Deferred Crediting: {scenario.get('deferred_crediting', False)}
-LSM: bilateral={scenario.get('lsm_config', {}).get('enable_bilateral', False)}, cycles={scenario.get('lsm_config', {}).get('enable_cycles', False)}
-"""
-
-
-async def get_initial_decisions(
-    agent_ids: list[str],
-    scenario: dict[str, Any],
-    llm_prompt: str = "",
-) -> dict[str, dict[str, Any]]:
-    """Ask GPT-5.2 for initial liquidity allocation decisions for all agents.
-    
-    Returns dict mapping agent_id -> {"initial_liquidity_fraction": float, "reasoning": str}
-    """
-    client = _get_client()
-    decisions: dict[str, dict[str, Any]] = {}
-    
-    for agent_id in agent_ids:
-        context = _format_scenario_context(scenario, agent_id)
-        
-        system_prompt = f"""You are an expert cash manager at {agent_id}, a bank in an RTGS payment system.
-Your goal is to minimize total costs (liquidity costs + delay penalties + EOD penalties).
-
-{llm_prompt}
-
-You must decide what fraction of your liquidity pool to allocate at the start of the day.
-- Allocating more = more capacity to settle payments, but higher opportunity cost
-- Allocating less = lower cost, but risk of payment failures/delays
-
-Respond with ONLY a JSON object:
-{{"initial_liquidity_fraction": <float 0.0-1.0>, "reasoning": "<brief explanation>"}}"""
-
-        try:
-            response = await client.chat.completions.create(
-                model=MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": context},
-                ],
-                temperature=0.5,
-                reasoning={
-                    "effort": REASONING_EFFORT,
-                    "summary": "detailed",
-                },
-                response_format={"type": "json_object"},
-                timeout=120,
-            )
-            
-            content = response.choices[0].message.content or "{}"
-            decision = json.loads(content)
-            
-            # Extract reasoning summary if available
-            reasoning_summary = ""
-            if hasattr(response.choices[0].message, 'reasoning') and response.choices[0].message.reasoning:
-                reasoning_summary = str(response.choices[0].message.reasoning)
-            
-            # Validate fraction
-            frac = float(decision.get("initial_liquidity_fraction", 0.3))
-            frac = max(0.0, min(1.0, frac))
-            
-            decisions[agent_id] = {
-                "initial_liquidity_fraction": frac,
-                "reasoning": decision.get("reasoning", ""),
-                "reasoning_summary": reasoning_summary,
-                "model": MODEL,
-            }
-            
-            logger.info(f"LLM decision for {agent_id}: fraction={frac:.2f}, reasoning={decision.get('reasoning', '')[:100]}")
-            
-        except Exception as e:
-            logger.error(f"LLM call failed for {agent_id}: {e}")
-            decisions[agent_id] = {
-                "initial_liquidity_fraction": 0.3,
-                "reasoning": f"Fallback (LLM error: {str(e)[:100]})",
-                "model": "fallback",
-            }
-    
-    return decisions
-
-
-async def get_tick_decision(
+def generate_mock_reasoning(
     agent_id: str,
-    scenario: dict[str, Any],
-    tick_state: dict[str, Any],
-    pending_payments: list[dict[str, Any]],
-    llm_prompt: str = "",
+    tick: int,
+    agent_state: dict[str, Any],
+    scenario_context: dict[str, Any],
 ) -> dict[str, Any]:
-    """Ask GPT-5.2 for per-tick payment decisions (Release/Hold).
-    
-    This is for future use — currently the Fifo policy handles tick decisions.
-    """
-    client = _get_client()
-    
-    payments_text = "\n".join(
-        f"  - TX {p.get('tx_id', '?')}: ${p.get('amount', 0)/100:.2f} to {p.get('receiver', '?')}, "
-        f"deadline in {p.get('ticks_to_deadline', '?')} ticks"
-        for p in pending_payments
-    )
-    
-    system_prompt = f"""You are {agent_id}'s cash manager. Decide Release or Hold for each pending payment.
-Current balance: ${tick_state.get('balance', 0)/100:.2f}
-Tick: {tick_state.get('current_tick', 0)}/{tick_state.get('total_ticks', 0)}
+    """Generate realistic mock reasoning traces for demo/testing."""
+    if tick == 0:
+        return _mock_liquidity_allocation(agent_id, agent_state, scenario_context)
+    else:
+        return _mock_payment_timing(agent_id, tick, agent_state, scenario_context)
 
-{llm_prompt}
 
-Respond with JSON: {{"decisions": [{{"tx_id": "...", "action": "Release"|"Hold"}}]}}"""
+def _mock_liquidity_allocation(
+    agent_id: str,
+    agent_state: dict[str, Any],
+    ctx: dict[str, Any],
+) -> dict[str, Any]:
+    pool = agent_state.get("available_liquidity", 100_000)
+    pool_dollars = pool / 100
 
+    templates = [
+        {
+            "reasoning": (
+                f"As {agent_id}, I need to decide how much of my ${pool_dollars:,.0f} liquidity pool to allocate. "
+                f"Looking at the payment schedule, I have outgoing obligations that require careful balancing. "
+                f"The liquidity cost is {ctx.get('liquidity_cost_bps', 333)} bps per tick — allocating too much "
+                f"wastes capital. But under-allocation risks deadline penalties of ${ctx.get('deadline_penalty', 50000)/100:,.0f} each. "
+                f"The bilateral symmetry suggests my counterpart faces identical incentives — this is a coordination game. "
+                f"Game-theoretic analysis: in a symmetric 2-player game, the Nash equilibrium allocation is typically "
+                f"moderate (40-60%). I'll allocate ~{random.randint(45, 55)}% to balance the liquidity-penalty tradeoff."
+            ),
+            "reasoning_summary": (
+                f"Allocating moderate liquidity ({random.randint(45, 55)}%) based on Nash equilibrium analysis. "
+                f"Bilateral symmetry creates coordination incentives — neither player benefits from extreme allocation."
+            ),
+            "decision": f"Allocate {random.randint(45, 55)}% of liquidity pool",
+        },
+        {
+            "reasoning": (
+                f"I'm {agent_id} with a ${pool_dollars:,.0f} pool. The key tension: liquidity cost "
+                f"({ctx.get('liquidity_cost_bps', 333)} bps/tick) vs deadline penalties "
+                f"(${ctx.get('deadline_penalty', 50000)/100:,.0f}/tx). With deferred crediting active, "
+                f"incoming payments won't be immediately available, so I need buffer liquidity. "
+                f"My expected outflows exceed inflows in early ticks. Optimal strategy under incomplete "
+                f"information: allocate enough to cover first-period obligations plus a safety margin. "
+                f"Computing: expected outflow = ~${random.randint(150, 300):,}, so I need at least that much. "
+                f"Adding 20% buffer for timing uncertainty. Decision: allocate {random.randint(50, 65)}%."
+            ),
+            "reasoning_summary": (
+                f"Higher allocation ({random.randint(50, 65)}%) due to deferred crediting reducing incoming liquidity. "
+                f"Buffer accounts for timing uncertainty in counterpart behavior."
+            ),
+            "decision": f"Allocate {random.randint(50, 65)}% of liquidity pool",
+        },
+        {
+            "reasoning": (
+                f"Strategic analysis for {agent_id}: This is fundamentally a prisoners' dilemma variant. "
+                f"If both players allocate conservatively, both face deadline risk. If both allocate generously, "
+                f"both pay excess liquidity costs. The dominant strategy depends on the cost ratio: "
+                f"r_c={ctx.get('liquidity_cost_bps', 333)}bps vs penalty=${ctx.get('deadline_penalty', 50000)/100:,.0f}. "
+                f"Since penalty >> liquidity cost, the risk-adjusted optimal is to slightly over-allocate. "
+                f"Expected value calculation favors {random.randint(40, 50)}% allocation — the marginal cost of "
+                f"extra liquidity is small compared to the expected penalty savings."
+            ),
+            "reasoning_summary": (
+                f"Cost ratio analysis (penalty >> liquidity cost) favors slight over-allocation at ~{random.randint(40, 50)}%. "
+                f"Dominant strategy in this prisoners' dilemma variant."
+            ),
+            "decision": f"Allocate {random.randint(40, 50)}% of liquidity pool",
+        },
+    ]
+
+    choice = random.choice(templates)
+    tokens_prompt = random.randint(400, 700)
+    tokens_completion = random.randint(150, 350)
+
+    return {
+        "tick": 0,
+        "agent_id": agent_id,
+        "phase": "decided",
+        "decision_type": "liquidity_allocation",
+        "decision": choice["decision"],
+        "reasoning": choice["reasoning"],
+        "reasoning_summary": choice["reasoning_summary"],
+        "prompt_tokens": tokens_prompt,
+        "completion_tokens": tokens_completion,
+    }
+
+
+def _mock_payment_timing(
+    agent_id: str,
+    tick: int,
+    agent_state: dict[str, Any],
+    ctx: dict[str, Any],
+) -> dict[str, Any]:
+    balance = agent_state.get("balance", 0)
+    balance_dollars = balance / 100
+    queue_size = agent_state.get("queue1_size", 0)
+
+    decisions = ["Release", "Hold"]
+    decision = random.choice(decisions) if queue_size > 0 else "Release"
+
+    release_templates = [
+        {
+            "reasoning": (
+                f"Tick {tick}: {agent_id} holds ${balance_dollars:,.0f} with {queue_size} payment(s) queued. "
+                f"Delay cost accrues at {ctx.get('delay_cost', 0.2)}/cent/tick — holding is expensive. "
+                f"My counterpart's behavior is uncertain, but the Nash equilibrium in this simultaneous-move "
+                f"game favors releasing when delay costs exceed option value. Current delay cost per tick "
+                f"exceeds the expected benefit of waiting for incoming offsets. "
+                f"Decision: Release — the marginal delay cost outweighs strategic waiting value."
+            ),
+            "reasoning_summary": (
+                f"Releasing payments — delay cost per tick exceeds option value of waiting. "
+                f"Nash equilibrium favors simultaneous release."
+            ),
+        },
+        {
+            "reasoning": (
+                f"At tick {tick}, I ({agent_id}) have ${balance_dollars:,.0f} available. Queue has {queue_size} pending payment(s). "
+                f"Analyzing counterpart incentives: they face symmetric costs, so rational play is to release. "
+                f"If I release now and they release simultaneously, both settle optimally. "
+                f"If I hold and they release, I benefit from incoming liquidity but they don't — "
+                f"this is the temptation payoff, but it's dominated by delay costs accumulating. "
+                f"Tit-for-tat reasoning: release to establish cooperation."
+            ),
+            "reasoning_summary": (
+                f"Releasing to establish cooperative equilibrium. Symmetric incentives suggest "
+                f"counterpart will also release — mutual benefit from simultaneous settlement."
+            ),
+        },
+    ]
+
+    hold_templates = [
+        {
+            "reasoning": (
+                f"Tick {tick}: {agent_id} evaluating with ${balance_dollars:,.0f} balance, {queue_size} in queue. "
+                f"Expected incoming payment could arrive next tick, which would offset my outgoing obligation. "
+                f"If I hold one more tick, I preserve optionality: incoming liquidity reduces my net position. "
+                f"Risk: additional delay cost of ~${random.randint(5, 20):,}. "
+                f"Reward: potential netting saves ~${random.randint(50, 200):,} in liquidity cost. "
+                f"Expected value favors holding this tick. Decision: Hold — wait for potential netting opportunity."
+            ),
+            "reasoning_summary": (
+                f"Holding to wait for incoming netting opportunity. "
+                f"Expected netting savings (${random.randint(50, 200):,}) exceed delay cost (${random.randint(5, 20):,})."
+            ),
+        },
+        {
+            "reasoning": (
+                f"Strategic hold at tick {tick} for {agent_id}. My balance is ${balance_dollars:,.0f}. "
+                f"Counterpart hasn't released yet (queue size suggests pending). "
+                f"In a sequential game, the second mover can condition on observing the first move. "
+                f"By holding, I maintain information advantage. The deadline is still "
+                f"{random.randint(1, 3)} ticks away — delay cost is manageable. "
+                f"Decision: Hold this round, reassess next tick based on counterpart action."
+            ),
+            "reasoning_summary": (
+                f"Holding to maintain strategic optionality. Deadline buffer allows waiting — "
+                f"will reassess based on counterpart's next move."
+            ),
+        },
+    ]
+
+    if decision == "Release":
+        template = random.choice(release_templates)
+    else:
+        template = random.choice(hold_templates)
+
+    tokens_prompt = random.randint(350, 600)
+    tokens_completion = random.randint(120, 280)
+
+    return {
+        "tick": tick,
+        "agent_id": agent_id,
+        "phase": "decided",
+        "decision_type": "payment_timing",
+        "decision": decision,
+        "reasoning": template["reasoning"],
+        "reasoning_summary": template["reasoning_summary"],
+        "prompt_tokens": tokens_prompt,
+        "completion_tokens": tokens_completion,
+    }
+
+
+async def get_llm_decision(
+    agent_id: str,
+    tick: int,
+    agent_state: dict[str, Any],
+    scenario_context: dict[str, Any],
+    mock: bool = True,
+) -> dict[str, Any]:
+    """Get an LLM decision for an agent. Uses mock mode by default."""
+    if mock:
+        # Add slight delay to simulate API call
+        return generate_mock_reasoning(agent_id, tick, agent_state, scenario_context)
+
+    # Real OpenAI call
     try:
-        response = await client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Pending payments:\n{payments_text}"},
-            ],
-            temperature=0.3,
-            reasoning={"effort": REASONING_EFFORT, "summary": "detailed"},
-            response_format={"type": "json_object"},
-            timeout=60,
+        import openai
+        from dotenv import load_dotenv
+        import os
+
+        load_dotenv()
+        client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        decision_type = "liquidity_allocation" if tick == 0 else "payment_timing"
+
+        prompt = _build_prompt(agent_id, tick, agent_state, scenario_context, decision_type)
+
+        response = await client.responses.create(
+            model="gpt-5.2",
+            input=prompt,
+            reasoning={"effort": "high", "summary": "detailed"},
         )
-        
-        content = response.choices[0].message.content or "{}"
-        return json.loads(content)
+
+        content = response.output_text
+        reasoning_summary = ""
+        for item in response.output:
+            if item.type == "reasoning":
+                for s in item.summary:
+                    reasoning_summary += s.text + "\n"
+
+        decision = _extract_decision(content, decision_type)
+
+        return {
+            "tick": tick,
+            "agent_id": agent_id,
+            "phase": "decided",
+            "decision_type": decision_type,
+            "decision": decision,
+            "reasoning": content,
+            "reasoning_summary": reasoning_summary.strip(),
+            "prompt_tokens": response.usage.input_tokens if response.usage else 0,
+            "completion_tokens": response.usage.output_tokens if response.usage else 0,
+        }
     except Exception as e:
-        logger.error(f"Tick decision failed for {agent_id}: {e}")
-        return {"decisions": [{"tx_id": p.get("tx_id", ""), "action": "Release"} for p in pending_payments]}
+        # Fall back to mock on any error
+        result = generate_mock_reasoning(agent_id, tick, agent_state, scenario_context)
+        result["error"] = str(e)
+        result["fallback"] = True
+        return result
+
+
+def _build_prompt(
+    agent_id: str,
+    tick: int,
+    agent_state: dict[str, Any],
+    ctx: dict[str, Any],
+    decision_type: str,
+) -> str:
+    if decision_type == "liquidity_allocation":
+        return (
+            f"You are {agent_id} in a payment system simulation. "
+            f"You must decide what fraction of your liquidity pool (${agent_state.get('available_liquidity', 0)/100:,.0f}) to allocate.\n\n"
+            f"Parameters:\n"
+            f"- Liquidity cost: {ctx.get('liquidity_cost_bps', 333)} bps per tick\n"
+            f"- Delay cost: {ctx.get('delay_cost', 0.2)} per cent per tick\n"
+            f"- Deadline penalty: ${ctx.get('deadline_penalty', 50000)/100:,.0f}\n"
+            f"- Deferred crediting: {ctx.get('deferred_crediting', True)}\n\n"
+            f"Think about Nash equilibrium, coordination games, and optimal allocation.\n"
+            f"State your decision as a percentage (e.g., 'Allocate 50%')."
+        )
+    else:
+        return (
+            f"You are {agent_id} at tick {tick}. "
+            f"Balance: ${agent_state.get('balance', 0)/100:,.0f}, "
+            f"Queue: {agent_state.get('queue1_size', 0)} pending payments.\n\n"
+            f"Should you Release queued payments or Hold?\n"
+            f"Consider delay costs, counterpart behavior, netting opportunities.\n"
+            f"State: 'Release' or 'Hold' with reasoning."
+        )
+
+
+def _extract_decision(content: str, decision_type: str) -> str:
+    content_lower = content.lower()
+    if decision_type == "liquidity_allocation":
+        import re
+        match = re.search(r"allocate\s+(\d+)%", content_lower)
+        if match:
+            return f"Allocate {match.group(1)}% of liquidity pool"
+        return "Allocate 50% of liquidity pool"
+    else:
+        if "hold" in content_lower and "release" not in content_lower:
+            return "Hold"
+        return "Release"
