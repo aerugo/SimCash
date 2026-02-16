@@ -3,15 +3,25 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .models import CreateSimResponse, HumanDecision, PresetScenario, ScenarioConfig
+from .models import (
+    CompareRequest,
+    CreateSimResponse,
+    HumanDecision,
+    ManualPolicy,
+    PolicyRule,
+    PresetScenario,
+    SavedScenario,
+    ScenarioConfig,
+)
 from .simulation import SimulationManager
 
-app = FastAPI(title="SimCash Web Sandbox", version="0.1.0")
+app = FastAPI(title="SimCash Web Sandbox", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,13 +33,19 @@ app.add_middleware(
 
 manager = SimulationManager()
 
+# In-memory stores
+saved_scenarios: dict[str, SavedScenario] = {}
+saved_policies: dict[str, ManualPolicy] = {}
 
-# ---- REST Endpoints ----
+
+# ---- Health ----
 
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
 
+
+# ---- Presets ----
 
 @app.get("/api/presets")
 def list_presets():
@@ -60,6 +76,8 @@ def list_presets():
         ]
     }
 
+
+# ---- Simulations CRUD ----
 
 @app.post("/api/simulations", response_model=CreateSimResponse)
 def create_simulation(config: ScenarioConfig):
@@ -112,6 +130,198 @@ def delete_simulation(sim_id: str):
     if manager.delete(sim_id):
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="Simulation not found")
+
+
+# ---- Config Inspector ----
+
+@app.get("/api/simulations/{sim_id}/config")
+def get_simulation_config(sim_id: str):
+    """Get the full FFI config for a simulation."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {
+        "raw_config": sim.raw_config,
+        "ffi_config": sim.ffi_config,
+    }
+
+
+# ---- Export ----
+
+@app.get("/api/simulations/{sim_id}/export")
+def export_simulation(sim_id: str):
+    """Export full simulation data as JSON."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {
+        "sim_id": sim.sim_id,
+        "raw_config": sim.raw_config,
+        "ffi_config": sim.ffi_config,
+        "total_ticks": sim.total_ticks,
+        "is_complete": sim.is_complete,
+        "current_tick": sim.orch.current_tick(),
+        "tick_history": sim.tick_history,
+        "balance_history": sim.balance_history,
+        "cost_history": sim.cost_history,
+    }
+
+
+# ---- Replay ----
+
+@app.get("/api/simulations/{sim_id}/replay/{tick}")
+def replay_tick(sim_id: str, tick: int):
+    """Get simulation state at a specific tick from recorded history."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    if tick < 0 or tick >= len(sim.tick_history):
+        raise HTTPException(status_code=400, detail=f"Tick {tick} not in history (0-{len(sim.tick_history)-1})")
+    return sim.tick_history[tick]
+
+
+@app.get("/api/simulations/{sim_id}/replay")
+def replay_info(sim_id: str):
+    """Get replay metadata."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {
+        "sim_id": sim.sim_id,
+        "total_recorded_ticks": len(sim.tick_history),
+        "is_complete": sim.is_complete,
+    }
+
+
+# ---- Scenario Events ----
+
+@app.get("/api/simulations/{sim_id}/events")
+def get_scenario_events(sim_id: str):
+    """Get all events from tick history."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    all_events = []
+    for tick_data in sim.tick_history:
+        all_events.extend(tick_data.get("events", []))
+    return {"events": all_events, "total": len(all_events)}
+
+
+# ---- Comparison ----
+
+@app.post("/api/compare")
+def compare_runs(req: CompareRequest):
+    """Run multiple scenario+policy combos and compare results."""
+    results = []
+    for run in req.runs:
+        try:
+            sim_id = manager.create(run.scenario)
+            sim = manager.get(sim_id)
+            if not sim:
+                results.append({"error": "Failed to create"})
+                continue
+            # Run to completion
+            while not sim.is_complete:
+                sim.do_tick()
+            state = sim.get_state()
+            results.append({
+                "sim_id": sim_id,
+                "config": sim.raw_config,
+                "final_state": state,
+                "total_cost": sum(
+                    a["costs"]["total"] for a in state["agents"].values()
+                ),
+            })
+        except Exception as e:
+            results.append({"error": str(e)})
+    return {"results": results}
+
+
+# ---- Scenario Library CRUD ----
+
+@app.get("/api/scenarios")
+def list_scenarios():
+    return {"scenarios": list(saved_scenarios.values())}
+
+
+@app.post("/api/scenarios")
+def create_scenario(scenario: SavedScenario):
+    scenario.id = str(uuid.uuid4())[:8]
+    saved_scenarios[scenario.id] = scenario
+    return scenario
+
+
+@app.get("/api/scenarios/{scenario_id}")
+def get_scenario(scenario_id: str):
+    if scenario_id not in saved_scenarios:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return saved_scenarios[scenario_id]
+
+
+@app.put("/api/scenarios/{scenario_id}")
+def update_scenario(scenario_id: str, scenario: SavedScenario):
+    if scenario_id not in saved_scenarios:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    scenario.id = scenario_id
+    saved_scenarios[scenario_id] = scenario
+    return scenario
+
+
+@app.delete("/api/scenarios/{scenario_id}")
+def delete_scenario(scenario_id: str):
+    if scenario_id not in saved_scenarios:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    del saved_scenarios[scenario_id]
+    return {"status": "deleted"}
+
+
+# ---- Policy Management ----
+
+@app.get("/api/policies")
+def list_policies():
+    return {"policies": list(saved_policies.values())}
+
+
+@app.post("/api/policies")
+def create_policy(policy: ManualPolicy):
+    policy.id = str(uuid.uuid4())[:8]
+    saved_policies[policy.id] = policy
+    return policy
+
+
+@app.post("/api/policies/validate")
+def validate_policy(policy: ManualPolicy):
+    """Validate policy rules syntax."""
+    errors = []
+    valid_operators = ["<", ">", "<=", ">=", "==", "!="]
+    valid_fields = ["balance", "tick", "queue_size", "available_liquidity", "amount"]
+    for i, rule in enumerate(policy.rules):
+        # Simple validation: condition should be "field op value"
+        parts = rule.condition.strip().split()
+        if len(parts) != 3:
+            errors.append(f"Rule {i}: Expected 'field operator value', got '{rule.condition}'")
+            continue
+        field, op, val = parts
+        if field not in valid_fields:
+            errors.append(f"Rule {i}: Unknown field '{field}'. Valid: {valid_fields}")
+        if op not in valid_operators:
+            errors.append(f"Rule {i}: Unknown operator '{op}'. Valid: {valid_operators}")
+        try:
+            float(val)
+        except ValueError:
+            errors.append(f"Rule {i}: Value '{val}' is not a number")
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+    }
+
+
+@app.delete("/api/policies/{policy_id}")
+def delete_policy(policy_id: str):
+    if policy_id not in saved_policies:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    del saved_policies[policy_id]
+    return {"status": "deleted"}
 
 
 # ---- WebSocket for live streaming ----
@@ -188,7 +398,6 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
                 # Re-create the simulation with same config
                 old_config = sim.raw_config
                 manager.delete(sim_id)
-                # Can't easily reset — tell client to create new
                 await websocket.send_json({"type": "reset_required"})
 
     except WebSocketDisconnect:

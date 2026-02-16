@@ -42,6 +42,30 @@ class ScenarioConfig(BaseModel):
     deadline_penalty: int = 50_000
     deferred_crediting: bool = True
     deadline_cap_at_eod: bool = True
+    # Payment schedule (for custom scenarios)
+    payment_schedule: list[PaymentEntry] | None = None
+    # Stochastic arrival config
+    stochastic_arrivals: StochasticArrivalConfig | None = None
+    # LSM toggles
+    enable_bilateral_lsm: bool = False
+    enable_cycle_lsm: bool = False
+
+
+class PaymentEntry(BaseModel):
+    sender: str
+    receiver: str
+    amount: int  # in cents
+    tick: int
+    deadline: int
+
+
+class StochasticArrivalConfig(BaseModel):
+    enabled: bool = False
+    rate_per_tick: float = 0.5
+    amount_mean: int = 50_000  # cents
+    amount_std: int = 10_000
+    deadline_min: int = 2
+    deadline_max: int = 6
 
 
 class SimulationState(BaseModel):
@@ -93,3 +117,36 @@ class HumanDecision(BaseModel):
 class CreateSimResponse(BaseModel):
     sim_id: str
     config: dict[str, Any]
+
+
+# --- Scenario Library models ---
+
+class SavedScenario(BaseModel):
+    """A saved custom scenario."""
+    id: str = ""
+    name: str = "Custom Scenario"
+    description: str = ""
+    config: ScenarioConfig
+
+
+class PolicyRule(BaseModel):
+    """A manual policy rule."""
+    condition: str  # e.g. "balance > 50000", "tick >= 2"
+    action: PaymentDecision = PaymentDecision.RELEASE
+
+
+class ManualPolicy(BaseModel):
+    """A set of manual policy rules."""
+    id: str = ""
+    name: str = "Custom Policy"
+    rules: list[PolicyRule] = []
+
+
+class CompareRequest(BaseModel):
+    """Request to compare multiple scenario+policy combos."""
+    runs: list[CompareRun]
+
+
+class CompareRun(BaseModel):
+    scenario: ScenarioConfig
+    policy_id: str | None = None  # None = default AI
