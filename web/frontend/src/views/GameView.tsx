@@ -23,12 +23,12 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
     if (wsState) onUpdate(wsState);
   }, [wsState, onUpdate]);
 
-  // Auto-select latest day
+  // Auto-select latest day when new days arrive
   useEffect(() => {
-    if (gameState.days.length > 0 && selectedDay === null) {
+    if (gameState.days.length > 0) {
       setSelectedDay(gameState.days.length - 1);
     }
-  }, [gameState.days.length, selectedDay]);
+  }, [gameState.days.length]);
 
   const handleAutoRun = () => {
     setAutoRunning(true);
