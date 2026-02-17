@@ -143,17 +143,30 @@ function Overview() {
         <strong>Stability does not imply optimality.</strong> In our experiments, LLM agents
         reliably converge to <em>stable</em> policy profiles, but these aren't always
         Pareto-efficient. In deterministic scenarios, we observe <em>coordination failures</em>
-        where one agent free-rides on the other's liquidity, leaving both worse off than
-        baseline. Stochastic environments with statistical evaluation produce more symmetric,
+        where one agent free-rides on the other's liquidity — the free-rider benefits while
+        the exploited bank is worse off, and the system as a whole is less efficient than it
+        could be. Stochastic environments with statistical evaluation produce more symmetric,
         near-optimal outcomes.
       </Callout>
 
-      <h3>Built On</h3>
+      <h3>Context</h3>
       <p>
-        SimCash implements and extends the experiments from Castro et al. (2025),{' '}
-        <em>"AI agents for cash management in payment systems"</em> (BIS Working Paper No. 1310).
-        The simulation engine is built in Rust for speed and determinism, with a Python orchestration
-        layer using PyO3 FFI.
+        SimCash was created by Hugi Aegisberg as a research tool for studying multi-agent
+        coordination in payment systems. It implements and extends the experimental scenarios
+        from the BIS Working Paper No. 1310, <em>"AI agents for cash management in payment
+        systems"</em> (2025), which demonstrated that general-purpose LLMs can replicate key
+        cash management practices even without domain-specific training.
+      </p>
+      <p>
+        Where the BIS paper tested a single LLM agent's ability to make prudent liquidity
+        decisions, SimCash asks the next question: what happens when <em>multiple</em> AI agents
+        interact strategically? The answer involves coordination games, free-riding, and the
+        surprising role of statistical evaluation in promoting cooperation.
+      </p>
+      <p>
+        The simulation engine is built in Rust for speed and determinism, with a Python
+        orchestration layer using PyO3 FFI. This work sits at the intersection of AI agents
+        for economic research (Korinek, 2025) and computational game theory.
       </p>
     </DocPage>
   );
@@ -291,6 +304,12 @@ function PolicyOptimization() {
         signal about other agents comes from incoming payment timing — just like in real RTGS
         systems where participants see settlement messages but not others' internal positions.
       </p>
+      <Callout type="important">
+        Crucially, agents are <strong>not told the environment is stationary</strong>. They don't
+        know that iterations use the same payment parameters (or identical schedules in deterministic
+        scenarios). Any regularity must be inferred from observed data. This is a realistic
+        constraint — real cash managers don't have perfect knowledge of the data-generating process.
+      </Callout>
 
       <h3>The Prompt</h3>
       <p>
@@ -447,6 +466,17 @@ function GameTheory() {
         The statistical evaluation introduces a form of "noise" that makes greedy exploitation
         harder to sustain, pushing agents toward more symmetric, cooperative allocations.
       </Callout>
+
+      <h3>AI Agents as Game Players</h3>
+      <p>
+        SimCash's agents follow what Korinek (2025) describes as the core agent loop:
+        {' '}<strong>Think → Act → Observe → Respond</strong>. Each iteration, the LLM reasons
+        about its cost history (Think), proposes a new policy (Act), the simulation runs (Observe),
+        and results feed back into the next iteration (Respond). Unlike traditional game-theoretic
+        agents with explicit utility maximization, these agents reason in natural language —
+        making them both more flexible and more prone to the kinds of bounded rationality
+        that produce coordination failures.
+      </p>
     </DocPage>
   );
 }
@@ -491,6 +521,15 @@ function Architecture() {
         <li><code>SimulationConfig.from_dict()</code> → <code>to_ffi_dict()</code></li>
         <li><code>Orchestrator.new(ffi_config)</code> → run ticks</li>
       </ol>
+
+      <h3>LLM Configuration</h3>
+      <p>
+        The paper experiments used GPT-5.2 with reasoning effort <code>high</code>,
+        temperature 0.5, and up to 50 iterations per experiment pass. Each experiment
+        was run 3 times (independent passes) to assess reproducibility. The web sandbox
+        defaults to mock mode for zero-cost exploration, with optional real LLM mode
+        using the same model configuration.
+      </p>
 
       <h3>Performance</h3>
       <p>
@@ -574,9 +613,9 @@ function References() {
       <h3>Primary References</h3>
       <ul className="space-y-3">
         <li>
-          <strong>Castro, P., Malacrino, D., Haldane, A., et al. (2025)</strong>.{' '}
+          <strong>BIS (2025)</strong>.{' '}
           <em>"AI agents for cash management in payment systems."</em>{' '}
-          BIS Working Paper No. 1310.{' '}
+          BIS Working Paper No. 1310. Castro et al.{' '}
           <a href="https://www.bis.org/publ/work1310.pdf" target="_blank" rel="noopener" className="text-sky-400 hover:underline">
             PDF ↗
           </a>
