@@ -12,6 +12,9 @@ import { LibraryView } from './views/LibraryView';
 import { AgentsView } from './views/AgentsView';
 import { GameView } from './views/GameView';
 import { DocsView } from './views/DocsView';
+import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './hooks/useAuth';
+import { LoginPage } from './components/LoginPage';
 
 const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
   { id: 'home', label: 'Setup', icon: '🏠' },
@@ -26,7 +29,33 @@ const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; req
   { id: 'library', label: 'Library', icon: '🎮' },
 ];
 
+function AppContent() {
+  const { user, loading, signOut: handleAuthSignOut } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-slate-400 text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <AppMain userEmail={user.email ?? ''} onSignOut={handleAuthSignOut} />;
+}
+
 function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppMain({ userEmail, onSignOut }: { userEmail: string; onSignOut: () => void }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [tab, setTab] = useState<TabId>('home');
   const [simId, setSimId] = useState<string | null>(null);
@@ -176,6 +205,7 @@ function App() {
             </div>
             <span className="text-xs text-slate-500 hidden sm:inline">Interactive Payment Simulator</span>
           </div>
+          <div className="flex items-center gap-3">
           {simId && state && (
             <div className="flex items-center gap-2 text-sm text-slate-400">
               <span className="font-mono bg-slate-800 px-2 py-1 rounded text-xs">{simId}</span>
@@ -185,6 +215,9 @@ function App() {
               </span>
             </div>
           )}
+            <span className="text-xs text-slate-500 hidden md:inline">{userEmail}</span>
+            <button onClick={onSignOut} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Sign out</button>
+          </div>
         </div>
 
         {/* Tab bar */}

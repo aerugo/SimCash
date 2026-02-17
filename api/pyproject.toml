@@ -22,6 +22,7 @@ dependencies = [
     "python-dotenv>=1.0.0", # For loading .env files
     "anthropic>=0.75.0",
     "openai>=2.9.0",
+    "firebase-admin>=7.1.0",
 ]
 
 [project.optional-dependencies]

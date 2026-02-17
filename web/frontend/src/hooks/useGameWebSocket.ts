@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { GameState, DayResult } from '../types';
+import { getIdToken } from '../firebase';
 
 export type WSMessageType =
   | 'game_state'
@@ -104,12 +105,14 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
     }
   }, []);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!mountedRef.current) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}`);
+    const token = await getIdToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${tokenParam}`);
     wsRef.current = ws;
 
     ws.onopen = () => {

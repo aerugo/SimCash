@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+
+from .auth import get_current_user, get_ws_user
 
 from .models import (
     CompareRequest,
@@ -23,6 +26,8 @@ from .models import (
 from .simulation import SimulationManager
 from .game import Game
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SimCash Web Sandbox", version="0.2.0")
 
@@ -492,7 +497,7 @@ def list_scenario_pack():
 # ---- Multi-Day Games ----
 
 @app.get("/api/games/scenarios")
-def list_game_scenarios():
+def list_game_scenarios(uid: str = Depends(get_current_user)):
     """List scenarios available for game creation with preview metadata."""
     scenarios = []
     for entry in SCENARIO_PACK:
@@ -510,10 +515,11 @@ def list_game_scenarios():
 
 
 @app.post("/api/games")
-async def create_game(config: CreateGameRequest = CreateGameRequest()):
+async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_current_user)):
     """Create a multi-day policy optimization game."""
     import copy
 
+    logger.info("User %s creating game", uid)
     game_id = str(uuid.uuid4())[:8]
 
     if config.inline_config:
@@ -537,7 +543,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest()):
 
 
 @app.get("/api/games/{game_id}")
-def get_game(game_id: str):
+def get_game(game_id: str, uid: str = Depends(get_current_user)):
     """Get game state."""
     game = game_manager.get(game_id)
     if not game:
@@ -546,7 +552,7 @@ def get_game(game_id: str):
 
 
 @app.get("/api/games/{game_id}/days/{day_num}/replay")
-def game_day_replay(game_id: str, day_num: int):
+def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_current_user)):
     """Get tick-by-tick replay data for a specific game day."""
     game = game_manager.get(game_id)
     if not game:
@@ -576,7 +582,7 @@ def game_day_replay(game_id: str, day_num: int):
 
 
 @app.post("/api/games/{game_id}/step")
-async def step_game(game_id: str):
+async def step_game(game_id: str, uid: str = Depends(get_current_user)):
     """Run next day + optimize. Returns day results + reasoning."""
     game = game_manager.get(game_id)
     if not game:
@@ -593,7 +599,7 @@ async def step_game(game_id: str):
 
 
 @app.post("/api/games/{game_id}/auto")
-async def auto_run_game(game_id: str):
+async def auto_run_game(game_id: str, uid: str = Depends(get_current_user)):
     """Run all remaining days."""
     game = game_manager.get(game_id)
     if not game:
@@ -613,7 +619,7 @@ async def auto_run_game(game_id: str):
 
 
 @app.delete("/api/games/{game_id}")
-def delete_game(game_id: str):
+def delete_game(game_id: str, uid: str = Depends(get_current_user)):
     """Delete a game."""
     if game_id not in game_manager:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -635,6 +641,13 @@ async def game_ws(websocket: WebSocket, game_id: str):
       game_complete       — all days finished
       error               — something went wrong
     """
+    # Authenticate before accepting
+    try:
+        uid = await get_ws_user(websocket)
+    except Exception:
+        return
+    logger.info("WS game connection from user %s for game %s", uid, game_id)
+
     await websocket.accept()
 
     game = game_manager.get(game_id)

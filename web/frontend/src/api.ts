@@ -1,6 +1,21 @@
 import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult, AgentReasoning } from './types';
+import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig } from './types';
+import { getIdToken } from './firebase';
 
 const BASE = '/api';
+
+/** Authenticated fetch wrapper — auto-includes Bearer token for /api/games/* */
+async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  // Add auth token for game endpoints
+  if (url.includes('/games')) {
+    const token = await getIdToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
+  return fetch(url, { ...init, headers });
+}
 
 export async function getPresets(): Promise<Preset[]> {
   const res = await fetch(`${BASE}/presets`);
@@ -101,8 +116,6 @@ export function connectWebSocket(simId: string): WebSocket {
 
 // ---- Multi-Day Game API ----
 
-import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig } from './types';
-
 export async function getScenarioPack(): Promise<ScenarioPackEntry[]> {
   const res = await fetch(`${BASE}/scenario-pack`);
   const data = await res.json();
@@ -110,13 +123,13 @@ export async function getScenarioPack(): Promise<ScenarioPackEntry[]> {
 }
 
 export async function getGameScenarios(): Promise<GameScenario[]> {
-  const res = await fetch(`${BASE}/games/scenarios`);
+  const res = await authFetch(`${BASE}/games/scenarios`);
   const data = await res.json();
   return data.scenarios;
 }
 
 export async function createGame(config: GameSetupConfig): Promise<{ game_id: string; game: GameState }> {
-  const res = await fetch(`${BASE}/games`, {
+  const res = await authFetch(`${BASE}/games`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config),
@@ -126,18 +139,18 @@ export async function createGame(config: GameSetupConfig): Promise<{ game_id: st
 }
 
 export async function getGame(gameId: string): Promise<GameState> {
-  const res = await fetch(`${BASE}/games/${gameId}`);
+  const res = await authFetch(`${BASE}/games/${gameId}`);
   return res.json();
 }
 
 export async function stepGame(gameId: string): Promise<{ day: Record<string, unknown>; reasoning: Record<string, unknown>; game: GameState }> {
-  const res = await fetch(`${BASE}/games/${gameId}/step`, { method: 'POST' });
+  const res = await authFetch(`${BASE}/games/${gameId}/step`, { method: 'POST' });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function autoRunGame(gameId: string): Promise<{ days: unknown[]; game: GameState }> {
-  const res = await fetch(`${BASE}/games/${gameId}/auto`, { method: 'POST' });
+  const res = await authFetch(`${BASE}/games/${gameId}/auto`, { method: 'POST' });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -150,12 +163,14 @@ export async function getGameDayReplay(gameId: string, dayNum: number): Promise<
   policies: Record<string, { initial_liquidity_fraction: number }>;
   final_costs: Record<string, { liquidity_cost: number; delay_cost: number; penalty_cost: number; total: number }>;
 }> {
-  const res = await fetch(`${BASE}/games/${gameId}/days/${dayNum}/replay`);
+  const res = await authFetch(`${BASE}/games/${gameId}/days/${dayNum}/replay`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-export function connectGameWebSocket(gameId: string): WebSocket {
+export async function connectGameWebSocket(gameId: string): Promise<WebSocket> {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}`);
+  const token = await getIdToken();
+  const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+  return new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${tokenParam}`);
 }

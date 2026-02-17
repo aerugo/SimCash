@@ -1,8 +1,12 @@
 """Shared test fixtures for web backend tests."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
+
+# Disable auth for all tests by default
+os.environ["SIMCASH_AUTH_DISABLED"] = "true"
 
 # Ensure api/ is on path for payment_simulator imports
 API_DIR = Path(__file__).resolve().parents[3] / "api"
