@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
 import { getGameScenarios } from '../api';
+import { HowItWorks } from '../components/HowItWorks';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -176,6 +177,8 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
           Watch AI agents make real-time decisions about liquidity allocation and payment timing
         </p>
       </div>
+
+      <HowItWorks defaultOpen={true} />
 
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6 justify-center">
@@ -440,6 +443,51 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
             <button onClick={exportConfig} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium">📥 Export JSON</button>
             <button onClick={importConfig} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium">📤 Import JSON</button>
           </div>
+
+          {/* Start Game with custom config */}
+          {onGameLaunch && (
+            <button
+              onClick={() => {
+                // Convert ScenarioConfig to raw YAML-compatible dict for the engine
+                const inlineConfig: Record<string, unknown> = {
+                  simulation: {
+                    ticks_per_day: config.ticks_per_day,
+                    num_days: config.num_days,
+                    rng_seed: config.rng_seed,
+                  },
+                  deferred_crediting: config.deferred_crediting,
+                  deadline_cap_at_eod: config.deadline_cap_at_eod,
+                  cost_rates: {
+                    liquidity_cost_per_tick_bps: config.liquidity_cost_per_tick_bps,
+                    delay_cost_per_tick_per_cent: config.delay_cost_per_tick_per_cent,
+                    eod_penalty_per_transaction: config.eod_penalty_per_transaction,
+                    deadline_penalty: config.deadline_penalty,
+                  },
+                  lsm_config: {
+                    enable_bilateral: config.enable_bilateral_lsm,
+                    enable_cycles: config.enable_cycle_lsm,
+                  },
+                  agents: (config.agents || []).map(a => ({
+                    id: a.id,
+                    opening_balance: a.opening_balance,
+                    unsecured_cap: a.unsecured_cap,
+                    liquidity_pool: a.liquidity_pool,
+                  })),
+                  payment_schedule: config.payment_schedule || [],
+                };
+                onGameLaunch({
+                  inline_config: inlineConfig,
+                  use_llm: config.use_llm,
+                  mock_reasoning: config.mock_reasoning,
+                  max_days: 10,
+                  num_eval_samples: 1,
+                });
+              }}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
+            >
+              🎮 Start Multi-Day Game
+            </button>
+          )}
         </div>
       )}
 

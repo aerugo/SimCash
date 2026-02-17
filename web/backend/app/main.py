@@ -516,11 +516,13 @@ async def create_game(config: CreateGameRequest = CreateGameRequest()):
 
     game_id = str(uuid.uuid4())[:8]
 
-    raw_yaml = get_scenario_by_id(config.scenario_id)
-    if not raw_yaml:
-        raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
-
-    raw_yaml = copy.deepcopy(raw_yaml)
+    if config.inline_config:
+        raw_yaml = copy.deepcopy(config.inline_config)
+    else:
+        raw_yaml = get_scenario_by_id(config.scenario_id)
+        if not raw_yaml:
+            raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
+        raw_yaml = copy.deepcopy(raw_yaml)
 
     game = Game(
         game_id=game_id,

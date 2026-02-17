@@ -148,6 +148,7 @@ class ManualPolicy(BaseModel):
 class CreateGameRequest(BaseModel):
     """Configuration for creating a multi-day policy optimization game."""
     scenario_id: str = "2bank_12tick"
+    inline_config: dict[str, Any] | None = None
     use_llm: bool = False
     mock_reasoning: bool = True
     max_days: int = Field(default=10, ge=1, le=100)

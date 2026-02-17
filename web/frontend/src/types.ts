@@ -193,7 +193,8 @@ export interface GameScenario {
 }
 
 export interface GameSetupConfig {
-  scenario_id: string;
+  scenario_id?: string;
+  inline_config?: Record<string, unknown>;
   use_llm: boolean;
   mock_reasoning: boolean;
   max_days: number;
