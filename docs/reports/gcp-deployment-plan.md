@@ -311,6 +311,97 @@ This auto-deploys on push to `main` (or a deploy branch).
 - **No auth required for viewing**: The sandbox is a research demo. Consider adding optional auth if costs become a concern.
 - **CORS**: Not needed with single-service setup (same origin).
 
+## Concurrency: Multiple Simultaneous Users
+
+### Current Architecture
+
+The app stores all game state in a Python process-global dict (`game_manager: dict[str, Game] = {}`). There is no database, no session persistence, no locking. This has several implications:
+
+**Memory per game**: A 25-day game with 2 agents is ~150 KB of state (events, costs, balance histories, reasoning). A 50-day game with 5 agents is ~1-2 MB. With 1 GiB container memory, we can comfortably hold **~200-500 concurrent games** before memory becomes a concern.
+
+**CPU contention (the real issue)**: The Rust simulation calls go through PyO3 and **hold the Python GIL**. This means:
+- While one user's simulation is running, all other users' HTTP requests and WebSocket messages are blocked
+- FastAPI's async framework can't help — the GIL serializes all Rust calls
+- A single bootstrap evaluation (50 samples × 2 policies = 100 sims) takes ~71ms for 2-bank/12-tick scenarios — tolerable
+- But LLM optimization calls take 10-60 seconds. During that time, the GIL is NOT held (pydantic-ai is async/HTTP), so other users can still interact
+
+**WebSocket connections**: Each active game maintains a WebSocket. Cloud Run supports this but each connection holds an HTTP/2 stream. With `--concurrency 20`, one instance serves up to 20 simultaneous WebSocket connections.
+
+### Scaling Behavior
+
+Cloud Run autoscales based on request concurrency. Here's what happens:
+
+| Concurrent Users | Instances | Behavior |
+|-----------------|-----------|----------|
+| 1-5 | 1 | Fine. Simulations are fast enough (~1-3ms each). GIL contention negligible. |
+| 5-20 | 1-2 | Occasional ~100ms stalls during bootstrap eval. Acceptable. |
+| 20-50 | 2-5 | Multiple instances needed. **Session affinity** keeps WebSocket connections pinned. |
+| 50+ | 5+ | Need to consider costs. Each instance is 1 vCPU + 1 GiB. |
+
+**Critical issue: scale-to-zero loses all game state.** If the last user disconnects and the instance scales down, all games are lost. For a research demo this is acceptable (games are ephemeral experiments), but users should be warned.
+
+### Mitigations
+
+1. **Short-term (deploy as-is)**: The architecture works fine for 1-20 concurrent users. Bootstrap evals are fast, GIL contention is brief, and LLM calls don't hold the GIL.
+
+2. **Medium-term (if popular)**:
+   - Add `min-instances=1` to prevent scale-to-zero (costs ~$20-40/month)
+   - Move Rust calls to `asyncio.to_thread()` to release the event loop during GIL-held work
+   - Consider `--cpu 2` for heavier scenarios
+
+3. **Long-term (if many users)**:
+   - Add Firestore/Redis for game state persistence
+   - Use Cloud Tasks to queue simulation work
+   - Release GIL in Rust via `py.allow_threads()` in the PyO3 bindings (would require core simulator changes — violates the "don't touch outside web/" rule)
+
+## Compute Analysis: Can Cloud Run Handle It?
+
+### Benchmark Results (Apple M1, single-core)
+
+| Scenario | Per Simulation | Bootstrap-50 (100 sims) |
+|----------|---------------|------------------------|
+| 2 banks, 12 ticks | 0.71ms | 71ms |
+| 5 banks, 20 ticks | 3.42ms | 342ms |
+| 5 banks, 20 ticks, LSM ON | 3.49ms | 349ms |
+
+### Cloud Run vCPU Performance
+
+Cloud Run's 1 vCPU is a **shared-tenancy x86 core** (AMD EPYC or Intel Xeon, varies). Typical single-thread performance is roughly **2-4× slower** than an Apple M1 core for compiled Rust workloads. This is because:
+- Shared tenancy means CPU is not dedicated (can be throttled)
+- x86 vs ARM ISA differences
+- Cloud Run allocates CPU only during request processing (by default)
+
+**Adjusted estimates for Cloud Run 1 vCPU:**
+
+| Scenario | Per Simulation | Bootstrap-50 | Acceptable? |
+|----------|---------------|-------------|-------------|
+| 2 banks, 12 ticks | ~2ms | ~200ms | ✅ Very fast |
+| 5 banks, 20 ticks | ~10ms | ~1s | ✅ Fine |
+| 5 banks, 20 ticks, LSM | ~10ms | ~1s | ✅ Fine |
+| 10 banks, 20 ticks (projected) | ~30ms | ~3s | ✅ Acceptable |
+| 10 banks, 20 ticks, LSM (projected) | ~50ms | ~5s | ⚠️ Noticeable |
+
+### The Real Bottleneck: LLM Calls, Not Simulation
+
+A single optimization step involves:
+1. **Simulation**: ~200ms for bootstrap-50 with 2 banks ✅
+2. **LLM call**: 10-60 seconds for GPT-5.2 with reasoning ⚠️
+3. **Bootstrap evaluation**: ~200ms ✅
+
+The LLM call is **50-300× slower** than all simulation work combined. Cloud Run's CPU is irrelevant during LLM calls (it's waiting on network I/O). The 300-second request timeout is the real constraint — a 25-day game with 2 agents and real LLM could take:
+- 25 days × 2 agents × ~30s per LLM call = ~25 minutes total
+- Well within the 3600s max timeout, but needs the WebSocket connection to stay alive
+
+### LSM Specifically
+
+LSM (bilateral offsetting + cycle detection) adds negligible overhead in our benchmarks. The cycle detection algorithm is O(V+E) per tick and with 5 agents the graph is tiny. Even projected to 10+ agents with dense payment networks, LSM won't be the bottleneck. The Rust engine was designed for this — it handles 200+ agents at 1000+ ticks/second.
+
+### Recommendation
+
+**1 vCPU + 1 GiB is sufficient** for the expected use case (research demo, 1-20 concurrent users, 2-5 bank scenarios). The simulation engine is absurdly fast relative to the LLM bottleneck.
+
+If we ever need to support heavy scenarios (10+ banks, 50-tick days, full LSM) with many concurrent users, bump to `--cpu 2 --memory 2Gi`. But that's an optimization we can defer.
+
 ## Open Questions
 
 1. **Custom domain?** Could use `simcash.app` or a subdomain of an existing domain.
