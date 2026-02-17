@@ -190,8 +190,8 @@ class SimulationInstance:
             "costs": {
                 "liquidity_cost": costs.get("liquidity_cost", 0),
                 "delay_cost": costs.get("delay_cost", 0),
-                "penalty_cost": costs.get("penalty_cost", 0) + costs.get("deadline_penalty_cost", 0),
-                "total": costs.get("total", 0),
+                "penalty_cost": costs.get("deadline_penalty", 0),
+                "total": costs.get("total_cost", 0),
             },
         }
 
@@ -238,7 +238,7 @@ class SimulationInstance:
         old_costs: dict[str, int] = {}
         for aid in all_agents:
             costs = self.orch.get_agent_accumulated_costs(aid)
-            old_costs[aid] = int(costs.get("total_cost", costs.get("total", 0)))
+            old_costs[aid] = int(costs.get("total_cost", costs.get("total_cost", 0)))
         old_total = sum(old_costs.values())
 
         # Build trace
@@ -379,8 +379,8 @@ class SimulationInstance:
             self.cost_history[aid].append({
                 "liquidity_cost": costs.get("liquidity_cost", 0),
                 "delay_cost": costs.get("delay_cost", 0),
-                "penalty_cost": costs.get("penalty_cost", 0) + costs.get("deadline_penalty_cost", 0),
-                "total": costs.get("total", 0),
+                "penalty_cost": costs.get("deadline_penalty", 0),
+                "total": costs.get("total_cost", 0),
             })
 
         agents = {aid: self._get_agent_data(aid) for aid in self.get_agent_ids()}

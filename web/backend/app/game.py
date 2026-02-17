@@ -121,11 +121,11 @@ class Game:
             agent_cost = {
                 "liquidity_cost": ac.get("liquidity_cost", 0),
                 "delay_cost": ac.get("delay_cost", 0),
-                "penalty_cost": ac.get("penalty_cost", 0) + ac.get("deadline_penalty_cost", 0),
-                "total": ac.get("total", 0),
+                "penalty_cost": ac.get("deadline_penalty", 0),
+                "total": ac.get("total_cost", 0),
             }
             costs[aid] = agent_cost
-            per_agent_costs[aid] = int(ac.get("total", 0))
+            per_agent_costs[aid] = int(ac.get("total_cost", 0))
             total_cost += per_agent_costs[aid]
 
         day = GameDay(
