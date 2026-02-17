@@ -101,7 +101,7 @@ export function connectWebSocket(simId: string): WebSocket {
 
 // ---- Multi-Day Game API ----
 
-import type { GameState, ScenarioPackEntry } from './types';
+import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig } from './types';
 
 export async function getScenarioPack(): Promise<ScenarioPackEntry[]> {
   const res = await fetch(`${BASE}/scenario-pack`);
@@ -109,12 +109,13 @@ export async function getScenarioPack(): Promise<ScenarioPackEntry[]> {
   return data.scenarios;
 }
 
-export async function createGame(config: {
-  scenario_id: string;
-  use_llm: boolean;
-  mock_reasoning: boolean;
-  max_days: number;
-}): Promise<{ game_id: string; game: GameState }> {
+export async function getGameScenarios(): Promise<GameScenario[]> {
+  const res = await fetch(`${BASE}/games/scenarios`);
+  const data = await res.json();
+  return data.scenarios;
+}
+
+export async function createGame(config: GameSetupConfig): Promise<{ game_id: string; game: GameState }> {
   const res = await fetch(`${BASE}/games`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

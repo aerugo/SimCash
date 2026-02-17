@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .models import (
     CompareRequest,
+    CreateGameRequest,
     CreateSimResponse,
     HumanDecision,
     ManualPolicy,
@@ -490,25 +491,44 @@ def list_scenario_pack():
 
 # ---- Multi-Day Games ----
 
+@app.get("/api/games/scenarios")
+def list_game_scenarios():
+    """List scenarios available for game creation with preview metadata."""
+    scenarios = []
+    for entry in SCENARIO_PACK:
+        scenario_data = entry["scenario"]
+        cost_rates = scenario_data.get("cost_rates", {})
+        scenarios.append({
+            "id": entry["id"],
+            "name": entry["name"],
+            "description": entry["description"],
+            "num_agents": entry["num_agents"],
+            "ticks_per_day": entry["ticks_per_day"],
+            "cost_rates": cost_rates,
+        })
+    return {"scenarios": scenarios}
+
+
 @app.post("/api/games")
-async def create_game(config: dict = {}):
+async def create_game(config: CreateGameRequest = CreateGameRequest()):
     """Create a multi-day policy optimization game."""
+    import copy
+
     game_id = str(uuid.uuid4())[:8]
 
-    scenario_id = config.get("scenario_id", "2bank_12tick")
-    raw_yaml = get_scenario_by_id(scenario_id)
+    raw_yaml = get_scenario_by_id(config.scenario_id)
     if not raw_yaml:
-        raise HTTPException(status_code=400, detail=f"Unknown scenario: {scenario_id}")
+        raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
 
-    import copy
     raw_yaml = copy.deepcopy(raw_yaml)
 
     game = Game(
         game_id=game_id,
         raw_yaml=raw_yaml,
-        use_llm=config.get("use_llm", False),
-        mock_reasoning=config.get("mock_reasoning", True),
-        max_days=config.get("max_days", 10),
+        use_llm=config.use_llm,
+        mock_reasoning=config.mock_reasoning,
+        max_days=config.max_days,
+        num_eval_samples=config.num_eval_samples,
     )
     game_manager[game_id] = game
     return {"game_id": game_id, "game": game.get_state()}

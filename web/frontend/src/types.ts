@@ -162,3 +162,26 @@ export interface ScenarioPackEntry {
   num_agents: number;
   ticks_per_day: number;
 }
+
+export interface GameScenario {
+  id: string;
+  name: string;
+  description: string;
+  num_agents: number;
+  ticks_per_day: number;
+  cost_rates: {
+    liquidity_cost_per_tick_bps: number;
+    delay_cost_per_tick_per_cent: number;
+    eod_penalty_per_transaction: number;
+    deadline_penalty: number;
+    [key: string]: number;
+  };
+}
+
+export interface GameSetupConfig {
+  scenario_id: string;
+  use_llm: boolean;
+  mock_reasoning: boolean;
+  max_days: number;
+  num_eval_samples: number;
+}

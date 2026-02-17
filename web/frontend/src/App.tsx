@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning, GameState } from './types';
+import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning, GameState, GameSetupConfig } from './types';
 import { createSimulation, getPresets, connectWebSocket, createGame } from './api';
 import { ToastContainer, toast } from './components/Toast';
 import { HomeView } from './views/HomeView';
@@ -125,7 +125,7 @@ function App() {
     setTab('home');
   }, []);
 
-  const handleGameLaunch = useCallback(async (config: { scenario_id: string; use_llm: boolean; mock_reasoning: boolean; max_days: number }) => {
+  const handleGameLaunch = useCallback(async (config: GameSetupConfig) => {
     try {
       const res = await createGame(config);
       setGameId(res.game_id);

@@ -227,6 +227,7 @@ class Game:
             "max_days": self.max_days,
             "is_complete": self.is_complete,
             "use_llm": self.use_llm,
+            "num_eval_samples": self.num_eval_samples,
             "agent_ids": self.agent_ids,
             "current_policies": {
                 aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, ScenarioPackEntry } from '../types';
-import { getScenarioPack } from '../api';
+import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
+import { getGameScenarios } from '../api';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -27,21 +27,22 @@ const DEFAULT_CONFIG: ScenarioConfig = {
 interface Props {
   presets: Preset[];
   onLaunch: (config: ScenarioConfig | string) => void;
-  onGameLaunch?: (config: { scenario_id: string; use_llm: boolean; mock_reasoning: boolean; max_days: number }) => void;
+  onGameLaunch?: (config: GameSetupConfig) => void;
 }
 
 export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
   const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
-  const [scenarioPack, setScenarioPack] = useState<ScenarioPackEntry[]>([]);
+  const [gameScenarios, setGameScenarios] = useState<GameScenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState('2bank_12tick');
   const [maxDays, setMaxDays] = useState(10);
+  const [numEvalSamples, setNumEvalSamples] = useState(1);
   const [gameUseLlm, setGameUseLlm] = useState(true);
   const [gameMockReasoning, setGameMockReasoning] = useState(true);
 
   useEffect(() => {
-    getScenarioPack().then(setScenarioPack).catch(() => {});
+    getGameScenarios().then(setGameScenarios).catch(() => {});
   }, []);
 
   const handleLaunch = () => {
@@ -209,7 +210,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
           {/* Scenario Pack */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-300">Choose Scenario</h3>
-            {scenarioPack.map(s => (
+            {gameScenarios.map(s => (
               <button
                 key={s.id}
                 onClick={() => setSelectedScenario(s.id)}
@@ -223,6 +224,13 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
                   <div>
                     <div className="font-semibold">{s.name}</div>
                     <div className="text-sm text-slate-400 mt-1">{s.description}</div>
+                    {s.cost_rates && (
+                      <div className="text-xs text-slate-500 mt-2 flex gap-3">
+                        <span>💰 {s.cost_rates.liquidity_cost_per_tick_bps} bps</span>
+                        <span>⏱ {s.cost_rates.delay_cost_per_tick_per_cent}/¢/tick</span>
+                        <span>⚠️ ${(s.cost_rates.deadline_penalty / 100).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="text-xs text-slate-500 flex gap-3">
                     <span>{s.ticks_per_day} ticks</span>
@@ -243,8 +251,21 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
                 </label>
                 <input
                   type="range" value={maxDays} onChange={e => setMaxDays(Number(e.target.value))}
-                  min={1} max={20} className="w-full accent-violet-400"
+                  min={1} max={50} className="w-full accent-violet-400"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500 flex justify-between mb-1">
+                  <span>Evaluation Samples</span>
+                  <span className="font-mono text-slate-300">{numEvalSamples}</span>
+                </label>
+                <input
+                  type="range" value={numEvalSamples} onChange={e => setNumEvalSamples(Number(e.target.value))}
+                  min={1} max={50} className="w-full accent-violet-400"
+                />
+                <p className="text-[10px] text-slate-600 mt-1">
+                  {numEvalSamples === 1 ? 'Quick mode — single sample' : numEvalSamples >= 50 ? 'Paper-faithful — 50 bootstrap samples' : `${numEvalSamples} bootstrap samples per evaluation`}
+                </p>
               </div>
               <div className="flex gap-6 flex-wrap">
                 <Toggle label="Enable AI Optimization" value={gameUseLlm} onChange={setGameUseLlm} />
@@ -261,7 +282,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
           </Section>
 
           <button
-            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays })}
+            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples })}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
             🎮 Start Game
