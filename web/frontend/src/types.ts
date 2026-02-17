@@ -120,6 +120,43 @@ export interface AgentReasoning {
 
 export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game' | 'docs' | 'scenarios' | 'policies' | 'create' | 'editor';
 
+// ---- Scenario Event Types ----
+
+export type EventType =
+  | 'DirectTransfer'
+  | 'GlobalArrivalRateChange'
+  | 'AgentArrivalRateChange'
+  | 'DeadlineWindowChange'
+  | 'CollateralAdjustment'
+  | 'LiquidityInjection'
+  | 'CreditLimitChange';
+
+export const EVENT_TYPES: EventType[] = [
+  'DirectTransfer',
+  'GlobalArrivalRateChange',
+  'AgentArrivalRateChange',
+  'DeadlineWindowChange',
+  'CollateralAdjustment',
+  'LiquidityInjection',
+  'CreditLimitChange',
+];
+
+export interface ScenarioEvent {
+  id: string;
+  type: EventType;
+  trigger:
+    | { type: 'OneTime'; tick: number }
+    | { type: 'Repeating'; start_tick: number; interval: number };
+  params: Record<string, unknown>;
+}
+
+export interface EventTimelineBuilderProps {
+  events: ScenarioEvent[];
+  agentIds: string[];
+  totalTicks: number;
+  onChange: (events: ScenarioEvent[]) => void;
+}
+
 // ---- Multi-Day Game Types ----
 
 export interface GameState {

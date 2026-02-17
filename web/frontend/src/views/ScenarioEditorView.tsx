@@ -1,6 +1,8 @@
-import { useState, useCallback } from 'react';
-import type { GameSetupConfig } from '../types';
+import { useState, useCallback, useMemo } from 'react';
+import type { GameSetupConfig, ScenarioEvent } from '../types';
 import { authFetch } from '../api';
+import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
+import * as jsYaml from 'js-yaml';
 
 const BLANK_TEMPLATE = `simulation:
   ticks_per_day: 12
@@ -235,6 +237,46 @@ export function ScenarioEditorView({ onGameLaunch }: Props) {
   const [scenarioName, setScenarioName] = useState('My Scenario');
   const [scenarioDesc, setScenarioDesc] = useState('');
 
+  // Parse YAML to extract agent IDs, total ticks, and events for the timeline builder
+  const parsedYaml = useMemo(() => {
+    try {
+      const doc = jsYaml.load(yaml) as Record<string, unknown> | null;
+      if (!doc) return null;
+      const sim = doc.simulation as Record<string, number> | undefined;
+      const agents = doc.agents as { id: string }[] | undefined;
+      const agentIds = agents?.map(a => a.id) ?? [];
+      const ticksPerDay = sim?.ticks_per_day ?? 12;
+      const numDays = sim?.num_days ?? 1;
+      const totalTicks = ticksPerDay * numDays;
+      const rawEvents = doc.scenario_events as unknown[] | undefined;
+      const events = rawEvents ? yamlToEvents(rawEvents) : [];
+      return { agentIds, totalTicks, events };
+    } catch {
+      return null;
+    }
+  }, [yaml]);
+
+  const handleEventsChange = useCallback((newEvents: ScenarioEvent[]) => {
+    try {
+      const doc = jsYaml.load(yaml) as Record<string, unknown> | null;
+      if (!doc) return;
+      // Remove old scenario_events
+      delete doc.scenario_events;
+      // Serialize without events, then append event YAML block
+      let base = jsYaml.dump(doc, { lineWidth: -1, noRefs: true }).trimEnd();
+      const evYaml = eventsToYaml(newEvents);
+      if (evYaml) {
+        base += '\n\n' + evYaml + '\n';
+      } else {
+        base += '\n';
+      }
+      setYaml(base);
+      setValid(null);
+    } catch {
+      // if YAML is broken, don't modify
+    }
+  }, [yaml]);
+
   const validate = useCallback(async () => {
     setValidating(true);
     setValid(null);
@@ -365,6 +407,16 @@ export function ScenarioEditorView({ onGameLaunch }: Props) {
               {saving ? '⏳ Launching…' : '🚀 Save & Launch'}
             </button>
           </div>
+
+          {/* Event Timeline Builder */}
+          {parsedYaml && (
+            <EventTimelineBuilder
+              events={parsedYaml.events}
+              agentIds={parsedYaml.agentIds}
+              totalTicks={parsedYaml.totalTicks}
+              onChange={handleEventsChange}
+            />
+          )}
         </div>
 
         {/* Preview panel */}
