@@ -1,5 +1,5 @@
 import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult, AgentReasoning } from './types';
-import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail } from './types';
+import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail, PolicyHistoryResponse, PolicyDiffResponse } from './types';
 import { getIdToken } from './firebase';
 
 const BASE = '/api';
@@ -232,6 +232,20 @@ export async function getPolicyLibrary(): Promise<LibraryPolicy[]> {
 
 export async function getPolicyLibraryDetail(policyId: string): Promise<LibraryPolicyDetail> {
   const res = await fetch(`${BASE}/policies/library/${policyId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Policy Evolution API ----
+
+export async function getPolicyHistory(gameId: string): Promise<PolicyHistoryResponse> {
+  const res = await authFetch(`${BASE}/games/${gameId}/policy-history`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getPolicyDiff(gameId: string, day1: number, day2: number, agent: string): Promise<PolicyDiffResponse> {
+  const res = await authFetch(`${BASE}/games/${gameId}/policy-diff?day1=${day1}&day2=${day2}&agent=${encodeURIComponent(agent)}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

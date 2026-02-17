@@ -240,3 +240,32 @@ export interface LibraryPolicy {
 export interface LibraryPolicyDetail extends LibraryPolicy {
   raw: Record<string, unknown>;
 }
+
+// ---- Policy Evolution Types ----
+
+export interface PolicyHistoryResponse {
+  agent_ids: string[];
+  days: PolicyHistoryDay[];
+  parameter_trajectories: Record<string, Record<string, number[]>>;
+}
+
+export interface PolicyHistoryDay {
+  day: number;
+  policies: Record<string, Record<string, unknown>>;
+  costs: Record<string, number>;
+  accepted: Record<string, boolean>;
+  reasoning: Record<string, string>;
+}
+
+export interface PolicyDiffResponse {
+  agent: string;
+  day1: number;
+  day2: number;
+  parameter_changes: { param: string; old: unknown; new: unknown }[];
+  tree_changes: Record<string, {
+    added_nodes: Record<string, unknown>[];
+    removed_nodes: Record<string, unknown>[];
+    modified_nodes: Record<string, unknown>[];
+  }>;
+  summary: string;
+}

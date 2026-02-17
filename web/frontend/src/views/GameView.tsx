@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay } from '../api';
+import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -393,6 +394,15 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                 format={(v) => Math.round(v).toLocaleString()}
               />
             </div>
+          )}
+
+          {/* Policy Evolution */}
+          {gameState.days.length > 0 && (
+            <PolicyEvolutionPanel
+              gameId={gameId}
+              agentIds={gameState.agent_ids}
+              currentDay={gameState.current_day}
+            />
           )}
 
           {/* Day-specific reasoning */}

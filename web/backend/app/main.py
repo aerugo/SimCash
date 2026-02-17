@@ -29,6 +29,7 @@ from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 from .scenario_library import get_library, get_scenario_detail
 from .policy_library import get_library as get_policy_library
+from .policy_diff import diff_policies
 from .admin import user_manager
 from . import config as app_config
 from pydantic import BaseModel as PydanticBaseModel
@@ -899,6 +900,90 @@ def get_policy_library_tree(policy_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Policy not found")
     return result
+
+
+# ---- Policy Evolution Endpoints ----
+
+@app.get("/api/games/{game_id}/policy-history")
+def get_policy_history(game_id: str, uid: str = Depends(get_current_user)):
+    """Get full policy evolution data for a game."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    days_data = []
+    for day in game.days:
+        day_num = day.day_num
+        policies = {aid: p for aid, p in day.policies.items()}
+        costs = day.per_agent_costs
+        # Determine accepted status from reasoning_history
+        accepted: dict[str, bool] = {}
+        reasoning_text: dict[str, str] = {}
+        for aid in game.agent_ids:
+            history = game.reasoning_history.get(aid, [])
+            if day_num < len(history):
+                entry = history[day_num]
+                accepted[aid] = entry.get("accepted", True)
+                reasoning_text[aid] = entry.get("reasoning", "")
+            else:
+                accepted[aid] = True
+                reasoning_text[aid] = ""
+
+        days_data.append({
+            "day": day_num,
+            "policies": policies,
+            "costs": costs,
+            "accepted": accepted,
+            "reasoning": reasoning_text,
+        })
+
+    # Build parameter trajectories
+    param_trajectories: dict[str, dict[str, list]] = {}
+    for aid in game.agent_ids:
+        params_over_time: dict[str, list] = {}
+        for day in game.days:
+            policy = day.policies.get(aid, {})
+            for key, val in policy.get("parameters", {}).items():
+                params_over_time.setdefault(key, []).append(val)
+        param_trajectories[aid] = params_over_time
+
+    return {
+        "agent_ids": game.agent_ids,
+        "days": days_data,
+        "parameter_trajectories": param_trajectories,
+    }
+
+
+@app.get("/api/games/{game_id}/policy-diff")
+def get_policy_diff(
+    game_id: str,
+    day1: int = Query(...),
+    day2: int = Query(...),
+    agent: str = Query(...),
+    uid: str = Depends(get_current_user),
+):
+    """Get structural diff between policies on two days for an agent."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    if day1 < 0 or day1 >= len(game.days):
+        raise HTTPException(status_code=400, detail=f"day1={day1} out of range")
+    if day2 < 0 or day2 >= len(game.days):
+        raise HTTPException(status_code=400, detail=f"day2={day2} out of range")
+    if agent not in game.agent_ids:
+        raise HTTPException(status_code=400, detail=f"Unknown agent: {agent}")
+
+    old_policy = game.days[day1].policies.get(agent, {})
+    new_policy = game.days[day2].policies.get(agent, {})
+
+    result = diff_policies(old_policy, new_policy)
+    return {
+        "agent": agent,
+        "day1": day1,
+        "day2": day2,
+        **result,
+    }
 
 
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----
