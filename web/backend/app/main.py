@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .auth import get_current_user, get_ws_user
+from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email
 
 from .models import (
     CompareRequest,
@@ -27,11 +27,23 @@ from .simulation import SimulationManager
 from .game import Game
 from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
+from .admin import user_manager
 from . import config as app_config
+from pydantic import BaseModel as PydanticBaseModel
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SimCash Web Sandbox", version="0.2.0")
+
+
+@app.on_event("startup")
+def _seed_admin():
+    """Ensure initial admin exists in Firestore."""
+    if not app_config.is_auth_disabled():
+        try:
+            user_manager.seed_admin("hugi@sensestack.xyz")
+        except Exception as e:
+            logger.warning("Failed to seed admin: %s", e)
 
 app.add_middleware(
     CORSMiddleware,
@@ -806,6 +818,39 @@ async def game_ws(websocket: WebSocket, game_id: str):
             await websocket.send_json({"type": "error", "message": str(e)})
         except Exception:
             pass
+
+
+# ---- Admin endpoints ----
+
+class InviteRequest(PydanticBaseModel):
+    email: str
+
+
+@app.get("/api/admin/me")
+async def admin_me(email: str = Depends(get_current_user_email)):
+    """Check if current user is admin."""
+    is_admin = user_manager.is_admin(email)
+    return {"email": email, "is_admin": is_admin}
+
+
+@app.get("/api/admin/users")
+async def admin_list_users(email: str = Depends(get_admin_user)):
+    """List all allowed users (admin only)."""
+    return {"users": user_manager.list_users()}
+
+
+@app.post("/api/admin/invite")
+async def admin_invite_user(req: InviteRequest, email: str = Depends(get_admin_user)):
+    """Invite a user by email (admin only)."""
+    user_manager.invite_user(req.email, invited_by=email)
+    return {"status": "invited", "email": req.email}
+
+
+@app.delete("/api/admin/users/{user_email:path}")
+async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user)):
+    """Revoke a user's access (admin only)."""
+    user_manager.revoke_user(user_email)
+    return {"status": "revoked", "email": user_email}
 
 
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----

@@ -67,7 +67,8 @@ class TestAuthEnabled:
 
     def test_valid_token_extracts_uid(self, client_auth_enabled):
         """Mock Firebase token verification to test uid extraction."""
-        with patch("app.auth._verify_token", return_value="test-uid-123"):
+        with patch("app.auth._verify_token", return_value={"uid": "test-uid-123", "email": "test@sensestack.xyz", "firebase": {"sign_in_provider": "google.com"}}), \
+             patch("app.auth._check_access"):
             res = client_auth_enabled.get(
                 "/api/games/scenarios",
                 headers={"Authorization": "Bearer valid-mock-token"},

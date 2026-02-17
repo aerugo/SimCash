@@ -27,13 +27,40 @@ def _get_firebase_app():
     return _firebase_app
 
 
-def _verify_token(id_token: str) -> str:
-    """Verify a Firebase ID token, return uid."""
+def _verify_token(id_token: str) -> dict:
+    """Verify a Firebase ID token, return decoded token dict."""
     from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
 
     _get_firebase_app()
     decoded = fb_auth.verify_id_token(id_token)
-    return decoded["uid"]
+    return decoded
+
+
+def _get_email_for_uid(uid: str) -> str:
+    """Look up the email address for a Firebase uid."""
+    from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
+
+    _get_firebase_app()
+    user_record = fb_auth.get_user(uid)
+    return user_record.email or ""
+
+
+def _check_access(uid: str, email: str, sign_in_provider: str) -> None:
+    """Check user is allowed and record login. Raises 403 if not."""
+    if config.is_auth_disabled():
+        return
+
+    from .admin import user_manager
+
+    if not user_manager.is_allowed(email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Contact an admin for access.",
+        )
+
+    # Map provider to friendly method name
+    method = "google" if "google" in sign_in_provider else "email_link"
+    user_manager.record_login(email, method)
 
 
 async def get_current_user(request: Request) -> str:
@@ -53,15 +80,65 @@ async def get_current_user(request: Request) -> str:
 
     token = auth_header[len("Bearer "):]
     try:
-        uid = _verify_token(token)
-        logger.info("Authenticated user: %s", uid)
+        decoded = _verify_token(token)
+        uid = decoded["uid"]
+        email = decoded.get("email") or _get_email_for_uid(uid)
+        sign_in_provider = decoded.get("firebase", {}).get("sign_in_provider", "")
+        _check_access(uid, email, sign_in_provider)
+        logger.info("Authenticated user: %s (%s)", uid, email)
         return uid
+    except HTTPException:
+        raise
     except Exception as e:
         logger.warning("Token verification failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
         )
+
+
+async def get_current_user_email(request: Request) -> str:
+    """FastAPI dependency: returns the authenticated user's email."""
+    if config.is_auth_disabled():
+        return "dev@localhost"
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = auth_header[len("Bearer "):]
+    try:
+        decoded = _verify_token(token)
+        uid = decoded["uid"]
+        email = decoded.get("email") or _get_email_for_uid(uid)
+        return email
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+
+async def get_admin_user(request: Request) -> str:
+    """FastAPI dependency: ensures the user is an admin. Returns email."""
+    email = await get_current_user_email(request)
+
+    if config.is_auth_disabled():
+        return email
+
+    from .admin import user_manager
+
+    if not user_manager.is_admin(email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required.",
+        )
+    return email
 
 
 async def get_ws_user(websocket: WebSocket) -> str:
@@ -79,7 +156,8 @@ async def get_ws_user(websocket: WebSocket) -> str:
         raise HTTPException(status_code=401, detail="Missing auth token")
 
     try:
-        uid = _verify_token(token)
+        decoded = _verify_token(token)
+        uid = decoded["uid"]
         logger.info("WS authenticated user: %s", uid)
         return uid
     except Exception as e:

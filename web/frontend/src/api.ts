@@ -4,17 +4,55 @@ import { getIdToken } from './firebase';
 
 const BASE = '/api';
 
-/** Authenticated fetch wrapper — auto-includes Bearer token for /api/games/* */
+/** Authenticated fetch wrapper — auto-includes Bearer token for protected endpoints */
 async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
-  // Add auth token for game endpoints
-  if (url.includes('/games')) {
-    const token = await getIdToken();
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
+  const token = await getIdToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
   return fetch(url, { ...init, headers });
+}
+
+// ---- Admin API ----
+
+export interface AdminUser {
+  email: string;
+  status?: string;
+  sign_in_method?: string;
+  last_login?: string;
+  invited_by?: string;
+  invited_at?: string;
+}
+
+export async function checkAdmin(): Promise<{ email: string; is_admin: boolean }> {
+  const res = await authFetch(`${BASE}/admin/me`);
+  if (res.status === 403) return { email: '', is_admin: false };
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchUsers(): Promise<AdminUser[]> {
+  const res = await authFetch(`${BASE}/admin/users`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.users;
+}
+
+export async function inviteUser(email: string): Promise<void> {
+  const res = await authFetch(`${BASE}/admin/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function revokeUser(email: string): Promise<void> {
+  const res = await authFetch(`${BASE}/admin/users/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(await res.text());
 }
 
 export async function getPresets(): Promise<Preset[]> {

@@ -15,6 +15,8 @@ import { DocsView } from './views/DocsView';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
+import { AdminDashboard } from './components/AdminDashboard';
+import { checkAdmin } from './api';
 
 const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
   { id: 'home', label: 'Setup', icon: '🏠' },
@@ -31,6 +33,29 @@ const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; req
 
 function AppContent() {
   const { user, loading, signOut: handleAuthSignOut } = useAuth();
+  const [accessDenied, setAccessDenied] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setAccessDenied(false);
+      setIsAdmin(false);
+      setAdminChecked(false);
+      return;
+    }
+    checkAdmin()
+      .then((res) => {
+        setIsAdmin(res.is_admin);
+        setAdminChecked(true);
+      })
+      .catch((err) => {
+        if (err instanceof Error && err.message.includes('403')) {
+          setAccessDenied(true);
+        }
+        setAdminChecked(true);
+      });
+  }, [user]);
 
   if (loading) {
     return (
@@ -40,11 +65,19 @@ function AppContent() {
     );
   }
 
-  if (!user) {
-    return <LoginPage />;
+  if (!user || accessDenied) {
+    return <LoginPage accessDenied={accessDenied} />;
   }
 
-  return <AppMain userEmail={user.email ?? ''} onSignOut={handleAuthSignOut} />;
+  if (!adminChecked) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-slate-400 text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  return <AppMain userEmail={user.email ?? ''} onSignOut={handleAuthSignOut} isAdmin={isAdmin} />;
 }
 
 function App() {
@@ -55,7 +88,7 @@ function App() {
   );
 }
 
-function AppMain({ userEmail, onSignOut }: { userEmail: string; onSignOut: () => void }) {
+function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignOut: () => void; isAdmin: boolean }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [tab, setTab] = useState<TabId>('home');
   const [simId, setSimId] = useState<string | null>(null);
@@ -67,6 +100,7 @@ function AppMain({ userEmail, onSignOut }: { userEmail: string; onSignOut: () =>
   const wsRef = useRef<WebSocket | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
 
   useEffect(() => {
     getPresets().then(setPresets);
@@ -215,6 +249,14 @@ function AppMain({ userEmail, onSignOut }: { userEmail: string; onSignOut: () =>
               </span>
             </div>
           )}
+            {isAdmin && (
+              <button
+                onClick={() => setShowAdmin(true)}
+                className="text-xs text-amber-400 hover:text-amber-300 transition-colors font-medium"
+              >
+                👑 Admin
+              </button>
+            )}
             <span className="text-xs text-slate-500 hidden md:inline">{userEmail}</span>
             <button onClick={onSignOut} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Sign out</button>
           </div>
@@ -307,6 +349,7 @@ function AppMain({ userEmail, onSignOut }: { userEmail: string; onSignOut: () =>
         </div>
       )}
 
+      {showAdmin && <AdminDashboard onClose={() => setShowAdmin(false)} />}
       <ToastContainer />
     </div>
   );
