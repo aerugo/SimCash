@@ -587,13 +587,16 @@ function References() {
         </li>
         <li>
           <strong>Korinek, A. (2025)</strong>.{' '}
-          <em>"Language Models and Cognitive Automation for Economic Research."</em>{' '}
-          AEA Papers and Proceedings.{' '}
+          <em>"AI Agents for Economic Research."</em>{' '}
+          Update to <em>"Generative AI for Economic Research"</em>, Journal of Economic Literature 61(4).{' '}
           <a href="https://www.aeaweb.org/content/file?id=23290" target="_blank" rel="noopener" className="text-sky-400 hover:underline">
             PDF ↗
           </a>
           <p className="text-sm text-slate-500 mt-1">
-            Methodology for benchmarking AI in economic research contexts.
+            Demystifies AI agents for economists — covering autonomous LLM systems with planning, tool use,
+            and multi-step task execution. Shows how to build research agents using "vibe coding" and
+            frameworks like LangGraph. Directly relevant to SimCash's approach of using LLM agents as
+            autonomous policy optimizers.
           </p>
         </li>
       </ul>

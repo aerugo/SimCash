@@ -164,8 +164,24 @@ Five cost types (only 3 used in paper experiments):
 - Uses policy trees (not just text recommendations) fed into actual engine
 - Bootstrap evaluation for statistical rigor
 
-## 7. Korinek Paper (AEA)
-(PDF not extractable — appears to be an AI benchmarking methodology paper from AEA)
+## 7. Korinek Paper (AEA, August 2025)
+
+**Title**: "AI Agents for Economic Research"
+**Author**: Anton Korinek
+**Published**: August 2025 update to "Generative AI for Economic Research" (JEL 61(4))
+
+### Key Themes
+1. **From Chatbots to Agents**: Three paradigms — traditional LLMs (System 1), reasoning models (System 2), agentic systems (planning + tools + multi-step)
+2. **Deep Research Agents**: Multi-agent architectures that decompose tasks, spawn specialized agents, process hundreds of sources
+3. **Vibe Coding**: Programming through natural language (Claude Code, released Feb 2025)
+4. **Democratizing Technical Implementation**: Economists can build tools without traditional coding
+5. **Building Custom Agents**: Using frameworks like LangGraph
+
+### Relevance to SimCash
+- SimCash is exactly the kind of "AI agent for economic research" Korinek describes
+- Our LLM agents are autonomous policy optimizers with planning (multi-iteration), tool use (simulation engine), and adaptive strategies
+- The paper validates our approach: using LLMs as semi-autonomous research assistants for economic analysis
+- Korinek notes agents "struggle to identify frontier-defining papers" — similar limitation to our finding that agents converge but not always optimally
 
 ## 8. Web Sandbox Implications
 
