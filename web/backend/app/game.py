@@ -6,6 +6,7 @@ import json
 import copy
 import random
 import logging
+import concurrent.futures
 from pathlib import Path
 from typing import Any
 
@@ -145,6 +146,30 @@ class Game:
 
         return all_events, balance_history, costs, per_agent_costs, total_cost, tick_events
 
+    def _run_cost_only(self, seed: int) -> dict[str, dict]:
+        """Run simulation and return only costs (thread-safe, GIL-releasing).
+
+        Returns parsed JSON: { "BANK_A": { "total_cost": ..., ... }, ... }
+        """
+        scenario = copy.deepcopy(self.raw_yaml)
+        for agent_cfg in scenario.get("agents", []):
+            agent_id = agent_cfg.get("id")
+            if agent_id in self.policies:
+                policy = self.policies[agent_id]
+                fraction = policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
+                agent_cfg["liquidity_allocation_fraction"] = fraction
+                agent_cfg["policy"] = {"type": "InlineJson", "json_string": json.dumps(policy)}
+
+        scenario.setdefault("simulation", {})["rng_seed"] = seed
+
+        sim_config = SimulationConfig.from_dict(scenario)
+        ffi_config = sim_config.to_ffi_dict()
+        orch = Orchestrator.new(ffi_config)
+
+        ticks = ffi_config["ticks_per_day"] * ffi_config["num_days"]
+        result_json = orch.run_and_get_all_costs(ticks)
+        return json.loads(result_json)
+
     def run_day(self) -> GameDay:
         """Run one day of simulation with current policies.
         
@@ -158,17 +183,28 @@ class Game:
         # Run the representative simulation (always shown in UI)
         all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
 
-        # If multi-sample, run additional seeds and average costs
+        # If multi-sample, run additional seeds in parallel and average costs
         if self.num_eval_samples > 1:
             all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
             all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
-            
-            for sample_idx in range(1, self.num_eval_samples):
-                sample_seed = seed + sample_idx * 1000  # Spread seeds
-                _, _, s_costs, s_per_agent, _, _ = self._run_single_sim(sample_seed)
+
+            extra_seeds = [seed + i * 1000 for i in range(1, self.num_eval_samples)]
+
+            # Use GIL-releasing FFI for thread-parallel extra samples
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(extra_seeds), 8)) as pool:
+                futures = {s: pool.submit(self._run_cost_only, s) for s in extra_seeds}
+                extra_results = {s: futures[s].result() for s in extra_seeds}
+
+            for sample_seed in extra_seeds:
+                s_costs_json = extra_results[sample_seed]
                 for aid in self.agent_ids:
-                    all_per_agent[aid].append(s_per_agent[aid])
-                    all_costs[aid].append(s_costs[aid])
+                    agent_c = s_costs_json.get(aid, {})
+                    all_per_agent[aid].append(agent_c.get("total_cost", 0))
+                    all_costs[aid].append({
+                        "liquidity_cost": agent_c.get("liquidity_cost", 0),
+                        "delay_cost": agent_c.get("delay_cost", 0),
+                        "penalty_cost": agent_c.get("penalty_cost", 0),
+                    })
             
             # Average costs across samples
             n = self.num_eval_samples
