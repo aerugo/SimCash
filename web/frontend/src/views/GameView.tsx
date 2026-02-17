@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { GameState, DayResult, GameOptimizationResult } from '../types';
+import type { GameState } from '../types';
 import { stepGame, autoRunGame } from '../api';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
@@ -114,7 +114,7 @@ export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Day Timeline</h3>
               <div className="flex gap-1 flex-wrap">
-                {gameState.days.map((d, i) => (
+                {gameState.days.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedDay(i)}
@@ -276,10 +276,10 @@ export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
           <div className="max-h-48 overflow-y-auto text-xs font-mono text-slate-400 space-y-0.5">
             {day.events.slice(0, 100).map((e, i) => (
               <div key={i} className="flex gap-2">
-                <span className="text-slate-600 w-6">{e.tick}</span>
-                <span className="text-sky-400">{e.event_type}</span>
-                {e.sender_id && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
-                {e.amount && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
+                <span className="text-slate-600 w-6">{String(e.tick)}</span>
+                <span className="text-sky-400">{String(e.event_type)}</span>
+                {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+                {'amount' in e && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
               </div>
             ))}
             {day.events.length > 100 && (
@@ -293,10 +293,10 @@ export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
 }
 
 // Simple SVG line chart for evolution data
-function EvolutionChart({ data, agentIds, yLabel, format }: {
+function EvolutionChart({ data, agentIds, format }: {
   data: Record<string, number[]>;
   agentIds: string[];
-  yLabel: string;
+  yLabel?: string;
   format: (v: number) => string;
 }) {
   const allValues = agentIds.flatMap(aid => data[aid] ?? []);
