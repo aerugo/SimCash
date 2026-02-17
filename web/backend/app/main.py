@@ -33,6 +33,7 @@ from .policy_diff import diff_policies
 from .policy_editor import router as policy_editor_router
 from .scenario_editor import router as scenario_editor_router
 from .admin import user_manager
+from .settings import settings_manager
 from . import config as app_config
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -882,6 +883,54 @@ async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user
     """Revoke a user's access (admin only)."""
     user_manager.revoke_user(user_email)
     return {"status": "revoked", "email": user_email}
+
+
+# ---- Platform Settings (Model Selection) ----
+
+class SettingsUpdate(PydanticBaseModel):
+    optimization_model: str | None = None
+    model_settings: dict | None = None
+
+
+@app.get("/api/settings")
+async def get_settings(email: str = Depends(get_admin_user)):
+    """Get platform settings (admin only)."""
+    s = settings_manager.get_settings()
+    return {
+        "optimization_model": s.optimization_model,
+        "model_settings": s.model_settings,
+        "available_models": s.available_models,
+        "updated_by": s.updated_by,
+        "updated_at": s.updated_at,
+    }
+
+
+@app.patch("/api/settings")
+async def update_settings(req: SettingsUpdate, email: str = Depends(get_admin_user)):
+    """Update platform settings (admin only)."""
+    updates: dict = {}
+    if req.optimization_model is not None:
+        updates["optimization_model"] = req.optimization_model
+    if req.model_settings is not None:
+        updates["model_settings"] = req.model_settings
+    try:
+        s = settings_manager.update_settings(updates, email)
+        return {
+            "status": "updated",
+            "optimization_model": s.optimization_model,
+            "model_settings": s.model_settings,
+            "updated_by": s.updated_by,
+            "updated_at": s.updated_at,
+        }
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/settings/models")
+async def list_models(_user: str = Depends(get_current_user)):
+    """List available optimization models (any authenticated user)."""
+    return {"models": settings_manager.get_available_models()}
 
 
 # ---- Constraint Presets ----

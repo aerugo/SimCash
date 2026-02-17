@@ -60,11 +60,9 @@ async def stream_optimize(
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
-    llm_config = LLMConfig(
-        model="openai:gpt-5.2",
-        reasoning_effort="high",
-        reasoning_summary="detailed",
-    )
+    # Get LLM config from platform settings (admin-switchable)
+    from .settings import settings_manager
+    llm_config = settings_manager.get_llm_config()
 
     # Build system prompt
     cost_rates = raw_yaml.get("cost_rates", {})
@@ -141,11 +139,19 @@ Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""
 
     # Create pydantic-ai agent
+    model_string = llm_config.full_model_string
     agent = Agent(
-        llm_config.full_model_string,
+        model_string,
         system_prompt=system_prompt,
     )
     model_settings = llm_config.to_model_settings()
+
+    # Fix: google-vertex provider needs thinking_config in model_settings
+    # (LLMConfig.to_model_settings only checks provider == "google", not "google-vertex")
+    if llm_config.provider == "google-vertex" and llm_config.thinking_config:
+        model_settings["google_thinking_config"] = llm_config.thinking_config
+
+    yield {"type": "model_info", "model": llm_config.model, "provider": llm_config.provider}
 
     # Stream the response
     full_text = ""

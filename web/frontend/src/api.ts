@@ -55,6 +55,45 @@ export async function revokeUser(email: string): Promise<void> {
   if (!res.ok) throw new Error(await res.text());
 }
 
+// ---- Platform Settings (Model Selection) ----
+
+export interface ModelOption {
+  id: string;
+  label: string;
+  provider: string;
+  active: boolean;
+}
+
+export interface PlatformSettings {
+  optimization_model: string;
+  model_settings: Record<string, unknown>;
+  available_models: { id: string; label: string; provider: string }[];
+  updated_by: string;
+  updated_at: string;
+}
+
+export async function fetchModels(): Promise<ModelOption[]> {
+  const res = await authFetch(`${BASE}/settings/models`);
+  const data = await res.json();
+  return data.models;
+}
+
+export async function fetchSettings(): Promise<PlatformSettings> {
+  const res = await authFetch(`${BASE}/settings`);
+  const data = await res.json();
+  return data;
+}
+
+export async function updateSettings(updates: { optimization_model?: string; model_settings?: Record<string, unknown> }): Promise<PlatformSettings> {
+  const res = await authFetch(`${BASE}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function getPresets(): Promise<Preset[]> {
   const res = await fetch(`${BASE}/presets`);
   const data = await res.json();
