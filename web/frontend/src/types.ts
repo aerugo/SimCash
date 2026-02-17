@@ -147,12 +147,26 @@ export interface DayResult {
   per_agent_costs: Record<string, number>;
 }
 
+export interface BootstrapResult {
+  delta_sum: number;
+  mean_delta: number;
+  cv: number;
+  ci_lower: number;
+  ci_upper: number;
+  num_samples: number;
+  old_mean_cost: number;
+  new_mean_cost: number;
+  rejection_reason: string;
+}
+
 export interface GameOptimizationResult {
   reasoning: string;
   old_fraction: number;
   new_fraction?: number;
   accepted: boolean;
   mock?: boolean;
+  bootstrap?: BootstrapResult;
+  rejection_reason?: string;
 }
 
 export interface ScenarioPackEntry {

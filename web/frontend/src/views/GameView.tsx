@@ -232,15 +232,39 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                   const history = gameState.reasoning_history[aid] ?? [];
                   const latest = history[history.length - 1];
                   if (!latest) return null;
+                  const bs = latest.bootstrap;
                   return (
-                    <div key={aid} className="bg-slate-900/50 rounded-lg p-3">
+                    <div key={aid} className={`bg-slate-900/50 rounded-lg p-3 border-l-2 ${
+                      latest.accepted ? 'border-green-500' : 'border-red-500'
+                    }`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-mono text-xs" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
                           {aid}
                         </span>
                         {latest.mock && <span className="text-[10px] text-slate-600">mock</span>}
-                        {latest.accepted && <span className="text-green-400 text-[10px]">✓ accepted</span>}
+                        {latest.accepted
+                          ? <span className="text-green-400 text-[10px] font-medium">✓ ACCEPTED</span>
+                          : <span className="text-red-400 text-[10px] font-medium">✗ REJECTED</span>
+                        }
+                        {latest.old_fraction != null && latest.new_fraction != null && (
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            {latest.old_fraction.toFixed(3)} → {latest.new_fraction.toFixed(3)}
+                          </span>
+                        )}
                       </div>
+                      {bs && (
+                        <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
+                          <span>Δ={bs.delta_sum.toLocaleString()}</span>
+                          <span>CV={bs.cv.toFixed(2)}</span>
+                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]</span>
+                          <span>n={bs.num_samples}</span>
+                        </div>
+                      )}
+                      {!latest.accepted && latest.rejection_reason && (
+                        <div className="text-[10px] text-red-400/80 mb-1">
+                          {latest.rejection_reason}
+                        </div>
+                      )}
                       <p className="text-xs text-slate-400 leading-relaxed">{latest.reasoning}</p>
                     </div>
                   );
