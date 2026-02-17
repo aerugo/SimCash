@@ -593,32 +593,64 @@ def delete_game(game_id: str):
 
 @app.websocket("/ws/games/{game_id}")
 async def game_ws(websocket: WebSocket, game_id: str):
-    """WebSocket for live game streaming."""
+    """WebSocket for live game streaming with structured message protocol.
+
+    Message types sent:
+      game_state          — full game state snapshot
+      day_complete        — one simulation day finished (data = day dict)
+      optimization_start  — LLM optimization beginning for an agent
+      optimization_complete — LLM optimization done for an agent
+      game_complete       — all days finished
+      error               — something went wrong
+    """
     await websocket.accept()
 
     game = game_manager.get(game_id)
     if not game:
-        await websocket.send_json({"error": "Game not found"})
+        await websocket.send_json({"type": "error", "message": "Game not found"})
         await websocket.close()
         return
 
     running = False
     speed_ms = 1000
 
+    async def run_one_step():
+        """Run one day + optimization, emitting structured messages."""
+        if game.is_complete:
+            await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+            return
+
+        day = game.run_day()
+        await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
+
+        if not game.is_complete:
+            # Emit per-agent optimization messages
+            for aid in game.agent_ids:
+                await websocket.send_json({
+                    "type": "optimization_start",
+                    "day": day.day_num,
+                    "agent_id": aid,
+                })
+
+            reasoning = await game.optimize_policies()
+
+            for aid, result in reasoning.items():
+                await websocket.send_json({
+                    "type": "optimization_complete",
+                    "day": day.day_num,
+                    "agent_id": aid,
+                    "data": result,
+                })
+
+        await websocket.send_json({"type": "game_state", "data": game.get_state()})
+
     async def auto_run():
         nonlocal running
         while running and not game.is_complete:
-            day = game.run_day()
-            await websocket.send_json({"type": "day", "data": day.to_dict()})
-            reasoning = {}
-            if game.use_llm and not game.is_complete:
-                await websocket.send_json({"type": "optimizing", "day": day.day_num})
-                reasoning = await game.optimize_policies()
-                await websocket.send_json({"type": "reasoning", "data": reasoning})
-            await websocket.send_json({"type": "game_state", "data": game.get_state()})
+            await run_one_step()
             await asyncio.sleep(speed_ms / 1000.0)
         if game.is_complete:
-            await websocket.send_json({"type": "complete", "data": game.get_state()})
+            await websocket.send_json({"type": "game_complete", "data": game.get_state()})
         running = False
 
     run_task: asyncio.Task | None = None
@@ -631,17 +663,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
             action = msg.get("action")
 
             if action == "step":
-                if not game.is_complete:
-                    day = game.run_day()
-                    await websocket.send_json({"type": "day", "data": day.to_dict()})
-                    reasoning = {}
-                    if game.use_llm and not game.is_complete:
-                        await websocket.send_json({"type": "optimizing", "day": day.day_num})
-                        reasoning = await game.optimize_policies()
-                        await websocket.send_json({"type": "reasoning", "data": reasoning})
-                    await websocket.send_json({"type": "game_state", "data": game.get_state()})
-                else:
-                    await websocket.send_json({"type": "complete", "data": game.get_state()})
+                await run_one_step()
 
             elif action == "auto":
                 speed_ms = msg.get("speed_ms", 1000)

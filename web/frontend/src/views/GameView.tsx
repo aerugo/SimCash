@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import type { GameState } from '../types';
-import { stepGame, autoRunGame } from '../api';
+import { useGameWebSocket } from '../hooks/useGameWebSocket';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -11,42 +11,34 @@ interface Props {
   onReset: () => void;
 }
 
-export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
-  const [loading, setLoading] = useState(false);
-  const [optimizing, setOptimizing] = useState(false);
+export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
+  const { gameState: wsState, connected, optimizingAgent, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
 
-  const handleStep = useCallback(async () => {
-    setLoading(true);
-    setOptimizing(false);
-    try {
-      const res = await stepGame(gameId);
-      if (res.reasoning && Object.keys(res.reasoning).length > 0) {
-        setOptimizing(true);
-        setTimeout(() => setOptimizing(false), 500);
-      }
-      onUpdate(res.game);
-      setSelectedDay(res.game.current_day - 1);
-    } catch (e) {
-      console.error('Step failed:', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [gameId, onUpdate]);
+  const gameState = wsState ?? initialState;
 
-  const handleAutoRun = useCallback(async () => {
-    setAutoRunning(true);
-    try {
-      const res = await autoRunGame(gameId);
-      onUpdate(res.game);
-      setSelectedDay(res.game.current_day - 1);
-    } catch (e) {
-      console.error('Auto-run failed:', e);
-    } finally {
-      setAutoRunning(false);
+  // Sync state up to parent
+  useEffect(() => {
+    if (wsState) onUpdate(wsState);
+  }, [wsState, onUpdate]);
+
+  // Auto-select latest day
+  useEffect(() => {
+    if (gameState.days.length > 0 && selectedDay === null) {
+      setSelectedDay(gameState.days.length - 1);
     }
-  }, [gameId, onUpdate]);
+  }, [gameState.days.length, selectedDay]);
+
+  const handleAutoRun = () => {
+    setAutoRunning(true);
+    autoRun(0);
+  };
+
+  // Stop auto-run when game completes
+  useEffect(() => {
+    if (gameState.is_complete && autoRunning) setAutoRunning(false);
+  }, [gameState.is_complete, autoRunning]);
 
   const day = selectedDay !== null && selectedDay < gameState.days.length
     ? gameState.days[selectedDay] : gameState.days[gameState.days.length - 1] ?? null;
@@ -66,21 +58,33 @@ export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
           {gameState.use_llm && (
             <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">🧠 AI Optimization</span>
           )}
+          {!connected && (
+            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
+          )}
+          {optimizingAgent && (
+            <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
+              🧠 Optimizing {optimizingAgent}...
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleStep}
-            disabled={loading || autoRunning || gameState.is_complete}
+            onClick={step}
+            disabled={!connected || autoRunning || gameState.is_complete}
             className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
           >
-            {loading ? '⏳ Running...' : '▶ Next Day'}
+            ▶ Next Day
           </button>
           <button
-            onClick={handleAutoRun}
-            disabled={loading || autoRunning || gameState.is_complete}
-            className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-sm font-medium"
+            onClick={autoRunning ? stop : handleAutoRun}
+            disabled={!connected || gameState.is_complete}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              autoRunning
+                ? 'bg-red-600 hover:bg-red-500'
+                : 'bg-violet-600 hover:bg-violet-500 disabled:opacity-40'
+            }`}
           >
-            {autoRunning ? '⏳ Running all...' : '⏩ Auto-run'}
+            {autoRunning ? '⏹ Stop' : '⏩ Auto-run'}
           </button>
           <button
             onClick={onReset}
@@ -99,9 +103,9 @@ export function GameView({ gameId, gameState, onUpdate, onReset }: Props) {
         />
       </div>
 
-      {optimizing && (
+      {optimizingAgent && (
         <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 text-center animate-pulse">
-          <span className="text-lg">🧠 Optimizing policies...</span>
+          <span className="text-lg">🧠 Optimizing {optimizingAgent}...</span>
         </div>
       )}
 
