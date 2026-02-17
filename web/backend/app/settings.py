@@ -16,24 +16,29 @@ from . import config
 logger = logging.getLogger(__name__)
 
 # Default model if nothing configured
-DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "openai:gpt-5.2")
+DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:gemini-3-flash")
 
 # Built-in available models
 AVAILABLE_MODELS: list[dict[str, str]] = [
+    {
+        "id": "google-vertex:gemini-3-flash",
+        "label": "Gemini 3 Flash (Vertex AI)",
+        "provider": "google-vertex",
+    },
     {
         "id": "google-vertex:gemini-3.0-pro",
         "label": "Gemini 3 Pro (Vertex AI)",
         "provider": "google-vertex",
     },
     {
-        "id": "openai:gpt-5.2",
-        "label": "GPT-5.2 (OpenAI)",
-        "provider": "openai",
-    },
-    {
         "id": "google-vertex:gemini-2.5-flash",
         "label": "Gemini 2.5 Flash (Vertex AI)",
         "provider": "google-vertex",
+    },
+    {
+        "id": "openai:gpt-5.2",
+        "label": "GPT-5.2 (OpenAI)",
+        "provider": "openai",
     },
     {
         "id": "anthropic:claude-sonnet-4-5",

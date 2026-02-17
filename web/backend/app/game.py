@@ -601,11 +601,9 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
-    llm_config = LLMConfig(
-        model="openai:gpt-5.2",
-        reasoning_effort="high",
-        reasoning_summary="detailed",
-    )
+    # Use platform settings for model selection (admin-switchable)
+    from .settings import settings_manager
+    llm_config = settings_manager.get_llm_config()
     client = ExperimentLLMClient(llm_config)
 
     # Build dynamic system prompt with cost rates from scenario
@@ -661,7 +659,7 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
         current_iteration=len(all_days),
         current_metrics=current_metrics,
         llm_client=client,
-        llm_model="gpt-5.2",
+        llm_model=llm_config.model_name,
         current_cost=float(agent_cost),
         iteration_history=iteration_history,
         events=last_day.events,  # Raw events for agent filtering

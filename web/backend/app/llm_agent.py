@@ -207,31 +207,30 @@ async def get_llm_decision(
         # Add slight delay to simulate API call
         return generate_mock_reasoning(agent_id, tick, agent_state, scenario_context)
 
-    # Real OpenAI call
+    # Real LLM call via pydantic-ai (uses platform settings for model)
     try:
-        import openai
+        from pydantic_ai import Agent
+        from .settings import settings_manager
         from dotenv import load_dotenv
+        from pathlib import Path
         import os
 
-        load_dotenv()
-        client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+
+        llm_config = settings_manager.get_llm_config()
+        agent = Agent(llm_config.full_model_string)
+        model_settings = llm_config.to_model_settings()
+
+        # Fix: google-vertex needs thinking_config in model_settings
+        if llm_config.provider == "google-vertex" and llm_config.thinking_config:
+            model_settings["google_thinking_config"] = llm_config.thinking_config
 
         decision_type = "liquidity_allocation" if tick == 0 else "payment_timing"
 
         prompt = _build_prompt(agent_id, tick, agent_state, scenario_context, decision_type)
 
-        response = await client.responses.create(
-            model="gpt-5.2",
-            input=prompt,
-            reasoning={"effort": "high", "summary": "detailed"},
-        )
-
-        content = response.output_text
-        reasoning_summary = ""
-        for item in response.output:
-            if item.type == "reasoning":
-                for s in item.summary:
-                    reasoning_summary += s.text + "\n"
+        result = await agent.run(prompt, model_settings=model_settings)
+        content = result.output
 
         decision = _extract_decision(content, decision_type)
 
@@ -242,9 +241,10 @@ async def get_llm_decision(
             "decision_type": decision_type,
             "decision": decision,
             "reasoning": content,
-            "reasoning_summary": reasoning_summary.strip(),
-            "prompt_tokens": response.usage.input_tokens if response.usage else 0,
-            "completion_tokens": response.usage.output_tokens if response.usage else 0,
+            "reasoning_summary": "",
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "model": llm_config.model,
         }
     except Exception as e:
         # Fall back to mock on any error

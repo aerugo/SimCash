@@ -40,6 +40,7 @@ class TestSettingsManager:
         mgr = SettingsManager()
         s = mgr.get_settings()
         assert s.optimization_model == DEFAULT_MODEL
+        assert "gemini-3-flash" in DEFAULT_MODEL  # Gemini 3 Flash is default
         assert len(s.available_models) == len(AVAILABLE_MODELS)
 
     def test_get_settings_cached(self):
