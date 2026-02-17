@@ -152,6 +152,23 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         </div>
       )}
 
+      {/* Empty state guidance */}
+      {gameState.days.length === 0 && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
+          <div className="text-3xl mb-3">🏦</div>
+          <h3 className="text-lg font-semibold mb-2">Ready to Start</h3>
+          <p className="text-sm text-slate-400 max-w-lg mx-auto">
+            Click <strong>▶ Next Day</strong> to simulate the first trading day. Each day, banks process payments using their current liquidity policy.
+            After each day, the AI optimizer analyzes costs and proposes improved policies — watching for the sweet spot between
+            holding too much liquidity (wasted capital) and too little (missed deadlines).
+          </p>
+          <p className="text-xs text-slate-500 mt-3">
+            All agents start with <span className="font-mono text-slate-400">fraction = 1.000</span> (commit 100% of their pool).
+            The optimizer will learn to reduce this over multiple days.
+          </p>
+        </div>
+      )}
+
       {/* Main layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Current day details */}
@@ -254,8 +271,8 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {day && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Day {day.day + 1} Results
-                <span className="text-xs text-slate-500 ml-2">seed={day.seed}</span>
+                Day {day.day + 1} Results{' '}
+                <span className="text-xs text-slate-500 font-normal ml-1">seed={day.seed}</span>
               </h3>
               <div className="space-y-3">
                 {gameState.agent_ids.map((aid, i) => {
@@ -356,7 +373,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                         <span className="font-mono text-xs" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
                           {aid}
                         </span>
-                        {latest.mock && <span className="text-[10px] text-slate-600">mock</span>}
+                        {latest.mock && <span className="text-[10px] text-slate-600 bg-slate-800 px-1 rounded" title="Using mock reasoning (no API call)">sim</span>}
                         {latest.accepted
                           ? <span className="text-green-400 text-[10px] font-medium">✓ ACCEPTED</span>
                           : <span className="text-red-400 text-[10px] font-medium">✗ REJECTED</span>
@@ -507,7 +524,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
                     {r.old_fraction.toFixed(3)} → {r.new_fraction?.toFixed(3) ?? r.old_fraction.toFixed(3)}
                   </span>
                 )}
-                {r.mock && <span className="text-slate-600">mock</span>}
+                {r.mock && <span className="text-slate-600 bg-slate-800 px-1 rounded" title="Mock reasoning">sim</span>}
                 {r.bootstrap && (
                   <span className="text-slate-600">
                     Δ={r.bootstrap.delta_sum.toLocaleString()} CV={r.bootstrap.cv.toFixed(2)}

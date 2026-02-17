@@ -226,9 +226,15 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
                     <div className="text-sm text-slate-400 mt-1">{s.description}</div>
                     {s.cost_rates && (
                       <div className="text-xs text-slate-500 mt-2 flex gap-3">
-                        <span>💰 {s.cost_rates.liquidity_cost_per_tick_bps} bps</span>
-                        <span>⏱ {s.cost_rates.delay_cost_per_tick_per_cent}/¢/tick</span>
-                        <span>⚠️ ${(s.cost_rates.deadline_penalty / 100).toLocaleString()}</span>
+                        <span title="Liquidity cost: basis points of committed funds charged per tick. Higher = more expensive to hold liquidity.">
+                          💰 {s.cost_rates.liquidity_cost_per_tick_bps} bps
+                        </span>
+                        <span title="Delay cost: charged per cent of unsettled payment per tick. Penalizes slow settlement.">
+                          ⏱ {s.cost_rates.delay_cost_per_tick_per_cent}/¢/tick
+                        </span>
+                        <span title="Deadline penalty: flat fee per payment still unsettled at end of day. The strongest incentive to settle on time.">
+                          ⚠️ ${(s.cost_rates.deadline_penalty / 100).toLocaleString()}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -437,34 +443,38 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
         </div>
       )}
 
-      {/* AI Reasoning */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-300">🧠 AI Agent Reasoning (GPT-5.2)</h3>
-            <p className="text-xs text-slate-500 mt-1">Watch agents think through decisions in real-time</p>
-          </div>
-          <Toggle label="" value={config.use_llm} onChange={v => setConfig({ ...config, use_llm: v })} />
-        </div>
-        {config.use_llm && (
-          <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
-            <div>
-              <span className="text-xs text-slate-400">Mock Mode</span>
-              <span className="text-[10px] text-slate-600 ml-2">
-                {config.mock_reasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
-              </span>
+      {/* AI Reasoning + Launch — only for Presets and Custom Builder */}
+      {mode !== 'game' && (
+        <>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-300">🧠 AI Agent Reasoning (GPT-5.2)</h3>
+                <p className="text-xs text-slate-500 mt-1">Watch agents think through decisions in real-time</p>
+              </div>
+              <Toggle label="" value={config.use_llm} onChange={v => setConfig({ ...config, use_llm: v })} />
             </div>
-            <Toggle label="" value={config.mock_reasoning} onChange={v => setConfig({ ...config, mock_reasoning: v })} />
+            {config.use_llm && (
+              <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
+                <div>
+                  <span className="text-xs text-slate-400">Mock Mode</span>
+                  <span className="text-[10px] text-slate-600 ml-2">
+                    {config.mock_reasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
+                  </span>
+                </div>
+                <Toggle label="" value={config.mock_reasoning} onChange={v => setConfig({ ...config, mock_reasoning: v })} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <button
-        onClick={handleLaunch}
-        className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-semibold text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/20"
-      >
-        🚀 Launch Simulation
-      </button>
+          <button
+            onClick={handleLaunch}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-semibold text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/20"
+          >
+            🚀 Launch Simulation
+          </button>
+        </>
+      )}
     </div>
   );
 }
