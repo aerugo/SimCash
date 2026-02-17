@@ -386,6 +386,146 @@ impl PyOrchestrator {
         tick_result_to_py(py, &result)
     }
 
+    /// Run N ticks with GIL released and return one agent's total accumulated cost.
+    ///
+    /// This is the "bootstrap fast path" — releases the Python GIL during
+    /// simulation so multiple simulations can run in parallel via Python threads.
+    ///
+    /// Each `Orchestrator` instance is independent (own state, own RNG),
+    /// so concurrent execution on separate instances is safe.
+    ///
+    /// # Arguments
+    ///
+    /// * `agent_id` - Agent identifier (e.g., "BANK_A")
+    /// * `num_ticks` - Number of ticks to simulate (must be > 0)
+    ///
+    /// # Returns
+    ///
+    /// Total accumulated cost for the agent (i64, in cents)
+    ///
+    /// # Errors
+    ///
+    /// - `PyValueError` if `agent_id` not found
+    /// - `PyValueError` if `num_ticks` is 0
+    /// - `PyRuntimeError` if tick execution fails
+    fn run_and_get_total_cost(
+        &mut self,
+        py: Python,
+        agent_id: String,
+        num_ticks: usize,
+    ) -> PyResult<i64> {
+        // Validate BEFORE releasing GIL
+        if num_ticks == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "num_ticks must be > 0",
+            ));
+        }
+        if self.inner.get_costs(&agent_id).is_none() {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Agent not found: {}",
+                agent_id
+            )));
+        }
+
+        // Release GIL — other Python threads can run while Rust computes
+        let result: Result<i64, String> = py.allow_threads(|| {
+            for _ in 0..num_ticks {
+                self.inner
+                    .tick()
+                    .map_err(|e| format!("Tick execution failed: {}", e))?;
+            }
+            self.inner
+                .get_costs(&agent_id)
+                .map(|c| c.total())
+                .ok_or_else(|| format!("Agent {} costs missing after simulation", agent_id))
+        });
+
+        result.map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    }
+
+    /// Run N ticks with GIL released and return all agents' costs as a JSON string.
+    ///
+    /// Returns a JSON object mapping agent IDs to cost breakdowns:
+    /// ```json
+    /// {
+    ///   "BANK_A": {
+    ///     "total_cost": 12345,
+    ///     "liquidity_cost": 1000,
+    ///     "delay_cost": 5000,
+    ///     "collateral_cost": 0,
+    ///     "penalty_cost": 6345,
+    ///     "split_friction_cost": 0
+    ///   },
+    ///   "BANK_B": { ... }
+    /// }
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `num_ticks` - Number of ticks to simulate (must be > 0)
+    ///
+    /// # Returns
+    ///
+    /// JSON string with all agents' accumulated costs
+    ///
+    /// # Errors
+    ///
+    /// - `PyValueError` if `num_ticks` is 0
+    /// - `PyRuntimeError` if tick execution or JSON serialization fails
+    fn run_and_get_all_costs(&mut self, py: Python, num_ticks: usize) -> PyResult<String> {
+        if num_ticks == 0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "num_ticks must be > 0",
+            ));
+        }
+
+        let agent_ids = self.inner.get_agent_ids();
+
+        let result: Result<String, String> = py.allow_threads(|| {
+            for _ in 0..num_ticks {
+                self.inner
+                    .tick()
+                    .map_err(|e| format!("Tick execution failed: {}", e))?;
+            }
+
+            let mut map = serde_json::Map::new();
+            for aid in &agent_ids {
+                if let Some(costs) = self.inner.get_costs(aid) {
+                    let mut entry = serde_json::Map::new();
+                    entry.insert(
+                        "total_cost".into(),
+                        serde_json::Value::Number(costs.total().into()),
+                    );
+                    entry.insert(
+                        "liquidity_cost".into(),
+                        serde_json::Value::Number(costs.total_liquidity_cost.into()),
+                    );
+                    entry.insert(
+                        "delay_cost".into(),
+                        serde_json::Value::Number(costs.total_delay_cost.into()),
+                    );
+                    entry.insert(
+                        "collateral_cost".into(),
+                        serde_json::Value::Number(costs.total_collateral_cost.into()),
+                    );
+                    entry.insert(
+                        "penalty_cost".into(),
+                        serde_json::Value::Number(costs.total_penalty_cost.into()),
+                    );
+                    entry.insert(
+                        "split_friction_cost".into(),
+                        serde_json::Value::Number(costs.total_split_friction_cost.into()),
+                    );
+                    map.insert(aid.clone(), serde_json::Value::Object(entry));
+                }
+            }
+            serde_json::to_string(&serde_json::Value::Object(map))
+                .map_err(|e| format!("JSON serialization failed: {}", e))
+        });
+
+        result.map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    }
+
     /// Get current simulation tick
     fn current_tick(&self) -> usize {
         self.inner.current_tick()
