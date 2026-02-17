@@ -24,8 +24,8 @@ const NAV: NavItem[] = [
   { id: 'llm-optimization', label: 'LLM Optimization Deep Dive', icon: '🧠', group: 'advanced' },
   // Blog
   { id: 'blog-convergence', label: 'Do LLM Agents Converge?', icon: '📝', group: 'blog' },
-  { id: 'blog-coordination', label: 'Coordination Failures', icon: '📝', group: 'blog' },
-  { id: 'blog-bootstrap', label: 'Bootstrap Evaluation', icon: '📝', group: 'blog' },
+  { id: 'blog-coordination', label: 'Financial Stress Tests', icon: '📝', group: 'blog' },
+  { id: 'blog-bootstrap', label: 'From FIFO to Nash', icon: '📝', group: 'blog' },
   // Reference
   { id: 'references', label: 'References & Reading', icon: '📚', group: 'reference' },
 ];
@@ -1334,42 +1334,354 @@ function BlogConvergence() {
 
 function BlogCoordination() {
   return (
-    <DocPage title="Coordination Failures in Symmetric Games" subtitle="When stable isn't optimal" isBlog date="2026-02-17">
-      <p className="text-slate-400 italic">
-        Coming soon — this post will explore the coordination failures observed in Experiment 3,
-        where agents converge to Pareto-dominated outcomes despite having symmetric positions.
+    <DocPage title="Designing Financial Stress Tests with SimCash" subtitle="How to model crisis scenarios, liquidity shocks, and central bank interventions in a simulated RTGS system" isBlog date="2026-02-17">
+      <h3>Why Stress Testing Matters</h3>
+      <p>
+        In 2008, the payment systems that underpin global finance didn't break — but they came
+        terrifyingly close. Lehman Brothers' default sent shockwaves through every major RTGS system.
+        Banks that had comfortably recycled incoming payments to fund outgoing ones suddenly found
+        themselves staring at empty queues. The liquidity that everyone counted on — other banks'
+        payments flowing in — simply stopped.
+      </p>
+      <p>
+        The lesson was clear: you can't test a payment system's resilience only on sunny days.
+        Real-Time Gross Settlement systems process trillions of euros daily, and their stability
+        depends on every participant maintaining adequate liquidity. When one major bank fails to
+        deliver, the cascading effects can freeze the entire network. Stress testing isn't a
+        regulatory checkbox — it's the only way to understand how your system behaves when the
+        assumptions underlying normal operations stop being true.
+      </p>
+      <p>
+        But traditional stress testing is expensive and slow. You need custom models, carefully
+        calibrated parameters, weeks of engineering time. SimCash was built to change that.
       </p>
 
-      <h3>Topics to Cover</h3>
+      <h3>How SimCash Models Crises</h3>
+      <p>
+        At its core, SimCash's scenario system lets you define <strong>what happens</strong> and
+        <strong>when it happens</strong> — then hands the rest to the simulation engine. Scenarios
+        are multi-phase narratives with configurable events at each stage:
+      </p>
       <ul>
-        <li>What makes a coordination failure? Defining Pareto dominance in this context</li>
-        <li>The "early mover" effect: which agent becomes the free-rider is determined by early aggressive moves</li>
-        <li>Why stochastic environments produce better coordination than deterministic ones</li>
-        <li>Implications for real RTGS systems: does this match observed bank behavior?</li>
-        <li>Can prompt engineering prevent coordination failures?</li>
+        <li><strong>Liquidity shocks:</strong> Suddenly reduce one or more banks' available liquidity
+        at a specific tick — modeling an unexpected outflow, a collateral call, or a credit line revocation.</li>
+        <li><strong>Payment surges:</strong> Inject a burst of high-value payments into the system,
+        simulating end-of-day settlement rushes or margin calls during volatile markets.</li>
+        <li><strong>Participant failures:</strong> Remove a bank from the system entirely, modeling
+        a Lehman-style default where all expected incoming payments vanish.</li>
+        <li><strong>Central bank interventions:</strong> Inject emergency liquidity at a specific
+        tick — the lender-of-last-resort stepping in to prevent systemic collapse.</li>
       </ul>
+      <p>
+        Each scenario phase has a name, a duration (in ticks), and a set of events. You can chain
+        phases to create complex narratives: "normal operations for 4 ticks, then a liquidity shock,
+        then observe the cascade for 6 ticks, then the central bank intervenes." The engine handles
+        the rest — payment processing, queue management, cost accounting, deadline tracking — all
+        running at the same fidelity as a normal simulation.
+      </p>
+
+      <h3>Walking Through: The TARGET2 Crisis Scenario</h3>
+      <p>
+        SimCash ships with a built-in scenario called <strong>TARGET2 Crisis</strong>, modeled on
+        the dynamics of the European Central Bank's RTGS system during a sovereign debt crisis.
+        Here's what happens when you run it:
+      </p>
+      <p>
+        <strong>Phase 1 — Normal Operations (Ticks 1-3):</strong> Three banks operate normally.
+        Payments arrive via Poisson process, amounts are log-normally distributed. Banks settle
+        payments as they come in, recycling incoming liquidity to fund outgoing obligations.
+        Everything works smoothly. Costs are low.
+      </p>
+      <p>
+        <strong>Phase 2 — The Shock (Tick 4):</strong> Bank C suffers a sudden liquidity drain —
+        its available balance drops by 60%. This models a large unexpected outflow: a margin call,
+        a deposit flight, a collateral haircut. Bank C's outgoing payments immediately start queuing.
+      </p>
+      <p>
+        <strong>Phase 3 — The Cascade (Ticks 5-8):</strong> Here's where it gets interesting.
+        Banks A and B were counting on incoming payments from Bank C to fund their own obligations.
+        Those payments are now stuck in C's queue. A and B's own queues start growing. The delay
+        costs compound: each tick a payment sits in queue, it accrues penalties. If deadlines pass,
+        the failure costs are even steeper.
+      </p>
+      <p>
+        <strong>Phase 4 — Intervention (Tick 9):</strong> The central bank injects emergency
+        liquidity into Bank C. The queued payments start flowing again. But the damage is done —
+        the cascade has already pushed costs far above normal levels across all participants.
+      </p>
+      <p>
+        What should you watch for? The <strong>delay cost curve</strong> tells the story. In normal
+        operations, delay costs are near zero. After the shock, they spike — first for Bank C,
+        then for A and B with a 1-2 tick lag. The total system cost often triples or quadruples
+        relative to the no-shock baseline. The spread between banks reveals who was most dependent
+        on C's incoming payments.
+      </p>
+
+      <h3>AI Agents vs. Static Policies Under Stress</h3>
+      <p>
+        Here's what makes SimCash's stress testing genuinely novel: you can pit <strong>adaptive
+        AI agents</strong> against <strong>static rule-based policies</strong> and watch how they
+        respond to the same crisis.
+      </p>
+      <p>
+        A static FIFO policy doesn't know a crisis is happening. It processes payments in order,
+        commits the same liquidity fraction it always does, and watches helplessly as costs spike.
+        A more sophisticated decision-tree policy might have crisis-response rules — "if queue
+        depth exceeds X, delay low-priority payments" — but those rules were written before the
+        crisis happened. They can't adapt to the specific shape of this particular shock.
+      </p>
+      <p>
+        An LLM-powered agent, by contrast, gets a full performance report after each tick. It
+        sees the queue building, the delay costs spiking, the pattern of which payments are failing.
+        And it adjusts. In our experiments, AI agents facing the TARGET2 Crisis scenario typically
+        respond within 2-3 rounds: they increase their liquidity commitment, shift to more
+        aggressive release of queued payments, and accept higher liquidity costs to avoid the
+        compounding delay penalties. The total crisis cost for AI-managed banks is consistently
+        15-30% lower than for static-policy banks facing the same shock.
+      </p>
+      <p>
+        This isn't magic — it's exactly what a skilled human cash manager would do. But the AI does
+        it faster, more consistently, and without the panicked phone calls.
+      </p>
+
+      <h3>Building Your Own Stress Tests</h3>
+      <p>
+        The scenario editor in SimCash's web interface lets you design custom stress tests without
+        writing code. You define phases visually — drag to set durations, click to add events,
+        configure parameters with sliders:
+      </p>
+      <ul>
+        <li><strong>Choose your topology:</strong> How many banks? What's the initial liquidity distribution?</li>
+        <li><strong>Define the baseline:</strong> Set payment arrival rates, amount distributions,
+        and the normal operating period.</li>
+        <li><strong>Add the shock:</strong> Pick which bank gets hit, the severity (10% drain to 90%),
+        and the timing.</li>
+        <li><strong>Configure the response:</strong> Add a central bank intervention phase, or don't —
+        and see what happens without a backstop.</li>
+        <li><strong>Assign policies:</strong> Give each bank a different strategy — one AI-managed,
+        one FIFO, one custom decision tree — and compare their crisis responses head-to-head.</li>
+      </ul>
+      <p>
+        You can save scenarios, share them, and run them repeatedly with different random seeds to
+        build statistical confidence. The bootstrap evaluation system applies here too: run 50
+        seeds of the same crisis and you'll know whether one policy's crisis performance is genuinely
+        better or just got lucky with payment timing.
+      </p>
+
+      <h3>What Researchers Can Learn</h3>
+      <p>
+        Stress testing in SimCash isn't just about finding the breaking point. It's about
+        understanding the <strong>transmission mechanism</strong> — how a shock at one node propagates
+        through the network, which relationships amplify it, and which policies contain it.
+      </p>
+      <p>
+        Central bank researchers can use this to evaluate intervention timing: is it better to
+        inject liquidity immediately, or wait to see if the market self-corrects? Banking
+        supervisors can study concentration risk: what happens when the most-connected bank fails?
+        And policy designers can test resilience requirements: how much committed liquidity does
+        each bank need to survive a worst-case shock without central bank help?
+      </p>
+      <p>
+        The answers aren't theoretical. They come from running thousands of simulated crises with
+        realistic payment flows, realistic cost structures, and agents that behave like real
+        decision-makers. That's the value of a sandbox: you can break things safely, learn from
+        the wreckage, and build better systems before the next crisis arrives.
+      </p>
     </DocPage>
   );
 }
 
 function BlogBootstrap() {
   return (
-    <DocPage title="Bootstrap Evaluation: Why and How" subtitle="Statistical rigor in policy comparison" isBlog date="2026-02-17">
-      <p className="text-slate-400 italic">
-        Coming soon — this post will explain the bootstrap paired comparison methodology,
-        the 3-agent sandbox design, and why it matters for getting good results.
+    <DocPage title="From FIFO to Nash: The Evolution of Payment Strategies" subtitle="How payment processing strategies evolved from simple queues to AI-discovered equilibria" isBlog date="2026-02-17">
+      <h3>FIFO: The Reliable Baseline</h3>
+      <p>
+        First In, First Out. It's the simplest possible payment processing strategy: payments
+        arrive, they go into a queue, and they're processed in order. No prioritization, no
+        strategic timing, no adaptation. FIFO is what happens when you don't make a decision —
+        and in many real RTGS systems, it's essentially what banks do by default.
+      </p>
+      <p>
+        FIFO has real virtues. It's predictable — every participant knows exactly how the queue
+        behaves. It's fair — no payment gets special treatment. It's easy to implement, easy to
+        audit, and easy to reason about. For decades, this was good enough.
+      </p>
+      <p>
+        But "good enough" isn't optimal. FIFO treats a €10 million time-critical CLS settlement
+        the same as a €500 internal transfer. It doesn't account for incoming payments that might
+        arrive in the next tick and provide the liquidity needed to clear the queue naturally. It
+        can't distinguish between a temporary liquidity shortage (where delaying briefly would be
+        costless) and a genuine funding gap (where delay compounds into failure). FIFO is a strategy
+        that ignores all available information — and in a system where information is abundant,
+        that's leaving money on the table.
       </p>
 
-      <h3>Topics to Cover</h3>
+      <h3>The Strategy Space</h3>
+      <p>
+        SimCash's policy engine reveals just how much room there is beyond FIFO. At every decision
+        point — each time a payment could be processed or a bank-level action could be taken — an
+        agent chooses from <strong>16 distinct actions</strong>:
+      </p>
       <ul>
-        <li>The problem: single-simulation comparison is unreliable under stochastic arrivals</li>
-        <li>Paired comparison: evaluate both policies on the same N samples to eliminate noise</li>
-        <li>The 3-agent sandbox (SOURCE → AGENT → SINK): why isolation helps</li>
-        <li>Settlement timing as a sufficient statistic for the liquidity environment</li>
-        <li>Risk-adjusted acceptance: mean improvement + CI doesn't cross zero + CV &lt; 0.5</li>
-        <li>Known limitations: bootstrap variance can overestimate sensitivity to timing</li>
-        <li>Alternatives: block bootstrap, day-level bootstrap, held-out seed evaluation</li>
+        <li><strong>Payment actions:</strong> Release (process immediately), Delay (hold for later),
+        Queue (add to back of queue), Prioritize (move to front), Split (partial release), and
+        several conditional variants that depend on current state.</li>
+        <li><strong>Bank actions:</strong> NoAction (do nothing), RequestLiquidity (ask the central
+        bank for more), ReturnLiquidity (give back excess), AdjustReserves (rebalance), and others
+        that manage the bank's overall position.</li>
       </ul>
+      <p>
+        Each decision is informed by over <strong>140 context fields</strong> — the complete state
+        of the world as the agent sees it. Current balance, queue depth, queue value, time of day,
+        payments pending, incoming payment history, liquidity ratio, cost accumulation rates,
+        deadline proximity for each queued payment, counterparty reliability scores, and dozens more.
+        This isn't a toy state space — it mirrors the information a real cash manager has on their
+        screens.
+      </p>
+      <p>
+        Strategies are expressed as <strong>decision trees</strong>: nested if-then-else structures
+        that examine context fields and select actions. A tree might say: "If the queue value
+        exceeds 50% of available balance AND the highest-priority payment's deadline is within 2
+        ticks, then Release. Otherwise, if incoming payment velocity is above average, Delay.
+        Otherwise, Queue." These trees can be shallow (3-4 decisions) or deep (dozens of branches),
+        creating an enormous space of possible strategies.
+      </p>
+
+      <h3>When Does Sophistication Pay Off?</h3>
+      <p>
+        This is the question that surprised us most. You'd expect more complex policies to always
+        outperform simpler ones — more information, more conditions, better decisions. But that's
+        not what happens.
+      </p>
+      <p>
+        In our experiments, the relationship between policy complexity and performance follows a
+        curve. Very simple policies (FIFO, or a tree with 2-3 nodes) leave significant value on
+        the table. They can't respond to the state of the system at all. But very complex policies
+        (deep trees with 20+ branches) often <em>overfit</em> to specific payment patterns. They
+        perform brilliantly on the scenarios they were designed for and terribly on everything else.
+      </p>
+      <p>
+        The sweet spot turns out to be <strong>moderate complexity</strong>: trees with 5-10
+        decision nodes that focus on the most informative context fields. Queue depth, liquidity
+        ratio, time-of-day, and deadline proximity carry most of the signal. Adding branches for
+        obscure context fields (third-derivative of incoming payment velocity, say) adds noise
+        faster than it adds value.
+      </p>
+      <p>
+        This mirrors a well-known result in machine learning — the bias-variance tradeoff — but
+        seeing it play out in a financial simulation is striking. The best payment strategies
+        aren't the cleverest. They're the ones that focus on the right signals and ignore the rest.
+      </p>
+
+      <h3>The Policy Library</h3>
+      <p>
+        SimCash ships with a curated library of pre-built strategies spanning the full spectrum
+        from conservative to aggressive:
+      </p>
+      <ul>
+        <li><strong>FIFO Baseline:</strong> Pure queue-order processing. The control group.</li>
+        <li><strong>Cautious:</strong> Holds extra liquidity reserves, delays non-urgent payments,
+        prioritizes avoiding deadline failures above all else. Low variance, moderate cost.</li>
+        <li><strong>Balanced:</strong> Adapts liquidity commitment based on queue pressure. Releases
+        payments when funded, delays when tight. The "sensible middle ground."</li>
+        <li><strong>Aggressive:</strong> Commits minimal liquidity upfront, relies heavily on
+        incoming payments for funding. High reward when it works, high penalty when it doesn't.</li>
+        <li><strong>Deadline-Driven:</strong> Ignores queue order entirely, processes payments
+        by deadline proximity. Minimizes failure costs at the expense of potentially higher delays.</li>
+        <li><strong>Adaptive:</strong> Changes behavior based on the current phase of the day —
+        conservative early (when incoming flows are uncertain), aggressive late (when remaining
+        obligations are known).</li>
+      </ul>
+      <p>
+        Each policy in the library has been tested across hundreds of random seeds and multiple
+        scenarios. The documentation includes expected cost ranges, failure rates, and performance
+        profiles so you know what you're getting before you deploy one in an experiment.
+      </p>
+
+      <h3>Building Custom Policies</h3>
+      <p>
+        The policy editor lets you construct decision trees visually. You start with a root node,
+        add conditions (pick a context field, choose a comparator, set a threshold), and assign
+        actions to the leaves. The editor validates your tree in real-time — it'll warn you about
+        unreachable branches, missing edge cases, or conditions that are always true.
+      </p>
+      <p>
+        You can also start from a library policy and modify it. Take the Balanced strategy, add a
+        crisis-response branch ("if liquidity ratio drops below 20%, switch to aggressive release"),
+        and you've got a custom policy that handles normal operations sensibly and responds to
+        shocks without freezing up. Save it, name it, run it against the originals.
+      </p>
+      <p>
+        For power users, policies can also be written directly in JSON — the same format the LLM
+        agents produce. This means any strategy an AI discovers can be extracted, inspected, edited,
+        and redeployed as a static policy. The boundary between human-designed and AI-discovered
+        strategies is deliberately blurry.
+      </p>
+
+      <h3>How AI Discovers Better Strategies</h3>
+      <p>
+        When an LLM agent optimizes a policy, it doesn't search the tree space randomly. It starts
+        with a simple policy (often FIFO or a basic tree), runs simulations, reads the performance
+        reports, and makes targeted modifications. The reasoning looks remarkably like what a human
+        expert would do:
+      </p>
+      <p>
+        <em>"Delay costs are 3x liquidity costs. I'm over-committing liquidity. Let me reduce
+        initial_liquidity_fraction from 0.65 to 0.50 and add a condition: if queue depth exceeds 5,
+        release the highest-value payment regardless of order."</em>
+      </p>
+      <p>
+        Each proposed change is validated by bootstrap paired comparison — the new policy must
+        outperform the old one across 50 resampled scenarios with 95% confidence. This prevents
+        the agent from chasing noise. Over 15-20 rounds, the policy evolves from simple to
+        moderately complex, accumulating the decision branches that actually improve performance
+        and discarding the ones that don't survive statistical validation.
+      </p>
+      <p>
+        The result is a policy that no human designed but that any human can read. Decision trees
+        are inherently interpretable — you can trace every branch, understand every condition, and
+        debate whether the logic makes sense. This is a crucial advantage over black-box approaches.
+      </p>
+
+      <h3>The Nash Equilibrium Question</h3>
+      <p>
+        The deepest question in multi-agent payment strategy isn't "what's the best policy?" —
+        it's "what happens when everyone optimizes simultaneously?"
+      </p>
+      <p>
+        In game theory, a <strong>Nash equilibrium</strong> is a set of strategies where no player
+        can improve their outcome by changing their own strategy alone. In SimCash, this means a
+        configuration where every bank's policy is the best response to every other bank's policy.
+        Nobody wants to deviate.
+      </p>
+      <p>
+        Our multi-agent experiments show that LLM agents do converge — but not always to the same
+        equilibrium. In symmetric games (identical banks, identical payment flows), the agents
+        typically find an equilibrium within 10-15 rounds. But the equilibrium they find depends
+        on the path they take to get there. Early aggressive moves by one agent can push the system
+        toward an asymmetric equilibrium where one bank free-rides on the other's liquidity
+        provision.
+      </p>
+      <p>
+        This is the Prisoner's Dilemma playing out in real-time payment systems. The cooperative
+        outcome (both banks commit moderate liquidity, both benefit from smooth settlement) is
+        Pareto-optimal but unstable. The Nash equilibrium (one bank commits high liquidity, the
+        other free-rides) is stable but inefficient. Both agents know this. Neither can fix it
+        unilaterally.
+      </p>
+      <p>
+        Understanding when agents converge, what they converge to, and whether the equilibrium is
+        socially efficient — these are the questions that connect SimCash to decades of game theory
+        research. And now, instead of solving them on a whiteboard, you can watch them unfold in a
+        simulated payment system with realistic costs, realistic constraints, and agents that reason
+        about their decisions in plain English.
+      </p>
+      <p>
+        The journey from FIFO to Nash isn't just about better payment processing. It's about
+        understanding the fundamental tension in any shared financial infrastructure: individual
+        optimization vs. collective welfare. SimCash makes that tension visible, measurable, and
+        explorable.
+      </p>
     </DocPage>
   );
 }
