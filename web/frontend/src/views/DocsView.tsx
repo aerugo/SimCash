@@ -1,12 +1,12 @@
 import { useState } from 'react';
 
-type DocSection = 'overview' | 'how-it-works' | 'cost-model' | 'policy-optimization' | 'experiments' | 'game-theory' | 'architecture' | 'blog-convergence' | 'blog-coordination' | 'blog-bootstrap' | 'references';
+type DocSection = 'overview' | 'how-it-works' | 'cost-model' | 'policy-optimization' | 'experiments' | 'game-theory' | 'architecture' | 'scenarios' | 'policies' | 'llm-optimization' | 'blog-convergence' | 'blog-coordination' | 'blog-bootstrap' | 'references';
 
 interface NavItem {
   id: DocSection;
   label: string;
   icon: string;
-  group: 'guide' | 'blog' | 'reference';
+  group: 'guide' | 'advanced' | 'blog' | 'reference';
 }
 
 const NAV: NavItem[] = [
@@ -18,6 +18,10 @@ const NAV: NavItem[] = [
   { id: 'experiments', label: 'Experiments', icon: '🧪', group: 'guide' },
   { id: 'game-theory', label: 'Game Theory Primer', icon: '♟️', group: 'guide' },
   { id: 'architecture', label: 'Technical Architecture', icon: '🏗️', group: 'guide' },
+  // Advanced
+  { id: 'scenarios', label: 'Scenario System', icon: '🎬', group: 'advanced' },
+  { id: 'policies', label: 'Policy Decision Trees', icon: '🌳', group: 'advanced' },
+  { id: 'llm-optimization', label: 'LLM Optimization Deep Dive', icon: '🧠', group: 'advanced' },
   // Blog
   { id: 'blog-convergence', label: 'Do LLM Agents Converge?', icon: '📝', group: 'blog' },
   { id: 'blog-coordination', label: 'Coordination Failures', icon: '📝', group: 'blog' },
@@ -31,6 +35,7 @@ export function DocsView() {
 
   const groups: { key: string; label: string; items: NavItem[] }[] = [
     { key: 'guide', label: 'Guides', items: NAV.filter(n => n.group === 'guide') },
+    { key: 'advanced', label: 'Advanced Topics', items: NAV.filter(n => n.group === 'advanced') },
     { key: 'blog', label: 'Blog Posts', items: NAV.filter(n => n.group === 'blog') },
     { key: 'reference', label: 'Reference', items: NAV.filter(n => n.group === 'reference') },
   ];
@@ -87,6 +92,9 @@ export function DocsView() {
           {section === 'experiments' && <Experiments />}
           {section === 'game-theory' && <GameTheory />}
           {section === 'architecture' && <Architecture />}
+          {section === 'scenarios' && <Scenarios />}
+          {section === 'policies' && <Policies />}
+          {section === 'llm-optimization' && <LLMOptimization />}
           {section === 'blog-convergence' && <BlogConvergence />}
           {section === 'blog-coordination' && <BlogCoordination />}
           {section === 'blog-bootstrap' && <BlogBootstrap />}
@@ -545,6 +553,611 @@ function Architecture() {
   );
 }
 
+/* ─── Advanced Topics ─── */
+
+function Scenarios() {
+  return (
+    <DocPage title="Scenario System" subtitle="Configuring simulated payment environments">
+      <p>
+        A <strong>scenario</strong> defines everything about a simulated payment environment:
+        how many banks exist, when payments arrive, what they cost, and what events shake up the
+        system. Scenarios are written in YAML and fully control the Rust simulation engine.
+      </p>
+
+      <h3>What a Scenario Configures</h3>
+      <p>Every scenario specifies these core elements:</p>
+      <ul>
+        <li><strong>Simulation timing</strong> — ticks per day, number of days, RNG seed</li>
+        <li><strong>Agents</strong> — bank identities, opening balances, credit limits, policies</li>
+        <li><strong>Payment generation</strong> — how transactions arrive (stochastic or deterministic)</li>
+        <li><strong>Cost rates</strong> — delay costs, overdraft rates, penalties</li>
+        <li><strong>LSM settings</strong> — bilateral/multilateral offsetting configuration</li>
+        <li><strong>Custom events</strong> — scheduled interventions (transfers, rate changes, collateral shocks)</li>
+      </ul>
+
+      <CodeBlock>{`# Minimal scenario example
+simulation:
+  ticks_per_day: 12
+  num_days: 5
+  rng_seed: 42
+
+agents:
+  - id: BANK_A
+    opening_balance: 5000000  # $50,000 in cents
+    unsecured_cap: 2000000
+    policy:
+      type: Fifo
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10.0
+        std_dev: 1.0
+      deadline_range: [5, 20]
+
+  - id: BANK_B
+    opening_balance: 5000000
+    unsecured_cap: 2000000
+    policy:
+      type: Deadline
+      urgency_threshold: 3
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: Uniform
+        min: 5000
+        max: 50000
+      deadline_range: [5, 20]
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.0001
+  overdraft_bps_per_tick: 0.001
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000`}</CodeBlock>
+
+      <h3>Payment Generation Modes</h3>
+      <p>
+        SimCash supports three modes for generating payment arrivals, which can be combined
+        within a single scenario:
+      </p>
+
+      <h4>Deterministic (Custom Events Only)</h4>
+      <p>
+        No stochastic arrivals — every transaction is a <code>CustomTransactionArrival</code> event
+        placed at a specific tick. Used for BIS paper replication and isolated feature tests where
+        you need exact control over every payment.
+      </p>
+
+      <h4>Poisson Arrivals</h4>
+      <p>
+        Each tick, the number of new payments is drawn from a Poisson distribution with
+        rate <code>λ = rate_per_tick</code>. This models realistic payment flow where arrivals
+        are random but have a known average rate. Rates can be modified mid-simulation
+        via <code>GlobalArrivalRateChange</code> or <code>AgentArrivalRateChange</code> events.
+      </p>
+
+      <h4>Amount Distributions</h4>
+      <p>Payment amounts are sampled independently from one of four distributions:</p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Parameters</th>
+            <th className="text-left py-2 text-slate-300">Use Case</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">LogNormal</td><td>mean, std_dev (log-scale)</td><td>Realistic: many small, few large payments</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">Normal</td><td>mean, std_dev (cents)</td><td>Symmetric distribution around mean</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">Uniform</td><td>min, max (cents)</td><td>Equal probability in range</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">Exponential</td><td>lambda</td><td>Many small, exponentially fewer large</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Custom Events</h3>
+      <p>
+        Scenario events are deterministic interventions injected at specific ticks. They let you
+        create crisis narratives, central bank interventions, and controlled stress tests.
+      </p>
+
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Event Type</th>
+            <th className="text-left py-2 text-slate-300">Effect</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">DirectTransfer</td><td>Instant balance move between agents, bypasses all queues</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">CustomTransactionArrival</td><td>Inject a transaction that flows through normal settlement</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">CollateralAdjustment</td><td>Add or remove collateral from an agent</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">GlobalArrivalRateChange</td><td>Multiply all agents' arrival rates (persists until next change)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">AgentArrivalRateChange</td><td>Multiply one agent's arrival rate</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">CounterpartyWeightChange</td><td>Redirect payment flows by adjusting routing probabilities</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">DeadlineWindowChange</td><td>Tighten or loosen deadline pressure globally</td></tr>
+        </tbody>
+      </table>
+
+      <p>Events use two scheduling modes:</p>
+      <CodeBlock>{`# One-time event at tick 150 (day 2 of a 100-tick-per-day scenario)
+scenario_events:
+  - type: DirectTransfer
+    from_agent: CENTRAL_BANK
+    to_agent: STRESSED_BANK
+    amount: 50000000  # $500K emergency injection
+    schedule:
+      type: OneTime
+      tick: 150
+
+  # Repeating event: collateral adjustments every 50 ticks
+  - type: CollateralAdjustment
+    agent: BANK_A
+    delta: 1000000  # +$10K collateral
+    schedule:
+      type: Repeating
+      start_tick: 100
+      interval: 50
+      end_tick: 400`}</CodeBlock>
+
+      <h3>Scenario Design: Building a Stress Test</h3>
+      <p>A realistic multi-phase crisis scenario follows this pattern:</p>
+      <ol>
+        <li><strong>Baseline phase</strong> (days 1–3) — Normal operations, establish cost baseline</li>
+        <li><strong>Pressure phase</strong> (days 4–6) — Increase arrival rates (1.5–2×), inject large payments</li>
+        <li><strong>Crisis phase</strong> (days 7–8) — Remove collateral, cut counterparty weights, spike rates</li>
+        <li><strong>Intervention</strong> (day 9) — DirectTransfer liquidity injection, restore collateral</li>
+        <li><strong>Recovery phase</strong> (days 10+) — Gradually restore rates to 1.0×, measure recovery speed</li>
+      </ol>
+
+      <Callout type="info">
+        All events are deterministic and tick-based — there's no conditional logic
+        ("if balance drops below X, inject liquidity"). This is by design: determinism ensures
+        perfect reproducibility. The same config + same seed always produces byte-identical results.
+      </Callout>
+
+      <h3>Key Library Scenarios</h3>
+
+      <h4>TARGET2 Crisis (25 days, 4 agents)</h4>
+      <p>
+        The flagship TARGET2 scenario. Tests all T2 features: dual priority system,
+        bilateral/multilateral limits, algorithm sequencing, priority escalation. Features four
+        distinct phases (Normal → Pressure → Crisis → Resolution) with one agent deliberately
+        running a bad policy to create cascading gridlock. A "good policy" and "bad policy"
+        variant let you compare system outcomes.
+      </p>
+
+      <h4>BIS Liquidity-Delay Tradeoff (1 day, 2 agents)</h4>
+      <p>
+        Direct replication of BIS Working Paper 1310 Box 3. Minimal configuration — 3 ticks,
+        4 deterministic transactions, a liquidity pool with allocation fraction. Tests the
+        fundamental tradeoff between liquidity cost and delay cost in a controlled setting.
+      </p>
+
+      <h4>Crisis Resolution (10 days, 4 agents)</h4>
+      <p>
+        Extends the advanced policy crisis scenario with a Day 4 "central bank intervention" —
+        massive $500K DirectTransfer injections and $100K–$200K collateral boosts. Days 5–10
+        show gradual recovery via stepped arrival rate restoration
+        (0.5 → 0.7 → 0.8 → 0.85 → 0.9 → 1.0).
+      </p>
+
+      <h4>Suboptimal Policies (10/25 days, 4 agents)</h4>
+      <p>
+        A/B comparison of policy quality. Two "optimal" agents (well-tuned parameters) vs two
+        "suboptimal" agents (conservative hoarder and reactive spender). Shows how subtle
+        parameter differences compound over time, especially with high delay costs.
+      </p>
+    </DocPage>
+  );
+}
+
+function Policies() {
+  return (
+    <DocPage title="Policy Decision Trees" subtitle="The DSL that controls bank behavior">
+      <p>
+        Every bank in SimCash is controlled by a <strong>policy</strong> — a JSON-based decision
+        tree that determines how payments are handled, how budgets are set, and how collateral
+        is managed. The policy DSL is expressive enough to encode strategies ranging from
+        "release everything immediately" to sophisticated multi-factor adaptive approaches.
+      </p>
+
+      <h3>How Decision Trees Work</h3>
+      <p>
+        A policy tree is a binary decision tree. Each node is either a <strong>condition</strong>
+        (which branches on true/false) or an <strong>action</strong> (a terminal decision).
+        The tree is walked from root to leaf for each decision point, and the leaf action is executed.
+      </p>
+      <CodeBlock>{`{
+  "type": "condition",
+  "node_id": "check_urgency",
+  "condition": {
+    "op": "<=",
+    "left": {"field": "ticks_to_deadline"},
+    "right": {"param": "urgency_threshold"}
+  },
+  "on_true": {
+    "type": "action",
+    "node_id": "release_urgent",
+    "action": "Release"
+  },
+  "on_false": {
+    "type": "condition",
+    "node_id": "check_balance",
+    "condition": {
+      "op": ">",
+      "left": {"field": "balance"},
+      "right": {"compute": {
+        "op": "*",
+        "left": {"field": "amount"},
+        "right": {"value": 1.5}
+      }}
+    },
+    "on_true": {"type": "action", "action": "Release"},
+    "on_false": {"type": "action", "action": "Hold"}
+  }
+}`}</CodeBlock>
+
+      <h3>The Four Tree Types</h3>
+      <p>
+        A complete policy definition (<code>DecisionTreeDef</code>) contains up to four
+        independent trees, each evaluated at a different phase of the tick:
+      </p>
+
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Tree</th>
+            <th className="text-left py-2 text-slate-300">When Evaluated</th>
+            <th className="text-left py-2 text-slate-300">Scope</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800">
+            <td className="py-1.5 pr-4 font-mono text-sky-400">bank_tree</td>
+            <td>Once per tick, before payment processing</td>
+            <td>Set budgets, write state registers</td>
+          </tr>
+          <tr className="border-b border-slate-800">
+            <td className="py-1.5 pr-4 font-mono text-sky-400">payment_tree</td>
+            <td>Per transaction in Queue 1</td>
+            <td>Release / Hold / Split each payment</td>
+          </tr>
+          <tr className="border-b border-slate-800">
+            <td className="py-1.5 pr-4 font-mono text-sky-400">strategic_collateral_tree</td>
+            <td>Once per tick, after payment processing</td>
+            <td>Proactive collateral posting</td>
+          </tr>
+          <tr>
+            <td className="py-1.5 pr-4 font-mono text-sky-400">end_of_tick_collateral_tree</td>
+            <td>Once per tick, at end of tick</td>
+            <td>Reactive collateral cleanup</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <Callout type="info">
+        The <code>bank_tree</code> runs first and can set a release budget
+        via <code>SetReleaseBudget</code>. The <code>payment_tree</code> may
+        return <code>Release</code>, but the engine converts it to <code>Hold</code> if
+        the budget is exhausted. This two-level control lets a policy set macro limits
+        and then make micro decisions per payment.
+      </Callout>
+
+      <h3>Key Actions</h3>
+
+      <h4>Payment Tree Actions</h4>
+      <table className="w-full text-sm">
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400 w-40">Release</td><td>Submit payment to RTGS for settlement</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">Hold</td><td>Keep in queue for re-evaluation next tick</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">Split</td><td>Divide into N smaller payments and submit all</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">StaggerSplit</td><td>Split with staggered release timing</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">ReleaseWithCredit</td><td>Submit using intraday credit if needed</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">Reprioritize</td><td>Change payment priority without moving it</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">WithdrawFromRtgs</td><td>Pull payment back from Queue 2</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">ResubmitToRtgs</td><td>Change RTGS priority (Normal → Urgent → HighlyUrgent)</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Bank Tree Actions</h4>
+      <table className="w-full text-sm">
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400 w-40">SetReleaseBudget</td><td>Set per-tick release limits (max value, per-counterparty caps)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">SetState</td><td>Write a state register value (key must start with <code>bank_state_</code>)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">AddState</td><td>Increment/decrement a state register</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">NoAction</td><td>Do nothing this tick</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Collateral Tree Actions</h4>
+      <table className="w-full text-sm">
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400 w-40">PostCollateral</td><td>Post collateral to increase borrowing capacity</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">WithdrawCollateral</td><td>Withdraw collateral to reduce opportunity costs</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">HoldCollateral</td><td>Keep current collateral level unchanged</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Context Fields</h3>
+      <p>
+        Conditions can reference 80+ context fields. Here are the most important ones, organized by category:
+      </p>
+
+      <h4>Balance & Liquidity</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        balance · effective_liquidity · credit_limit · available_liquidity · credit_used · liquidity_buffer · liquidity_pressure · credit_headroom
+      </p>
+
+      <h4>Transaction</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        amount · remaining_amount · priority · ticks_to_deadline · arrival_tick · deadline_tick · is_past_deadline · is_overdue · overdue_duration · is_split · is_divisible
+      </p>
+
+      <h4>Queue State</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        outgoing_queue_size · queue1_total_value · queue1_liquidity_gap · headroom · rtgs_queue_size · queue2_count_for_agent
+      </p>
+
+      <h4>Timing</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        current_tick · system_tick_in_day · ticks_remaining_in_day · day_progress_fraction · is_eod_rush · system_current_day
+      </p>
+
+      <h4>Costs</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        cost_delay_this_tx_one_tick · cost_overdraft_this_amount_one_tick · cost_overdraft_bps_per_tick · cost_delay_per_tick_per_cent · cost_deadline_penalty · cost_eod_penalty
+      </p>
+
+      <h4>Collateral</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        posted_collateral · remaining_collateral_capacity · collateral_utilization · overdraft_headroom · excess_collateral
+      </p>
+
+      <h4>Counterparty & LSM</h4>
+      <p className="text-slate-400 text-sm font-mono">
+        tx_counterparty_id · tx_is_top_counterparty · my_bilateral_net_q2 · my_q2_out_value_to_counterparty · system_queue2_pressure_index
+      </p>
+
+      <h3>State Registers: Cross-Tick Memory</h3>
+      <p>
+        State registers let a policy maintain information across ticks within a day. They're
+        <code>f64</code> values identified by keys prefixed with <code>bank_state_</code>.
+      </p>
+      <ul>
+        <li>Set via <code>SetState</code> action, incremented via <code>AddState</code></li>
+        <li>Read in any tree as a field: <code>{`{"field": "bank_state_cooldown"}`}</code></li>
+        <li>Default to 0.0 if never set, max 10 per agent</li>
+        <li><strong>Reset at end of each day</strong> — no multi-day memory</li>
+      </ul>
+      <p>Use cases: cooldown timers, release counters, running totals, mode flags.</p>
+
+      <CodeBlock>{`// Bank tree: set a cooldown after releasing a lot
+{
+  "type": "condition",
+  "condition": {
+    "op": ">",
+    "left": {"field": "bank_state_released_today"},
+    "right": {"value": 500000}
+  },
+  "on_true": {
+    "type": "action",
+    "action": "SetState",
+    "parameters": {
+      "key": {"value": "bank_state_cooldown"},
+      "value": {"value": 3},
+      "reason": {"value": "high release volume, cooling off"}
+    }
+  },
+  "on_false": {"type": "action", "action": "NoAction"}
+}`}</CodeBlock>
+
+      <h3>Policy Design Patterns</h3>
+
+      <h4>The Cautious Banker</h4>
+      <p>
+        Conservative approach: maintain a large liquidity buffer, only release payments when
+        the deadline is imminent or when the balance is well above the buffer threshold.
+        Uses state registers to track how much has been released and enters a cooldown mode
+        after heavy release ticks.
+      </p>
+      <ul>
+        <li>Bank tree: <code>SetReleaseBudget</code> with a conservative cap</li>
+        <li>Payment tree: Release if <code>ticks_to_deadline ≤ 3</code> OR <code>balance &gt; amount × 2.5</code></li>
+        <li>Collateral tree: <code>PostCollateral</code> proactively at start of day, <code>WithdrawCollateral</code> at end</li>
+        <li>Good for: avoiding overdraft, minimizing risk, stable cost profiles</li>
+        <li>Weakness: high delay costs from holding too long</li>
+      </ul>
+
+      <h4>The Aggressive Market Maker</h4>
+      <p>
+        High-throughput strategy: release most payments immediately, use credit facilities
+        aggressively, split large payments to maintain flow. Prioritizes settlement speed
+        over liquidity conservation.
+      </p>
+      <ul>
+        <li>Bank tree: <code>NoAction</code> (no budget constraints)</li>
+        <li>Payment tree: Release everything except very large payments when balance is critically low</li>
+        <li>Collateral tree: <code>PostCollateral</code> whenever overdraft utilization is high</li>
+        <li>Good for: minimizing delay costs, high settlement rates</li>
+        <li>Weakness: high liquidity and overdraft costs, vulnerable to rate spikes</li>
+      </ul>
+
+      <Callout type="insight">
+        The optimal strategy typically falls between these extremes. The LLM optimization
+        system can explore the space between "too cautious" and "too aggressive" by tuning
+        parameters like <code>urgency_threshold</code> and <code>liquidity_buffer</code> and
+        evolving the tree structure itself.
+      </Callout>
+    </DocPage>
+  );
+}
+
+function LLMOptimization() {
+  return (
+    <DocPage title="LLM Optimization Deep Dive" subtitle="How AI agents learn, evaluate, and converge">
+      <p>
+        The LLM optimization system is the engine that drives policy improvement. It orchestrates
+        a multi-day loop where each agent independently analyzes its performance, proposes improved
+        policies, and statistically validates improvements before adoption.
+      </p>
+
+      <h3>The Optimization Loop</h3>
+      <p>
+        Each iteration follows five phases:
+      </p>
+      <ol>
+        <li>
+          <strong>Simulate</strong> — Run a full day with current policies. The Rust engine produces
+          tick-by-tick events, cost breakdowns, and settlement outcomes.
+        </li>
+        <li>
+          <strong>Evaluate</strong> — Compute each agent's costs. In bootstrap mode, this means
+          running the policy on 50 resampled transaction sets to get statistical estimates.
+        </li>
+        <li>
+          <strong>Propose</strong> — For each agent independently, build a 50,000+ token prompt
+          with cost analysis, simulation traces, iteration history, and parameter trajectories.
+          The LLM proposes a new policy JSON.
+        </li>
+        <li>
+          <strong>Validate</strong> — The proposed policy is checked against scenario constraints:
+          parameter ranges, allowed fields, valid actions. Invalid policies get up to 3 retries
+          with error feedback appended to the prompt.
+        </li>
+        <li>
+          <strong>Accept or Reject</strong> — Compare new vs old policy on the same samples
+          (paired comparison). Accept only if the improvement is statistically significant.
+        </li>
+      </ol>
+
+      <CodeBlock>{`Iteration 1: [Simulate] → [Evaluate] → [Propose A] → [Propose B] → [Accept/Reject]
+Iteration 2: [Simulate] → [Evaluate] → [Propose A] → [Propose B] → [Accept/Reject]
+...
+Iteration N: [Simulate] → [Evaluate] → [Converged!]`}</CodeBlock>
+
+      <h3>Bootstrap Evaluation</h3>
+      <p>
+        In stochastic scenarios, a single simulation run is unreliable — random payment arrivals
+        mean the same policy can look great or terrible depending on the draw. Bootstrap evaluation
+        solves this with <strong>paired comparison</strong>:
+      </p>
+      <ol>
+        <li>Generate N bootstrap samples (default: 50) by resampling from observed transactions</li>
+        <li>Run <em>both</em> the old and new policy on <em>each</em> sample</li>
+        <li>Compute the cost difference (delta) per sample</li>
+        <li>Accept if: mean delta &gt; 0, 95% CI doesn't cross zero, and CV ≤ 0.5</li>
+      </ol>
+
+      <Callout type="info">
+        Using the <strong>same samples</strong> for both policies is crucial. It eliminates
+        sample-to-sample variance — the only variation comes from the policy difference itself.
+        This is far more sensitive than comparing means from independent samples.
+      </Callout>
+
+      <p>
+        Each agent is evaluated in a <strong>3-agent sandbox</strong>: SOURCE → AGENT → SINK.
+        The SOURCE generates transactions, the AGENT is the one being evaluated, and the SINK
+        absorbs outgoing payments. This isolation ensures that an agent's evaluation isn't
+        contaminated by other agents' changing policies.
+      </p>
+
+      <h3>Multi-Agent Isolation</h3>
+      <p>
+        Agent isolation is enforced at every level of the system:
+      </p>
+      <ul>
+        <li><strong>Event filtering</strong> — Each agent's prompt contains only its own transactions, costs, and state changes. No counterparty balances or policies are revealed.</li>
+        <li><strong>Separate history</strong> — Each agent has its own iteration history, best-cost tracking, and parameter trajectories.</li>
+        <li><strong>Independent seeds</strong> — Each agent gets different RNG seeds per iteration via a SHA-256 seed matrix.</li>
+        <li><strong>Isolated evaluation</strong> — Bootstrap samples and sandbox simulations are per-agent.</li>
+      </ul>
+      <p>
+        This isolation is what enables Nash equilibrium finding. Each agent independently optimizes
+        against the current state of the world (which includes other agents' fixed policies).
+        If agents could see each other's strategies, they could game the optimization or coordinate
+        in ways that don't reflect real RTGS incentives.
+      </p>
+
+      <h3>Nash Equilibrium and Convergence</h3>
+      <p>
+        In <strong>deterministic-temporal</strong> mode, convergence is detected when all agents'
+        policies remain unchanged for a stability window (typically 5 iterations). Since deterministic
+        evaluation gives identical costs for identical policies, stability means no agent can
+        improve — which is precisely the definition of a Nash equilibrium.
+      </p>
+      <p>
+        In <strong>bootstrap</strong> mode, convergence uses multiple signals:
+      </p>
+      <ul>
+        <li><strong>Coefficient of variation (CV)</strong> — When cost variance drops below a threshold, the policy is stable</li>
+        <li><strong>Trend analysis</strong> — Costs should be flat or declining, not oscillating</li>
+        <li><strong>Regret</strong> — How far the current cost is from the best-ever cost</li>
+      </ul>
+
+      <Callout type="important">
+        Convergence to a Nash equilibrium doesn't mean the outcome is <em>good</em>. In
+        Experiment 3, agents reliably converge to stable profiles where one agent free-rides —
+        a Nash equilibrium, but Pareto-dominated. Both agents would be better off at the
+        symmetric equilibrium, but neither has an individual incentive to move there.
+      </Callout>
+
+      <h3>Optimization Interval</h3>
+      <p>
+        By default, agents optimize after every simulated day. But you can configure the
+        <strong> optimization interval</strong> — how many days pass between optimization rounds.
+        With an interval of 5, the agent plays 5 days with its current policy, accumulates more
+        data, and then proposes a single improvement.
+      </p>
+      <ul>
+        <li><strong>Interval = 1</strong> — Fastest learning, but each decision is based on a single day's data</li>
+        <li><strong>Interval = 5–10</strong> — More data per decision, smoother convergence, less sensitive to single-day noise</li>
+        <li><strong>Interval = N (large)</strong> — Almost batch optimization; useful when you want agents to commit to strategies</li>
+      </ul>
+
+      <h3>Three Evaluation Modes</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Mode</th>
+            <th className="text-left py-2 text-slate-300">Acceptance Rule</th>
+            <th className="text-left py-2 text-slate-300">Best For</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800">
+            <td className="py-1.5 pr-4 font-mono text-sky-400">bootstrap</td>
+            <td>Statistical significance (95% CI) + variance check</td>
+            <td>Stochastic scenarios — rigorous comparison</td>
+          </tr>
+          <tr className="border-b border-slate-800">
+            <td className="py-1.5 pr-4 font-mono text-sky-400">deterministic-pairwise</td>
+            <td>new_cost &lt; old_cost on same seed</td>
+            <td>Single-agent deterministic optimization</td>
+          </tr>
+          <tr>
+            <td className="py-1.5 pr-4 font-mono text-sky-400">deterministic-temporal</td>
+            <td>Always accept; converge on policy stability</td>
+            <td>Multi-agent Nash equilibrium finding</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>What the LLM Sees (and Doesn't)</h3>
+      <p>
+        The system prompt includes a <strong>filtered policy schema</strong> — only the actions,
+        fields, and parameters that the scenario constraints allow. The LLM literally cannot
+        see documentation for elements it isn't allowed to use, preventing hallucinated references
+        to unavailable features.
+      </p>
+      <p>
+        The user prompt includes cost breakdowns with priority flags (🔴 dominant cost, 🟡 significant,
+        🟢 minor), automated trend detection (improving/worsening/oscillating), settlement rate
+        alerts, and full iteration history with acceptance status markers (⭐ BEST / ✅ KEPT / ❌ REJECTED).
+      </p>
+    </DocPage>
+  );
+}
+
 /* ─── Blog Posts ─── */
 
 function BlogConvergence() {
@@ -728,7 +1341,7 @@ function DocPage({ title, subtitle, isBlog, date, children }: {
       )}
       <h1 className="text-2xl font-bold text-slate-100 mb-1">{title}</h1>
       <p className="text-slate-400 mb-6">{subtitle}</p>
-      <div className="space-y-4 text-slate-300 leading-relaxed [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-200 [&_h3]:mt-8 [&_h3]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_li]:text-slate-300 [&_a]:text-sky-400 [&_a]:hover:underline [&_code]:text-sky-400 [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_table]:border-collapse [&_table]:w-full [&_td]:py-1.5 [&_td]:pr-4 [&_td]:text-sm">
+      <div className="space-y-4 text-slate-300 leading-relaxed [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-200 [&_h3]:mt-8 [&_h3]:mb-3 [&_h4]:text-base [&_h4]:font-medium [&_h4]:text-slate-300 [&_h4]:mt-6 [&_h4]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_li]:text-slate-300 [&_a]:text-sky-400 [&_a]:hover:underline [&_code]:text-sky-400 [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_table]:border-collapse [&_table]:w-full [&_td]:py-1.5 [&_td]:pr-4 [&_td]:text-sm">
         {children}
       </div>
     </div>
