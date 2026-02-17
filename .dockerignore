@@ -1,0 +1,14 @@
+target/
+node_modules/
+.git/
+*.db
+*.duckdb
+.venv/
+__pycache__/
+web/backend/data/
+.env
+.keys/
+.mypy_cache/
+.pytest_cache/
+*.pyc
+.DS_Store

@@ -18,6 +18,7 @@ STORAGE_MODE: str = os.getenv("SIMCASH_STORAGE_MODE", "memory")  # memory | gcs
 MOCK_DEFAULT: bool = _bool_env("SIMCASH_MOCK_DEFAULT", True)
 GCS_BUCKET: str = os.getenv("SIMCASH_GCS_BUCKET", "simcash-487714-games")
 CONFIGS_DIR: str = os.getenv("SIMCASH_CONFIGS_DIR", "configs")
+PORT: int = int(os.getenv("PORT", "8080"))
 ALLOWED_EMAILS: list[str] = [
     e.strip()
     for e in os.getenv("SIMCASH_ALLOWED_EMAILS", "").split(",")

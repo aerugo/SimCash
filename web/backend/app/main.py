@@ -806,3 +806,13 @@ async def game_ws(websocket: WebSocket, game_id: str):
             await websocket.send_json({"type": "error", "message": str(e)})
         except Exception:
             pass
+
+
+# ---- Static Frontend Serving (must be LAST — catch-all mount) ----
+
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+frontend_dir = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if frontend_dir.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
