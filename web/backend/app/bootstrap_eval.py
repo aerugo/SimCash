@@ -5,6 +5,7 @@ Accept if delta_sum < 0, CV < threshold, and 95% CI upper < 0.
 """
 from __future__ import annotations
 
+import concurrent.futures
 import copy
 import json
 import math
@@ -59,20 +60,21 @@ class WebBootstrapEvaluator:
         base_seed: int,
         other_policies: dict[str, dict] | None = None,
     ) -> EvaluationResult:
-        deltas: list[int] = []
-        old_costs: list[int] = []
-        new_costs: list[int] = []
+        seeds = [base_seed + i * 1000 for i in range(self.num_samples)]
 
-        for i in range(self.num_samples):
-            seed = base_seed + i * 1000
+        if self.num_samples > 1:
+            # Parallel: use GIL-releasing run_and_get_total_cost() with threads
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(self.num_samples, 8)) as pool:
+                old_futures = [pool.submit(self._run_sim_fast, raw_yaml, agent_id, old_policy, s, other_policies) for s in seeds]
+                new_futures = [pool.submit(self._run_sim_fast, raw_yaml, agent_id, new_policy, s, other_policies) for s in seeds]
+                old_costs = [f.result() for f in old_futures]
+                new_costs = [f.result() for f in new_futures]
+        else:
+            # Single sample: no thread overhead
+            old_costs = [self._run_sim_fast(raw_yaml, agent_id, old_policy, seeds[0], other_policies)]
+            new_costs = [self._run_sim_fast(raw_yaml, agent_id, new_policy, seeds[0], other_policies)]
 
-            old_cost = self._run_sim(raw_yaml, agent_id, old_policy, seed, other_policies)
-            new_cost = self._run_sim(raw_yaml, agent_id, new_policy, seed, other_policies)
-
-            delta = new_cost - old_cost  # Negative = improvement
-            deltas.append(delta)
-            old_costs.append(old_cost)
-            new_costs.append(new_cost)
+        deltas = [new - old for new, old in zip(new_costs, old_costs)]
 
         delta_sum = sum(deltas)
         mean_delta = delta_sum // self.num_samples if self.num_samples > 0 else 0
@@ -136,15 +138,15 @@ class WebBootstrapEvaluator:
             new_mean_cost=sum(new_costs) // self.num_samples if self.num_samples else 0,
         )
 
-    def _run_sim(
+    def _prepare_orchestrator(
         self,
         raw_yaml: dict,
         agent_id: str,
         policy: dict,
         seed: int,
         other_policies: dict[str, dict] | None = None,
-    ) -> int:
-        """Run a single simulation and return the agent's total cost (int)."""
+    ) -> tuple:
+        """Prepare an Orchestrator and return (orch, num_ticks). Does not run."""
         scenario = copy.deepcopy(raw_yaml)
 
         for agent_cfg in scenario.get("agents", []):
@@ -164,10 +166,32 @@ class WebBootstrapEvaluator:
         sim_config = SimulationConfig.from_dict(scenario)
         ffi_config = sim_config.to_ffi_dict()
         orch = Orchestrator.new(ffi_config)
-
         ticks = ffi_config["ticks_per_day"] * ffi_config["num_days"]
+        return orch, ticks
+
+    def _run_sim_fast(
+        self,
+        raw_yaml: dict,
+        agent_id: str,
+        policy: dict,
+        seed: int,
+        other_policies: dict[str, dict] | None = None,
+    ) -> int:
+        """Run simulation using GIL-releasing FFI method (thread-safe)."""
+        orch, ticks = self._prepare_orchestrator(raw_yaml, agent_id, policy, seed, other_policies)
+        return orch.run_and_get_total_cost(agent_id, ticks)
+
+    def _run_sim(
+        self,
+        raw_yaml: dict,
+        agent_id: str,
+        policy: dict,
+        seed: int,
+        other_policies: dict[str, dict] | None = None,
+    ) -> int:
+        """Run simulation using sequential tick loop (legacy, kept for compatibility)."""
+        orch, ticks = self._prepare_orchestrator(raw_yaml, agent_id, policy, seed, other_policies)
         for _ in range(ticks):
             orch.tick()
-
         ac = orch.get_agent_accumulated_costs(agent_id)
         return int(ac.get("total_cost", 0))
