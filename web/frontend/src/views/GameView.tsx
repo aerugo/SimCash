@@ -152,6 +152,45 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         </div>
       )}
 
+      {/* Completion summary */}
+      {gameState.is_complete && gameState.days.length > 0 && (() => {
+        const firstDay = gameState.days[0];
+        const lastDay = gameState.days[gameState.days.length - 1];
+        const firstTotal = firstDay.total_cost;
+        const lastTotal = lastDay.total_cost;
+        const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
+        return (
+          <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
+            <h3 className="text-lg font-semibold text-green-400 mb-3">🏁 Game Complete — {gameState.max_days} Days</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <div className="text-xs text-slate-500">Day 1 Cost</div>
+                <div className="font-mono text-sm">{firstTotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Final Cost</div>
+                <div className="font-mono text-sm">{lastTotal.toLocaleString()}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Cost Reduction</div>
+                <div className={`font-mono text-sm ${reduction > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {reduction > 0 ? '↓' : '↑'} {Math.abs(reduction).toFixed(1)}%
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Final Fractions</div>
+                <div className="font-mono text-xs text-slate-300">
+                  {gameState.agent_ids.map(aid => {
+                    const f = gameState.current_policies[aid]?.initial_liquidity_fraction ?? 1;
+                    return `${aid.replace('BANK_', '')}: ${f.toFixed(3)}`;
+                  }).join(' · ')}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Empty state guidance */}
       {gameState.days.length === 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
@@ -355,14 +394,19 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             </div>
           )}
 
-          {/* Latest reasoning */}
+          {/* Day-specific reasoning */}
           {gameState.reasoning_history && Object.keys(gameState.reasoning_history).length > 0 && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">🧠 Latest Reasoning</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">
+                🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
+                  ? `Day ${selectedDay + 1} Reasoning`
+                  : 'Latest Reasoning'}
+              </h3>
               <div className="space-y-3">
                 {gameState.agent_ids.map((aid, i) => {
                   const history = gameState.reasoning_history[aid] ?? [];
-                  const latest = history[history.length - 1];
+                  const reasoningIndex = selectedDay ?? history.length - 1;
+                  const latest = history[reasoningIndex];
                   if (!latest) return null;
                   const bs = latest.bootstrap;
                   return (
@@ -410,19 +454,24 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} />
           )}
 
-          {/* Current policies */}
+          {/* Policies for selected day */}
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">📋 Current Policies</h3>
+            <h3 className="text-sm font-semibold text-slate-300 mb-3">
+              📋 {selectedDay !== null && selectedDay < gameState.days.length - 1
+                ? `Day ${selectedDay + 1} Policies`
+                : 'Current Policies'}
+            </h3>
             <div className="space-y-2">
               {gameState.agent_ids.map((aid, i) => {
-                const pol = gameState.current_policies[aid];
+                const dayPolicies = day?.policies?.[aid];
+                const pol = dayPolicies ?? gameState.current_policies[aid];
                 return (
                   <div key={aid} className="flex items-center justify-between bg-slate-900/50 rounded-lg px-3 py-2">
                     <span className="font-mono text-sm" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
                       {aid}
                     </span>
                     <span className="font-mono text-sm text-slate-300">
-                      fraction = {pol?.initial_liquidity_fraction?.toFixed(3) ?? '1.000'}
+                      fraction = {(pol?.initial_liquidity_fraction ?? 1.0).toFixed(3)}
                     </span>
                   </div>
                 );
@@ -432,25 +481,60 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         </div>
       </div>
 
-      {/* Events for selected day */}
+      {/* Events for selected day — summary + collapsible detail */}
       {day && day.events.length > 0 && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-          <h3 className="text-sm font-semibold text-slate-300 mb-3">
-            Day {day.day + 1} Events ({day.events.length})
-          </h3>
-          <div className="max-h-48 overflow-y-auto text-xs font-mono text-slate-400 space-y-0.5">
-            {day.events.slice(0, 100).map((e, i) => (
-              <div key={i} className="flex gap-2">
-                <span className="text-slate-600 w-6">{String(e.tick)}</span>
-                <span className="text-sky-400">{String(e.event_type)}</span>
-                {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
-                {'amount' in e && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
-              </div>
-            ))}
-            {day.events.length > 100 && (
-              <div className="text-slate-600">... and {day.events.length - 100} more</div>
-            )}
-          </div>
+        <EventSummary day={day} />
+      )}
+    </div>
+  );
+}
+
+function EventSummary({ day }: { day: { day: number; events: Record<string, unknown>[] } }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Count events by type
+  const counts: Record<string, number> = {};
+  for (const e of day.events) {
+    const t = String(e.event_type ?? 'unknown');
+    counts[t] = (counts[t] ?? 0) + 1;
+  }
+
+  const summaryParts = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([type, count]) => `${count} ${type}`);
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-slate-300">
+          Day {day.day + 1} Events ({day.events.length})
+        </h3>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-slate-500 hover:text-slate-300"
+        >
+          {expanded ? '▲ Collapse' : '▼ Show details'}
+        </button>
+      </div>
+      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+        {summaryParts.map((s, i) => (
+          <span key={i}>{s}</span>
+        ))}
+      </div>
+      {expanded && (
+        <div className="mt-3 max-h-48 overflow-y-auto text-xs font-mono text-slate-400 space-y-0.5 border-t border-slate-700 pt-3">
+          {day.events.slice(0, 200).map((e, i) => (
+            <div key={i} className="flex gap-2">
+              <span className="text-slate-600 w-6">{String(e.tick)}</span>
+              <span className="text-sky-400">{String(e.event_type)}</span>
+              {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+              {'amount' in e && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
+            </div>
+          ))}
+          {day.events.length > 200 && (
+            <div className="text-slate-600">... and {day.events.length - 200} more</div>
+          )}
         </div>
       )}
     </div>
@@ -606,10 +690,11 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   const maxVal = Math.max(...allValues);
   const range = maxVal - minVal || 1;
   const numTicks = Math.max(...agentIds.map(aid => (balanceHistory[aid] ?? []).length));
+  const fmtDollar = (v: number) => `$${(v / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
   const w = 400;
-  const h = 80;
-  const pad = { t: 5, r: 5, b: 5, l: 5 };
+  const h = 150;
+  const pad = { t: 10, r: 10, b: 20, l: 55 };
   const plotW = w - pad.l - pad.r;
   const plotH = h - pad.t - pad.b;
 
@@ -617,13 +702,32 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   const toY = (v: number) => pad.t + plotH - ((v - minVal) / range) * plotH;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
-      {agentIds.map((aid, ci) => {
-        const vals = balanceHistory[aid] ?? [];
-        if (vals.length < 1) return null;
-        const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
-        return <polyline key={aid} points={points} fill="none" stroke={AGENT_COLORS[ci % AGENT_COLORS.length]} strokeWidth={1.5} />;
-      })}
-    </svg>
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
+        {/* Y axis labels */}
+        <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(maxVal)}</text>
+        <text x={pad.l - 4} y={h - pad.b} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(minVal)}</text>
+        {/* X axis labels */}
+        {numTicks <= 20 && Array.from({ length: numTicks }, (_, i) => (
+          <text key={i} x={toX(i)} y={h - 4} textAnchor="middle" className="fill-slate-500 text-[6px]">{i + 1}</text>
+        ))}
+        {/* Lines */}
+        {agentIds.map((aid, ci) => {
+          const vals = balanceHistory[aid] ?? [];
+          if (vals.length < 1) return null;
+          const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+          return <polyline key={aid} points={points} fill="none" stroke={AGENT_COLORS[ci % AGENT_COLORS.length]} strokeWidth={1.5} />;
+        })}
+      </svg>
+      {/* Legend */}
+      <div className="flex gap-3 justify-center mt-1">
+        {agentIds.map((aid, ci) => (
+          <span key={aid} className="text-[10px] flex items-center gap-1">
+            <span className="inline-block w-2.5 h-0.5 rounded" style={{ backgroundColor: AGENT_COLORS[ci % AGENT_COLORS.length] }} />
+            <span className="text-slate-500">{aid}</span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
