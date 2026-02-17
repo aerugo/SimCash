@@ -118,9 +118,9 @@ Frontend has 7 tabs but **no GameView** — the multi-day game has no UI.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1 | Pending | |
-| 2 | Pending | |
-| 3 | Pending | |
-| 4 | Pending | |
-| 5 | Pending | |
-| 6 | Pending | |
+| 1 | ✅ Complete | 19 tests, all pass. INV-GAME-1 verified. |
+| 2 | ✅ Complete | 17 tests (7 parametrized), all pass. All 7 scenario presets work. |
+| 3 | ✅ Complete | Causality verified: frac 1.0→199,200 cost, frac 0.1→different. Determinism holds. |
+| 4 | ✅ Complete | GameView already existed, fixed TS strict errors, builds clean. |
+| 5 | Pending | Need to test real LLM. Server SIGKILL issue in sandbox. |
+| 6 | Blocked | GitHub account suspended — can't push. |
