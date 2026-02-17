@@ -36,7 +36,8 @@ class GameDay:
                  costs: dict[str, dict], events: list[dict],
                  balance_history: dict[str, list], total_cost: int,
                  per_agent_costs: dict[str, int],
-                 tick_events: list[list[dict]] | None = None):
+                 tick_events: list[list[dict]] | None = None,
+                 optimized: bool = False):
         self.day_num = day_num
         self.seed = seed
         self.policies = policies
@@ -46,6 +47,7 @@ class GameDay:
         self.total_cost = total_cost
         self.per_agent_costs = per_agent_costs
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
+        self.optimized = optimized  # whether LLM optimization occurred after this day
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,6 +63,7 @@ class GameDay:
             "total_cost": self.total_cost,
             "per_agent_costs": self.per_agent_costs,
             "num_ticks": len(self.tick_events),
+            "optimized": self.optimized,
         }
 
 
@@ -69,13 +72,16 @@ class Game:
 
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
                  mock_reasoning: bool = True, max_days: int = 10,
-                 num_eval_samples: int = 1):
+                 num_eval_samples: int = 1, optimization_interval: int = 1,
+                 constraint_preset: str = "simple"):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
         self.mock_reasoning = mock_reasoning
         self.max_days = max_days
         self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
+        self.optimization_interval = max(1, optimization_interval)
+        self.constraint_preset = constraint_preset
         self.days: list[GameDay] = []
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
@@ -89,6 +95,10 @@ class Game:
     @property
     def is_complete(self) -> bool:
         return self.current_day >= self.max_days
+
+    def should_optimize(self, day_num: int) -> bool:
+        """Whether optimization should run after the given day number."""
+        return (day_num + 1) % self.optimization_interval == 0
 
     def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
         """Run one simulation with current policies at given seed.
@@ -301,7 +311,8 @@ class Game:
                 result = None
                 try:
                     async for event in stream_optimize(
-                        aid, self.policies[aid], last_day, self.days, self.raw_yaml
+                        aid, self.policies[aid], last_day, self.days, self.raw_yaml,
+                        constraint_preset=self.constraint_preset,
                     ):
                         if event["type"] == "chunk":
                             await send_fn({
@@ -398,7 +409,8 @@ class Game:
             else:
                 try:
                     result = await _real_optimize(aid, self.policies[aid], last_day,
-                                                  self.days, self.raw_yaml)
+                                                  self.days, self.raw_yaml,
+                                                  constraint_preset=self.constraint_preset)
                 except Exception as e:
                     logger.warning("Real LLM optimization failed for %s, falling back to mock: %s", aid, e)
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
@@ -451,6 +463,7 @@ class Game:
             "is_complete": self.is_complete,
             "use_llm": self.use_llm,
             "num_eval_samples": self.num_eval_samples,
+            "optimization_interval": self.optimization_interval,
             "agent_ids": self.agent_ids,
             "current_policies": {
                 aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
@@ -558,7 +571,8 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
 
 async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
-                         all_days: list[GameDay], raw_yaml: dict) -> dict[str, Any]:
+                         all_days: list[GameDay], raw_yaml: dict,
+                         constraint_preset: str = "simple") -> dict[str, Any]:
     """Use the real LLM optimization infrastructure.
 
     Reuses the existing PolicyOptimizer + ExperimentLLMClient from the experiment
@@ -567,10 +581,6 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     shifts as counterparties change).
     """
     from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
-    from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
-        ScenarioConstraints,
-        ParameterSpec,
-    )
     from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
         filter_events_for_agent,
         format_filtered_output,
@@ -585,21 +595,9 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
-    # Build constraints matching exp2 config
-    constraints = ScenarioConstraints(
-        allowed_parameters=[
-            ParameterSpec(
-                name="initial_liquidity_fraction",
-                param_type="float",
-                min_value=0.0,
-                max_value=1.0,
-                description="Fraction of liquidity_pool to allocate at simulation start.",
-            ),
-        ],
-        allowed_fields=["system_tick_in_day", "balance", "amount", "remaining_amount", "ticks_to_deadline"],
-        allowed_actions={"payment_tree": ["Release", "Hold"], "bank_tree": ["NoAction"]},
-        lsm_enabled=False,
-    )
+    # Build constraints from preset
+    from .constraint_presets import build_constraints
+    constraints = build_constraints(constraint_preset, raw_yaml)
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 

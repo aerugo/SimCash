@@ -24,6 +24,7 @@ async def stream_optimize(
     last_day: Any,  # GameDay
     all_days: list[Any],
     raw_yaml: dict[str, Any],
+    constraint_preset: str = "simple",
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream LLM optimization, yielding events as they happen.
 
@@ -33,10 +34,6 @@ async def stream_optimize(
       {"type": "error", "message": "..."}  — on failure
     """
     from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
-    from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
-        ScenarioConstraints,
-        ParameterSpec,
-    )
     from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
         filter_events_for_agent,
         format_filtered_output,
@@ -57,21 +54,9 @@ async def stream_optimize(
         yield {"type": "error", "message": f"pydantic_ai required: {e}"}
         return
 
-    # Build constraints (same as _real_optimize)
-    constraints = ScenarioConstraints(
-        allowed_parameters=[
-            ParameterSpec(
-                name="initial_liquidity_fraction",
-                param_type="float",
-                min_value=0.0,
-                max_value=1.0,
-                description="Fraction of liquidity_pool to allocate at simulation start.",
-            ),
-        ],
-        allowed_fields=["system_tick_in_day", "balance", "amount", "remaining_amount", "ticks_to_deadline"],
-        allowed_actions={"payment_tree": ["Release", "Hold"], "bank_tree": ["NoAction"]},
-        lsm_enabled=False,
-    )
+    # Build constraints from preset
+    from .constraint_presets import build_constraints
+    constraints = build_constraints(constraint_preset, raw_yaml)
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 

@@ -575,6 +575,8 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
         mock_reasoning=config.mock_reasoning,
         max_days=config.max_days,
         num_eval_samples=config.num_eval_samples,
+        optimization_interval=config.optimization_interval,
+        constraint_preset=config.constraint_preset,
     )
     game_manager[game_id] = game
 
@@ -690,8 +692,9 @@ async def step_game(game_id: str, uid: str = Depends(get_current_user)):
             game_storage.update_index(uid, meta)
 
     reasoning = {}
-    if game.use_llm and not game.is_complete:
+    if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
         reasoning = await game.optimize_policies()
+        day.optimized = True
 
     return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
 
@@ -708,8 +711,9 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_current_user)):
     while not game.is_complete:
         day = game.run_day()
         reasoning = {}
-        if game.use_llm and not game.is_complete:
+        if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
             reasoning = await game.optimize_policies()
+            day.optimized = True
         days.append({"day": day.to_dict(), "reasoning": reasoning})
         all_reasoning.append(reasoning)
 
@@ -783,11 +787,12 @@ async def game_ws(websocket: WebSocket, game_id: str):
         day = game.run_day()
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
 
-        if not game.is_complete:
+        if not game.is_complete and game.should_optimize(day.day_num):
             # Use streaming optimization — sends optimization_start,
             # optimization_chunk (text deltas), and optimization_complete
             # directly via the websocket
             await game.optimize_policies_streaming(websocket.send_json)
+            day.optimized = True
 
         await websocket.send_json({"type": "game_state", "data": game.get_state()})
 
@@ -871,6 +876,15 @@ async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user
     """Revoke a user's access (admin only)."""
     user_manager.revoke_user(user_email)
     return {"status": "revoked", "email": user_email}
+
+
+# ---- Constraint Presets ----
+
+@app.get("/api/constraint-presets")
+def list_constraint_presets():
+    """List available LLM optimization constraint presets."""
+    from .constraint_presets import get_preset_metadata
+    return {"presets": get_preset_metadata()}
 
 
 # ---- Policy Library ----

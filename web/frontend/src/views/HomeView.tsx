@@ -42,6 +42,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   const [numEvalSamples, setNumEvalSamples] = useState(1);
   const [gameUseLlm, setGameUseLlm] = useState(true);
   const [gameMockReasoning, setGameMockReasoning] = useState(true);
+  const [optimizationInterval, setOptimizationInterval] = useState(1);
 
   useEffect(() => {
     getGameScenarios().then(setGameScenarios).catch(() => {});
@@ -305,6 +306,28 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
                   {numEvalSamples === 1 ? 'Quick mode — single sample' : numEvalSamples >= 50 ? 'Paper-faithful — 50 bootstrap samples' : `${numEvalSamples} bootstrap samples per evaluation`}
                 </p>
               </div>
+              <div>
+                <label className="text-xs text-slate-500 flex justify-between mb-1">
+                  <span>Optimization Interval</span>
+                  <span className="font-mono text-slate-300">
+                    {optimizationInterval === 1 ? 'Every day' : `Every ${optimizationInterval} days`}
+                  </span>
+                </label>
+                <select
+                  value={optimizationInterval}
+                  onChange={e => setOptimizationInterval(Number(e.target.value))}
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
+                >
+                  <option value={1}>Every day (1)</option>
+                  <option value={2}>Every 2 days</option>
+                  <option value={3}>Every 3 days</option>
+                  <option value={5}>Every 5 days</option>
+                  <option value={10}>Every 10 days</option>
+                </select>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  How often the AI re-evaluates its strategy. More days between optimizations = more data per evaluation, slower adaptation.
+                </p>
+              </div>
               <div className="flex gap-6 flex-wrap">
                 <Toggle label="Enable AI Optimization" value={gameUseLlm} onChange={setGameUseLlm} />
                 {gameUseLlm && (
@@ -320,7 +343,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
           </Section>
 
           <button
-            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples })}
+            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples, optimization_interval: optimizationInterval })}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
             🎮 Start Game

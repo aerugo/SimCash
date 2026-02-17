@@ -153,6 +153,8 @@ class CreateGameRequest(BaseModel):
     mock_reasoning: bool = True
     max_days: int = Field(default=10, ge=1, le=100)
     num_eval_samples: int = Field(default=1, ge=1, le=50)
+    optimization_interval: int = Field(default=1, ge=1, le=50)
+    constraint_preset: str = Field(default="simple", pattern="^(simple|standard|full)$")
 
 
 class CompareRequest(BaseModel):

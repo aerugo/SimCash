@@ -145,6 +145,7 @@ export interface DayResult {
   balance_history: Record<string, number[]>;
   total_cost: number;
   per_agent_costs: Record<string, number>;
+  optimized?: boolean;
 }
 
 export interface BootstrapResult {
@@ -199,6 +200,15 @@ export interface GameSetupConfig {
   mock_reasoning: boolean;
   max_days: number;
   num_eval_samples: number;
+  optimization_interval?: number;
+  constraint_preset?: 'simple' | 'standard' | 'full';
+}
+
+export interface ConstraintPresetInfo {
+  id: string;
+  name: string;
+  description: string;
+  complexity: string;
 }
 
 // ---- Scenario Library Types ----

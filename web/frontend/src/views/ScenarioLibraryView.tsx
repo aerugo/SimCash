@@ -44,6 +44,8 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
   const [useLlm, setUseLlm] = useState(true);
   const [mockReasoning, setMockReasoning] = useState(true);
   const [numEvalSamples, setNumEvalSamples] = useState(1);
+  const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('simple');
+  const [optimizationInterval, setOptimizationInterval] = useState(1);
 
   useEffect(() => {
     getScenarioLibrary()
@@ -78,6 +80,8 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
       mock_reasoning: mockReasoning,
       max_days: maxDays,
       num_eval_samples: numEvalSamples,
+      optimization_interval: optimizationInterval,
+      constraint_preset: constraintPreset,
     });
   };
 
@@ -210,6 +214,19 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
                 />
               </div>
               <div>
+                <label className="text-xs text-slate-500 block mb-1">Opt. Interval</label>
+                <select
+                  value={optimizationInterval}
+                  onChange={e => setOptimizationInterval(Number(e.target.value))}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                >
+                  <option value={1}>Every day</option>
+                  <option value={2}>Every 2 days</option>
+                  <option value={3}>Every 3 days</option>
+                  <option value={5}>Every 5 days</option>
+                </select>
+              </div>
+              <div>
                 <label className="text-xs text-slate-500 block mb-1">AI Reasoning</label>
                 <select
                   value={useLlm ? (mockReasoning ? 'mock' : 'real') : 'off'}
@@ -226,6 +243,32 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
                 </select>
               </div>
             </div>
+            {/* Advanced: Constraint Preset */}
+            {useLlm && (
+              <div className="mb-4">
+                <label className="text-xs text-slate-500 block mb-1">LLM Strategy Depth</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { id: 'simple' as const, label: 'Simple', desc: 'Tune one parameter' },
+                    { id: 'standard' as const, label: 'Standard', desc: 'Release/Hold/Split' },
+                    { id: 'full' as const, label: 'Full', desc: 'All actions & fields' },
+                  ]).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setConstraintPreset(p.id)}
+                      className={`p-2 rounded-lg text-left border transition-colors ${
+                        constraintPreset === p.id
+                          ? 'border-sky-500 bg-sky-500/10'
+                          : 'border-slate-700 bg-slate-900 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="text-xs font-medium text-slate-200">{p.label}</div>
+                      <div className="text-[10px] text-slate-500">{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <button
               onClick={handleLaunch}
               disabled={!onLaunchGame}

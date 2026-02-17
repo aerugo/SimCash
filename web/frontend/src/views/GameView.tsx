@@ -218,17 +218,19 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Day Timeline</h3>
               <div className="flex gap-1 flex-wrap">
-                {gameState.days.map((_, i) => (
+                {gameState.days.map((d, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedDay(i)}
-                    className={`w-8 h-8 rounded text-xs font-mono transition-all ${
+                    title={d.optimized ? `Day ${i + 1} — optimized` : `Day ${i + 1}`}
+                    className={`w-8 h-8 rounded text-xs font-mono transition-all relative ${
                       selectedDay === i || (selectedDay === null && i === gameState.days.length - 1)
                         ? 'bg-sky-500 text-white'
                         : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
                     }`}
                   >
                     {i + 1}
+                    {d.optimized && <span className="absolute -top-1 -right-1 text-[8px]">🧠</span>}
                   </button>
                 ))}
               </div>
