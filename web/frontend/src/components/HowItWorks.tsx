@@ -51,10 +51,10 @@ export function HowItWorks({ defaultOpen = false }: Props) {
             <h4 className="font-medium text-slate-300 mb-1">🔄 The Game Loop</h4>
             <p>
               Each day: (1) Banks commit liquidity based on their policy, (2) Payments
-              arrive stochastically and settle in real-time, (3) Costs are tallied — liquidity held,
-              delays incurred, deadlines missed, (4) An AI agent analyzes each bank's results
-              and proposes an improved policy for the next day. Over many days, policies converge
-              toward an equilibrium.
+              arrive (stochastically or on a fixed schedule) and settle in real-time, (3) Costs
+              are tallied — liquidity held, delays incurred, deadlines missed, (4) An AI agent
+              analyzes each bank's results and proposes an improved policy for the next day.
+              Over many days, policies converge toward a stable profile.
             </p>
           </div>
 

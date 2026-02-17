@@ -250,8 +250,9 @@ function CostModel() {
 
       <h3>3. Deadline Penalty (r<sub>b</sub>)</h3>
       <p>
-        A flat fee for each payment still unsettled at end of day. This is the nuclear option —
-        the most expensive cost, representing regulatory penalties or failed obligations.
+        A flat fee for each payment that misses its individual deadline (each payment has
+        a specific tick by which it should settle). This is the most expensive per-event cost,
+        representing regulatory penalties or failed obligations.
       </p>
       <CodeBlock>{`cost = penalty_amount per unsettled payment`}</CodeBlock>
       <p>Default: $500 (50,000 cents) per payment. By far the most expensive.</p>
@@ -385,7 +386,7 @@ function Experiments() {
           <tr><td className="text-slate-400 pr-4">Payments</td><td>Poisson arrivals (λ=2/tick), LogNormal amounts (μ=$100, σ=$50)</td></tr>
           <tr><td className="text-slate-400 pr-4">Mode</td><td>Bootstrap (50 paired samples)</td></tr>
           <tr><td className="text-slate-400 pr-4">Expected</td><td>Both agents 10–30%</td></tr>
-          <tr><td className="text-slate-400 pr-4">Result</td><td>A≈8.5%, B≈6.3% (near-symmetric, lower than predicted)</td></tr>
+          <tr><td className="text-slate-400 pr-4">Result</td><td>A≈5.7–8.5%, B≈5.8–6.3% across 3 passes (near-symmetric, lower than predicted)</td></tr>
         </tbody>
       </table>
       <p>
@@ -400,7 +401,7 @@ function Experiments() {
           <tr><td className="text-slate-400 pr-4">Payments</td><td>Symmetric — both banks send 20% at ticks 0 and 1</td></tr>
           <tr><td className="text-slate-400 pr-4">Mode</td><td>Deterministic-temporal</td></tr>
           <tr><td className="text-slate-400 pr-4">Expected</td><td>Symmetric ≈20%</td></tr>
-          <tr><td className="text-slate-400 pr-4">Result</td><td>Coordination failures — one agent often exploits the other</td></tr>
+          <tr><td className="text-slate-400 pr-4">Result</td><td>Coordination failures in all 3 passes — one agent free-rides (1–10%) while the other overcommits (29–30%), but both end up worse off than the 50% baseline</td></tr>
         </tbody>
       </table>
 
@@ -613,9 +614,9 @@ function References() {
       <h3>Primary References</h3>
       <ul className="space-y-3">
         <li>
-          <strong>BIS (2025)</strong>.{' '}
+          <strong>Castro et al. (2025)</strong>.{' '}
           <em>"AI agents for cash management in payment systems."</em>{' '}
-          BIS Working Paper No. 1310. Castro et al.{' '}
+          BIS Working Paper No. 1310.{' '}
           <a href="https://www.bis.org/publ/work1310.pdf" target="_blank" rel="noopener" className="text-sky-400 hover:underline">
             PDF ↗
           </a>
@@ -627,7 +628,7 @@ function References() {
         <li>
           <strong>Korinek, A. (2025)</strong>.{' '}
           <em>"AI Agents for Economic Research."</em>{' '}
-          Update to <em>"Generative AI for Economic Research"</em>, Journal of Economic Literature 61(4).{' '}
+          August 2025 update to <em>"Generative AI for Economic Research"</em> (JEL, 2023).{' '}
           <a href="https://www.aeaweb.org/content/file?id=23290" target="_blank" rel="noopener" className="text-sky-400 hover:underline">
             PDF ↗
           </a>
@@ -643,11 +644,12 @@ function References() {
       <h3>Background Reading</h3>
       <ul className="space-y-3">
         <li>
-          <strong>Bank for International Settlements</strong>.{' '}
-          <em>TARGET2 and RTGS System Design.</em>
+          <strong>ECB TARGET Services</strong>.{' '}
+          <em>T2 (formerly TARGET2) RTGS System.</em>
           <p className="text-sm text-slate-500 mt-1">
-            The real-world system that SimCash models. TARGET2 is the Eurosystem's RTGS system
-            processing over €1.7 trillion daily.
+            The real-world system that SimCash's settlement mechanics are modeled on.
+            T2 is the Eurosystem's RTGS system for large-value euro payments.
+            SimCash implements T2-compliant liquidity-saving mechanisms.
           </p>
         </li>
         <li>
