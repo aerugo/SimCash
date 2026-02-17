@@ -29,9 +29,10 @@ interface Props {
   presets: Preset[];
   onLaunch: (config: ScenarioConfig | string) => void;
   onGameLaunch?: (config: GameSetupConfig) => void;
+  onNavigate?: (tab: string) => void;
 }
 
-export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
+export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props) {
   const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
@@ -176,6 +177,34 @@ export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
         <p className="text-slate-400">
           Watch AI agents make real-time decisions about liquidity allocation and payment timing
         </p>
+      </div>
+
+      {/* Quick Navigation Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <button
+          onClick={() => onNavigate?.('scenarios')}
+          className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group"
+        >
+          <div className="text-2xl mb-2">📚</div>
+          <h3 className="font-semibold text-slate-100 group-hover:text-sky-300 transition-colors mb-1">Explore Scenarios</h3>
+          <p className="text-xs text-slate-400">Browse crisis simulations, LSM tests, paper experiments, and more</p>
+        </button>
+        <button
+          onClick={() => onNavigate?.('policies')}
+          className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-violet-500/50 transition-colors group"
+        >
+          <div className="text-2xl mb-2">🧠</div>
+          <h3 className="font-semibold text-slate-100 group-hover:text-violet-300 transition-colors mb-1">Policy Library</h3>
+          <p className="text-xs text-slate-400">30+ built-in strategies — from simple FIFO to adaptive decision trees</p>
+        </button>
+        <button
+          onClick={() => onNavigate?.('docs')}
+          className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-emerald-500/50 transition-colors group"
+        >
+          <div className="text-2xl mb-2">📖</div>
+          <h3 className="font-semibold text-slate-100 group-hover:text-emerald-300 transition-colors mb-1">Documentation</h3>
+          <p className="text-xs text-slate-400">Learn about RTGS, LSM, game theory, and the SimCash engine</p>
+        </button>
       </div>
 
       <HowItWorks defaultOpen={true} />

@@ -1,5 +1,5 @@
 import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult, AgentReasoning } from './types';
-import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig } from './types';
+import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail } from './types';
 import { getIdToken } from './firebase';
 
 const BASE = '/api';
@@ -202,6 +202,36 @@ export async function getGameDayReplay(gameId: string, dayNum: number): Promise<
   final_costs: Record<string, { liquidity_cost: number; delay_cost: number; penalty_cost: number; total: number }>;
 }> {
   const res = await authFetch(`${BASE}/games/${gameId}/days/${dayNum}/replay`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Scenario Library API ----
+
+export async function getScenarioLibrary(): Promise<LibraryScenario[]> {
+  const res = await fetch(`${BASE}/scenarios/library`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.scenarios;
+}
+
+export async function getScenarioLibraryDetail(scenarioId: string): Promise<LibraryScenarioDetail> {
+  const res = await fetch(`${BASE}/scenarios/library/${scenarioId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Policy Library API ----
+
+export async function getPolicyLibrary(): Promise<LibraryPolicy[]> {
+  const res = await fetch(`${BASE}/policies/library`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.policies;
+}
+
+export async function getPolicyLibraryDetail(policyId: string): Promise<LibraryPolicyDetail> {
+  const res = await fetch(`${BASE}/policies/library/${policyId}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

@@ -27,6 +27,8 @@ from .simulation import SimulationManager
 from .game import Game
 from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
+from .scenario_library import get_library, get_scenario_detail
+from .policy_library import get_library as get_policy_library
 from .admin import user_manager
 from . import config as app_config
 from pydantic import BaseModel as PydanticBaseModel
@@ -273,6 +275,23 @@ def compare_runs(req: CompareRequest):
         except Exception as e:
             results.append({"error": str(e)})
     return {"results": results}
+
+
+# ---- Scenario Library (read-only, from example configs + presets) ----
+
+@app.get("/api/scenarios/library")
+def list_scenario_library():
+    """List all scenarios from example configs + presets with metadata."""
+    return {"scenarios": get_library()}
+
+
+@app.get("/api/scenarios/library/{scenario_id}")
+def get_scenario_library_item(scenario_id: str):
+    """Get full scenario detail (metadata + raw config)."""
+    detail = get_scenario_detail(scenario_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return detail
 
 
 # ---- Scenario Library CRUD ----
@@ -851,6 +870,35 @@ async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user
     """Revoke a user's access (admin only)."""
     user_manager.revoke_user(user_email)
     return {"status": "revoked", "email": user_email}
+
+
+# ---- Policy Library ----
+
+@app.get("/api/policies/library")
+def list_policy_library():
+    """List all built-in policies with metadata."""
+    lib = get_policy_library()
+    return {"policies": lib.list_all()}
+
+
+@app.get("/api/policies/library/{policy_id}")
+def get_policy_library_item(policy_id: str):
+    """Get full policy detail including raw JSON."""
+    lib = get_policy_library()
+    result = lib.get(policy_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    return result
+
+
+@app.get("/api/policies/library/{policy_id}/tree")
+def get_policy_library_tree(policy_id: str):
+    """Get just the tree structure for visualization."""
+    lib = get_policy_library()
+    result = lib.get_trees(policy_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    return result
 
 
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----

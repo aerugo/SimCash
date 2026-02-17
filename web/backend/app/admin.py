@@ -18,7 +18,8 @@ def _get_db():
     if _db is not None:
         return _db
     from firebase_admin import firestore  # type: ignore[import-untyped]
-    _db = firestore.client()
+    db_id = config.FIRESTORE_DATABASE if hasattr(config, "FIRESTORE_DATABASE") else "(default)"
+    _db = firestore.client(database_id=db_id)
     return _db
 
 

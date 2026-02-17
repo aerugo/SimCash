@@ -118,7 +118,7 @@ export interface AgentReasoning {
   fallback?: boolean;
 }
 
-export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game' | 'docs';
+export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game' | 'docs' | 'scenarios' | 'policies';
 
 // ---- Multi-Day Game Types ----
 
@@ -199,4 +199,44 @@ export interface GameSetupConfig {
   mock_reasoning: boolean;
   max_days: number;
   num_eval_samples: number;
+}
+
+// ---- Scenario Library Types ----
+
+export interface LibraryScenario {
+  id: string;
+  name: string;
+  description: string;
+  category: 'Paper Experiments' | 'Crisis & Stress' | 'LSM Exploration' | 'General' | 'Testing';
+  tags: string[];
+  num_agents: number;
+  ticks_per_day: number;
+  num_days: number;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  features_used: string[];
+  cost_config: Record<string, number>;
+}
+
+export interface LibraryScenarioDetail extends LibraryScenario {
+  raw_config: Record<string, unknown>;
+}
+
+// ---- Policy Library Types ----
+
+export interface LibraryPolicy {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  complexity: 'simple' | 'moderate' | 'complex';
+  category: string;
+  trees_used: string[];
+  actions_used: string[];
+  parameters: Record<string, unknown>;
+  context_fields_used: string[];
+  total_nodes: number;
+}
+
+export interface LibraryPolicyDetail extends LibraryPolicy {
+  raw: Record<string, unknown>;
 }

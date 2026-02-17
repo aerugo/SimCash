@@ -12,6 +12,8 @@ import { LibraryView } from './views/LibraryView';
 import { AgentsView } from './views/AgentsView';
 import { GameView } from './views/GameView';
 import { DocsView } from './views/DocsView';
+import { ScenarioLibraryView } from './views/ScenarioLibraryView';
+import { PolicyLibraryView } from './views/PolicyLibraryView';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
@@ -20,6 +22,8 @@ import { checkAdmin } from './api';
 
 const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
   { id: 'home', label: 'Setup', icon: '🏠' },
+  { id: 'scenarios', label: 'Scenarios', icon: '📚' },
+  { id: 'policies', label: 'Policies', icon: '🧠' },
   { id: 'game', label: 'Game', icon: '🎮', requiresGame: true },
   { id: 'dashboard', label: 'Dashboard', icon: '📊', requiresSim: true },
   { id: 'agents', label: 'Agents', icon: '🧠', requiresSim: true },
@@ -28,7 +32,7 @@ const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; req
   { id: 'replay', label: 'Replay', icon: '🔄', requiresSim: true },
   { id: 'analysis', label: 'Analysis', icon: '📈', requiresSim: true },
   { id: 'docs', label: 'Docs', icon: '📖' },
-  { id: 'library', label: 'Library', icon: '🎮' },
+  { id: 'library', label: 'Saved', icon: '💾' },
 ];
 
 function AppContent() {
@@ -285,7 +289,7 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {tab === 'home' && (
-          <HomeView presets={presets} onLaunch={handleLaunch} onGameLaunch={handleGameLaunch} />
+          <HomeView presets={presets} onLaunch={handleLaunch} onGameLaunch={handleGameLaunch} onNavigate={(t) => setTab(t as TabId)} />
         )}
 
         {tab === 'game' && gameId && gameState && (
@@ -331,6 +335,14 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
 
         {tab === 'analysis' && simId && state && (
           <AnalysisView state={state} events={events} simId={simId} />
+        )}
+
+        {tab === 'scenarios' && (
+          <ScenarioLibraryView onLaunchGame={handleGameLaunch} />
+        )}
+
+        {tab === 'policies' && (
+          <PolicyLibraryView />
         )}
 
         {tab === 'docs' && (
