@@ -118,11 +118,17 @@ class Game:
         total_cost = 0
         for aid in self.agent_ids:
             ac = orch.get_agent_accumulated_costs(aid)
+            total_cost = ac.get("total_cost", 0)
+            delay = ac.get("delay_cost", 0)
+            penalty = ac.get("deadline_penalty", 0)
+            overdraft = ac.get("liquidity_cost", 0)
+            # Opportunity cost = total - everything else (FFI doesn't expose it separately)
+            opportunity_cost = max(0, total_cost - delay - penalty - overdraft - ac.get("collateral_cost", 0) - ac.get("split_friction_cost", 0))
             agent_cost = {
-                "liquidity_cost": ac.get("liquidity_cost", 0),
-                "delay_cost": ac.get("delay_cost", 0),
-                "penalty_cost": ac.get("deadline_penalty", 0),
-                "total": ac.get("total_cost", 0),
+                "liquidity_cost": opportunity_cost,
+                "delay_cost": delay,
+                "penalty_cost": penalty,
+                "total": total_cost,
             }
             costs[aid] = agent_cost
             per_agent_costs[aid] = int(ac.get("total_cost", 0))
@@ -201,37 +207,50 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     """Generate believable mock policy changes with game-theoretic reasoning."""
     current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
     agent_cost = last_day.costs.get(agent_id, {})
-    liq_cost = agent_cost.get("liquidity_cost", 0)
     delay_cost = agent_cost.get("delay_cost", 0)
     penalty_cost = agent_cost.get("penalty_cost", 0)
     total = agent_cost.get("total", 0)
+    # Compute opportunity cost: total - delay - penalty = liquidity opportunity cost
+    opportunity_cost = max(0, total - delay_cost - penalty_cost)
 
-    # Decide direction
-    if penalty_cost > 0 and current_fraction < 0.95:
-        # Penalties mean we need more liquidity
+    # Decide direction based on cost gradient
+    if penalty_cost > 0:
+        # Penalties mean we MUST increase — payments are failing at EOD
         delta = random.uniform(0.05, 0.15)
         direction = "increase"
-        reason = f"Deadline penalties ({penalty_cost:.0f}) detected — increasing liquidity to avoid future penalties."
-    elif liq_cost > delay_cost and current_fraction > 0.15:
-        # Liquidity cost dominates — reduce fraction
-        delta = random.uniform(0.05, 0.12)
+        reason = f"Deadline penalties ({penalty_cost:,}) detected — critical: must increase liquidity to avoid payment failures."
+    elif delay_cost > 0:
+        # Delays mean we're close to the edge — increase slightly
+        # But if opportunity cost is way bigger, we might still decrease
+        if opportunity_cost > delay_cost * 3:
+            delta = random.uniform(0.02, 0.08)
+            direction = "decrease"
+            reason = f"Delay costs ({delay_cost:,}) present but opportunity cost ({opportunity_cost:,}) dominates — cautiously reducing."
+        else:
+            delta = random.uniform(0.02, 0.06)
+            direction = "increase"
+            reason = f"Delay costs ({delay_cost:,}) indicate insufficient liquidity — increasing allocation."
+    elif opportunity_cost > 0 and current_fraction > 0.05:
+        # No delays, no penalties — pure opportunity cost, aggressively reduce
+        # The bigger the fraction, the bigger the jump
+        if current_fraction > 0.5:
+            delta = current_fraction * random.uniform(0.3, 0.5)  # Big jumps when far from optimum
+        elif current_fraction > 0.2:
+            delta = current_fraction * random.uniform(0.15, 0.3)
+        else:
+            delta = current_fraction * random.uniform(0.05, 0.15)
         direction = "decrease"
-        reason = f"Liquidity cost ({liq_cost:.0f}) exceeds delay cost ({delay_cost:.0f}) — reducing allocation to cut borrowing expense."
-    elif delay_cost > liq_cost * 1.5 and current_fraction < 0.95:
-        delta = random.uniform(0.03, 0.10)
-        direction = "increase"
-        reason = f"Delay cost ({delay_cost:.0f}) significantly exceeds liquidity cost ({liq_cost:.0f}) — increasing allocation to speed up settlements."
+        reason = f"Zero delays/penalties — opportunity cost ({opportunity_cost:,}) is pure waste. Aggressively reducing allocation."
     else:
-        # Small random perturbation toward equilibrium (~0.3-0.5)
-        target = 0.35 + random.uniform(-0.05, 0.05)
-        delta = abs(current_fraction - target) * random.uniform(0.1, 0.3)
-        direction = "decrease" if current_fraction > target else "increase"
-        reason = f"Costs roughly balanced (total={total:.0f}). Fine-tuning toward estimated equilibrium."
+        # At very low fraction with no cost info — tiny perturbation
+        delta = random.uniform(0.01, 0.03)
+        direction = random.choice(["increase", "decrease"])
+        reason = f"Near optimal range. Small exploration step."
 
     if direction == "increase":
         new_fraction = min(1.0, current_fraction + delta)
     else:
-        new_fraction = max(0.05, current_fraction - delta)
+        new_fraction = max(0.03, current_fraction - delta)
 
     new_fraction = round(new_fraction, 3)
 

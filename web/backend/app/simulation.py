@@ -188,7 +188,7 @@ class SimulationInstance:
             "queue1_size": state["queue1_size"],
             "posted_collateral": state["posted_collateral"],
             "costs": {
-                "liquidity_cost": costs.get("liquidity_cost", 0),
+                "liquidity_cost": max(0, costs.get("total_cost", 0) - costs.get("delay_cost", 0) - costs.get("deadline_penalty", 0) - costs.get("liquidity_cost", 0) - costs.get("collateral_cost", 0) - costs.get("split_friction_cost", 0)),
                 "delay_cost": costs.get("delay_cost", 0),
                 "penalty_cost": costs.get("deadline_penalty", 0),
                 "total": costs.get("total_cost", 0),
@@ -376,11 +376,15 @@ class SimulationInstance:
             balance = self.orch.get_agent_balance(aid) or 0
             self.balance_history[aid].append(balance)
             costs = self.orch.get_agent_accumulated_costs(aid)
+            tc = costs.get("total_cost", 0)
+            dc = costs.get("delay_cost", 0)
+            dp = costs.get("deadline_penalty", 0)
+            oc = max(0, tc - dc - dp - costs.get("liquidity_cost", 0) - costs.get("collateral_cost", 0) - costs.get("split_friction_cost", 0))
             self.cost_history[aid].append({
-                "liquidity_cost": costs.get("liquidity_cost", 0),
-                "delay_cost": costs.get("delay_cost", 0),
-                "penalty_cost": costs.get("deadline_penalty", 0),
-                "total": costs.get("total_cost", 0),
+                "liquidity_cost": oc,
+                "delay_cost": dc,
+                "penalty_cost": dp,
+                "total": tc,
             })
 
         agents = {aid: self._get_agent_data(aid) for aid in self.get_agent_ids()}
