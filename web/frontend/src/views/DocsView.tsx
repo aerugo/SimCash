@@ -238,7 +238,11 @@ function CostModel() {
         them elsewhere.
       </p>
       <CodeBlock>{`cost = committed_balance × (bps / 10000) per tick`}</CodeBlock>
-      <p>Default: 83 bps/tick. The cheapest cost — you always prefer committing liquidity over the alternatives.</p>
+      <p>
+        The rate depends on the scenario: Castro's r<sub>c</sub> = 0.1 is divided by ticks per day,
+        giving 500 bps/tick (2-tick scenarios), 333 bps/tick (3-tick), or 83 bps/tick (12-tick).
+        Always the cheapest cost — you prefer committing liquidity over the alternatives.
+      </p>
 
       <h3>2. Delay Cost (r<sub>d</sub>)</h3>
       <p>
@@ -246,30 +250,29 @@ function CostModel() {
         settle a payment on time — client dissatisfaction, SLA penalties, reputational damage.
       </p>
       <CodeBlock>{`cost = unsettled_amount × rate per tick`}</CodeBlock>
-      <p>Default: 0.2 per cent per tick. More expensive than liquidity cost.</p>
+      <p>Castro baseline: r<sub>d</sub> = 0.2 per cent per tick. More expensive than liquidity cost.</p>
 
-      <h3>3. Deadline Penalty (r<sub>b</sub>)</h3>
+      <h3>3. Deadline Penalty</h3>
       <p>
         A flat fee for each payment that misses its individual deadline (each payment has
-        a specific tick by which it should settle). This is the most expensive per-event cost,
-        representing regulatory penalties or failed obligations.
+        a specific tick by which it should settle). Represents regulatory penalties or failed obligations.
       </p>
-      <CodeBlock>{`cost = penalty_amount per unsettled payment`}</CodeBlock>
-      <p>Default: $500 (50,000 cents) per payment. By far the most expensive.</p>
+      <CodeBlock>{`cost = penalty_amount per unsettled payment at its deadline`}</CodeBlock>
+      <p>Default: $500 (50,000 cents) per payment.</p>
+
+      <h3>4. End-of-Day Penalty</h3>
+      <p>
+        A separate large penalty for any payment still unsettled when the day ends.
+        Default: $1,000 (100,000 cents). This creates a hard deadline for all payments.
+      </p>
 
       <h3>The Ordering Constraint</h3>
       <Callout type="important">
-        <strong>r<sub>c</sub> &lt; r<sub>d</sub> &lt; r<sub>b</sub></strong> — This constraint
-        ensures rational behavior. Banks should always prefer committing liquidity (cheapest) over
-        delaying payments (medium) over missing deadlines entirely (most expensive). If this ordering
-        is violated, the incentives break down and optimal behavior becomes degenerate.
+        <strong>r<sub>c</sub> &lt; r<sub>d</sub> &lt; r<sub>b</sub></strong> — Castro et al. require
+        this ordering: liquidity cost &lt; delay cost &lt; borrowing/penalty cost. Banks should
+        always prefer committing liquidity (cheapest) over delaying payments (medium) over missing
+        deadlines entirely (most expensive). If this ordering is violated, the incentives break down.
       </Callout>
-
-      <h3>End-of-Day Penalty</h3>
-      <p>
-        A separate large penalty for any payment still unsettled when the day ends. Default: $1,000
-        (100,000 cents). This creates a hard deadline for all payments.
-      </p>
 
       <h3>Total Cost</h3>
       <p>
@@ -385,8 +388,8 @@ function Experiments() {
           <tr><td className="text-slate-400 pr-4">Ticks</td><td>12 per day</td></tr>
           <tr><td className="text-slate-400 pr-4">Payments</td><td>Poisson arrivals (λ=2/tick), LogNormal amounts (μ=$100, σ=$50)</td></tr>
           <tr><td className="text-slate-400 pr-4">Mode</td><td>Bootstrap (50 paired samples)</td></tr>
-          <tr><td className="text-slate-400 pr-4">Expected</td><td>Both agents 10–30%</td></tr>
-          <tr><td className="text-slate-400 pr-4">Result</td><td>A≈5.7–8.5%, B≈5.8–6.3% across 3 passes (near-symmetric, lower than predicted)</td></tr>
+          <tr><td className="text-slate-400 pr-4">Expected</td><td>Near-symmetric convergence</td></tr>
+          <tr><td className="text-slate-400 pr-4">Result</td><td>A≈5.7–8.5%, B≈5.8–6.3% across 3 passes (near-symmetric)</td></tr>
         </tbody>
       </table>
       <p>
@@ -413,10 +416,10 @@ function Experiments() {
 
       <h3>Methodology Differences from Castro et al.</h3>
       <ul>
-        <li><strong>Optimization</strong>: Castro uses REINFORCE (neural network policy gradient); we use LLM reasoning</li>
-        <li><strong>Action space</strong>: Castro discretizes to 21 values; LLM proposes continuous values in [0,1]</li>
-        <li><strong>Convergence</strong>: Castro monitors training loss; we use explicit policy stability or multi-criteria statistical convergence</li>
-        <li><strong>Agent dynamics</strong>: Castro trains simultaneously; we optimize sequentially within iterations</li>
+        <li><strong>Implementation</strong>: Castro uses a custom simulator; SimCash reimplements the model in Rust with Python orchestration</li>
+        <li><strong>Action space</strong>: Castro discretizes to 21 values (0%, 5%, ..., 100%); SimCash allows continuous values in [0,1]</li>
+        <li><strong>Evaluation</strong>: Both use bootstrap paired comparison for stochastic scenarios; SimCash adds CV and CI acceptance criteria</li>
+        <li><strong>Agent dynamics</strong>: Both optimize agents sequentially within iterations</li>
       </ul>
     </DocPage>
   );
@@ -526,7 +529,7 @@ function Architecture() {
       <h3>LLM Configuration</h3>
       <p>
         The paper experiments used GPT-5.2 with reasoning effort <code>high</code>,
-        temperature 0.5, and up to 50 iterations per experiment pass. Each experiment
+        temperature 0.5, and up to 25 iterations per experiment pass. Each experiment
         was run 3 times (independent passes) to assess reproducibility. The web sandbox
         defaults to mock mode for zero-cost exploration, with optional real LLM mode
         using the same model configuration.
