@@ -62,12 +62,14 @@ class Game:
     """Multi-day policy optimization game."""
 
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
-                 mock_reasoning: bool = True, max_days: int = 10):
+                 mock_reasoning: bool = True, max_days: int = 10,
+                 num_eval_samples: int = 1):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
         self.mock_reasoning = mock_reasoning
         self.max_days = max_days
+        self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
         self.days: list[GameDay] = []
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
@@ -82,11 +84,11 @@ class Game:
     def is_complete(self) -> bool:
         return self.current_day >= self.max_days
 
-    def run_day(self) -> GameDay:
-        """Run one day of simulation with current policies."""
-        day_num = self.current_day
-        seed = self._base_seed + day_num
-
+    def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int]:
+        """Run one simulation with current policies at given seed.
+        
+        Returns (events, balance_history, costs, per_agent_costs, total_cost).
+        """
         scenario = copy.deepcopy(self.raw_yaml)
         for agent_cfg in scenario.get("agents", []):
             agent_id = agent_cfg.get("id")
@@ -118,21 +120,65 @@ class Game:
         total_cost = 0
         for aid in self.agent_ids:
             ac = orch.get_agent_accumulated_costs(aid)
-            total_cost = ac.get("total_cost", 0)
-            delay = ac.get("delay_cost", 0)
-            penalty = ac.get("deadline_penalty", 0)
-            overdraft = ac.get("liquidity_cost", 0)
-            # Opportunity cost = total - everything else (FFI doesn't expose it separately)
-            opportunity_cost = max(0, total_cost - delay - penalty - overdraft - ac.get("collateral_cost", 0) - ac.get("split_friction_cost", 0))
-            agent_cost = {
+            agent_total = int(ac.get("total_cost", 0))
+            delay = int(ac.get("delay_cost", 0))
+            penalty = int(ac.get("deadline_penalty", 0))
+            overdraft = int(ac.get("liquidity_cost", 0))
+            collateral = int(ac.get("collateral_cost", 0))
+            split = int(ac.get("split_friction_cost", 0))
+            opportunity_cost = max(0, agent_total - delay - penalty - overdraft - collateral - split)
+            costs[aid] = {
                 "liquidity_cost": opportunity_cost,
                 "delay_cost": delay,
                 "penalty_cost": penalty,
-                "total": total_cost,
+                "total": agent_total,
             }
-            costs[aid] = agent_cost
-            per_agent_costs[aid] = int(ac.get("total_cost", 0))
-            total_cost += per_agent_costs[aid]
+            per_agent_costs[aid] = agent_total
+            total_cost += agent_total
+
+        return all_events, balance_history, costs, per_agent_costs, total_cost
+
+    def run_day(self) -> GameDay:
+        """Run one day of simulation with current policies.
+        
+        If num_eval_samples > 1, runs multiple seeds and averages costs
+        for a more robust signal (bootstrap-lite). The representative run
+        (first seed) provides events and balance history for display.
+        """
+        day_num = self.current_day
+        seed = self._base_seed + day_num
+
+        # Run the representative simulation (always shown in UI)
+        all_events, balance_history, costs, per_agent_costs, total_cost = self._run_single_sim(seed)
+
+        # If multi-sample, run additional seeds and average costs
+        if self.num_eval_samples > 1:
+            all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
+            all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
+            
+            for sample_idx in range(1, self.num_eval_samples):
+                sample_seed = seed + sample_idx * 1000  # Spread seeds
+                _, _, s_costs, s_per_agent, _ = self._run_single_sim(sample_seed)
+                for aid in self.agent_ids:
+                    all_per_agent[aid].append(s_per_agent[aid])
+                    all_costs[aid].append(s_costs[aid])
+            
+            # Average costs across samples
+            n = self.num_eval_samples
+            total_cost = 0
+            for aid in self.agent_ids:
+                avg_total = sum(all_per_agent[aid]) // n
+                avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
+                avg_penalty = sum(c["penalty_cost"] for c in all_costs[aid]) // n
+                avg_liq = sum(c["liquidity_cost"] for c in all_costs[aid]) // n
+                costs[aid] = {
+                    "liquidity_cost": avg_liq,
+                    "delay_cost": avg_delay,
+                    "penalty_cost": avg_penalty,
+                    "total": avg_total,
+                }
+                per_agent_costs[aid] = avg_total
+                total_cost += avg_total
 
         day = GameDay(
             day_num=day_num,
