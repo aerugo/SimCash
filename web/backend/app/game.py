@@ -32,7 +32,8 @@ class GameDay:
     def __init__(self, day_num: int, seed: int, policies: dict[str, dict],
                  costs: dict[str, dict], events: list[dict],
                  balance_history: dict[str, list], total_cost: int,
-                 per_agent_costs: dict[str, int]):
+                 per_agent_costs: dict[str, int],
+                 tick_events: list[list[dict]] | None = None):
         self.day_num = day_num
         self.seed = seed
         self.policies = policies
@@ -41,6 +42,7 @@ class GameDay:
         self.balance_history = balance_history
         self.total_cost = total_cost
         self.per_agent_costs = per_agent_costs
+        self.tick_events = tick_events or []  # tick_events[i] = events for tick i
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -55,6 +57,7 @@ class GameDay:
             "balance_history": self.balance_history,
             "total_cost": self.total_cost,
             "per_agent_costs": self.per_agent_costs,
+            "num_ticks": len(self.tick_events),
         }
 
 
@@ -84,10 +87,11 @@ class Game:
     def is_complete(self) -> bool:
         return self.current_day >= self.max_days
 
-    def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int]:
+    def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
         """Run one simulation with current policies at given seed.
         
-        Returns (events, balance_history, costs, per_agent_costs, total_cost).
+        Returns (events, balance_history, costs, per_agent_costs, total_cost, tick_events).
+        tick_events[i] = list of events for tick i (for replay).
         """
         scenario = copy.deepcopy(self.raw_yaml)
         for agent_cfg in scenario.get("agents", []):
@@ -106,12 +110,15 @@ class Game:
 
         ticks = ffi_config["ticks_per_day"] * ffi_config["num_days"]
         all_events: list[dict] = []
+        tick_events: list[list[dict]] = []
         balance_history: dict[str, list] = {aid: [] for aid in self.agent_ids}
 
         for tick in range(ticks):
             orch.tick()
             events = orch.get_tick_events(tick)
-            all_events.extend([dict(e) for e in events])
+            tick_event_list = [dict(e) for e in events]
+            all_events.extend(tick_event_list)
+            tick_events.append(tick_event_list)
             for aid in self.agent_ids:
                 balance_history[aid].append(orch.get_agent_balance(aid) or 0)
 
@@ -136,7 +143,7 @@ class Game:
             per_agent_costs[aid] = agent_total
             total_cost += agent_total
 
-        return all_events, balance_history, costs, per_agent_costs, total_cost
+        return all_events, balance_history, costs, per_agent_costs, total_cost, tick_events
 
     def run_day(self) -> GameDay:
         """Run one day of simulation with current policies.
@@ -149,7 +156,7 @@ class Game:
         seed = self._base_seed + day_num
 
         # Run the representative simulation (always shown in UI)
-        all_events, balance_history, costs, per_agent_costs, total_cost = self._run_single_sim(seed)
+        all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
 
         # If multi-sample, run additional seeds and average costs
         if self.num_eval_samples > 1:
@@ -158,7 +165,7 @@ class Game:
             
             for sample_idx in range(1, self.num_eval_samples):
                 sample_seed = seed + sample_idx * 1000  # Spread seeds
-                _, _, s_costs, s_per_agent, _ = self._run_single_sim(sample_seed)
+                _, _, s_costs, s_per_agent, _, _ = self._run_single_sim(sample_seed)
                 for aid in self.agent_ids:
                     all_per_agent[aid].append(s_per_agent[aid])
                     all_costs[aid].append(s_costs[aid])
@@ -189,6 +196,7 @@ class Game:
             balance_history=balance_history,
             total_cost=total_cost,
             per_agent_costs=per_agent_costs,
+            tick_events=tick_events,
         )
         self.days.append(day)
         return day

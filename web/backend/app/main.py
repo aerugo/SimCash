@@ -543,6 +543,36 @@ def get_game(game_id: str):
     return game.get_state()
 
 
+@app.get("/api/games/{game_id}/days/{day_num}/replay")
+def game_day_replay(game_id: str, day_num: int):
+    """Get tick-by-tick replay data for a specific game day."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if day_num < 0 or day_num >= len(game.days):
+        raise HTTPException(status_code=404, detail=f"Day {day_num} not found")
+
+    day = game.days[day_num]
+    return {
+        "day": day_num,
+        "seed": day.seed,
+        "num_ticks": len(day.tick_events),
+        "ticks": [
+            {
+                "tick": i,
+                "events": tick_evts,
+                "balances": {aid: day.balance_history[aid][i] if i < len(day.balance_history.get(aid, [])) else 0 for aid in game.agent_ids},
+            }
+            for i, tick_evts in enumerate(day.tick_events)
+        ],
+        "policies": {
+            aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
+            for aid, p in day.policies.items()
+        },
+        "final_costs": day.costs,
+    }
+
+
 @app.post("/api/games/{game_id}/step")
 async def step_game(game_id: str):
     """Run next day + optimize. Returns day results + reasoning."""

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import type { GameState } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
+import { getGameDayReplay } from '../api';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -15,6 +16,12 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
   const { gameState: wsState, connected, phase, optimizingAgent, simulatingDay, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [replayData, setReplayData] = useState<{
+    dayNum: number;
+    ticks: { tick: number; events: Record<string, unknown>[]; balances: Record<string, number> }[];
+    currentTick: number;
+  } | null>(null);
+  const [replayPlaying, setReplayPlaying] = useState(false);
 
   const gameState = wsState ?? initialState;
 
@@ -29,6 +36,29 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
       setSelectedDay(gameState.days.length - 1);
     }
   }, [gameState.days.length]);
+
+  const handleReplay = useCallback(async (dayNum: number) => {
+    try {
+      const data = await getGameDayReplay(gameId, dayNum);
+      setReplayData({ dayNum, ticks: data.ticks, currentTick: 0 });
+      setReplayPlaying(false);
+    } catch (e) {
+      console.error('Replay failed:', e);
+    }
+  }, [gameId]);
+
+  // Auto-advance replay
+  useEffect(() => {
+    if (!replayPlaying || !replayData) return;
+    if (replayData.currentTick >= replayData.ticks.length - 1) {
+      setReplayPlaying(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setReplayData(prev => prev ? { ...prev, currentTick: prev.currentTick + 1 } : null);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [replayPlaying, replayData]);
 
   const handleAutoRun = () => {
     setAutoRunning(true);
@@ -132,6 +162,78 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Replay controls */}
+          {day && (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-slate-300">🔁 Tick Replay</h3>
+                {!replayData || replayData.dayNum !== (selectedDay ?? gameState.days.length - 1) ? (
+                  <button
+                    onClick={() => handleReplay(selectedDay ?? gameState.days.length - 1)}
+                    className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
+                  >
+                    Load Day {(selectedDay ?? gameState.days.length - 1) + 1} Replay
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setReplayData(prev => prev ? { ...prev, currentTick: Math.max(0, prev.currentTick - 1) } : null)}
+                      disabled={!replayData || replayData.currentTick <= 0}
+                      className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-xs"
+                    >◀</button>
+                    <button
+                      onClick={() => setReplayPlaying(!replayPlaying)}
+                      className="px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-xs"
+                    >{replayPlaying ? '⏸' : '▶'}</button>
+                    <button
+                      onClick={() => setReplayData(prev => prev ? { ...prev, currentTick: Math.min(prev.ticks.length - 1, prev.currentTick + 1) } : null)}
+                      disabled={!replayData || replayData.currentTick >= replayData.ticks.length - 1}
+                      className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-xs"
+                    >▶</button>
+                    <span className="text-xs font-mono text-slate-400">
+                      Tick {replayData.currentTick + 1}/{replayData.ticks.length}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {replayData && replayData.dayNum === (selectedDay ?? gameState.days.length - 1) && (
+                <div>
+                  {/* Tick progress bar */}
+                  <div className="w-full bg-slate-900 rounded-full h-1.5 mb-3">
+                    <div
+                      className="bg-sky-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${((replayData.currentTick + 1) / replayData.ticks.length) * 100}%` }}
+                    />
+                  </div>
+                  {/* Balances at this tick */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    {gameState.agent_ids.map((aid, i) => (
+                      <div key={aid} className="bg-slate-900/50 rounded p-2">
+                        <span className="font-mono text-[10px]" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>{aid}</span>
+                        <div className="font-mono text-xs text-slate-300">
+                          ${((replayData.ticks[replayData.currentTick]?.balances[aid] ?? 0) / 100).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Events at this tick */}
+                  <div className="max-h-24 overflow-y-auto text-[10px] font-mono text-slate-500 space-y-0.5">
+                    {(replayData.ticks[replayData.currentTick]?.events ?? []).map((e, i) => (
+                      <div key={i} className="flex gap-1">
+                        <span className="text-sky-400">{String(e.event_type ?? '')}</span>
+                        {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+                        {'amount' in e && <span className="text-emerald-400">${(Number(e.amount) / 100).toLocaleString()}</span>}
+                      </div>
+                    ))}
+                    {(replayData.ticks[replayData.currentTick]?.events ?? []).length === 0 && (
+                      <span className="text-slate-600">No events this tick</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -273,6 +375,11 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             </div>
           )}
 
+          {/* Policy history (all iterations) */}
+          {gameState.reasoning_history && gameState.agent_ids.some(aid => (gameState.reasoning_history[aid] ?? []).length > 0) && (
+            <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} />
+          )}
+
           {/* Current policies */}
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
             <h3 className="text-sm font-semibold text-slate-300 mb-3">📋 Current Policies</h3>
@@ -314,6 +421,91 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
               <div className="text-slate-600">... and {day.events.length - 100} more</div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
+  agentIds: string[];
+  reasoningHistory: Record<string, GameOptimizationResult[]>;
+  fractionHistory: Record<string, number[]>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState(agentIds[0] ?? '');
+
+  const history = reasoningHistory[selectedAgent] ?? [];
+  const fractions = fractionHistory[selectedAgent] ?? [];
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-300">📊 Policy History</h3>
+        <div className="flex items-center gap-2">
+          {agentIds.map((aid, i) => (
+            <button
+              key={aid}
+              onClick={() => setSelectedAgent(aid)}
+              className={`px-2 py-0.5 rounded text-xs font-mono transition-all ${
+                selectedAgent === aid
+                  ? 'text-white'
+                  : 'text-slate-500 hover:text-slate-300'
+              }`}
+              style={selectedAgent === aid ? { backgroundColor: AGENT_COLORS[i % AGENT_COLORS.length] + '40', color: AGENT_COLORS[i % AGENT_COLORS.length] } : {}}
+            >
+              {aid}
+            </button>
+          ))}
+          <button onClick={() => setExpanded(!expanded)} className="text-xs text-slate-500 hover:text-slate-300 ml-2">
+            {expanded ? '▲ collapse' : `▼ ${history.length} iterations`}
+          </button>
+        </div>
+      </div>
+
+      {/* Compact: just fraction steps */}
+      {!expanded && (
+        <div className="flex items-center gap-1 flex-wrap text-xs font-mono">
+          {fractions.map((f, i) => (
+            <span key={i} className="flex items-center gap-0.5">
+              {i > 0 && <span className="text-slate-600">→</span>}
+              <span className={`${i === fractions.length - 1 ? 'text-white font-bold' : 'text-slate-400'}`}>
+                {f.toFixed(3)}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Expanded: full iteration history */}
+      {expanded && (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {history.map((r, i) => (
+            <div key={i} className={`bg-slate-900/50 rounded p-2 border-l-2 ${
+              r.accepted ? 'border-green-500' : 'border-red-500'
+            }`}>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-slate-500">Day {i + 1}</span>
+                <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
+                  {r.accepted ? '✓' : '✗'}
+                </span>
+                {r.old_fraction != null && (
+                  <span className="font-mono text-slate-400">
+                    {r.old_fraction.toFixed(3)} → {r.new_fraction?.toFixed(3) ?? r.old_fraction.toFixed(3)}
+                  </span>
+                )}
+                {r.mock && <span className="text-slate-600">mock</span>}
+                {r.bootstrap && (
+                  <span className="text-slate-600">
+                    Δ={r.bootstrap.delta_sum.toLocaleString()} CV={r.bootstrap.cv.toFixed(2)}
+                  </span>
+                )}
+              </div>
+              {r.rejection_reason && (
+                <div className="text-[9px] text-red-400/70 mt-0.5">{r.rejection_reason}</div>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

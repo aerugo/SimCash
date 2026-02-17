@@ -142,6 +142,19 @@ export async function autoRunGame(gameId: string): Promise<{ days: unknown[]; ga
   return res.json();
 }
 
+export async function getGameDayReplay(gameId: string, dayNum: number): Promise<{
+  day: number;
+  seed: number;
+  num_ticks: number;
+  ticks: { tick: number; events: Record<string, unknown>[]; balances: Record<string, number> }[];
+  policies: Record<string, { initial_liquidity_fraction: number }>;
+  final_costs: Record<string, { liquidity_cost: number; delay_cost: number; penalty_cost: number; total: number }>;
+}> {
+  const res = await fetch(`${BASE}/games/${gameId}/days/${dayNum}/replay`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export function connectGameWebSocket(gameId: string): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}`);
