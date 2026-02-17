@@ -29,56 +29,85 @@ interface UseGameWebSocketReturn {
 
 export function useGameWebSocket(gameId: string, initialState: GameState): UseGameWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
   const [optimizingAgent, setOptimizingAgent] = useState<string | null>(null);
   const [lastDay, setLastDay] = useState<DayResult | null>(null);
 
-  useEffect(() => {
+  const handleMessage = useCallback((event: MessageEvent) => {
+    const msg: WSMessage = JSON.parse(event.data);
+
+    switch (msg.type) {
+      case 'game_state':
+        setGameState(msg.data as GameState);
+        setOptimizingAgent(null);
+        break;
+
+      case 'day_complete':
+        setLastDay(msg.data as DayResult);
+        break;
+
+      case 'optimization_start':
+        setOptimizingAgent(msg.agent_id ?? null);
+        break;
+
+      case 'optimization_complete':
+        break;
+
+      case 'game_complete':
+        setGameState(msg.data as GameState);
+        setOptimizingAgent(null);
+        break;
+
+      case 'error':
+        console.error('WS error:', msg.message);
+        break;
+    }
+  }, []);
+
+  const connect = useCallback(() => {
+    if (!mountedRef.current) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}`);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
+    ws.onopen = () => {
+      if (mountedRef.current) setConnected(true);
+    };
 
-    ws.onmessage = (event) => {
-      const msg: WSMessage = JSON.parse(event.data);
-
-      switch (msg.type) {
-        case 'game_state':
-          setGameState(msg.data as GameState);
-          setOptimizingAgent(null);
-          break;
-
-        case 'day_complete':
-          setLastDay(msg.data as DayResult);
-          break;
-
-        case 'optimization_start':
-          setOptimizingAgent(msg.agent_id ?? null);
-          break;
-
-        case 'optimization_complete':
-          // Could accumulate reasoning here if needed
-          break;
-
-        case 'game_complete':
-          setGameState(msg.data as GameState);
-          setOptimizingAgent(null);
-          break;
-
-        case 'error':
-          console.error('WS error:', msg.message);
-          break;
+    ws.onclose = () => {
+      if (mountedRef.current) {
+        setConnected(false);
+        // Auto-reconnect after 1s
+        reconnectTimer.current = setTimeout(() => connect(), 1000);
       }
     };
 
-    return () => {
+    ws.onerror = () => {
       ws.close();
-      wsRef.current = null;
     };
-  }, [gameId]);
+
+    ws.onmessage = handleMessage;
+  }, [gameId, handleMessage]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    connect();
+
+    return () => {
+      mountedRef.current = false;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // prevent reconnect on intentional close
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [connect]);
 
   const send = useCallback((action: string, extra?: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
