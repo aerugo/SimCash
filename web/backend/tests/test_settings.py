@@ -13,6 +13,7 @@ from app.settings import (
     DEFAULT_MODEL,
     AVAILABLE_MODELS,
     PROVIDER_DEFAULTS,
+    MAAS_MODEL_CONFIG,
 )
 
 
@@ -109,6 +110,33 @@ class TestSettingsManager:
         models = mgr.get_available_models()
         active = [m for m in models if m.get("active")]
         assert active[0]["id"] == "google-vertex:gemini-3.0-pro"
+
+    def test_get_llm_config_glm5(self):
+        mgr = SettingsManager()
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:glm-5-maas")
+        mgr._cache_time = float("inf")
+
+        config = mgr.get_llm_config()
+        assert config.model == "google-vertex:glm-5-maas"
+        assert config.model_name == "glm-5-maas"
+        assert config.provider == "google-vertex"
+
+    def test_glm5_maas_metadata(self):
+        mgr = SettingsManager()
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:glm-5-maas")
+        mgr._cache_time = float("inf")
+
+        meta = mgr.get_model_metadata()
+        assert meta["publisher"] == "zai-org"
+        assert meta["region"] == "global"
+
+    def test_non_maas_no_metadata(self):
+        mgr = SettingsManager()
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-3-flash")
+        mgr._cache_time = float("inf")
+
+        meta = mgr.get_model_metadata()
+        assert meta == {}
 
     def test_update_validates_model(self):
         mgr = SettingsManager()

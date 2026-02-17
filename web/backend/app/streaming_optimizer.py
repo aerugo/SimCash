@@ -18,6 +18,31 @@ sys.path.insert(0, str(API_DIR))
 logger = logging.getLogger(__name__)
 
 
+def _create_agent(llm_config: Any, system_prompt: str) -> Any:
+    """Create a pydantic-ai Agent, handling MaaS models (GLM-5 etc) with custom publisher/region."""
+    import os
+    from pydantic_ai import Agent
+
+    from .settings import settings_manager, MAAS_MODEL_CONFIG
+
+    model_name = llm_config.model_name
+    maas_meta = MAAS_MODEL_CONFIG.get(model_name)
+
+    if maas_meta and llm_config.provider == "google-vertex":
+        # MaaS model on Vertex AI — needs custom publisher and/or region
+        try:
+            from pydantic_ai.providers.google_vertex import GoogleVertexProvider
+            provider = GoogleVertexProvider(
+                model_publisher=maas_meta.get("publisher", "google"),
+                region=maas_meta.get("region", os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-north1")),
+            )
+            return Agent(model_name, provider=provider, system_prompt=system_prompt)  # type: ignore[arg-type]
+        except Exception as e:
+            logger.warning("Failed to create MaaS provider for %s: %s, falling back", model_name, e)
+
+    return Agent(llm_config.full_model_string, system_prompt=system_prompt)
+
+
 async def stream_optimize(
     agent_id: str,
     current_policy: dict[str, Any],
@@ -139,15 +164,10 @@ Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""
 
     # Create pydantic-ai agent
-    model_string = llm_config.full_model_string
-    agent = Agent(
-        model_string,
-        system_prompt=system_prompt,
-    )
+    agent = _create_agent(llm_config, system_prompt)
     model_settings = llm_config.to_model_settings()
 
     # Fix: google-vertex provider needs thinking_config in model_settings
-    # (LLMConfig.to_model_settings only checks provider == "google", not "google-vertex")
     if llm_config.provider == "google-vertex" and llm_config.thinking_config:
         model_settings["google_thinking_config"] = llm_config.thinking_config
 

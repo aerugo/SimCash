@@ -602,8 +602,16 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
     # Use platform settings for model selection (admin-switchable)
-    from .settings import settings_manager
+    from .settings import settings_manager, MAAS_MODEL_CONFIG
     llm_config = settings_manager.get_llm_config()
+
+    # MaaS models (GLM-5 etc) need custom provider — ExperimentLLMClient doesn't support that.
+    # For MaaS models, warn and use the model string directly (may fail if provider config wrong).
+    if llm_config.model_name in MAAS_MODEL_CONFIG:
+        logger.warning(
+            "MaaS model %s used in REST optimize — use WebSocket path for full MaaS support",
+            llm_config.model_name,
+        )
     client = ExperimentLLMClient(llm_config)
 
     # Build dynamic system prompt with cost rates from scenario

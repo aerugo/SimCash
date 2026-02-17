@@ -36,6 +36,11 @@ AVAILABLE_MODELS: list[dict[str, str]] = [
         "provider": "google-vertex",
     },
     {
+        "id": "google-vertex:glm-5-maas",
+        "label": "GLM-5 (Vertex AI MaaS)",
+        "provider": "google-vertex",
+    },
+    {
         "id": "openai:gpt-5.2",
         "label": "GPT-5.2 (OpenAI)",
         "provider": "openai",
@@ -58,6 +63,15 @@ PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
     },
     "anthropic": {
         "thinking_budget": 8192,
+    },
+}
+
+
+# MaaS models that need special provider config (non-google publisher, global region)
+MAAS_MODEL_CONFIG: dict[str, dict[str, Any]] = {
+    "glm-5-maas": {
+        "publisher": "zai-org",
+        "region": "global",
     },
 }
 
@@ -205,6 +219,18 @@ class SettingsManager:
             thinking_budget=merged.get("thinking_budget"),
             thinking_config=merged.get("thinking_config"),
         )
+
+    def get_model_metadata(self) -> dict[str, Any]:
+        """Get extra metadata for the current model (publisher, region, etc).
+
+        MaaS models like GLM-5 need special handling:
+        - Different publisher (zai-org instead of google)
+        - Global region instead of project region
+        """
+        settings = self.get_settings()
+        model = settings.optimization_model
+        model_name = model.split(":", 1)[1] if ":" in model else model
+        return MAAS_MODEL_CONFIG.get(model_name, {})
 
     def get_available_models(self) -> list[dict[str, Any]]:
         """Get available models with current selection marked."""

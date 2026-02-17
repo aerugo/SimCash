@@ -209,8 +209,8 @@ async def get_llm_decision(
 
     # Real LLM call via pydantic-ai (uses platform settings for model)
     try:
-        from pydantic_ai import Agent
         from .settings import settings_manager
+        from .streaming_optimizer import _create_agent
         from dotenv import load_dotenv
         from pathlib import Path
         import os
@@ -218,7 +218,7 @@ async def get_llm_decision(
         load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
         llm_config = settings_manager.get_llm_config()
-        agent = Agent(llm_config.full_model_string)
+        agent = _create_agent(llm_config, "")
         model_settings = llm_config.to_model_settings()
 
         # Fix: google-vertex needs thinking_config in model_settings
