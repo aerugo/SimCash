@@ -701,11 +701,18 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   const toX = (i: number) => pad.l + (numTicks > 1 ? (i / (numTicks - 1)) * plotW : plotW / 2);
   const toY = (v: number) => pad.t + plotH - ((v - minVal) / range) * plotH;
 
+  const midVal = (maxVal + minVal) / 2;
+
   return (
     <div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
+        {/* Grid lines */}
+        <line x1={pad.l} y1={pad.t} x2={pad.l + plotW} y2={pad.t} stroke="#334155" strokeWidth={0.5} />
+        <line x1={pad.l} y1={toY(midVal)} x2={pad.l + plotW} y2={toY(midVal)} stroke="#334155" strokeWidth={0.5} strokeDasharray="4,4" />
+        <line x1={pad.l} y1={pad.t + plotH} x2={pad.l + plotW} y2={pad.t + plotH} stroke="#334155" strokeWidth={0.5} />
         {/* Y axis labels */}
         <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(maxVal)}</text>
+        <text x={pad.l - 4} y={toY(midVal) + 3} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(midVal)}</text>
         <text x={pad.l - 4} y={h - pad.b} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(minVal)}</text>
         {/* X axis labels */}
         {numTicks <= 20 && Array.from({ length: numTicks }, (_, i) => (
