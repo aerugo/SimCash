@@ -620,6 +620,12 @@ async def game_ws(websocket: WebSocket, game_id: str):
             await websocket.send_json({"type": "game_complete", "data": game.get_state()})
             return
 
+        await websocket.send_json({
+            "type": "simulation_running",
+            "day": game.current_day,
+            "max_days": game.max_days,
+        })
+
         day = game.run_day()
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
 

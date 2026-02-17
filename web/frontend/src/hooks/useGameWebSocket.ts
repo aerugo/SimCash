@@ -3,6 +3,7 @@ import type { GameState, DayResult } from '../types';
 
 export type WSMessageType =
   | 'game_state'
+  | 'simulation_running'
   | 'day_complete'
   | 'optimization_start'
   | 'optimization_complete'
@@ -17,10 +18,14 @@ export interface WSMessage {
   message?: string;
 }
 
+export type GamePhase = 'idle' | 'simulating' | 'optimizing' | 'complete';
+
 interface UseGameWebSocketReturn {
   gameState: GameState | null;
   connected: boolean;
+  phase: GamePhase;
   optimizingAgent: string | null;
+  simulatingDay: number | null;
   lastDay: DayResult | null;
   step: () => void;
   autoRun: (speedMs?: number) => void;
@@ -33,7 +38,9 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const mountedRef = useRef(true);
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
+  const [phase, setPhase] = useState<GamePhase>('idle');
   const [optimizingAgent, setOptimizingAgent] = useState<string | null>(null);
+  const [simulatingDay, setSimulatingDay] = useState<number | null>(null);
   const [lastDay, setLastDay] = useState<DayResult | null>(null);
 
   const handleMessage = useCallback((event: MessageEvent) => {
@@ -43,13 +50,21 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'game_state':
         setGameState(msg.data as GameState);
         setOptimizingAgent(null);
+        setPhase('idle');
+        break;
+
+      case 'simulation_running':
+        setPhase('simulating');
+        setSimulatingDay(msg.day ?? null);
         break;
 
       case 'day_complete':
         setLastDay(msg.data as DayResult);
+        setPhase('idle');
         break;
 
       case 'optimization_start':
+        setPhase('optimizing');
         setOptimizingAgent(msg.agent_id ?? null);
         break;
 
@@ -59,6 +74,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'game_complete':
         setGameState(msg.data as GameState);
         setOptimizingAgent(null);
+        setPhase('complete');
         break;
 
       case 'error':
@@ -119,5 +135,5 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
   const stop = useCallback(() => send('stop'), [send]);
 
-  return { gameState, connected, optimizingAgent, lastDay, step, autoRun, stop };
+  return { gameState, connected, phase, optimizingAgent, simulatingDay, lastDay, step, autoRun, stop };
 }

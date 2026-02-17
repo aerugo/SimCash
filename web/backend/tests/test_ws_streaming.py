@@ -9,7 +9,7 @@ client = TestClient(app)
 class TestWSMessageTypes:
     """Verify WebSocket message protocol."""
 
-    def test_step_emits_day_complete(self):
+    def test_step_emits_simulation_running_then_day_complete(self):
         resp = client.post("/api/games", json={"max_days": 3})
         game_id = resp.json()["game_id"]
 
@@ -18,6 +18,10 @@ class TestWSMessageTypes:
             assert msg["type"] == "game_state"
 
             ws.send_json({"action": "step"})
+
+            msg = ws.receive_json()
+            assert msg["type"] == "simulation_running"
+            assert msg["day"] == 0
 
             msg = ws.receive_json()
             assert msg["type"] == "day_complete"

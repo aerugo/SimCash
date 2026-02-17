@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
-  const { gameState: wsState, connected, optimizingAgent, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, phase, optimizingAgent, simulatingDay, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
 
@@ -61,11 +61,6 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {!connected && (
             <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
           )}
-          {optimizingAgent && (
-            <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
-              🧠 Optimizing {optimizingAgent}...
-            </span>
-          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -103,9 +98,14 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         />
       </div>
 
-      {optimizingAgent && (
-        <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 text-center animate-pulse">
-          <span className="text-lg">🧠 Optimizing {optimizingAgent}...</span>
+      {phase === 'simulating' && (
+        <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
+          <span className="text-sm">⚙️ Simulating Day {(simulatingDay ?? 0) + 1}...</span>
+        </div>
+      )}
+      {phase === 'optimizing' && optimizingAgent && (
+        <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 text-center animate-pulse">
+          <span className="text-sm">🧠 Optimizing {optimizingAgent}...</span>
         </div>
       )}
 
