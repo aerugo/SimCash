@@ -194,12 +194,26 @@ class Game:
         return day
 
     async def optimize_policies(self) -> dict[str, dict]:
-        """Run optimization step between days. Returns reasoning per agent."""
+        """Run optimization step between days. Returns reasoning per agent.
+        
+        When num_eval_samples > 1, uses WebBootstrapEvaluator for paired
+        comparison (accept only if statistically significant improvement).
+        When num_eval_samples == 1, always accepts (temporal mode).
+        """
+        from .bootstrap_eval import WebBootstrapEvaluator
+
         if not self.days:
             return {}
 
         last_day = self.days[-1]
         reasoning: dict[str, dict] = {}
+
+        evaluator = None
+        if self.num_eval_samples > 1:
+            evaluator = WebBootstrapEvaluator(
+                num_samples=self.num_eval_samples,
+                cv_threshold=0.5,
+            )
 
         for aid in self.agent_ids:
             if self.mock_reasoning:
@@ -211,6 +225,38 @@ class Game:
                 except Exception as e:
                     logger.warning("Real LLM optimization failed for %s, falling back to mock: %s", aid, e)
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+
+            # Bootstrap evaluation gate: only accept if statistically better
+            if evaluator and result.get("new_policy"):
+                other_policies = {
+                    other_aid: self.policies[other_aid]
+                    for other_aid in self.agent_ids if other_aid != aid
+                }
+                eval_result = evaluator.evaluate(
+                    raw_yaml=self.raw_yaml,
+                    agent_id=aid,
+                    old_policy=self.policies[aid],
+                    new_policy=result["new_policy"],
+                    base_seed=self._base_seed + self.current_day * 100,
+                    other_policies=other_policies,
+                )
+                result["bootstrap"] = {
+                    "delta_sum": eval_result.delta_sum,
+                    "mean_delta": eval_result.mean_delta,
+                    "cv": eval_result.cv,
+                    "ci_lower": eval_result.ci_lower,
+                    "ci_upper": eval_result.ci_upper,
+                    "num_samples": eval_result.num_samples,
+                    "old_mean_cost": eval_result.old_mean_cost,
+                    "new_mean_cost": eval_result.new_mean_cost,
+                    "rejection_reason": eval_result.rejection_reason,
+                }
+                if not eval_result.accepted:
+                    result["accepted"] = False
+                    result["rejection_reason"] = eval_result.rejection_reason
+                    result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
+                    result["new_policy"] = None  # Don't apply rejected policy
+                    result["new_fraction"] = None
 
             if result.get("new_policy"):
                 self.policies[aid] = result["new_policy"]
