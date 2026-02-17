@@ -289,19 +289,46 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
 async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
                          all_days: list[GameDay], raw_yaml: dict) -> dict[str, Any]:
-    """Use the real LLM optimization infrastructure."""
+    """Use the real LLM optimization infrastructure.
+
+    Reuses the existing PolicyOptimizer + ExperimentLLMClient from the experiment
+    runner. Builds proper context with agent-isolated events, cost breakdown, and
+    iteration history. Always accepts new policies (temporal mode — the cost landscape
+    shifts as counterparties change).
+    """
     from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
-    from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import ScenarioConstraints
+    from payment_simulator.ai_cash_mgmt.constraints.scenario_constraints import (
+        ScenarioConstraints,
+        ParameterSpec,
+    )
+    from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
+        filter_events_for_agent,
+        format_filtered_output,
+    )
+    from payment_simulator.ai_cash_mgmt.prompts.context_types import (
+        SingleAgentIterationRecord,
+    )
     from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient
-    from payment_simulator.llm import LLMConfig
+    from payment_simulator.llm.config import LLMConfig
     from dotenv import load_dotenv
+    import os
 
     load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
+    # Build constraints matching exp2 config
     constraints = ScenarioConstraints(
-        allowed_parameters=["initial_liquidity_fraction"],
-        allowed_fields=["system_tick_in_day", "balance", "ticks_to_deadline"],
+        allowed_parameters=[
+            ParameterSpec(
+                name="initial_liquidity_fraction",
+                param_type="float",
+                min_value=0.0,
+                max_value=1.0,
+                description="Fraction of liquidity_pool to allocate at simulation start.",
+            ),
+        ],
+        allowed_fields=["system_tick_in_day", "balance", "amount", "remaining_amount", "ticks_to_deadline"],
         allowed_actions={"payment_tree": ["Release", "Hold"], "bank_tree": ["NoAction"]},
+        lsm_enabled=False,
     )
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
@@ -313,30 +340,96 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     )
     client = ExperimentLLMClient(llm_config)
 
+    # Build dynamic system prompt with cost rates from scenario
+    cost_rates = raw_yaml.get("cost_rates", {})
+    dynamic_prompt = optimizer.get_system_prompt(cost_rates=cost_rates)
+    client.set_system_prompt(dynamic_prompt)
+
     current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
+    agent_cost = last_day.per_agent_costs.get(agent_id, 0)
+
+    # Build cost breakdown from last day
+    agent_costs = last_day.costs.get(agent_id, {})
+    cost_breakdown = {
+        "delay_cost": agent_costs.get("delay_cost", 0),
+        "overdraft_cost": agent_costs.get("liquidity_cost", 0),
+        "deadline_penalty": agent_costs.get("penalty_cost", 0),
+        "eod_penalty": 0,
+    }
+
+    # Build iteration history for LLM context (agent sees only own history)
+    iteration_history: list[SingleAgentIterationRecord] = []
+    best_cost = float("inf")
+    for i, day in enumerate(all_days):
+        day_agent_cost = day.per_agent_costs.get(agent_id, 0)
+        day_policy = day.policies.get(agent_id, current_policy)
+        is_best = day_agent_cost < best_cost
+        if is_best:
+            best_cost = day_agent_cost
+        iteration_history.append(SingleAgentIterationRecord(
+            iteration=i + 1,
+            metrics={"total_cost_mean": day_agent_cost},
+            policy=day_policy,
+            was_accepted=True,  # Temporal mode: always accepted
+            is_best_so_far=is_best,
+        ))
+
+    # Filter events for agent isolation (agent sees ONLY their own events)
+    filtered_events = filter_events_for_agent(agent_id, last_day.events)
+    simulation_trace = None
+    if filtered_events:
+        simulation_trace = format_filtered_output(
+            agent_id, filtered_events, include_tick_headers=True
+        )
+
+    current_metrics = {
+        "total_cost_mean": agent_cost,
+        "iteration": len(all_days),
+    }
 
     result = await optimizer.optimize(
         agent_id=agent_id,
         current_policy=current_policy,
         current_iteration=len(all_days),
-        current_metrics={"total_cost_mean": last_day.per_agent_costs.get(agent_id, 0)},
+        current_metrics=current_metrics,
         llm_client=client,
         llm_model="gpt-5.2",
-        current_cost=last_day.per_agent_costs.get(agent_id, 0),
-        events=last_day.events,
+        current_cost=float(agent_cost),
+        iteration_history=iteration_history,
+        events=last_day.events,  # Raw events for agent filtering
+        simulation_trace=simulation_trace,
+        sample_seed=last_day.seed,
+        sample_cost=agent_cost,
+        mean_cost=agent_cost,
+        cost_std=0,
+        cost_breakdown=cost_breakdown,
+        cost_rates=cost_rates,
     )
 
     new_fraction = None
+    new_policy = None
+    reasoning_text = ""
+
     if result.was_accepted and result.new_policy:
-        new_fraction = result.new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+        new_policy = result.new_policy
+        new_fraction = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+        reasoning_text = (
+            f"LLM proposed: fraction {current_fraction:.3f} → {new_fraction:.3f}. Accepted. "
+            f"Cost was {agent_cost:,}. "
+            f"Breakdown: delay={cost_breakdown['delay_cost']:,}, "
+            f"penalty={cost_breakdown['deadline_penalty']:,}, "
+            f"opportunity={max(0, agent_cost - cost_breakdown['delay_cost'] - cost_breakdown['deadline_penalty']):,}."
+        )
+    else:
+        # Even if rejected/failed, try to extract reasoning
+        reasoning_text = (
+            f"LLM optimization failed or rejected for {agent_id}. "
+            f"Keeping fraction at {current_fraction:.3f}. Cost was {agent_cost:,}."
+        )
 
     return {
-        "new_policy": result.new_policy if result.was_accepted else None,
-        "reasoning": (
-            f"LLM proposed: fraction {current_fraction:.3f} → "
-            f"{new_fraction:.3f if new_fraction else 'rejected'}. "
-            f"{'Accepted' if result.was_accepted else 'Rejected'}."
-        ),
+        "new_policy": new_policy,
+        "reasoning": reasoning_text,
         "old_fraction": current_fraction,
         "new_fraction": new_fraction,
         "accepted": result.was_accepted,
