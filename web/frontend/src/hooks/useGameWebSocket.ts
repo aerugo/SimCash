@@ -6,6 +6,7 @@ export type WSMessageType =
   | 'simulation_running'
   | 'day_complete'
   | 'optimization_start'
+  | 'optimization_chunk'
   | 'optimization_complete'
   | 'game_complete'
   | 'error';
@@ -16,6 +17,7 @@ export interface WSMessage {
   day?: number;
   agent_id?: string;
   message?: string;
+  text?: string;
 }
 
 export type GamePhase = 'idle' | 'simulating' | 'optimizing' | 'complete';
@@ -27,6 +29,7 @@ interface UseGameWebSocketReturn {
   optimizingAgent: string | null;
   simulatingDay: number | null;
   lastDay: DayResult | null;
+  streamingText: Record<string, string>;
   step: () => void;
   autoRun: (speedMs?: number) => void;
   stop: () => void;
@@ -42,6 +45,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const [optimizingAgent, setOptimizingAgent] = useState<string | null>(null);
   const [simulatingDay, setSimulatingDay] = useState<number | null>(null);
   const [lastDay, setLastDay] = useState<DayResult | null>(null);
+  const [streamingText, setStreamingText] = useState<Record<string, string>>({});
 
   const handleMessage = useCallback((event: MessageEvent) => {
     const msg: WSMessage = JSON.parse(event.data);
@@ -66,9 +70,26 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'optimization_start':
         setPhase('optimizing');
         setOptimizingAgent(msg.agent_id ?? null);
+        // Clear streaming text for this agent
+        if (msg.agent_id) {
+          setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
+        }
+        break;
+
+      case 'optimization_chunk':
+        if (msg.agent_id && msg.text) {
+          setStreamingText(prev => ({
+            ...prev,
+            [msg.agent_id!]: (prev[msg.agent_id!] ?? '') + msg.text!,
+          }));
+        }
         break;
 
       case 'optimization_complete':
+        // Clear streaming text for this agent (reasoning now in game state)
+        if (msg.agent_id) {
+          setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
+        }
         break;
 
       case 'game_complete':
@@ -135,5 +156,5 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
   const stop = useCallback(() => send('stop'), [send]);
 
-  return { gameState, connected, phase, optimizingAgent, simulatingDay, lastDay, step, autoRun, stop };
+  return { gameState, connected, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, autoRun, stop };
 }

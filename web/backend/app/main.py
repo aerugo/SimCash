@@ -660,23 +660,10 @@ async def game_ws(websocket: WebSocket, game_id: str):
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
 
         if not game.is_complete:
-            # Emit per-agent optimization messages
-            for aid in game.agent_ids:
-                await websocket.send_json({
-                    "type": "optimization_start",
-                    "day": day.day_num,
-                    "agent_id": aid,
-                })
-
-            reasoning = await game.optimize_policies()
-
-            for aid, result in reasoning.items():
-                await websocket.send_json({
-                    "type": "optimization_complete",
-                    "day": day.day_num,
-                    "agent_id": aid,
-                    "data": result,
-                })
+            # Use streaming optimization — sends optimization_start,
+            # optimization_chunk (text deltas), and optimization_complete
+            # directly via the websocket
+            await game.optimize_policies_streaming(websocket.send_json)
 
         await websocket.send_json({"type": "game_state", "data": game.get_state()})
 

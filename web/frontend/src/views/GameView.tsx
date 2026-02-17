@@ -13,7 +13,7 @@ interface Props {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
-  const { gameState: wsState, connected, phase, optimizingAgent, simulatingDay, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, phase, optimizingAgent, simulatingDay, streamingText, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [replayData, setReplayData] = useState<{
@@ -134,8 +134,21 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         </div>
       )}
       {phase === 'optimizing' && optimizingAgent && (
-        <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 text-center animate-pulse">
-          <span className="text-sm">🧠 Optimizing {optimizingAgent}...</span>
+        <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-medium">🧠 Optimizing {optimizingAgent}</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
+          </div>
+          {streamingText[optimizingAgent] ? (
+            <div className="max-h-48 overflow-y-auto">
+              <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono leading-relaxed">
+                {streamingText[optimizingAgent]}
+                <span className="inline-block w-1.5 h-3.5 bg-violet-400 animate-pulse ml-0.5 align-text-bottom" />
+              </pre>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-500 animate-pulse">Waiting for response...</div>
+          )}
         </div>
       )}
 

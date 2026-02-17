@@ -201,6 +201,118 @@ class Game:
         self.days.append(day)
         return day
 
+    async def optimize_policies_streaming(self, send_fn):
+        """Run optimization with streaming text chunks.
+
+        Args:
+            send_fn: async callable(dict) to send WS messages.
+                Called with optimization_start, optimization_chunk,
+                optimization_complete messages.
+        """
+        from .bootstrap_eval import WebBootstrapEvaluator
+        from .streaming_optimizer import stream_optimize
+
+        if not self.days:
+            return
+
+        last_day = self.days[-1]
+        evaluator = None
+        if self.num_eval_samples > 1:
+            evaluator = WebBootstrapEvaluator(
+                num_samples=self.num_eval_samples,
+                cv_threshold=0.5,
+            )
+
+        for aid in self.agent_ids:
+            await send_fn({
+                "type": "optimization_start",
+                "day": last_day.day_num,
+                "agent_id": aid,
+            })
+
+            if self.mock_reasoning:
+                # Mock doesn't stream — just send result
+                result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                await send_fn({
+                    "type": "optimization_complete",
+                    "day": last_day.day_num,
+                    "agent_id": aid,
+                    "data": result,
+                })
+            else:
+                # Stream real LLM response
+                result = None
+                try:
+                    async for event in stream_optimize(
+                        aid, self.policies[aid], last_day, self.days, self.raw_yaml
+                    ):
+                        if event["type"] == "chunk":
+                            await send_fn({
+                                "type": "optimization_chunk",
+                                "day": last_day.day_num,
+                                "agent_id": aid,
+                                "text": event["text"],
+                            })
+                        elif event["type"] == "result":
+                            result = event["data"]
+                        elif event["type"] == "error":
+                            # Fall back to mock
+                            result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                            result["fallback_reason"] = event["message"]
+                except Exception as e:
+                    logger.warning("Streaming optimization failed for %s: %s", aid, e)
+                    result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                    result["fallback_reason"] = str(e)
+
+                if result is None:
+                    result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+
+                # Bootstrap evaluation gate
+                if evaluator and result.get("new_policy"):
+                    other_policies = {
+                        other_aid: self.policies[other_aid]
+                        for other_aid in self.agent_ids if other_aid != aid
+                    }
+                    eval_result = evaluator.evaluate(
+                        raw_yaml=self.raw_yaml,
+                        agent_id=aid,
+                        old_policy=self.policies[aid],
+                        new_policy=result["new_policy"],
+                        base_seed=self._base_seed + self.current_day * 100,
+                        other_policies=other_policies,
+                    )
+                    result["bootstrap"] = {
+                        "delta_sum": eval_result.delta_sum,
+                        "mean_delta": eval_result.mean_delta,
+                        "cv": eval_result.cv,
+                        "ci_lower": eval_result.ci_lower,
+                        "ci_upper": eval_result.ci_upper,
+                        "num_samples": eval_result.num_samples,
+                        "old_mean_cost": eval_result.old_mean_cost,
+                        "new_mean_cost": eval_result.new_mean_cost,
+                        "rejection_reason": eval_result.rejection_reason,
+                    }
+                    if not eval_result.accepted:
+                        result["accepted"] = False
+                        result["rejection_reason"] = eval_result.rejection_reason
+                        result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
+                        result["new_policy"] = None
+                        result["new_fraction"] = None
+
+                await send_fn({
+                    "type": "optimization_complete",
+                    "day": last_day.day_num,
+                    "agent_id": aid,
+                    "data": result,
+                })
+
+            # Apply policy if accepted
+            if result and result.get("new_policy"):
+                self.policies[aid] = result["new_policy"]
+
+            if result:
+                self.reasoning_history[aid].append(result)
+
     async def optimize_policies(self) -> dict[str, dict]:
         """Run optimization step between days. Returns reasoning per agent.
         
