@@ -62,6 +62,10 @@ COPY --from=frontend-builder /app/dist/ web/frontend/dist/
 # Copy scenario configs
 COPY docs/papers/simcash-paper/paper_generator/configs/ configs/
 
+# Copy example configs and policies for the libraries
+COPY examples/configs/ examples/configs/
+COPY simulator/policies/ simulator/policies/
+
 ENV PORT=8080
 EXPOSE 8080
 
