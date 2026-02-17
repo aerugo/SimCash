@@ -5,7 +5,7 @@ import { getIdToken } from './firebase';
 const BASE = '/api';
 
 /** Authenticated fetch wrapper — auto-includes Bearer token for protected endpoints */
-async function authFetch(url: string, init?: RequestInit): Promise<Response> {
+export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
   const token = await getIdToken();
   if (token) {

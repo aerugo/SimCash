@@ -30,6 +30,8 @@ from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 from .scenario_library import get_library, get_scenario_detail
 from .policy_library import get_library as get_policy_library
 from .policy_diff import diff_policies
+from .policy_editor import router as policy_editor_router
+from .scenario_editor import router as scenario_editor_router
 from .admin import user_manager
 from . import config as app_config
 from pydantic import BaseModel as PydanticBaseModel
@@ -55,6 +57,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(scenario_editor_router)
+
+app.include_router(policy_editor_router)
 
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}

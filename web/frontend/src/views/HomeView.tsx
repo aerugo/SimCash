@@ -181,7 +181,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
       </div>
 
       {/* Quick Navigation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <button
           onClick={() => onNavigate?.('scenarios')}
           className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group"
@@ -197,6 +197,14 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
           <div className="text-2xl mb-2">🧠</div>
           <h3 className="font-semibold text-slate-100 group-hover:text-violet-300 transition-colors mb-1">Policy Library</h3>
           <p className="text-xs text-slate-400">30+ built-in strategies — from simple FIFO to adaptive decision trees</p>
+        </button>
+        <button
+          onClick={() => onNavigate?.('create')}
+          className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-amber-500/50 transition-colors group"
+        >
+          <div className="text-2xl mb-2">✏️</div>
+          <h3 className="font-semibold text-slate-100 group-hover:text-amber-300 transition-colors mb-1">Build Your Own</h3>
+          <p className="text-xs text-slate-400">Write custom YAML scenarios with live validation and launch them</p>
         </button>
         <button
           onClick={() => onNavigate?.('docs')}

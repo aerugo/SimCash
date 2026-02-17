@@ -14,6 +14,7 @@ import { GameView } from './views/GameView';
 import { DocsView } from './views/DocsView';
 import { ScenarioLibraryView } from './views/ScenarioLibraryView';
 import { PolicyLibraryView } from './views/PolicyLibraryView';
+import { CreateView } from './views/CreateView';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
@@ -24,6 +25,7 @@ const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; req
   { id: 'home', label: 'Setup', icon: '🏠' },
   { id: 'scenarios', label: 'Scenarios', icon: '📚' },
   { id: 'policies', label: 'Policies', icon: '🧠' },
+  { id: 'create', label: 'Create', icon: '✏️' },
   { id: 'game', label: 'Game', icon: '🎮', requiresGame: true },
   { id: 'dashboard', label: 'Dashboard', icon: '📊', requiresSim: true },
   { id: 'agents', label: 'Agents', icon: '🧠', requiresSim: true },
@@ -344,6 +346,11 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
         {tab === 'policies' && (
           <PolicyLibraryView />
         )}
+
+        {tab === 'create' && (
+          <CreateView onGameLaunch={handleGameLaunch} />
+        )}
+
 
         {tab === 'docs' && (
           <DocsView />
