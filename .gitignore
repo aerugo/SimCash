@@ -73,3 +73,6 @@ node_modules/
 # Integration test artifacts
 integration_test_results/
 .env
+
+# Web backend local storage
+web/backend/data/

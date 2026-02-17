@@ -25,7 +25,9 @@ from .models import (
 )
 from .simulation import SimulationManager
 from .game import Game
+from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
+from . import config as app_config
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,10 @@ app.add_middleware(
 
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}
+game_storage = GameStorage(
+    bucket_name=app_config.GCS_BUCKET,
+    storage_mode=app_config.STORAGE_MODE if app_config.STORAGE_MODE != "memory" else "local",
+)
 
 # In-memory stores
 saved_scenarios: dict[str, SavedScenario] = {}
@@ -539,15 +545,59 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
         num_eval_samples=config.num_eval_samples,
     )
     game_manager[game_id] = game
+
+    # Persist: create DuckDB + update index
+    from datetime import datetime, timezone
+    game_storage.create_game_db(uid, game_id)
+    scenario_entry = get_scenario_by_id(config.scenario_id) or {}
+    game_storage.update_index(uid, {
+        "game_id": game_id,
+        "scenario_id": config.scenario_id,
+        "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "days_completed": 0,
+        "max_days": config.max_days,
+        "status": "created",
+        "use_llm": config.use_llm,
+        "num_agents": len(game.agent_ids),
+        "ticks_per_day": raw_yaml.get("simulation", {}).get("ticks_per_day", 0),
+        "uid": uid,
+    })
+
     return {"game_id": game_id, "game": game.get_state()}
+
+
+@app.get("/api/games")
+def list_games(uid: str = Depends(get_current_user)):
+    """List all games for the current user (persisted + in-memory)."""
+    persisted = game_storage.list_games(uid)
+    # Add any in-memory games not in the index
+    persisted_ids = {g["game_id"] for g in persisted}
+    for gid, game in game_manager.items():
+        if gid not in persisted_ids:
+            persisted.append({
+                "game_id": gid,
+                "scenario_id": "unknown",
+                "days_completed": game.current_day,
+                "max_days": game.max_days,
+                "status": "complete" if game.is_complete else "in_progress",
+            })
+    return {"games": persisted}
 
 
 @app.get("/api/games/{game_id}")
 def get_game(game_id: str, uid: str = Depends(get_current_user)):
-    """Get game state."""
+    """Get game state. Checks memory first, then storage."""
     game = game_manager.get(game_id)
     if not game:
-        raise HTTPException(status_code=404, detail="Game not found")
+        # Check if it exists in storage index
+        games = game_storage.list_games(uid)
+        meta = next((g for g in games if g["game_id"] == game_id), None)
+        if not meta:
+            raise HTTPException(status_code=404, detail="Game not found")
+        # Return index metadata (game not in memory, can't get full state)
+        return {"game_id": game_id, "persisted": True, **meta}
     return game.get_state()
 
 
@@ -591,6 +641,22 @@ async def step_game(game_id: str, uid: str = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Game is complete")
 
     day = game.run_day()
+
+    # Persist day to DuckDB
+    from datetime import datetime, timezone
+    db_path = game_storage.get_db_path(uid, game_id)
+    if db_path.exists():
+        game.save_day_to_duckdb(db_path, day)
+        game_storage.save_game(uid, game_id)
+        # Update index
+        games = game_storage.list_games(uid)
+        meta = next((g for g in games if g["game_id"] == game_id), None)
+        if meta:
+            meta["days_completed"] = game.current_day
+            meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+            meta["status"] = "complete" if game.is_complete else "in_progress"
+            game_storage.update_index(uid, meta)
+
     reasoning = {}
     if game.use_llm and not game.is_complete:
         reasoning = await game.optimize_policies()
@@ -618,12 +684,23 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_current_user)):
     return {"days": days, "game": game.get_state()}
 
 
+@app.get("/api/games/{game_id}/download")
+def download_game(game_id: str, uid: str = Depends(get_current_user)):
+    """Download the DuckDB file for a game."""
+    from fastapi.responses import FileResponse
+    db_path = game_storage.load_game(uid, game_id)
+    if not db_path or not db_path.exists():
+        raise HTTPException(status_code=404, detail="Game database not found")
+    return FileResponse(str(db_path), filename=f"{game_id}.duckdb", media_type="application/octet-stream")
+
+
 @app.delete("/api/games/{game_id}")
 def delete_game(game_id: str, uid: str = Depends(get_current_user)):
     """Delete a game."""
-    if game_id not in game_manager:
-        raise HTTPException(status_code=404, detail="Game not found")
-    del game_manager[game_id]
+    if game_id in game_manager:
+        del game_manager[game_id]
+    game_storage.delete_game(uid, game_id)
+    game_storage.remove_from_index(uid, game_id)
     return {"status": "deleted"}
 
 

@@ -10,6 +10,8 @@ import concurrent.futures
 from pathlib import Path
 from typing import Any
 
+import duckdb
+
 API_DIR = Path(__file__).resolve().parents[3] / "api"
 sys.path.insert(0, str(API_DIR))
 
@@ -236,6 +238,25 @@ class Game:
         )
         self.days.append(day)
         return day
+
+    def save_day_to_duckdb(self, db_path: Path, day: GameDay):
+        """Write a day's results to the DuckDB file."""
+        con = duckdb.connect(str(db_path))
+        con.execute(
+            """INSERT OR REPLACE INTO days (day, seed, total_cost, policies, costs, per_agent_costs, balance_history, events)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            [
+                day.day_num,
+                day.seed,
+                day.total_cost,
+                json.dumps({aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)} for aid, p in day.policies.items()}),
+                json.dumps(day.costs),
+                json.dumps(day.per_agent_costs),
+                json.dumps(day.balance_history),
+                json.dumps(day.events[:200]),  # Cap events to keep DB small
+            ],
+        )
+        con.close()
 
     async def optimize_policies_streaming(self, send_fn):
         """Run optimization with streaming text chunks.
