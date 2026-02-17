@@ -267,10 +267,12 @@ function App() {
         )}
       </main>
 
-      {/* Keyboard hint */}
-      <div className="fixed bottom-4 left-4 text-[10px] text-slate-600 hidden lg:block">
-        Space: play/pause · →: step · R: reset
-      </div>
+      {/* Keyboard hint — only for single-run sim tabs */}
+      {simId && ['dashboard', 'agents', 'events', 'config', 'replay', 'analysis'].includes(tab) && (
+        <div className="fixed bottom-4 left-4 text-[10px] text-slate-600 hidden lg:block pointer-events-none">
+          Space: play/pause · →: step · R: reset
+        </div>
+      )}
 
       <ToastContainer />
     </div>

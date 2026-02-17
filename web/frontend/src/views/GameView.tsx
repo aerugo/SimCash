@@ -293,7 +293,8 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                     {(replayData.ticks[replayData.currentTick]?.events ?? []).map((e, i) => (
                       <div key={i} className="flex gap-1">
                         <span className="text-sky-400">{String(e.event_type ?? '')}</span>
-                        {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+                        {'sender_id' in e && 'receiver_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+                        {'agent_id' in e && !('sender_id' in e) && <span>{String(e.agent_id)}</span>}
                         {'amount' in e && <span className="text-emerald-400">${(Number(e.amount) / 100).toLocaleString()}</span>}
                       </div>
                     ))}
@@ -528,7 +529,8 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
             <div key={i} className="flex gap-2">
               <span className="text-slate-600 w-6">{String(e.tick)}</span>
               <span className="text-sky-400">{String(e.event_type)}</span>
-              {'sender_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+              {'sender_id' in e && 'receiver_id' in e && <span>{String(e.sender_id)}→{String(e.receiver_id)}</span>}
+              {'agent_id' in e && !('sender_id' in e) && <span>{String(e.agent_id)}</span>}
               {'amount' in e && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
             </div>
           ))}
