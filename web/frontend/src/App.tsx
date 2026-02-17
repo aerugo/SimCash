@@ -11,6 +11,7 @@ import { AnalysisView } from './views/AnalysisView';
 import { LibraryView } from './views/LibraryView';
 import { AgentsView } from './views/AgentsView';
 import { GameView } from './views/GameView';
+import { DocsView } from './views/DocsView';
 
 const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
   { id: 'home', label: 'Setup', icon: '🏠' },
@@ -21,6 +22,7 @@ const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; req
   { id: 'config', label: 'Config', icon: '⚙️', requiresSim: true },
   { id: 'replay', label: 'Replay', icon: '🔄', requiresSim: true },
   { id: 'analysis', label: 'Analysis', icon: '📈', requiresSim: true },
+  { id: 'docs', label: 'Docs', icon: '📖' },
   { id: 'library', label: 'Library', icon: '🎮' },
 ];
 
@@ -254,6 +256,10 @@ function App() {
 
         {tab === 'analysis' && simId && state && (
           <AnalysisView state={state} events={events} simId={simId} />
+        )}
+
+        {tab === 'docs' && (
+          <DocsView />
         )}
 
         {tab === 'library' && (

@@ -118,7 +118,7 @@ export interface AgentReasoning {
   fallback?: boolean;
 }
 
-export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game';
+export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game' | 'docs';
 
 // ---- Multi-Day Game Types ----
 
