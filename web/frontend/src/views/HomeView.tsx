@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry } from '../types';
+import { useState, useEffect } from 'react';
+import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, ScenarioPackEntry } from '../types';
+import { getScenarioPack } from '../api';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -26,12 +27,22 @@ const DEFAULT_CONFIG: ScenarioConfig = {
 interface Props {
   presets: Preset[];
   onLaunch: (config: ScenarioConfig | string) => void;
+  onGameLaunch?: (config: { scenario_id: string; use_llm: boolean; mock_reasoning: boolean; max_days: number }) => void;
 }
 
-export function HomeView({ presets, onLaunch }: Props) {
-  const [mode, setMode] = useState<'preset' | 'custom'>('preset');
+export function HomeView({ presets, onLaunch, onGameLaunch }: Props) {
+  const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
+  const [scenarioPack, setScenarioPack] = useState<ScenarioPackEntry[]>([]);
+  const [selectedScenario, setSelectedScenario] = useState('2bank_12tick');
+  const [maxDays, setMaxDays] = useState(10);
+  const [gameUseLlm, setGameUseLlm] = useState(true);
+  const [gameMockReasoning, setGameMockReasoning] = useState(true);
+
+  useEffect(() => {
+    getScenarioPack().then(setScenarioPack).catch(() => {});
+  }, []);
 
   const handleLaunch = () => {
     if (mode === 'preset') {
@@ -168,6 +179,14 @@ export function HomeView({ presets, onLaunch }: Props) {
       {/* Mode toggle */}
       <div className="flex gap-2 mb-6 justify-center">
         <button
+          onClick={() => setMode('game')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            mode === 'game' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          🎮 Multi-Day Game
+        </button>
+        <button
           onClick={() => setMode('preset')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             mode === 'preset' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
@@ -185,7 +204,70 @@ export function HomeView({ presets, onLaunch }: Props) {
         </button>
       </div>
 
-      {mode === 'preset' ? (
+      {mode === 'game' ? (
+        <div className="space-y-6 mb-8">
+          {/* Scenario Pack */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-slate-300">Choose Scenario</h3>
+            {scenarioPack.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedScenario(s.id)}
+                className={`w-full text-left p-4 rounded-xl border transition-all ${
+                  selectedScenario === s.id
+                    ? 'border-violet-500 bg-violet-500/10'
+                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-semibold">{s.name}</div>
+                    <div className="text-sm text-slate-400 mt-1">{s.description}</div>
+                  </div>
+                  <div className="text-xs text-slate-500 flex gap-3">
+                    <span>{s.ticks_per_day} ticks</span>
+                    <span>{s.num_agents} banks</span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Game settings */}
+          <Section title="Game Settings">
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-slate-500 flex justify-between mb-1">
+                  <span>Max Days</span>
+                  <span className="font-mono text-slate-300">{maxDays}</span>
+                </label>
+                <input
+                  type="range" value={maxDays} onChange={e => setMaxDays(Number(e.target.value))}
+                  min={1} max={20} className="w-full accent-violet-400"
+                />
+              </div>
+              <div className="flex gap-6 flex-wrap">
+                <Toggle label="Enable AI Optimization" value={gameUseLlm} onChange={setGameUseLlm} />
+                {gameUseLlm && (
+                  <div>
+                    <Toggle label="Mock Mode" value={gameMockReasoning} onChange={setGameMockReasoning} />
+                    <span className="text-[10px] text-slate-600 ml-2">
+                      {gameMockReasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Section>
+
+          <button
+            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays })}
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
+          >
+            🎮 Start Game
+          </button>
+        </div>
+      ) : mode === 'preset' ? (
         <div className="space-y-3 mb-8">
           {presets.map(p => (
             <button

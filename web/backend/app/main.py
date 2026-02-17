@@ -20,6 +20,8 @@ from .models import (
     ScenarioConfig,
 )
 from .simulation import SimulationManager
+from .game import Game
+from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 
 app = FastAPI(title="SimCash Web Sandbox", version="0.2.0")
 
@@ -32,6 +34,7 @@ app.add_middleware(
 )
 
 manager = SimulationManager()
+game_manager: dict[str, Game] = {}
 
 # In-memory stores
 saved_scenarios: dict[str, SavedScenario] = {}
@@ -335,6 +338,54 @@ def delete_policy(policy_id: str):
     return {"status": "deleted"}
 
 
+# ---- Policy Optimization ----
+
+@app.get("/api/simulations/{sim_id}/policy")
+def get_policy(sim_id: str):
+    """Get the current policy for a simulation."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    return {
+        "policies": sim.policies,
+        "iteration": sim.iteration,
+        "optimization_history": sim.optimization_history,
+        "policy_cost_history": sim.policy_cost_history,
+    }
+
+
+@app.post("/api/simulations/{sim_id}/optimize")
+async def optimize_simulation(sim_id: str):
+    """Run one LLM optimization iteration."""
+    sim = manager.get(sim_id)
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+    if not sim.is_complete:
+        raise HTTPException(status_code=400, detail="Run simulation to completion first")
+    try:
+        result = await sim.run_optimization_step()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---- Scenario Pack ----
+
+@app.get("/api/scenario-pack")
+def list_scenario_pack():
+    """List all built-in scenarios with varying complexity."""
+    return {"scenarios": get_scenario_pack()}
+
+
+@app.get("/api/scenario-pack/{scenario_id}")
+def get_scenario_pack_item(scenario_id: str):
+    """Get a specific scenario pack item."""
+    item = get_scenario_by_id(scenario_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return item
+
+
 # ---- WebSocket for live streaming ----
 
 @app.websocket("/ws/simulations/{sim_id}")
@@ -416,6 +467,177 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
                 old_config = sim.raw_config
                 manager.delete(sim_id)
                 await websocket.send_json({"type": "reset_required"})
+
+    except WebSocketDisconnect:
+        running = False
+        if run_task:
+            run_task.cancel()
+    except Exception as e:
+        running = False
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except Exception:
+            pass
+
+
+# ---- Scenario Pack ----
+
+@app.get("/api/scenario-pack")
+def list_scenario_pack():
+    """List available scenario pack entries."""
+    return {"scenarios": get_scenario_pack()}
+
+
+# ---- Multi-Day Games ----
+
+@app.post("/api/games")
+async def create_game(config: dict = {}):
+    """Create a multi-day policy optimization game."""
+    game_id = str(uuid.uuid4())[:8]
+
+    scenario_id = config.get("scenario_id", "2bank_12tick")
+    raw_yaml = get_scenario_by_id(scenario_id)
+    if not raw_yaml:
+        raise HTTPException(status_code=400, detail=f"Unknown scenario: {scenario_id}")
+
+    import copy
+    raw_yaml = copy.deepcopy(raw_yaml)
+
+    game = Game(
+        game_id=game_id,
+        raw_yaml=raw_yaml,
+        use_llm=config.get("use_llm", False),
+        mock_reasoning=config.get("mock_reasoning", True),
+        max_days=config.get("max_days", 10),
+    )
+    game_manager[game_id] = game
+    return {"game_id": game_id, "game": game.get_state()}
+
+
+@app.get("/api/games/{game_id}")
+def get_game(game_id: str):
+    """Get game state."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game.get_state()
+
+
+@app.post("/api/games/{game_id}/step")
+async def step_game(game_id: str):
+    """Run next day + optimize. Returns day results + reasoning."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if game.is_complete:
+        raise HTTPException(status_code=400, detail="Game is complete")
+
+    day = game.run_day()
+    reasoning = {}
+    if game.use_llm and not game.is_complete:
+        reasoning = await game.optimize_policies()
+
+    return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
+
+
+@app.post("/api/games/{game_id}/auto")
+async def auto_run_game(game_id: str):
+    """Run all remaining days."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    days = []
+    all_reasoning = []
+    while not game.is_complete:
+        day = game.run_day()
+        reasoning = {}
+        if game.use_llm and not game.is_complete:
+            reasoning = await game.optimize_policies()
+        days.append({"day": day.to_dict(), "reasoning": reasoning})
+        all_reasoning.append(reasoning)
+
+    return {"days": days, "game": game.get_state()}
+
+
+@app.delete("/api/games/{game_id}")
+def delete_game(game_id: str):
+    """Delete a game."""
+    if game_id not in game_manager:
+        raise HTTPException(status_code=404, detail="Game not found")
+    del game_manager[game_id]
+    return {"status": "deleted"}
+
+
+# ---- Game WebSocket ----
+
+@app.websocket("/ws/games/{game_id}")
+async def game_ws(websocket: WebSocket, game_id: str):
+    """WebSocket for live game streaming."""
+    await websocket.accept()
+
+    game = game_manager.get(game_id)
+    if not game:
+        await websocket.send_json({"error": "Game not found"})
+        await websocket.close()
+        return
+
+    running = False
+    speed_ms = 1000
+
+    async def auto_run():
+        nonlocal running
+        while running and not game.is_complete:
+            day = game.run_day()
+            await websocket.send_json({"type": "day", "data": day.to_dict()})
+            reasoning = {}
+            if game.use_llm and not game.is_complete:
+                await websocket.send_json({"type": "optimizing", "day": day.day_num})
+                reasoning = await game.optimize_policies()
+                await websocket.send_json({"type": "reasoning", "data": reasoning})
+            await websocket.send_json({"type": "game_state", "data": game.get_state()})
+            await asyncio.sleep(speed_ms / 1000.0)
+        if game.is_complete:
+            await websocket.send_json({"type": "complete", "data": game.get_state()})
+        running = False
+
+    run_task: asyncio.Task | None = None
+
+    try:
+        await websocket.send_json({"type": "game_state", "data": game.get_state()})
+
+        while True:
+            msg = await websocket.receive_json()
+            action = msg.get("action")
+
+            if action == "step":
+                if not game.is_complete:
+                    day = game.run_day()
+                    await websocket.send_json({"type": "day", "data": day.to_dict()})
+                    reasoning = {}
+                    if game.use_llm and not game.is_complete:
+                        await websocket.send_json({"type": "optimizing", "day": day.day_num})
+                        reasoning = await game.optimize_policies()
+                        await websocket.send_json({"type": "reasoning", "data": reasoning})
+                    await websocket.send_json({"type": "game_state", "data": game.get_state()})
+                else:
+                    await websocket.send_json({"type": "complete", "data": game.get_state()})
+
+            elif action == "auto":
+                speed_ms = msg.get("speed_ms", 1000)
+                if not running and not game.is_complete:
+                    running = True
+                    run_task = asyncio.create_task(auto_run())
+
+            elif action == "stop":
+                running = False
+                if run_task:
+                    run_task.cancel()
+                    run_task = None
+                await websocket.send_json({"type": "game_state", "data": game.get_state()})
+
+            elif action == "state":
+                await websocket.send_json({"type": "game_state", "data": game.get_state()})
 
     except WebSocketDisconnect:
         running = False

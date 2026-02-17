@@ -98,3 +98,50 @@ export function connectWebSocket(simId: string): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return new WebSocket(`${protocol}//${window.location.host}/ws/simulations/${simId}`);
 }
+
+// ---- Multi-Day Game API ----
+
+import type { GameState, ScenarioPackEntry } from './types';
+
+export async function getScenarioPack(): Promise<ScenarioPackEntry[]> {
+  const res = await fetch(`${BASE}/scenario-pack`);
+  const data = await res.json();
+  return data.scenarios;
+}
+
+export async function createGame(config: {
+  scenario_id: string;
+  use_llm: boolean;
+  mock_reasoning: boolean;
+  max_days: number;
+}): Promise<{ game_id: string; game: GameState }> {
+  const res = await fetch(`${BASE}/games`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getGame(gameId: string): Promise<GameState> {
+  const res = await fetch(`${BASE}/games/${gameId}`);
+  return res.json();
+}
+
+export async function stepGame(gameId: string): Promise<{ day: Record<string, unknown>; reasoning: Record<string, unknown>; game: GameState }> {
+  const res = await fetch(`${BASE}/games/${gameId}/step`, { method: 'POST' });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function autoRunGame(gameId: string): Promise<{ days: unknown[]; game: GameState }> {
+  const res = await fetch(`${BASE}/games/${gameId}/auto`, { method: 'POST' });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export function connectGameWebSocket(gameId: string): WebSocket {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}`);
+}

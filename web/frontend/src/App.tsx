@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning } from './types';
-import { createSimulation, getPresets, connectWebSocket } from './api';
+import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning, GameState } from './types';
+import { createSimulation, getPresets, connectWebSocket, createGame } from './api';
 import { ToastContainer, toast } from './components/Toast';
 import { HomeView } from './views/HomeView';
 import { DashboardView } from './views/DashboardView';
@@ -10,16 +10,18 @@ import { ReplayView } from './views/ReplayView';
 import { AnalysisView } from './views/AnalysisView';
 import { LibraryView } from './views/LibraryView';
 import { AgentsView } from './views/AgentsView';
+import { GameView } from './views/GameView';
 
-const TABS: { id: TabId; label: string; icon: string; requiresSim: boolean }[] = [
-  { id: 'home', label: 'Setup', icon: '🏠', requiresSim: false },
+const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
+  { id: 'home', label: 'Setup', icon: '🏠' },
+  { id: 'game', label: 'Game', icon: '🎮', requiresGame: true },
   { id: 'dashboard', label: 'Dashboard', icon: '📊', requiresSim: true },
   { id: 'agents', label: 'Agents', icon: '🧠', requiresSim: true },
   { id: 'events', label: 'Events', icon: '📋', requiresSim: true },
   { id: 'config', label: 'Config', icon: '⚙️', requiresSim: true },
   { id: 'replay', label: 'Replay', icon: '🔄', requiresSim: true },
   { id: 'analysis', label: 'Analysis', icon: '📈', requiresSim: true },
-  { id: 'library', label: 'Library', icon: '🎮', requiresSim: false },
+  { id: 'library', label: 'Library', icon: '🎮' },
 ];
 
 function App() {
@@ -32,6 +34,8 @@ function App() {
   const [isRunning, setIsRunning] = useState(false);
   const [speed, setSpeed] = useState(500);
   const wsRef = useRef<WebSocket | null>(null);
+  const [gameId, setGameId] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
 
   useEffect(() => {
     getPresets().then(setPresets);
@@ -116,7 +120,21 @@ function App() {
     setEvents([]);
     setReasoning({});
     setIsRunning(false);
+    setGameId(null);
+    setGameState(null);
     setTab('home');
+  }, []);
+
+  const handleGameLaunch = useCallback(async (config: { scenario_id: string; use_llm: boolean; mock_reasoning: boolean; max_days: number }) => {
+    try {
+      const res = await createGame(config);
+      setGameId(res.game_id);
+      setGameState(res.game);
+      setTab('game');
+      toast(`Game ${res.game_id} created`, 'success');
+    } catch (e) {
+      toast(`Failed to create game: ${e}`, 'error');
+    }
   }, []);
 
   // Keyboard shortcuts
@@ -139,7 +157,11 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [isRunning, state, handleRun, handlePause, handleTick, handleReset]);
 
-  const visibleTabs = TABS.filter(t => !t.requiresSim || simId);
+  const visibleTabs = TABS.filter(t => {
+    if (t.requiresSim && !simId) return false;
+    if (t.requiresGame && !gameId) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100">
@@ -186,7 +208,16 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {tab === 'home' && (
-          <HomeView presets={presets} onLaunch={handleLaunch} />
+          <HomeView presets={presets} onLaunch={handleLaunch} onGameLaunch={handleGameLaunch} />
+        )}
+
+        {tab === 'game' && gameId && gameState && (
+          <GameView
+            gameId={gameId}
+            gameState={gameState}
+            onUpdate={setGameState}
+            onReset={handleReset}
+          />
         )}
 
         {tab === 'dashboard' && state && (

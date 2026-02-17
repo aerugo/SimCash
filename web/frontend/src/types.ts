@@ -118,4 +118,47 @@ export interface AgentReasoning {
   fallback?: boolean;
 }
 
-export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library';
+export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game';
+
+// ---- Multi-Day Game Types ----
+
+export interface GameState {
+  game_id: string;
+  current_day: number;
+  max_days: number;
+  is_complete: boolean;
+  use_llm: boolean;
+  agent_ids: string[];
+  current_policies: Record<string, { initial_liquidity_fraction: number }>;
+  days: DayResult[];
+  cost_history: Record<string, number[]>;
+  fraction_history: Record<string, number[]>;
+  reasoning_history: Record<string, GameOptimizationResult[]>;
+}
+
+export interface DayResult {
+  day: number;
+  seed: number;
+  policies: Record<string, { initial_liquidity_fraction: number }>;
+  costs: Record<string, CostBreakdown>;
+  events: SimEvent[];
+  balance_history: Record<string, number[]>;
+  total_cost: number;
+  per_agent_costs: Record<string, number>;
+}
+
+export interface GameOptimizationResult {
+  reasoning: string;
+  old_fraction: number;
+  new_fraction?: number;
+  accepted: boolean;
+  mock?: boolean;
+}
+
+export interface ScenarioPackEntry {
+  id: string;
+  name: string;
+  description: string;
+  num_agents: number;
+  ticks_per_day: number;
+}

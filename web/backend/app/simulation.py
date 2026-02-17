@@ -1,6 +1,8 @@
 """Simulation manager — wraps the Rust Orchestrator."""
 from __future__ import annotations
 
+import asyncio
+import random
 import sys
 import uuid
 from pathlib import Path
@@ -17,6 +19,12 @@ from payment_simulator.config.schemas import SimulationConfig  # type: ignore[im
 
 from .models import AgentSetup, AgentType, PresetScenario, ScenarioConfig
 from .llm_agent import get_llm_decision
+from .policy_runner import (
+    make_default_policy,
+    run_with_policy,
+    build_simulation_trace,
+    optimize_policy_with_llm,
+)
 
 CONFIGS_DIR = Path(__file__).resolve().parents[3] / "docs" / "papers" / "simcash-paper" / "paper_generator" / "configs"
 
@@ -120,6 +128,10 @@ class SimulationManager:
         self.simulations[sim_id] = instance
         return sim_id
 
+    async def create_async(self, config: ScenarioConfig) -> str:
+        """Async creation — same as create but runs in thread for safety."""
+        return self.create(config)
+
     def get(self, sim_id: str) -> SimulationInstance | None:
         return self.simulations.get(sim_id)
 
@@ -153,6 +165,12 @@ class SimulationInstance:
         self.mock_reasoning = mock_reasoning
         self.scenario_config = scenario_config
         self.reasoning_history: dict[str, list[dict[str, Any]]] = {}
+
+        # Policy optimization state
+        self.policies: dict[str, dict[str, Any]] = {}
+        self.iteration: int = 0
+        self.optimization_history: list[dict[str, Any]] = []
+        self.policy_cost_history: list[dict[str, Any]] = []
 
     @property
     def is_complete(self) -> bool:
@@ -188,6 +206,10 @@ class SimulationInstance:
             "agents": agents,
             "balance_history": self.balance_history,
             "cost_history": self.cost_history,
+            "policies": self.policies,
+            "iteration": self.iteration,
+            "optimization_history": self.optimization_history,
+            "policy_cost_history": self.policy_cost_history,
         }
 
     def _get_scenario_context(self) -> dict[str, Any]:
@@ -197,6 +219,115 @@ class SimulationInstance:
             "delay_cost": sc.delay_cost_per_tick_per_cent if sc else 0.2,
             "deadline_penalty": sc.deadline_penalty if sc else 50_000,
             "deferred_crediting": sc.deferred_crediting if sc else True,
+        }
+
+    async def run_optimization_step(self, agent_id: str | None = None) -> dict[str, Any]:
+        """Run one LLM policy optimization iteration.
+
+        1. Build trace from tick history
+        2. Ask LLM for improved policy
+        3. Re-run sim with new policy
+        4. Compare costs, accept if improved
+        """
+        all_agents = self.get_agent_ids()
+        target_agent = agent_id or (all_agents[0] if all_agents else None)
+        if not target_agent:
+            return {"error": "No agents to optimize"}
+
+        # Get current costs
+        old_costs: dict[str, int] = {}
+        for aid in all_agents:
+            costs = self.orch.get_agent_accumulated_costs(aid)
+            old_costs[aid] = int(costs.get("total_cost", costs.get("total", 0)))
+        old_total = sum(old_costs.values())
+
+        # Build trace
+        trace_lines = []
+        for td in self.tick_history:
+            tick = td.get("tick", "?")
+            trace_lines.append(f"--- Tick {tick} ---")
+            for aid, adata in td.get("agents", {}).items():
+                c = adata.get("costs", {})
+                trace_lines.append(f"  {aid}: balance={adata.get('balance',0)}, queue={adata.get('queue1_size',0)}, total_cost={c.get('total',0)}")
+            for ev in td.get("events", [])[:10]:
+                trace_lines.append(f"  [{ev.get('event_type','?')}]")
+        simulation_trace = "\n".join(trace_lines)
+
+        # Initialize default policies if needed
+        if not self.policies:
+            for aid in all_agents:
+                self.policies[aid] = make_default_policy(aid, 1.0)
+
+        current_agent_cost = old_costs.get(target_agent, 0)
+        self.iteration += 1
+
+        if self.mock_reasoning:
+            old_policy = self.policies.get(target_agent, make_default_policy(target_agent))
+            old_frac = old_policy.get("parameters", {}).get("initial_liquidity_fraction", 0.5)
+            new_frac = max(0.05, min(0.95, old_frac + random.uniform(-0.15, 0.15)))
+            new_frac = round(new_frac, 3)
+            new_policy = {
+                **old_policy,
+                "policy_id": f"web_opt_{self.iteration}",
+                "parameters": {"initial_liquidity_fraction": new_frac},
+            }
+            reasoning = (
+                f"Iteration {self.iteration}: Adjusting initial_liquidity_fraction from "
+                f"{old_frac:.3f} to {new_frac:.3f}. "
+                f"Current cost is {current_agent_cost}."
+            )
+            opt_result = {"policy": new_policy, "reasoning": reasoning, "model": "mock"}
+        else:
+            opt_result = await optimize_policy_with_llm(
+                raw_yaml=self.raw_config,
+                current_policies=self.policies,
+                agent_id=target_agent,
+                simulation_trace=simulation_trace,
+                current_cost=current_agent_cost,
+                iteration=self.iteration,
+            )
+
+        new_policy = opt_result.get("policy")
+        if not new_policy:
+            return {"error": "LLM failed", "reasoning": opt_result.get("reasoning", ""), "iteration": self.iteration}
+
+        # Run sim with new policy
+        new_policies = {**self.policies, target_agent: new_policy}
+        try:
+            new_result = run_with_policy(self.raw_config, new_policies)
+            new_total = new_result["total_cost"]
+            new_agent_cost = new_result["per_agent_costs"].get(target_agent, {}).get("total", 0)
+        except Exception as e:
+            return {"error": f"Sim failed: {e}", "reasoning": opt_result.get("reasoning", ""), "iteration": self.iteration, "new_policy": new_policy}
+
+        improved = new_total <= old_total
+        accepted = improved or self.iteration <= 2
+
+        old_policy = self.policies.get(target_agent)
+        record = {
+            "iteration": self.iteration, "agent_id": target_agent,
+            "old_cost": old_total, "new_cost": new_total,
+            "old_agent_cost": current_agent_cost, "new_agent_cost": new_agent_cost,
+            "improved": improved, "accepted": accepted,
+            "reasoning": opt_result.get("reasoning", ""), "model": opt_result.get("model", ""),
+        }
+        self.optimization_history.append(record)
+        self.policy_cost_history.append({
+            "iteration": self.iteration,
+            "total_cost": new_total if accepted else old_total,
+            "accepted": accepted,
+        })
+        if accepted:
+            self.policies[target_agent] = new_policy
+
+        return {
+            "iteration": self.iteration, "agent_id": target_agent,
+            "old_cost": old_total, "new_cost": new_total,
+            "old_agent_cost": current_agent_cost, "new_agent_cost": new_agent_cost,
+            "improved": improved, "accepted": accepted,
+            "new_policy": new_policy, "old_policy": old_policy,
+            "reasoning": opt_result.get("reasoning", ""), "model": opt_result.get("model", ""),
+            "per_agent_costs": new_result["per_agent_costs"] if accepted else None,
         }
 
     async def do_tick_async(self) -> dict[str, Any]:
@@ -231,7 +362,6 @@ class SimulationInstance:
     def do_tick(self) -> dict[str, Any]:
         if self.is_complete:
             return {"error": "Simulation complete"}
-
         tick_num = self.orch.current_tick()
         return self._execute_tick(tick_num)
 
@@ -239,7 +369,6 @@ class SimulationInstance:
         result = self.orch.tick()
         events = self.orch.get_tick_events(tick_num)
 
-        # Record history
         for aid in self.get_agent_ids():
             if aid not in self.balance_history:
                 self.balance_history[aid] = []
@@ -255,7 +384,6 @@ class SimulationInstance:
             })
 
         agents = {aid: self._get_agent_data(aid) for aid in self.get_agent_ids()}
-
         formatted_events = [dict(ev) for ev in events]
 
         tick_data = {
@@ -268,6 +396,5 @@ class SimulationInstance:
             "balance_history": self.balance_history,
             "cost_history": self.cost_history,
         }
-
         self.tick_history.append(tick_data)
         return tick_data
