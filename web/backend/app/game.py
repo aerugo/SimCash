@@ -607,14 +607,14 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     client = ExperimentLLMClient(llm_config)
 
-    # MaaS models (GLM-5 etc) need custom provider config.
+    # MaaS models (GLM-5, Gemini 3 preview) need custom provider config.
     # Patch the client's agent creation to use our _create_agent helper.
     if llm_config.model_name in MAAS_MODEL_CONFIG:
         from .streaming_optimizer import _create_agent
-        _orig_call = client.call_llm
+        _orig_generate = client.generate_policy
 
-        async def _maas_call_llm(prompt, current_policy=None, context=None):
-            """Override that uses _create_agent for MaaS model support."""
+        async def _maas_generate_policy(prompt, current_policy=None, context=None):
+            """Override that uses _create_agent for MaaS/global-region model support."""
             user_prompt = client._build_user_prompt(prompt, current_policy, context)
             system_prompt = client.system_prompt or ""
             agent = _create_agent(llm_config, system_prompt)
@@ -627,7 +627,7 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
             return LLMResponse(raw_response=raw, parsed_policy=None, latency=latency,
                              model=llm_config.model, prompt_tokens=0, completion_tokens=0)
 
-        client.call_llm = _maas_call_llm
+        client.generate_policy = _maas_generate_policy
 
     # Build dynamic system prompt with cost rates from scenario
     cost_rates = raw_yaml.get("cost_rates", {})
