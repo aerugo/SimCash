@@ -7,7 +7,9 @@ const BASE = '/api';
 /** Authenticated fetch wrapper — auto-includes Bearer token for protected endpoints */
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
-  const token = await getIdToken();
+  // Dev token takes priority (staging bypass)
+  const devToken = sessionStorage.getItem('simcash_dev_token');
+  const token = devToken || await getIdToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }

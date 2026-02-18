@@ -121,9 +121,13 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = await getIdToken();
-    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${tokenParam}`);
+    const devToken = sessionStorage.getItem('simcash_dev_token');
+    const token = devToken ? null : await getIdToken();
+    const params = new URLSearchParams();
+    if (token) params.set('token', token);
+    if (devToken) params.set('dev_token', devToken);
+    const paramStr = params.toString() ? `?${params.toString()}` : '';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${paramStr}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
