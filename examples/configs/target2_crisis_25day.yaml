@@ -1,13 +1,11 @@
 # =============================================================================
-# TARGET2 Crisis Scenario - 25 Day Systemic Risk Test
+# TARGET2 Crisis — 25 Day Systemic Risk Test
 #
-# NARRATIVE: "The Limit Cascade"
-#
-# GOAL: A 25-day simulation demonstrating how bilateral and multilateral limits
-#       can amplify small shocks into systemic crises when agents don't
-#       coordinate effectively. Tests all TARGET2 LSM features:
-#       - Dual Priority System
-#       - Bilateral/Multilateral Limits with LSM awareness
+# How do bilateral and multilateral limits amplify small shocks into systemic
+# crises? This 25-day scenario tests whether AI agents can learn to coordinate
+# under TARGET2-style LSM features (dual priority system, bilateral/multilateral
+# limits, algorithm sequencing, entry disposition offsetting) or whether
+# individual optimisation triggers cascading failures across the network.
 #       - Algorithm Sequencing (FIFO -> Bilateral -> Multilateral)
 #       - Entry Disposition Offsetting
 #       - Priority Escalation

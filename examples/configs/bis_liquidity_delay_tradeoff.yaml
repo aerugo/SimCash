@@ -1,7 +1,9 @@
-# BIS Working Paper 1310 - Box 3: Mitigating Liquidity-Delay Trade-off
+# BIS Working Paper 1310 — Liquidity-Delay Trade-off
 #
-# This scenario replicates the BIS "liquidity-delay trade-off" experiment
-# using SimCash's two-agent architecture.
+# How do agents resolve the fundamental tension between holding liquidity (costly)
+# and delaying payments (also costly)? Replicates the BIS Box 3 experiment to test
+# whether AI discovers the same optimal pre-funding and timing strategies derived
+# analytically in the original paper.
 #
 # BIS Scenario Summary:
 # - Pre-period: Allocate liquidity at 1.5% opportunity cost

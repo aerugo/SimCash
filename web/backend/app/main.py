@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import uuid
@@ -834,6 +835,19 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
             if action == "step":
                 await run_one_step()
+
+            elif action == "rerun":
+                # Re-run the current (last) day with the same seed
+                target_day = msg.get("day")
+                if game.days:
+                    # Pop the last day and restore policies from before it
+                    popped = game.days.pop()
+                    # Restore policies to what they were at that day
+                    # (the day stored the policies used, so restore them)
+                    game.policies = {aid: copy.deepcopy(p) for aid, p in popped.policies.items()}
+                    await run_one_step()
+                else:
+                    await websocket.send_json({"type": "error", "message": "No days to re-run"})
 
             elif action == "auto":
                 speed_ms = msg.get("speed_ms", 1000)

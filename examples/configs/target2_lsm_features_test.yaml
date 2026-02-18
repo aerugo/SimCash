@@ -1,13 +1,11 @@
 # =============================================================================
-# TARGET2 LSM Features Test - Comprehensive Feature Validation
+# TARGET2 LSM Features — Comprehensive Test
 #
-# NARRATIVE: "Testing TARGET2 Alignment"
-#
-# GOAL: A 5-day simulation that exercises all new TARGET2 LSM features:
-#       - Dual Priority System (internal vs RTGS priorities)
-#       - Bilateral/Multilateral Limits with LSM awareness
-#       - Algorithm Sequencing (FIFO → Bilateral → Multilateral)
-#       - Entry Disposition Offsetting (pre-queue offset detection)
+# How does the Liquidity Saving Mechanism change optimal payment strategy?
+# This 5-day scenario exercises all TARGET2 LSM features — dual priorities,
+# bilateral/multilateral limits, algorithm sequencing (FIFO → bilateral →
+# multilateral), and entry disposition offsetting — to test whether agents
+# learn to exploit netting opportunities rather than relying on gross settlement.
 #       - Priority Escalation (auto-boost as deadlines approach)
 #
 # =============================================================================

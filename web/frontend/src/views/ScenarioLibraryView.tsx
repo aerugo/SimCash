@@ -36,8 +36,9 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedScenario, setSelectedScenario] = useState<LibraryScenarioDetail | null>(null);
-  const [, setDetailLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
@@ -55,9 +56,19 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
   }, []);
 
   const categories = [...new Set(scenarios.map(s => s.category))];
-  const filtered = selectedCategory
-    ? scenarios.filter(s => s.category === selectedCategory)
-    : scenarios;
+  const searchLower = searchQuery.toLowerCase();
+  const filtered = scenarios.filter(s => {
+    if (selectedCategory && s.category !== selectedCategory) return false;
+    if (searchLower) {
+      return (
+        s.name.toLowerCase().includes(searchLower) ||
+        s.description.toLowerCase().includes(searchLower) ||
+        s.tags.some(t => t.toLowerCase().includes(searchLower)) ||
+        String(s.num_agents).includes(searchLower)
+      );
+    }
+    return true;
+  });
 
   const handleSelectScenario = async (id: string) => {
     setDetailLoading(true);
@@ -98,6 +109,16 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
       <div className="text-center py-20">
         <div className="text-4xl mb-4">⚠️</div>
         <p className="text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  // Loading state for detail fetch
+  if (detailLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
+        <span className="ml-3 text-sm text-slate-400">Loading scenario details…</span>
       </div>
     );
   }
@@ -290,6 +311,17 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
         <p className="text-sm text-slate-400">
           Explore {scenarios.length} scenarios — from paper experiments to crisis stress tests.
         </p>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search scenarios by name, description, tags, or agent count…"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+        />
       </div>
 
       {/* Category filter */}

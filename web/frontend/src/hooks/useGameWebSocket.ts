@@ -36,6 +36,7 @@ interface UseGameWebSocketReturn {
   lastDay: DayResult | null;
   streamingText: Record<string, string>;
   step: () => void;
+  rerun: (day?: number) => void;
   autoRun: (speedMs?: number) => void;
   stop: () => void;
 }
@@ -185,8 +186,9 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   }, []);
 
   const step = useCallback(() => send('step'), [send]);
+  const rerun = useCallback((day?: number) => send('rerun', day != null ? { day } : undefined), [send]);
   const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
   const stop = useCallback(() => send('stop'), [send]);
 
-  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, autoRun, stop };
+  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop };
 }

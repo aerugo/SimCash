@@ -1,13 +1,10 @@
 # =============================================================================
-# TARGET2 Crisis Scenario - 25 Day Systemic Risk Test
+# TARGET2 Crisis — Bad Policy Variant
 #
-# NARRATIVE: "The Limit Cascade"
-#
-# GOAL: A 25-day simulation demonstrating how bilateral and multilateral limits
-#       can amplify small shocks into systemic crises when agents don't
-#       coordinate effectively. Tests all TARGET2 LSM features:
-#       - Dual Priority System
-#       - Bilateral/Multilateral Limits with LSM awareness
+# What happens when banks use naive strategies in a TARGET2-style crisis?
+# Same systemic stress scenario as the standard TARGET2 crisis, but agents use
+# deliberately poor policies. Provides a performance baseline to measure how
+# much value intelligent optimisation adds during a limit cascade event.
 #       - Algorithm Sequencing (FIFO -> Bilateral -> Multilateral)
 #       - Entry Disposition Offsetting
 #       - Priority Escalation

@@ -1,12 +1,12 @@
 # Advanced Policy Crisis Scenario
 #
-# NARRATIVE: "Next-Generation Cash Management Under Stress"
+# Can adaptive agents survive a multi-phase liquidity crisis using budget controls,
+# collateral timers, and stateful memory? This scenario tests whether banks that
+# dynamically adjust their release pace and counterparty priorities outperform
+# rigid strategies when conditions deteriorate over several days.
 #
-# This scenario demonstrates the latest policy system enhancements (Phases 3.3-4.5):
-# - Bank-Level Budgets: Agents control release pace and prioritize counterparties
-# - Collateral Auto-Withdraw Timers: Temporary liquidity boosts with automatic cleanup
-# - State Registers: Policy micro-memory for cooldowns, counters, and mode switching
-# - Adaptive Strategies: Banks adjust behavior based on memory and system state
+# Features exercised: bank-level budgets, collateral auto-withdraw timers,
+# state registers (cooldowns/counters/mode switching), adaptive strategies.
 #
 # DESIGN PHILOSOPHY:
 # - Day 1: Normal operations - agents establish baseline behavior patterns

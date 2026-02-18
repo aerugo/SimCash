@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
-  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [replayData, setReplayData] = useState<{
@@ -26,6 +26,9 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
   } | null>(null);
   const [replayPlaying, setReplayPlaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
+
+  const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 
   const gameState = wsState ?? initialState;
 
@@ -66,7 +69,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
 
   const handleAutoRun = () => {
     setAutoRunning(true);
-    autoRun(0);
+    autoRun(SPEED_MS[speed]);
   };
 
   // Stop auto-run when game completes
@@ -110,6 +113,14 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             ▶ Next Day
           </button>
           <button
+            onClick={() => rerun()}
+            disabled={!connected || autoRunning || gameState.days.length === 0}
+            title="Re-run the last day with the same seed (deterministic replay)"
+            className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
+          >
+            🔄 Re-run Day
+          </button>
+          <button
             onClick={autoRunning ? stop : handleAutoRun}
             disabled={!connected || gameState.is_complete}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
@@ -120,6 +131,26 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           >
             {autoRunning ? '⏹ Stop' : '⏩ Auto-run'}
           </button>
+          {/* Speed control */}
+          <div className="flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+            {([['fast', '⏩'], ['normal', '▶️'], ['slow', '🐢']] as const).map(([s, icon]) => (
+              <button
+                key={s}
+                onClick={() => {
+                  setSpeed(s);
+                  if (autoRunning) autoRun(SPEED_MS[s]);
+                }}
+                className={`px-2.5 py-2 text-xs font-medium transition-all ${
+                  speed === s
+                    ? 'bg-sky-600 text-white'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                }`}
+                title={`${s.charAt(0).toUpperCase() + s.slice(1)} speed${s === 'fast' ? ' (no delay)' : s === 'normal' ? ' (3s pause)' : ' (8s pause)'}`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
           <div className="relative">
             <button
               onClick={() => setExportOpen(!exportOpen)}
@@ -161,6 +192,14 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           style={{ width: `${(gameState.current_day / gameState.max_days) * 100}%` }}
         />
       </div>
+
+      {autoRunning && phase === 'idle' && !gameState.is_complete && speed !== 'fast' && (
+        <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl p-3 text-center">
+          <span className="text-sm text-slate-400">
+            ⏳ Pausing between days... ({speed === 'normal' ? '3s' : '8s'})
+          </span>
+        </div>
+      )}
 
       {phase === 'simulating' && (
         <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">

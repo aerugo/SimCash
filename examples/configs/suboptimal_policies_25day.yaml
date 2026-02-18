@@ -1,10 +1,10 @@
 # =============================================================================
-# Suboptimal Policies - 25 Day RESILIENT Scenario
+# Suboptimal Policies — 25 Day Resilient Scenario
 #
-# NARRATIVE: "The Cost of Inefficiency"
-#
-# GOAL: A resilient 25-day simulation that demonstrates how suboptimal policies
-#       underperform during periods of recoverable market stress.
+# Do sub-optimal strategies become increasingly costly over longer horizons?
+# Extends the 10-day experiment to 25 days with recoverable market stress periods,
+# testing whether the performance gap between efficient and inefficient banks
+# compounds, stabilises, or narrows as agents accumulate experience.
 #
 # =============================================================================
 #

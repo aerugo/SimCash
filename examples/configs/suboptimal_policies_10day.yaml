@@ -1,9 +1,9 @@
-# Suboptimal Policies - 10 Day Scenario
+# Suboptimal Policies — 10 Day Scenario
 #
-# NARRATIVE: "Cost of Inefficiency - When Good Isn't Good Enough"
-#
-# This scenario demonstrates how suboptimal liquidity management policies
-# lead to unnecessary costs even in a non-crisis environment.
+# What is the measurable cost of sub-optimal liquidity management? Pits two banks
+# using inefficient strategies (conservative hoarding, reactive releasing) against
+# two banks using optimal policies over 10 days. Quantifies how much performance
+# gap emerges from strategic misalignment in a stable environment.
 #
 # SCENARIO DESIGN:
 # - Two banks (CONSERVATIVE_BANK, REACTIVE_BANK) use suboptimal policies

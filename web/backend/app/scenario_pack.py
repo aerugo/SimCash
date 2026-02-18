@@ -66,7 +66,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "2bank_2tick",
         "name": "2 Banks, 2 Ticks",
-        "description": "Deterministic-style. Quick Nash equilibrium test.",
+        "description": "Can AI agents find a Nash equilibrium in the simplest possible setting? With only 2 periods and 2 banks, this minimal scenario isolates the core strategic tension between paying early (costly liquidity) and paying late (deadline risk).",
         "num_agents": 2,
         "ticks_per_day": 2,
         "scenario": generate_scenario(num_agents=2, ticks_per_day=2, deadline_range=[1, 2]),
@@ -74,7 +74,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "2bank_12tick",
         "name": "2 Banks, 12 Ticks",
-        "description": "Castro Experiment 2 baseline. Stochastic arrivals over 12 periods.",
+        "description": "How do two banks optimise the liquidity-delay trade-off over a realistic trading day? Based on Castro (2024) Experiment 2, this scenario tests whether AI agents discover the same intraday liquidity patterns observed in real RTGS systems — early caution followed by end-of-day urgency.",
         "num_agents": 2,
         "ticks_per_day": 12,
         "scenario": generate_scenario(num_agents=2, ticks_per_day=12),
@@ -82,7 +82,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "2bank_3tick",
         "name": "2 Banks, 3 Ticks",
-        "description": "Joint liquidity & timing optimization. Compact scenario.",
+        "description": "When do agents learn to split liquidity across periods versus concentrating payments? This compact 3-tick scenario creates a tight decision space where the optimal strategy requires balancing immediate release against holding reserves for later, higher-urgency payments.",
         "num_agents": 2,
         "ticks_per_day": 3,
         "scenario": generate_scenario(num_agents=2, ticks_per_day=3, deadline_range=[1, 3]),
@@ -90,7 +90,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "3bank_6tick",
         "name": "3 Banks, 6 Ticks",
-        "description": "Multilateral: three banks with symmetric payment flows.",
+        "description": "How does adding a third bank change strategic dynamics? With trilateral payment flows, agents can no longer rely on bilateral reciprocity alone. Tests whether AI discovers free-rider incentives and multilateral coordination patterns in a small network.",
         "num_agents": 3,
         "ticks_per_day": 6,
         "scenario": generate_scenario(num_agents=3, ticks_per_day=6),
@@ -98,7 +98,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "4bank_8tick",
         "name": "4 Banks, 8 Ticks",
-        "description": "Complex network with four interconnected banks.",
+        "description": "Does coordination break down as the network grows? Four interconnected banks create complex payment chains where one agent's delay cascades through the system. Tests whether AI can learn network-aware strategies rather than optimising in isolation.",
         "num_agents": 4,
         "ticks_per_day": 8,
         "scenario": generate_scenario(num_agents=4, ticks_per_day=8),
@@ -106,7 +106,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "2bank_stress",
         "name": "2 Banks, High Stress",
-        "description": "5x penalties — punishes delays harshly. Tests aggressive optimization.",
+        "description": "What happens when penalty rates are 5× normal? With deadline penalties at $2,500 and end-of-day penalties at $5,000, this scenario tests whether AI agents learn to be more conservative under extreme cost pressure — or whether they over-correct and waste liquidity.",
         "num_agents": 2,
         "ticks_per_day": 12,
         "scenario": generate_scenario(num_agents=2, ticks_per_day=12,
@@ -115,7 +115,7 @@ SCENARIO_PACK: list[dict[str, Any]] = [
     {
         "id": "5bank_12tick",
         "name": "5 Banks, 12 Ticks",
-        "description": "Full network: 5 banks, 12 periods. Maximum complexity.",
+        "description": "Can AI scale to a full 5-bank network over a complete trading day? This maximum-complexity scenario tests whether optimisation strategies that work for 2-3 banks still hold when payment flows are distributed across a larger, more interconnected system.",
         "num_agents": 5,
         "ticks_per_day": 12,
         "scenario": generate_scenario(num_agents=5, ticks_per_day=12),

@@ -1,13 +1,10 @@
 # =============================================================================
-# Test Configuration: Priority Escalation via Queue 2 Resubmission
+# Priority Escalation Test
 #
-# PURPOSE: Test that the target2_priority_escalator policy correctly:
-#          1. Monitors transactions in RTGS Queue 2
-#          2. Escalates to Urgent when deadline < 30 ticks
-#          3. Escalates to HighlyUrgent when deadline < 10 ticks
-#          4. Uses ResubmitToRtgs compound action (withdraw + resubmit)
-#
-# EXPECTED EVENTS:
+# Does dynamic priority escalation reduce deadline breaches? Tests whether
+# automatically promoting queued payments to Urgent (< 30 ticks) and
+# HighlyUrgent (< 10 ticks) via Queue 2 resubmission improves settlement
+# outcomes compared to static priority assignment.
 #   - RtgsWithdrawal: Transaction withdrawn from Queue 2
 #   - RtgsResubmission: Transaction resubmitted with new priority
 # =============================================================================

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const STORAGE_KEY = 'simcash_how_it_works_seen';
+const SESSION_KEY = 'simcash_how_it_works_dismissed';
 
 interface Props {
   defaultOpen?: boolean;
@@ -8,7 +8,7 @@ interface Props {
 
 export function HowItWorks({ defaultOpen = false }: Props) {
   const [open, setOpen] = useState(() => {
-    const dismissed = localStorage.getItem(STORAGE_KEY);
+    const dismissed = sessionStorage.getItem(SESSION_KEY);
     if (dismissed === 'true') return false;
     return defaultOpen;
   });
@@ -17,23 +17,33 @@ export function HowItWorks({ defaultOpen = false }: Props) {
     const next = !open;
     setOpen(next);
     if (!next) {
-      localStorage.setItem(STORAGE_KEY, 'true');
+      sessionStorage.setItem(SESSION_KEY, 'true');
     }
   };
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 mb-6">
-      <button
-        onClick={toggle}
-        className="w-full flex items-center justify-between p-4 text-left"
-      >
-        <span className="text-sm font-semibold text-slate-300">
-          💡 How It Works
-        </span>
-        <span className="text-slate-500 text-xs">
-          {open ? '▲ hide' : '▼ show'}
-        </span>
-      </button>
+      <div className="flex items-center justify-between p-4">
+        <button
+          onClick={toggle}
+          className="flex-1 flex items-center justify-between text-left"
+        >
+          <span className="text-sm font-semibold text-slate-300">
+            💡 How It Works
+          </span>
+          <span className="text-slate-500 text-xs">
+            {open ? '▲ hide' : '▼ show'}
+          </span>
+        </button>
+        {!open && (
+          <button
+            onClick={() => setOpen(true)}
+            className="ml-3 text-xs text-sky-400 hover:text-sky-300 transition-colors"
+          >
+            ℹ️ How it works
+          </button>
+        )}
+      </div>
 
       {open && (
         <div className="px-4 pb-4 space-y-4 text-sm text-slate-400">
