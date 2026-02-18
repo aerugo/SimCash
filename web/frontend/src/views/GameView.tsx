@@ -4,7 +4,7 @@ import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { useResearchMode } from '../contexts/ResearchModeContext';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
-import { PolicyVisualization } from '../components/PolicyVisualization';
+// PolicyVisualization available for future use when game state includes full tree data
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 

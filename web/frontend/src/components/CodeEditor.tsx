@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import Editor from 'react-simple-code-editor';
 import { Highlight, themes } from 'prism-react-renderer';
 
@@ -101,7 +101,7 @@ export function CodeEditor({ value, onChange, language, height = '500px', classN
 }
 
 // Manual tokenizer for when Prism doesn't have the language grammar
-function manualHighlight(code: string, grammar: Record<string, unknown>): JSX.Element {
+function manualHighlight(code: string, grammar: Record<string, unknown>): React.JSX.Element {
   const lines = code.split('\n');
   return (
     <>
@@ -112,7 +112,7 @@ function manualHighlight(code: string, grammar: Record<string, unknown>): JSX.El
   );
 }
 
-function highlightLine(line: string, grammar: Record<string, unknown>): (JSX.Element | string)[] {
+function highlightLine(line: string, grammar: Record<string, unknown>): ( React.JSX.Element | string)[] {
   const tokens: { start: number; end: number; type: string }[] = [];
 
   for (const [type, pattern] of Object.entries(grammar)) {
@@ -142,7 +142,7 @@ function highlightLine(line: string, grammar: Record<string, unknown>): (JSX.Ele
     }
   }
 
-  const result: (JSX.Element | string)[] = [];
+  const result: ( React.JSX.Element | string)[] = [];
   let pos = 0;
   for (const t of filtered) {
     if (t.start > pos) result.push(line.slice(pos, t.start));

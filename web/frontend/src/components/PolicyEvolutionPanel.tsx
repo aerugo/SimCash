@@ -180,7 +180,7 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
                   {d.reasoning[aid] && (
                     <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{d.reasoning[aid]}</p>
                   )}
-                  {policy && (policy as Record<string, unknown>).payment_tree && (
+                  {policy && typeof (policy as Record<string, unknown>).payment_tree === 'object' && (
                     <details className="mt-2">
                       <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">
                         View Decision Trees

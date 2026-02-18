@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 
 // ---- Types for policy tree nodes ----
 
@@ -157,7 +157,7 @@ function getBounds(node: LayoutNode): { minX: number; maxX: number; minY: number
 
 // ---- SVG rendering ----
 
-function renderNode(node: LayoutNode, elements: JSX.Element[]) {
+function renderNode(node: LayoutNode, elements: React.JSX.Element[]) {
   const isAction = node.type === 'action';
   const colors = isAction
     ? (ACTION_COLORS[node.action || ''] || ACTION_COLORS.NoAction)
@@ -281,7 +281,7 @@ export function PolicyTreeView({ tree, title, className = '' }: PolicyTreeViewPr
     const pad = 20;
     const vb = `${bounds.minX - pad} ${bounds.minY - pad} ${bounds.maxX - bounds.minX + pad * 2} ${bounds.maxY - bounds.minY + pad * 2 + 10}`;
 
-    const elements: JSX.Element[] = [];
+    const elements: React.JSX.Element[] = [];
     renderNode(root, elements);
 
     return { svg: elements, viewBox: vb };

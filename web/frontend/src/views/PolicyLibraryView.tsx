@@ -347,7 +347,7 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
               compareMode && compareIds.includes(policy.id)
                 ? 'border-violet-500/70'
                 : 'border-slate-700 hover:border-sky-500/50'
-            } ${policy.visible === false ? 'opacity-50' : ''}`
+            } ${policy.visible === false ? 'opacity-50' : ''}`}
           >
             {compareMode && (
               <button

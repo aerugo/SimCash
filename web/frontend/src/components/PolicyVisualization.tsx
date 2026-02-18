@@ -33,8 +33,8 @@ export function PolicyVisualization({ policy, className = '', compact = false }:
     <div className={className}>
       {!compact && (
         <div className="mb-3">
-          {policy.policy_id && (
-            <div className="text-xs text-slate-500 font-mono mb-1">{String(policy.policy_id)}</div>
+          {typeof policy.policy_id === 'string' && (
+            <div className="text-xs text-slate-500 font-mono mb-1">{policy.policy_id}</div>
           )}
           {params?.initial_liquidity_fraction != null && (
             <div className="text-xs text-slate-400">
