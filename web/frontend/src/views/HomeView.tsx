@@ -183,9 +183,13 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold mb-2">Payment System Simulator</h2>
-        <p className="text-slate-400">
-          Watch AI agents make real-time decisions about liquidity allocation and payment timing
+        <h2 className="text-3xl font-bold mb-1">Payment System Simulator</h2>
+        <p className="text-lg text-violet-300/90 italic mb-3">Can AI agents learn to play the liquidity game?</p>
+        <p className="text-slate-400 max-w-2xl mx-auto">
+          A multi-agent simulation where banks independently optimize their RTGS liquidity strategies — and we watch what emerges.
+        </p>
+        <p className="text-xs text-slate-500 mt-2">
+          Extends the methodology of BIS Working Paper 1310 (Castro et al., 2025)
         </p>
       </div>
 
@@ -257,6 +261,27 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
       {mode === 'game' ? (
         <div className="space-y-6 mb-8">
+          {/* Quick Run CTA */}
+          <div className="text-center">
+            <button
+              onClick={() => {
+                onGameLaunch?.({
+                  scenario_id: '2bank_12tick',
+                  use_llm: true,
+                  mock_reasoning: true,
+                  max_days: 5,
+                  num_eval_samples: 1,
+                  optimization_interval: 1,
+                  constraint_preset: 'full',
+                });
+              }}
+              className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
+            >
+              ▶ Run an Experiment
+            </button>
+            <p className="text-xs text-slate-500 mt-2">Launches the 2-bank scenario with default settings</p>
+          </div>
+
           {/* Scenario Pack */}
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-300">Choose Scenario</h3>
@@ -272,7 +297,12 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <div className="font-semibold">{s.name}</div>
+                    <div className="font-semibold flex items-center gap-2">
+                      {s.name}
+                      {s.id === '2bank_12tick' && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">★ Recommended</span>
+                      )}
+                    </div>
                     <div className="text-sm text-slate-400 mt-1">{s.description}</div>
                     {s.cost_rates && (
                       <div className="text-xs text-slate-500 mt-2 flex gap-3">

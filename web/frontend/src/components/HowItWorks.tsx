@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const STORAGE_KEY = 'simcash-how-it-works-dismissed';
+const STORAGE_KEY = 'simcash_how_it_works_seen';
 
 interface Props {
   defaultOpen?: boolean;
