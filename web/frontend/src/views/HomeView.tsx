@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
-import { getGameScenarios } from '../api';
+import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig, LibraryPolicy } from '../types';
+import { getGameScenarios, getPolicyLibrary } from '../api';
 import { HowItWorks } from '../components/HowItWorks';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
@@ -44,10 +44,37 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   const [gameMockReasoning, setGameMockReasoning] = useState(true);
   const [optimizationInterval, setOptimizationInterval] = useState(1);
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('full');
+  const [policyLibrary, setPolicyLibrary] = useState<LibraryPolicy[]>([]);
+  const [startingPoliciesOpen, setStartingPoliciesOpen] = useState(false);
+  const [agentPolicies, setAgentPolicies] = useState<Record<string, string>>({});  // agent_id → policy_id or 'default'
+  const [policyDetails, setPolicyDetails] = useState<Record<string, string>>({});  // policy_id → raw JSON string
 
   useEffect(() => {
     getGameScenarios().then(setGameScenarios).catch(() => {});
+    getPolicyLibrary().then((policies) => {
+      setPolicyLibrary(policies);
+      // Pre-fetch raw JSON for each library policy
+      const details: Record<string, string> = {};
+      Promise.all(policies.map(async (p) => {
+        try {
+          const res = await fetch(`/api/policies/library/${p.id}`);
+          const data = await res.json();
+          if (data.raw) details[p.id] = JSON.stringify(data.raw);
+        } catch { /* ignore */ }
+      })).then(() => setPolicyDetails(details));
+    }).catch(() => {});
   }, []);
+
+  // Derive agent IDs from selected scenario
+  const selectedScenarioData = gameScenarios.find(s => s.id === selectedScenario);
+  const agentIds = selectedScenarioData
+    ? Array.from({ length: selectedScenarioData.num_agents }, (_, i) => `BANK_${String.fromCharCode(65 + i)}`)
+    : [];
+
+  // Reset agent policies when scenario changes
+  useEffect(() => {
+    setAgentPolicies({});
+  }, [selectedScenario]);
 
   const handleLaunch = () => {
     if (mode === 'preset') {
@@ -375,8 +402,87 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             </div>
           </Section>
 
+          {/* Starting Policies (collapsible) */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700">
+            <button
+              onClick={() => setStartingPoliciesOpen(!startingPoliciesOpen)}
+              className="w-full flex items-center justify-between p-4 text-left"
+            >
+              <span className="text-sm font-semibold text-slate-300">
+                {startingPoliciesOpen ? '▼' : '▶'} Starting Policies <span className="text-slate-500 font-normal">(optional)</span>
+              </span>
+              {Object.values(agentPolicies).some(v => v !== 'default') && (
+                <span className="text-xs text-violet-400">Custom policies set</span>
+              )}
+            </button>
+            {startingPoliciesOpen && (
+              <div className="px-4 pb-4 space-y-3">
+                {agentIds.map(aid => (
+                  <div key={aid} className="flex items-center gap-3">
+                    <span className="text-sm font-mono text-slate-300 w-20">{aid}</span>
+                    <select
+                      value={agentPolicies[aid] || 'default'}
+                      onChange={e => setAgentPolicies(prev => ({ ...prev, [aid]: e.target.value }))}
+                      className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
+                    >
+                      <option value="default">Default (FIFO)</option>
+                      {policyLibrary.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (frac={String((p.parameters as Record<string, unknown>)?.initial_liquidity_fraction ?? '?')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                {agentIds.length > 1 && (
+                  <div className="flex items-center gap-3 pt-2 border-t border-slate-700/50">
+                    <span className="text-xs text-slate-500 w-20">Apply to all:</span>
+                    <select
+                      value=""
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (val) {
+                          const updated: Record<string, string> = {};
+                          agentIds.forEach(aid => { updated[aid] = val; });
+                          setAgentPolicies(updated);
+                        }
+                      }}
+                      className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
+                    >
+                      <option value="">— select —</option>
+                      <option value="default">Default (FIFO)</option>
+                      {policyLibrary.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <button
-            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples, optimization_interval: optimizationInterval, constraint_preset: constraintPreset })}
+            onClick={() => {
+              // Build starting_policies from agentPolicies
+              const startingPolicies: Record<string, string> = {};
+              for (const [aid, policyId] of Object.entries(agentPolicies)) {
+                if (policyId && policyId !== 'default' && policyDetails[policyId]) {
+                  startingPolicies[aid] = policyDetails[policyId];
+                }
+              }
+              onGameLaunch?.({
+                scenario_id: selectedScenario,
+                use_llm: gameUseLlm,
+                mock_reasoning: gameMockReasoning,
+                max_days: maxDays,
+                num_eval_samples: numEvalSamples,
+                optimization_interval: optimizationInterval,
+                constraint_preset: constraintPreset,
+                starting_policies: Object.keys(startingPolicies).length > 0 ? startingPolicies : undefined,
+              });
+            }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
             🎮 Start Game

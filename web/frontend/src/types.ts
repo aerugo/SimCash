@@ -239,6 +239,7 @@ export interface GameSetupConfig {
   num_eval_samples: number;
   optimization_interval?: number;
   constraint_preset?: 'simple' | 'standard' | 'full';
+  starting_policies?: Record<string, string>;  // agent_id → policy JSON string
 }
 
 export interface ConstraintPresetInfo {

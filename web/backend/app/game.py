@@ -73,7 +73,8 @@ class Game:
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
                  mock_reasoning: bool = True, max_days: int = 10,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
-                 constraint_preset: str = "simple"):
+                 constraint_preset: str = "simple",
+                 starting_policies: dict[str, str] | None = None):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
@@ -87,6 +88,19 @@ class Game:
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
         self.reasoning_history: dict[str, list[dict]] = {aid: [] for aid in self.agent_ids}
         self._base_seed = raw_yaml.get("simulation", {}).get("rng_seed", 42)
+
+        # Apply starting policies (agent_id → policy JSON string)
+        if starting_policies:
+            for agent_id, policy_json_str in starting_policies.items():
+                if agent_id not in self.agent_ids:
+                    raise ValueError(f"Unknown agent ID in starting_policies: {agent_id}")
+                try:
+                    policy = json.loads(policy_json_str)
+                except (json.JSONDecodeError, TypeError) as e:
+                    raise ValueError(f"Invalid policy JSON for {agent_id}: {e}")
+                fraction = policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
+                policy.setdefault("parameters", {})["initial_liquidity_fraction"] = fraction
+                self.policies[agent_id] = policy
 
     @property
     def current_day(self) -> int:

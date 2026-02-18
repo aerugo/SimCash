@@ -581,16 +581,20 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
         raw_yaml = copy.deepcopy(raw_yaml)
 
-    game = Game(
-        game_id=game_id,
-        raw_yaml=raw_yaml,
-        use_llm=config.use_llm,
-        mock_reasoning=config.mock_reasoning,
-        max_days=config.max_days,
-        num_eval_samples=config.num_eval_samples,
-        optimization_interval=config.optimization_interval,
-        constraint_preset=config.constraint_preset,
-    )
+    try:
+        game = Game(
+            game_id=game_id,
+            raw_yaml=raw_yaml,
+            use_llm=config.use_llm,
+            mock_reasoning=config.mock_reasoning,
+            max_days=config.max_days,
+            num_eval_samples=config.num_eval_samples,
+            optimization_interval=config.optimization_interval,
+            constraint_preset=config.constraint_preset,
+            starting_policies=config.starting_policies,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     game_manager[game_id] = game
 
     # Persist: create DuckDB + update index

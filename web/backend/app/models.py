@@ -155,6 +155,7 @@ class CreateGameRequest(BaseModel):
     num_eval_samples: int = Field(default=1, ge=1, le=50)
     optimization_interval: int = Field(default=1, ge=1, le=50)
     constraint_preset: str = Field(default="simple", pattern="^(simple|standard|full)$")
+    starting_policies: dict[str, str] | None = None  # agent_id → policy JSON string
 
 
 class CompareRequest(BaseModel):
