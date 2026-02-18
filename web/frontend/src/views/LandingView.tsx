@@ -1,16 +1,32 @@
 import { useAuth } from '../hooks/useAuth';
 
 const FEATURES = [
-  { icon: '📅', title: 'Multi-Day Optimization', desc: 'AI agents learn liquidity strategies across multi-day settlement horizons with realistic carry-over dynamics.' },
-  { icon: '🌳', title: 'Real Decision Trees', desc: 'Agents produce interpretable policy trees — not black-box weights — so you can trace every decision.' },
-  { icon: '📊', title: 'Bootstrap Evaluation', desc: 'Statistically rigorous policy scoring with bootstrap confidence intervals over thousands of replications.' },
-  { icon: '📚', title: 'Scenario Library', desc: 'Pre-built scenarios from the research literature, plus a visual editor for designing your own.' },
+  {
+    icon: '🌳',
+    title: 'Full Policy Decision Trees',
+    desc: 'AI agents don\'t just tune a single parameter — they build complete decision trees that evaluate 80+ context fields per transaction: balance, urgency, queue pressure, counterparty exposure, and more.',
+  },
+  {
+    icon: '⚡',
+    title: '8 Strategic Actions',
+    desc: 'Release, Hold, Split, StaggerSplit, ReleaseWithCredit, Reprioritize, PostCollateral, SetReleaseBudget — agents learn when each action is optimal.',
+  },
+  {
+    icon: '📊',
+    title: 'Multi-Round Optimization',
+    desc: 'Each round, AI agents independently analyze their costs and propose improved policies. Over many rounds, strategies converge — or don\'t. Watch game-theoretic dynamics unfold.',
+  },
+  {
+    icon: '📚',
+    title: 'Scenario Library & Editor',
+    desc: 'Pre-built scenarios from the research literature — crisis events, LSM configurations, multi-bank networks — plus a visual editor for designing your own.',
+  },
 ];
 
 const STEPS = [
-  { num: '1', label: 'Pick a scenario', desc: 'Choose from the library or design a custom payment network.' },
-  { num: '2', label: 'Watch AI agents learn', desc: 'Agents explore strategies in real time, building decision trees.' },
-  { num: '3', label: 'Analyze results', desc: 'Compare policies, inspect agent reasoning, and export findings.' },
+  { num: '1', label: 'Pick a scenario', desc: 'Choose a payment network: number of banks, tick count, cost structure, LSM rules, and scheduled events.' },
+  { num: '2', label: 'Watch agents learn', desc: 'Each agent builds a policy tree — deciding per-transaction what to release, hold, split, or defer based on real-time conditions.' },
+  { num: '3', label: 'Analyze strategies', desc: 'Inspect decision trees, compare cost breakdowns, trace individual payments, and export data for further analysis.' },
 ];
 
 export function LandingView() {
@@ -20,16 +36,17 @@ export function LandingView() {
     <div className="min-h-screen bg-[#0f172a] text-slate-100">
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 pt-24 pb-16 text-center">
-        <div className="text-6xl mb-6">💰</div>
         <h1 className="text-4xl sm:text-5xl font-bold mb-4 bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
           SimCash
         </h1>
         <p className="text-xl sm:text-2xl text-slate-300 font-light mb-3">
-          AI Agents Learn to Play the Liquidity Game
+          Can AI agents learn to coordinate in payment systems?
         </p>
         <p className="text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          An interactive research platform for studying how AI agents learn coordination strategies
-          in RTGS and LSM payment systems — where timing, liquidity, and strategic patience all matter.
+          An interactive research platform where AI agents independently learn payment strategies
+          in simulated RTGS and LSM systems. Each agent builds a complete decision tree —
+          choosing what to do with every transaction based on balance, timing, queue state,
+          and counterparty behavior. We watch whether they converge to equilibrium.
         </p>
         <button
           onClick={signIn}

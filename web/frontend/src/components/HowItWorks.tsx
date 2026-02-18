@@ -29,59 +29,66 @@ export function HowItWorks({ defaultOpen = false }: Props) {
           className="flex-1 flex items-center justify-between text-left"
         >
           <span className="text-sm font-semibold text-slate-300">
-            💡 How It Works
+            How It Works
           </span>
           <span className="text-slate-500 text-xs">
             {open ? '▲ hide' : '▼ show'}
           </span>
         </button>
-        {!open && (
-          <button
-            onClick={() => setOpen(true)}
-            className="ml-3 text-xs text-sky-400 hover:text-sky-300 transition-colors"
-          >
-            ℹ️ How it works
-          </button>
-        )}
       </div>
 
       {open && (
         <div className="px-4 pb-4 space-y-4 text-sm text-slate-400">
           <div>
-            <h4 className="font-medium text-slate-300 mb-1">🏦 What This Simulates</h4>
+            <h4 className="font-medium text-slate-300 mb-1">What This Simulates</h4>
             <p>
               An RTGS (Real-Time Gross Settlement) payment system where banks must decide
-              how much liquidity to commit each day. Banks face a strategic tradeoff:
-              commit more liquidity (costly) or risk payment delays and penalties.
+              how to handle every incoming payment — release it immediately, hold it for later,
+              split it into smaller parts, use credit facilities, or adjust collateral.
               Based on the coordination game model from Castro et al. (2025).
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-slate-300 mb-1">🔄 The Game Loop</h4>
+            <h4 className="font-medium text-slate-300 mb-1">What Agents Control</h4>
             <p>
-              Each day: (1) Banks commit liquidity based on their policy, (2) Payments
-              arrive (stochastically or on a fixed schedule) and settle in real-time, (3) Costs
-              are tallied — liquidity held, delays incurred, deadlines missed, (4) An AI agent
-              analyzes each bank's results and proposes an improved policy for the next day.
-              Over many days, policies converge toward a stable profile.
+              Each agent builds a <strong>policy</strong> — a set of decision trees that the Rust engine
+              executes automatically every tick. A policy controls:
+            </p>
+            <ul className="mt-2 space-y-1 ml-4">
+              <li>
+                <strong className="text-slate-300">Per-transaction decisions</strong> — for each payment in the queue,
+                the policy tree evaluates conditions (balance, urgency, queue size, counterparty exposure)
+                and decides: Release, Hold, Split, ReleaseWithCredit, or Reprioritize.
+              </li>
+              <li>
+                <strong className="text-slate-300">Per-tick budget</strong> — a bank-level tree can set release budgets,
+                manage state registers (cross-tick memory), and control macro-level strategy.
+              </li>
+              <li>
+                <strong className="text-slate-300">Collateral management</strong> — dedicated trees for posting
+                or withdrawing collateral to manage borrowing capacity.
+              </li>
+              <li>
+                <strong className="text-slate-300">Liquidity allocation</strong> — the fraction of the pool
+                to commit at day start (one of many parameters, not the only one).
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-slate-300 mb-1">The Optimization Loop</h4>
+            <p>
+              Each round: (1) The engine runs the policy for all ticks, (2) Costs
+              are tallied — liquidity held, delays incurred, deadlines missed, (3) An AI agent
+              analyzes results and proposes an improved policy for the next round —
+              potentially restructuring the entire decision tree, not just tuning a number.
+              Over many rounds, strategies evolve toward equilibrium.
             </p>
           </div>
 
           <div>
-            <h4 className="font-medium text-slate-300 mb-1">🎯 Key Parameter</h4>
-            <p>
-              <code className="text-xs bg-slate-900 px-1 py-0.5 rounded text-sky-400">
-                initial_liquidity_fraction
-              </code>{' '}
-              — the fraction of a bank's liquidity pool to commit at the start of each day.
-              0% = commit nothing (payments will fail), 100% = commit everything (expensive).
-              The AI optimizes this value, typically converging around 5–10% for standard scenarios.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-medium text-slate-300 mb-1">⚖️ Cost Tradeoffs</h4>
+            <h4 className="font-medium text-slate-300 mb-1">Cost Tradeoffs</h4>
             <p>
               Three competing costs ranked by severity: <strong>Liquidity cost</strong>{' '}
               <span className="text-slate-500">(r<sub>c</sub>)</span> — proportional to committed
