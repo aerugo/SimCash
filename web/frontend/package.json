@@ -12,8 +12,11 @@
   "dependencies": {
     "firebase": "^12.9.0",
     "js-yaml": "^4.1.1",
+    "prism-react-renderer": "^2.4.1",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "react-simple-code-editor": "^0.14.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

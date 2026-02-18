@@ -17,54 +17,57 @@ import { PolicyLibraryView } from './views/PolicyLibraryView';
 import { CreateView } from './views/CreateView';
 import type { ScenarioEditorState } from './views/ScenarioEditorView';
 import { AuthProvider } from './contexts/AuthContext';
+import { ResearchModeProvider, useResearchMode } from './contexts/ResearchModeContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
 import { LandingView } from './views/LandingView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { checkAdmin } from './api';
 
-const SECTIONS: NavSection[] = [
-  {
-    id: 'play', label: 'Play', icon: '🏠', defaultTab: 'home',
-    tabs: [{ id: 'home', label: 'Play' }],
-  },
-  {
-    id: 'library', label: 'Library', icon: '📚', defaultTab: 'scenarios',
-    tabs: [
-      { id: 'scenarios', label: 'Scenarios' },
-      { id: 'policies', label: 'Policies' },
-      { id: 'library', label: 'Saved' },
-    ],
-  },
-  {
-    id: 'create', label: 'Create', icon: '✏️', defaultTab: 'create',
-    tabs: [{ id: 'create', label: 'Create' }],
-  },
-  {
-    id: 'game', label: 'Game', icon: '🎮', defaultTab: 'game',
-    tabs: [{ id: 'game', label: 'Game' }],
-    requiresGame: true,
-  },
-  {
-    id: 'simulation', label: 'Simulation', icon: '📊', defaultTab: 'dashboard',
-    tabs: [
-      { id: 'dashboard', label: 'Dashboard' },
-      { id: 'agents', label: 'Agents' },
-      { id: 'events', label: 'Events' },
-      { id: 'config', label: 'Config' },
-      { id: 'replay', label: 'Replay' },
-      { id: 'analysis', label: 'Analysis' },
-    ],
-    requiresSim: true,
-  },
-  {
-    id: 'docs', label: 'Docs', icon: '📖', defaultTab: 'docs',
-    tabs: [{ id: 'docs', label: 'Docs' }],
-  },
-];
+function buildSections(l: (game: string, research: string) => string): NavSection[] {
+  return [
+    {
+      id: 'play', label: l('Play', 'Run'), icon: '🏠', defaultTab: 'home',
+      tabs: [{ id: 'home', label: l('Play', 'Run') }],
+    },
+    {
+      id: 'library', label: 'Library', icon: '📚', defaultTab: 'scenarios',
+      tabs: [
+        { id: 'scenarios', label: 'Scenarios' },
+        { id: 'policies', label: 'Policies' },
+        { id: 'library', label: 'Saved' },
+      ],
+    },
+    {
+      id: 'create', label: 'Create', icon: '✏️', defaultTab: 'create',
+      tabs: [{ id: 'create', label: 'Create' }],
+    },
+    {
+      id: 'game', label: l('Game', 'Experiment'), icon: l('🎮', '🧪'), defaultTab: 'game',
+      tabs: [{ id: 'game', label: l('Game', 'Experiment') }],
+      requiresGame: true,
+    },
+    {
+      id: 'simulation', label: 'Simulation', icon: '📊', defaultTab: 'dashboard',
+      tabs: [
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'agents', label: 'Agents' },
+        { id: 'events', label: 'Events' },
+        { id: 'config', label: 'Config' },
+        { id: 'replay', label: 'Replay' },
+        { id: 'analysis', label: 'Analysis' },
+      ],
+      requiresSim: true,
+    },
+    {
+      id: 'docs', label: 'Docs', icon: '📖', defaultTab: 'docs',
+      tabs: [{ id: 'docs', label: 'Docs' }],
+    },
+  ];
+}
 
-function getSectionForTab(tabId: TabId): SectionId {
-  for (const s of SECTIONS) {
+function getSectionForTab(tabId: TabId, sections: NavSection[]): SectionId {
+  for (const s of sections) {
     if (s.tabs.some(t => t.id === tabId)) return s.id;
   }
   return 'play';
@@ -126,12 +129,16 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ResearchModeProvider>
+        <AppContent />
+      </ResearchModeProvider>
     </AuthProvider>
   );
 }
 
 function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignOut: () => void; isAdmin: boolean }) {
+  const { researchMode, toggleResearchMode, label } = useResearchMode();
+  const SECTIONS = buildSections(label);
   const [presets, setPresets] = useState<Preset[]>([]);
   const [tab, setTab] = useState<TabId>('home');
   const [simId, setSimId] = useState<string | null>(null);
@@ -273,7 +280,7 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
     return true;
   });
 
-  const activeSection = visibleSections.find(s => s.id === getSectionForTab(tab)) ?? visibleSections[0];
+  const activeSection = visibleSections.find(s => s.id === getSectionForTab(tab, SECTIONS)) ?? visibleSections[0];
   const showSubTabs = activeSection && activeSection.tabs.length > 1;
 
   return (
@@ -297,6 +304,13 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
               </span>
             </div>
           )}
+            <button
+              onClick={toggleResearchMode}
+              className="text-xs px-2 py-1 rounded border border-slate-600 hover:border-slate-500 text-slate-400 hover:text-slate-300 transition-colors"
+              title={researchMode ? 'Switch to Game mode' : 'Switch to Research mode'}
+            >
+              {researchMode ? '📊 Research' : '🎮 Game'}
+            </button>
             {isAdmin && (
               <button
                 onClick={() => setShowAdmin(true)}

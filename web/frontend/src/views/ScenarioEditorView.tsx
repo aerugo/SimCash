@@ -5,6 +5,7 @@ import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/
 import { ScenarioForm } from '../components/ScenarioForm';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
 import type { GameSettings } from '../components/GameSettingsPanel';
+import { CodeEditor } from '../components/CodeEditor';
 import * as jsYaml from 'js-yaml';
 
 const BLANK_TEMPLATE = `simulation:
@@ -446,11 +447,11 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
 
           {/* Editor area */}
           {editorMode === 'yaml' ? (
-            <textarea
+            <CodeEditor
               value={yaml}
-              onChange={e => { setYaml(e.target.value); setValid(null); }}
-              spellCheck={false}
-              className="w-full h-[500px] bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500 leading-relaxed"
+              onChange={(v) => { setYaml(v); setValid(null); }}
+              language="yaml"
+              height="500px"
             />
           ) : (
             <div className="max-h-[500px] overflow-y-auto pr-1">

@@ -4,6 +4,7 @@ import { getGameScenarios } from '../api';
 import { HowItWorks } from '../components/HowItWorks';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
 import type { GameSettings } from '../components/GameSettingsPanel';
+import { useResearchMode } from '../contexts/ResearchModeContext';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -35,6 +36,7 @@ interface Props {
 }
 
 export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props) {
+  const { label: l } = useResearchMode();
   const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
@@ -239,7 +241,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             mode === 'game' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
           }`}
         >
-          🎮 Multi-Day Game
+          {l('🎮 Multi-Day Game', '🧪 Multi-Round Experiment')}
         </button>
         <button
           onClick={() => setMode('preset')}
@@ -263,7 +265,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
         <div className="space-y-6 mb-8">
           {/* Quick Start Card */}
           <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">🚀 Quick Start</h3>
+            <h3 className="text-lg font-semibold text-white mb-2">{l('🚀 Quick Start', '🚀 Quick Experiment')}</h3>
             <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
               Run your first experiment in one click — watch two banks learn to optimize liquidity over 5 days
             </p>
@@ -347,7 +349,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
-            🎮 Start Game
+            {l('🎮 Start Game', '🧪 Start Experiment')}
           </button>
         </div>
       ) : mode === 'preset' ? (
@@ -538,7 +540,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
               }}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
             >
-              🎮 Start Multi-Day Game
+              {l('🎮 Start Multi-Day Game', '🧪 Start Multi-Round Experiment')}
             </button>
           )}
         </div>

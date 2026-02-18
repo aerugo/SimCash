@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { authFetch } from '../api';
 import type { GameSetupConfig } from '../types';
+import { CodeEditor } from '../components/CodeEditor';
 
 const BASE = '/api';
 
@@ -304,11 +305,11 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Editor */}
         <div className="lg:col-span-2 space-y-3">
-          <textarea
+          <CodeEditor
             value={jsonText}
-            onChange={e => { setJsonText(e.target.value); setResult(null); }}
-            className="w-full h-[500px] bg-slate-900 border border-slate-700 rounded-lg p-4 font-mono text-sm text-slate-200 focus:border-sky-500 focus:outline-none resize-y"
-            spellCheck={false}
+            onChange={(v) => { setJsonText(v); setResult(null); }}
+            language="json"
+            height="500px"
           />
           <div className="flex gap-3">
             <button

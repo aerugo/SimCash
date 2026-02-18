@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
+import { useResearchMode } from '../contexts/ResearchModeContext';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 import { PolicyVisualization } from '../components/PolicyVisualization';
 import { InfoTip } from '../components/Tooltip';
@@ -38,6 +39,7 @@ function useGameNotes(gameId: string) {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
+  const { label: l } = useResearchMode();
   const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -110,9 +112,9 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
       {/* Top Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold">🎮 Policy Game</h2>
+          <h2 className="text-2xl font-bold">{l('🎮 Policy Game', '🧪 Policy Experiment')}</h2>
           <span className="text-lg font-mono text-sky-400">
-            Day {gameState.current_day}/{gameState.max_days}
+            {l('Day', 'Round')} {gameState.current_day}/{gameState.max_days}
           </span>
           {gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>
@@ -135,7 +137,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             disabled={!connected || autoRunning || gameState.is_complete}
             className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
           >
-            ▶ Next Day
+            ▶ {l('Next Day', 'Next Round')}
           </button>
           <button
             onClick={() => rerun()}
@@ -143,7 +145,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             title="Re-run the last day with the same seed (deterministic replay)"
             className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
           >
-            🔄 Re-run Day
+            🔄 {l('Re-run Day', 'Re-run Round')}
           </button>
           <button
             onClick={autoRunning ? stop : handleAutoRun}
@@ -241,7 +243,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
 
       {phase === 'simulating' && (
         <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
-          <span className="text-sm">⚙️ Simulating Day {(simulatingDay ?? 0) + 1}...</span>
+          <span className="text-sm">⚙️ {l('Simulating Day', 'Simulating Round')} {(simulatingDay ?? 0) + 1}...</span>
         </div>
       )}
       {phase === 'optimizing' && optimizingAgent && (

@@ -34,6 +34,7 @@ from .policy_diff import diff_policies
 from .payment_trace import build_payment_traces
 from .policy_editor import router as policy_editor_router
 from .export import router as export_router
+from .docs_api import router as docs_router
 from .scenario_editor import router as scenario_editor_router
 from .admin import user_manager
 from .settings import settings_manager
@@ -65,6 +66,7 @@ app.add_middleware(
 app.include_router(scenario_editor_router)
 app.include_router(policy_editor_router)
 app.include_router(export_router)
+app.include_router(docs_router)
 
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}
