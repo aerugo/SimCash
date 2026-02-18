@@ -447,25 +447,41 @@ export function GameView() {
               </h3>
               {/* Settlement Rate Banner */}
               {(() => {
-                // Count arrivals and settlements per agent and aggregate
                 const agentArrivals: Record<string, number> = {};
                 const agentSettled: Record<string, number> = {};
                 let totalArrivals = 0;
                 let totalSettled = 0;
                 for (const e of day.events) {
                   const t = String(e.event_type ?? '');
+                  const rec = e as Record<string, unknown>;
                   if (t === 'Arrival') {
-                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
+                    const sender = String(rec.sender_id ?? '');
                     if (sender) {
                       agentArrivals[sender] = (agentArrivals[sender] ?? 0) + 1;
                     }
                     totalArrivals++;
-                  } else if (t === 'RtgsImmediateSettlement' || t === 'CycleSettlement' || t === 'BilateralOffset') {
-                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
+                  } else if (t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') {
+                    // These events use "sender" not "sender_id"
+                    const sender = String(rec.sender ?? '');
                     if (sender) {
                       agentSettled[sender] = (agentSettled[sender] ?? 0) + 1;
                     }
                     totalSettled++;
+                  } else if (t === 'LsmBilateralOffset') {
+                    // Both agents settle — agent_a and agent_b
+                    for (const k of ['agent_a', 'agent_b']) {
+                      const a = String(rec[k] ?? '');
+                      if (a) agentSettled[a] = (agentSettled[a] ?? 0) + 1;
+                    }
+                    totalSettled += 2;
+                  } else if (t === 'LsmCycleSettlement') {
+                    const agents = rec.agents as string[] | undefined;
+                    if (agents) {
+                      for (const a of agents) {
+                        agentSettled[a] = (agentSettled[a] ?? 0) + 1;
+                      }
+                      totalSettled += agents.length;
+                    }
                   }
                 }
                 const aggRate = totalArrivals > 0 ? (totalSettled / totalArrivals * 100) : 0;
@@ -504,11 +520,12 @@ export function GameView() {
                   let agentArr = 0;
                   let agentStl = 0;
                   for (const e of day.events) {
-                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
-                    if (sender !== aid) continue;
-                    const t = String(e.event_type ?? '');
-                    if (t === 'Arrival') agentArr++;
-                    else if (t === 'RtgsImmediateSettlement' || t === 'CycleSettlement' || t === 'BilateralOffset') agentStl++;
+                    const rec = e as Record<string, unknown>;
+                    const t = String(rec.event_type ?? '');
+                    if (t === 'Arrival' && String(rec.sender_id ?? '') === aid) agentArr++;
+                    else if ((t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') && String(rec.sender ?? '') === aid) agentStl++;
+                    else if (t === 'LsmBilateralOffset' && (String(rec.agent_a ?? '') === aid || String(rec.agent_b ?? '') === aid)) agentStl++;
+                    else if (t === 'LsmCycleSettlement' && (rec.agents as string[] | undefined)?.includes(aid)) agentStl++;
                   }
                   const agentRate = agentArr > 0 ? (agentStl / agentArr * 100) : 0;
                   return (
