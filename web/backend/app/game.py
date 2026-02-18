@@ -311,6 +311,7 @@ class Game:
                 "agent_id": aid,
             })
 
+            logger.info("Optimize %s: mock_reasoning=%s", aid, self.mock_reasoning)
             if self.mock_reasoning:
                 # Mock doesn't stream — just send result
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
@@ -342,7 +343,7 @@ class Game:
                             result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                             result["fallback_reason"] = event["message"]
                 except Exception as e:
-                    logger.warning("Streaming optimization failed for %s: %s", aid, e)
+                    logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                     result["fallback_reason"] = str(e)
 
