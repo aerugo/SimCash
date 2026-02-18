@@ -63,12 +63,31 @@ def _check_access(uid: str, email: str, sign_in_provider: str) -> None:
     user_manager.record_login(email, method)
 
 
+def _check_dev_token(request: Request) -> bool:
+    """Check if request carries a valid dev token (query param or bearer)."""
+    dev_token = config.DEV_TOKEN
+    if not dev_token:
+        return False
+    # Check query param
+    if request.query_params.get("dev_token") == dev_token:
+        return True
+    # Check bearer token
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header == f"Bearer {dev_token}":
+        return True
+    return False
+
+
 async def get_current_user(request: Request) -> str:
     """FastAPI dependency: extract uid from Firebase ID token.
 
     If SIMCASH_AUTH_DISABLED=true, returns a fixed dev uid.
+    If SIMCASH_DEV_TOKEN is set and matches, returns a dev uid.
     """
     if config.is_auth_disabled():
+        return "dev-user"
+
+    if _check_dev_token(request):
         return "dev-user"
 
     auth_header = request.headers.get("Authorization", "")
@@ -102,6 +121,9 @@ async def get_current_user_email(request: Request) -> str:
     if config.is_auth_disabled():
         return "dev@localhost"
 
+    if _check_dev_token(request):
+        return "dev@localhost"
+
     auth_header = request.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
         raise HTTPException(
@@ -128,7 +150,7 @@ async def get_admin_user(request: Request) -> str:
     """FastAPI dependency: ensures the user is an admin. Returns email."""
     email = await get_current_user_email(request)
 
-    if config.is_auth_disabled():
+    if config.is_auth_disabled() or _check_dev_token(request):
         return email
 
     from .admin import user_manager
@@ -147,6 +169,11 @@ async def get_ws_user(websocket: WebSocket) -> str:
     Call BEFORE websocket.accept(). On failure, accepts then closes with error.
     """
     if config.is_auth_disabled():
+        return "dev-user"
+
+    # Check dev token on WS
+    dev_token = config.DEV_TOKEN
+    if dev_token and websocket.query_params.get("dev_token") == dev_token:
         return "dev-user"
 
     token = websocket.query_params.get("token")

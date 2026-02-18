@@ -32,11 +32,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
-    // Check if backend auth is disabled (dev mode)
+    // Check for dev_token in URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const devToken = urlParams.get('dev_token');
+
+    // Check if backend auth is disabled (dev mode) or dev_token provided
     fetch('/api/auth-mode')
       .then(r => r.json())
       .then(data => {
-        if (data.auth_disabled) {
+        if (data.auth_disabled || (data.dev_token_enabled && devToken)) {
+          // Store dev token for API calls
+          if (devToken) {
+            sessionStorage.setItem('simcash_dev_token', devToken);
+          }
           setDevMode(true);
           setUser(DEV_USER);
           setLoading(false);
@@ -74,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         signIn: handleSignIn,
         signOut: handleSignOut,
-        getToken: devMode ? (async () => 'dev-token') : getIdToken,
+        getToken: devMode ? (async () => sessionStorage.getItem('simcash_dev_token') || 'dev-token') : getIdToken,
       }}
     >
       {children}

@@ -25,3 +25,6 @@ ALLOWED_EMAILS: list[str] = [
     for e in os.getenv("SIMCASH_ALLOWED_EMAILS", "").split(",")
     if e.strip()
 ]
+
+# Dev token bypass: if set, requests with ?dev_token=<value> or this token as Bearer skip auth
+DEV_TOKEN: str = os.getenv("SIMCASH_DEV_TOKEN", "")
