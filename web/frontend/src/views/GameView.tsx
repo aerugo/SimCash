@@ -4,12 +4,21 @@ import type { GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
-// PolicyVisualization available for future use when game state includes full tree data
+import { PolicyDiffView, PolicyChangeSummary } from '../components/PolicyDiffView';
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
+
+function extractTreeActions(tree: Record<string, unknown>): string[] {
+  if (!tree) return [];
+  const actions: string[] = [];
+  if (tree.action) actions.push(String(tree.action));
+  if (tree.true_branch) actions.push(...extractTreeActions(tree.true_branch as Record<string, unknown>));
+  if (tree.false_branch) actions.push(...extractTreeActions(tree.false_branch as Record<string, unknown>));
+  return [...new Set(actions)];
+}
 
 function useGameNotes(gameId: string) {
   const key = `simcash_notes_${gameId}`;
@@ -315,13 +324,29 @@ export function GameView() {
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Final Fractions<InfoTip text="Each bank's liquidity commitment as a fraction of their pool (0 = none, 1 = all)" /></div>
-                <div className="font-mono text-xs text-slate-300">
-                  {gameState.agent_ids.map(aid => {
-                    const f = gameState.current_policies[aid]?.initial_liquidity_fraction ?? 1;
-                    return `${aid.replace('BANK_', '')}: ${f.toFixed(3)}`;
-                  }).join(' · ')}
-                </div>
+                {gameState.constraint_preset === 'full' ? (
+                  <>
+                    <div className="text-xs text-slate-500">Final Policies<InfoTip text="Optimized decision trees for each bank" /></div>
+                    <div className="text-xs text-slate-300 space-y-1">
+                      {gameState.agent_ids.map(aid => {
+                        const p = gameState.current_policies[aid];
+                        const actions = p?.payment_tree ? extractTreeActions(p.payment_tree as Record<string, unknown>) : ['Release'];
+                        const frac = (p?.parameters?.initial_liquidity_fraction as number) ?? 1;
+                        return <div key={aid} className="font-mono">{aid.replace('BANK_', '')}: frac={frac.toFixed(3)}, actions=[{actions.join(',')}]</div>;
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs text-slate-500">Final Fractions<InfoTip text="Each bank's liquidity commitment as a fraction of their pool (0 = none, 1 = all)" /></div>
+                    <div className="font-mono text-xs text-slate-300">
+                      {gameState.agent_ids.map(aid => {
+                        const f = gameState.current_policies[aid]?.parameters?.initial_liquidity_fraction ?? 1;
+                        return `${aid.replace('BANK_', '')}: ${(f as number).toFixed(3)}`;
+                      }).join(' · ')}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -340,12 +365,15 @@ export function GameView() {
           </p>
           <p className="text-xs text-slate-500 mt-3">
             {(() => {
-              const fracs = Object.entries(gameState.current_policies).map(([aid, p]) => ({ aid, f: p.initial_liquidity_fraction }));
+              const fracs = Object.entries(gameState.current_policies).map(([aid, p]) => ({ aid, f: (p.parameters?.initial_liquidity_fraction as number) ?? 1 }));
               const allSame = fracs.length > 0 && fracs.every(x => x.f === fracs[0].f);
+              if (gameState.constraint_preset === 'full') {
+                return <>Agents start with full decision-tree policies. The optimizer will refine payment strategies, bank actions, and parameters over multiple rounds.</>;
+              }
               if (allSame) {
                 return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple rounds.</>;
               }
-              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={x.f.toFixed(2)}</span></span>)}. The optimizer will refine these over multiple rounds.</>;
+              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={(x.f as number).toFixed(2)}</span></span>)}. The optimizer will refine these over multiple rounds.</>;
             })()}
           </p>
         </div>
@@ -552,9 +580,11 @@ export function GameView() {
                           <span className={`text-xs font-mono ${agentRate >= 90 ? 'text-green-400' : agentRate >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
                             {agentRate.toFixed(1)}% settled
                           </span>
-                          <span className="text-xs text-slate-400">
-                            fraction={fraction.toFixed(3)}
-                          </span>
+                          {gameState.constraint_preset !== 'full' && (
+                            <span className="text-xs text-slate-400">
+                              fraction={fraction.toFixed(3)}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {costs && (
@@ -598,8 +628,8 @@ export function GameView() {
 
         {/* Right: Policy evolution */}
         <div className="space-y-4">
-          {/* Fraction evolution chart */}
-          {gameState.days.length > 0 && (
+          {/* Fraction evolution chart — only show in simple mode */}
+          {gameState.days.length > 0 && gameState.constraint_preset !== 'full' && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">📈 Liquidity Fraction Evolution</h3>
               <EvolutionChart
@@ -608,6 +638,26 @@ export function GameView() {
                 yLabel="Fraction"
                 format={(v) => v.toFixed(3)}
               />
+            </div>
+          )}
+
+          {/* Policy changes summary — show in full mode */}
+          {gameState.days.length > 0 && gameState.constraint_preset === 'full' && (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">📊 Policy Evolution</h3>
+              <div className="space-y-3">
+                {gameState.agent_ids.map(aid => {
+                  const history = gameState.reasoning_history[aid] || [];
+                  const latest = history[history.length - 1];
+                  if (!latest) return null;
+                  return (
+                    <div key={aid} className="border-l-2 border-slate-600 pl-3">
+                      <div className="text-xs font-medium text-sky-400 mb-1">{aid}</div>
+                      <PolicyDiffView oldPolicy={latest.old_policy} newPolicy={latest.new_policy} compact />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -624,8 +674,8 @@ export function GameView() {
             </div>
           )}
 
-          {/* Policy Evolution */}
-          {gameState.days.length > 0 && (
+          {/* Policy Evolution — fraction chart only in simple mode */}
+          {gameState.days.length > 0 && gameState.constraint_preset !== 'full' && (
             <PolicyEvolutionPanel
               gameId={gameId}
               agentIds={gameState.agent_ids}
@@ -661,10 +711,13 @@ export function GameView() {
                           ? <span className="text-green-400 text-[10px] font-medium">✓ ACCEPTED</span>
                           : <span className="text-red-400 text-[10px] font-medium">✗ REJECTED</span>
                         }
-                        {latest.old_fraction != null && latest.new_fraction != null && (
+                        {gameState.constraint_preset !== 'full' && latest.old_fraction != null && latest.new_fraction != null && (
                           <span className="text-[10px] text-slate-500 font-mono">
                             {latest.old_fraction.toFixed(3)} → {latest.new_fraction.toFixed(3)}
                           </span>
+                        )}
+                        {gameState.constraint_preset === 'full' && latest.new_policy && (
+                          <PolicyChangeSummary oldPolicy={latest.old_policy} newPolicy={latest.new_policy} />
                         )}
                       </div>
                       {bs && (
@@ -681,6 +734,11 @@ export function GameView() {
                         </div>
                       )}
                       <p className="text-xs text-slate-400 leading-relaxed">{latest.reasoning}</p>
+                      {gameState.constraint_preset === 'full' && latest.new_policy && latest.old_policy && (
+                        <div className="mt-2 pt-2 border-t border-slate-700/50">
+                          <PolicyDiffView oldPolicy={latest.old_policy} newPolicy={latest.new_policy} />
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -690,7 +748,7 @@ export function GameView() {
 
           {/* Policy history (all iterations) */}
           {gameState.reasoning_history && gameState.agent_ids.some(aid => (gameState.reasoning_history[aid] ?? []).length > 0) && (
-            <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} />
+            <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} constraintPreset={gameState.constraint_preset} />
           )}
 
           {/* Policies for selected day */}
@@ -844,10 +902,11 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
   );
 }
 
-function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
+function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, constraintPreset }: {
   agentIds: string[];
   reasoningHistory: Record<string, GameOptimizationResult[]>;
   fractionHistory: Record<string, number[]>;
+  constraintPreset?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(agentIds[0] ?? '');
@@ -880,8 +939,8 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
         </div>
       </div>
 
-      {/* Compact: just fraction steps */}
-      {!expanded && (
+      {/* Compact: fraction steps (simple) or change summaries (full) */}
+      {!expanded && constraintPreset !== 'full' && (
         <div className="flex items-center gap-1 flex-wrap text-xs font-mono">
           {fractions.map((f, i) => (
             <span key={i} className="flex items-center gap-0.5">
@@ -890,6 +949,17 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
                 {f.toFixed(3)}
               </span>
             </span>
+          ))}
+        </div>
+      )}
+      {!expanded && constraintPreset === 'full' && (
+        <div className="space-y-1">
+          {history.map((r, i) => (
+            <div key={i} className="flex items-center gap-2 text-[10px]">
+              <span className="text-slate-500 shrink-0">R{i + 1}</span>
+              <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>{r.accepted ? '✓' : '✗'}</span>
+              <PolicyChangeSummary oldPolicy={r.old_policy} newPolicy={r.new_policy} />
+            </div>
           ))}
         </div>
       )}
@@ -906,10 +976,13 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
                 <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
                   {r.accepted ? '✓' : '✗'}
                 </span>
-                {r.old_fraction != null && (
+                {constraintPreset !== 'full' && r.old_fraction != null && (
                   <span className="font-mono text-slate-400">
                     {r.old_fraction.toFixed(3)} → {r.new_fraction?.toFixed(3) ?? r.old_fraction.toFixed(3)}
                   </span>
+                )}
+                {constraintPreset === 'full' && (
+                  <PolicyChangeSummary oldPolicy={r.old_policy} newPolicy={r.new_policy} />
                 )}
                 {r.mock && <span className={`bg-slate-800 px-1 rounded ${r.fallback_reason ? 'text-amber-500' : 'text-slate-600'}`} title={r.fallback_reason ? `LLM failed: ${r.fallback_reason}` : "Mock reasoning"}>{r.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
                 {r.bootstrap && (

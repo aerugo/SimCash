@@ -168,14 +168,24 @@ export interface EventTimelineBuilderProps {
 
 // ---- Multi-Day Game Types ----
 
+export interface PolicyJson {
+  version?: string;
+  policy_id?: string;
+  parameters?: { initial_liquidity_fraction?: number; [key: string]: unknown };
+  payment_tree?: Record<string, unknown>;
+  bank_tree?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface GameState {
   game_id: string;
   current_day: number;
   max_days: number;
   is_complete: boolean;
   use_llm: boolean;
+  constraint_preset?: string;
   agent_ids: string[];
-  current_policies: Record<string, { initial_liquidity_fraction: number }>;
+  current_policies: Record<string, PolicyJson>;
   days: DayResult[];
   cost_history: Record<string, number[]>;
   fraction_history: Record<string, number[]>;
@@ -215,6 +225,9 @@ export interface GameOptimizationResult {
   fallback_reason?: string;
   bootstrap?: BootstrapResult;
   rejection_reason?: string;
+  new_policy?: PolicyJson;
+  old_policy?: PolicyJson;
+  reasoning_summary?: string;
 }
 
 export interface ScenarioPackEntry {

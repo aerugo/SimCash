@@ -479,10 +479,10 @@ class Game:
             "use_llm": self.use_llm,
             "num_eval_samples": self.num_eval_samples,
             "optimization_interval": self.optimization_interval,
+            "constraint_preset": self.constraint_preset,
             "agent_ids": self.agent_ids,
             "current_policies": {
-                aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
-                for aid, p in self.policies.items()
+                aid: p for aid, p in self.policies.items()
             },
             "days": [d.to_dict() for d in self.days],
             "cost_history": {
@@ -577,6 +577,7 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     return {
         "new_policy": new_policy,
+        "old_policy": current_policy,
         "reasoning": reasoning,
         "old_fraction": current_fraction,
         "new_fraction": new_fraction,
@@ -733,9 +734,11 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     return {
         "new_policy": new_policy,
+        "old_policy": current_policy,
         "reasoning": reasoning_text,
         "old_fraction": current_fraction,
         "new_fraction": new_fraction,
         "accepted": result.was_accepted,
         "mock": False,
+        "reasoning_summary": result.reasoning_summary if hasattr(result, 'reasoning_summary') else None,
     }
