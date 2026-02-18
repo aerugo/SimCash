@@ -26,8 +26,8 @@ class TestPlatformSettings:
         assert len(s.available_models) == len(AVAILABLE_MODELS)
 
     def test_custom_model(self):
-        s = PlatformSettings(optimization_model="google-vertex:gemini-3.0-pro")
-        assert s.optimization_model == "google-vertex:gemini-3.0-pro"
+        s = PlatformSettings(optimization_model="google-vertex:gemini-2.5-pro")
+        assert s.optimization_model == "google-vertex:gemini-2.5-pro"
 
     def test_empty_model_falls_back(self):
         s = PlatformSettings(optimization_model="")
@@ -41,7 +41,7 @@ class TestSettingsManager:
         mgr = SettingsManager()
         s = mgr.get_settings()
         assert s.optimization_model == DEFAULT_MODEL
-        assert "gemini-3-flash" in DEFAULT_MODEL  # Gemini 3 Flash is default
+        assert "gemini-2.5-flash" in DEFAULT_MODEL  # Gemini 2.5 Flash is default
         assert len(s.available_models) == len(AVAILABLE_MODELS)
 
     def test_get_settings_cached(self):
@@ -63,11 +63,11 @@ class TestSettingsManager:
 
     def test_get_llm_config_vertex(self):
         mgr = SettingsManager()
-        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-3.0-pro")
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-2.5-pro")
         mgr._cache_time = float("inf")
 
         config = mgr.get_llm_config()
-        assert config.model == "google-vertex:gemini-3.0-pro"
+        assert config.model == "google-vertex:gemini-2.5-pro"
         assert config.provider == "google-vertex"
         assert config.thinking_config is not None
         assert config.thinking_config["thinking_budget"] == 8192
@@ -104,12 +104,12 @@ class TestSettingsManager:
 
     def test_get_available_models_marks_correct_active(self):
         mgr = SettingsManager()
-        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-3.0-pro")
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-2.5-pro")
         mgr._cache_time = float("inf")
 
         models = mgr.get_available_models()
         active = [m for m in models if m.get("active")]
-        assert active[0]["id"] == "google-vertex:gemini-3.0-pro"
+        assert active[0]["id"] == "google-vertex:gemini-2.5-pro"
 
     def test_get_llm_config_glm5(self):
         mgr = SettingsManager()
@@ -132,7 +132,7 @@ class TestSettingsManager:
 
     def test_non_maas_no_metadata(self):
         mgr = SettingsManager()
-        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-3-flash")
+        mgr._cache = PlatformSettings(optimization_model="google-vertex:gemini-2.5-flash")
         mgr._cache_time = float("inf")
 
         meta = mgr.get_model_metadata()
@@ -177,11 +177,11 @@ class TestSettingsAPI:
     def test_patch_settings(self, client):
         resp = client.patch(
             "/api/settings",
-            json={"optimization_model": "google-vertex:gemini-3.0-pro"},
+            json={"optimization_model": "google-vertex:gemini-2.5-pro"},
         )
         assert resp.status_code == 200
         data = resp.json()
-        assert data["optimization_model"] == "google-vertex:gemini-3.0-pro"
+        assert data["optimization_model"] == "google-vertex:gemini-2.5-pro"
 
     def test_patch_settings_invalid_model(self, client):
         resp = client.patch(

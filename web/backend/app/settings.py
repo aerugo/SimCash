@@ -16,23 +16,23 @@ from . import config
 logger = logging.getLogger(__name__)
 
 # Default model if nothing configured
-DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:gemini-3-flash")
+DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:gemini-2.5-flash")
 
-# Built-in available models
+# Built-in available models (use real Vertex AI model IDs)
 AVAILABLE_MODELS: list[dict[str, str]] = [
-    {
-        "id": "google-vertex:gemini-3-flash",
-        "label": "Gemini 3 Flash (Vertex AI)",
-        "provider": "google-vertex",
-    },
-    {
-        "id": "google-vertex:gemini-3.0-pro",
-        "label": "Gemini 3 Pro (Vertex AI)",
-        "provider": "google-vertex",
-    },
     {
         "id": "google-vertex:gemini-2.5-flash",
         "label": "Gemini 2.5 Flash (Vertex AI)",
+        "provider": "google-vertex",
+    },
+    {
+        "id": "google-vertex:gemini-2.5-pro",
+        "label": "Gemini 2.5 Pro (Vertex AI)",
+        "provider": "google-vertex",
+    },
+    {
+        "id": "google-vertex:gemini-2.5-flash-lite",
+        "label": "Gemini 2.5 Flash Lite (Vertex AI)",
         "provider": "google-vertex",
     },
     {

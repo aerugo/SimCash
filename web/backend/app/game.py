@@ -605,14 +605,29 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     from .settings import settings_manager, MAAS_MODEL_CONFIG
     llm_config = settings_manager.get_llm_config()
 
-    # MaaS models (GLM-5 etc) need custom provider — ExperimentLLMClient doesn't support that.
-    # For MaaS models, warn and use the model string directly (may fail if provider config wrong).
-    if llm_config.model_name in MAAS_MODEL_CONFIG:
-        logger.warning(
-            "MaaS model %s used in REST optimize — use WebSocket path for full MaaS support",
-            llm_config.model_name,
-        )
     client = ExperimentLLMClient(llm_config)
+
+    # MaaS models (GLM-5 etc) need custom provider config.
+    # Patch the client's agent creation to use our _create_agent helper.
+    if llm_config.model_name in MAAS_MODEL_CONFIG:
+        from .streaming_optimizer import _create_agent
+        _orig_call = client.call_llm
+
+        async def _maas_call_llm(prompt, current_policy=None, context=None):
+            """Override that uses _create_agent for MaaS model support."""
+            user_prompt = client._build_user_prompt(prompt, current_policy, context)
+            system_prompt = client.system_prompt or ""
+            agent = _create_agent(llm_config, system_prompt)
+            import time
+            start = time.time()
+            result = await agent.run(user_prompt, model_settings=llm_config.to_model_settings())
+            latency = time.time() - start
+            raw = str(result.output)
+            from payment_simulator.experiments.runner.llm_client import LLMResponse
+            return LLMResponse(raw_response=raw, parsed_policy=None, latency=latency,
+                             model=llm_config.model, prompt_tokens=0, completion_tokens=0)
+
+        client.call_llm = _maas_call_llm
 
     # Build dynamic system prompt with cost rates from scenario
     cost_rates = raw_yaml.get("cost_rates", {})

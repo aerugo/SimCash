@@ -20,10 +20,9 @@ logger = logging.getLogger(__name__)
 
 def _create_agent(llm_config: Any, system_prompt: str) -> Any:
     """Create a pydantic-ai Agent, handling MaaS models (GLM-5 etc) with custom publisher/region."""
-    import os
     from pydantic_ai import Agent
 
-    from .settings import settings_manager, MAAS_MODEL_CONFIG
+    from .settings import MAAS_MODEL_CONFIG
 
     model_name = llm_config.model_name
     maas_meta = MAAS_MODEL_CONFIG.get(model_name)
@@ -31,12 +30,18 @@ def _create_agent(llm_config: Any, system_prompt: str) -> Any:
     if maas_meta and llm_config.provider == "google-vertex":
         # MaaS model on Vertex AI — needs custom publisher and/or region
         try:
-            from pydantic_ai.providers.google_vertex import GoogleVertexProvider
-            provider = GoogleVertexProvider(
-                model_publisher=maas_meta.get("publisher", "google"),
-                region=maas_meta.get("region", os.environ.get("GOOGLE_CLOUD_LOCATION", "europe-north1")),
+            from pydantic_ai.providers.google import GoogleProvider
+            from pydantic_ai.models.google import GoogleModel
+
+            provider = GoogleProvider(
+                location=maas_meta.get("region", "global"),
+                vertexai=True,
             )
-            return Agent(model_name, provider=provider, system_prompt=system_prompt)  # type: ignore[arg-type]
+            # Use full publisher path: publishers/{pub}/models/{model}
+            publisher = maas_meta.get("publisher", "google")
+            full_model_name = f"publishers/{publisher}/models/{model_name}"
+            model = GoogleModel(full_model_name, provider=provider)
+            return Agent(model, system_prompt=system_prompt)
         except Exception as e:
             logger.warning("Failed to create MaaS provider for %s: %s, falling back", model_name, e)
 

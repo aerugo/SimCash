@@ -18,9 +18,9 @@ BASE = "http://0.0.0.0:8642/api"
 
 # Only test Vertex AI models (no OpenAI/Anthropic keys)
 VERTEX_MODELS = [
-    "google-vertex:gemini-3-flash",
     "google-vertex:gemini-2.5-flash",
-    "google-vertex:gemini-3.0-pro",
+    "google-vertex:gemini-2.5-flash",
+    "google-vertex:gemini-2.5-pro",
     "google-vertex:glm-5-maas",
 ]
 
