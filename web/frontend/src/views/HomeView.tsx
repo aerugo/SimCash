@@ -270,7 +270,9 @@ export function HomeView() {
           <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center">
             <h3 className="text-lg font-semibold text-white mb-2">{'Quick Experiment'}</h3>
             <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
-              Run your first experiment in one click — watch two banks learn to optimize liquidity over 5 rounds
+              Run a demo experiment in one click with simulated AI responses — results appear instantly.
+              Real experiments use an LLM for optimization, where each round waits for the AI to analyze
+              results and propose an improved policy (typically 10–40 seconds per optimization).
             </p>
             <button
               onClick={() => {
