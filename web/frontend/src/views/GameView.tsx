@@ -3,6 +3,7 @@ import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
+import { InfoTip } from '../components/Tooltip';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -173,13 +174,13 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                 <div className="font-mono text-sm">{lastTotal.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Cost Reduction</div>
+                <div className="text-xs text-slate-500">Cost Reduction<InfoTip text="Percentage decrease in total system cost from Day 1 to the final day" /></div>
                 <div className={`font-mono text-sm ${reduction > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {reduction > 0 ? '↓' : '↑'} {Math.abs(reduction).toFixed(1)}%
                 </div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Final Fractions</div>
+                <div className="text-xs text-slate-500">Final Fractions<InfoTip text="Each bank's liquidity commitment as a fraction of their pool (0 = none, 1 = all)" /></div>
                 <div className="font-mono text-xs text-slate-300">
                   {gameState.agent_ids.map(aid => {
                     const f = gameState.current_policies[aid]?.initial_liquidity_fraction ?? 1;
@@ -340,15 +341,15 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                       {costs && (
                         <div className="grid grid-cols-4 gap-2 text-xs">
                           <div>
-                            <div className="text-slate-500">Liquidity</div>
+                            <div className="text-slate-500">Liquidity<InfoTip text="Cost of holding committed liquidity idle. Charged per tick based on committed amount × liquidity rate (bps)." /></div>
                             <div className="font-mono">{Math.round(costs.liquidity_cost).toLocaleString()}</div>
                           </div>
                           <div>
-                            <div className="text-slate-500">Delay</div>
+                            <div className="text-slate-500">Delay<InfoTip text="Cost of unsettled payments waiting in queue. Charged per tick based on payment amount × delay rate." /></div>
                             <div className="font-mono">{Math.round(costs.delay_cost).toLocaleString()}</div>
                           </div>
                           <div>
-                            <div className="text-slate-500">Penalty</div>
+                            <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of day." /></div>
                             <div className="font-mono text-red-400">{Math.round(costs.penalty_cost).toLocaleString()}</div>
                           </div>
                           <div>
@@ -449,9 +450,9 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                       </div>
                       {bs && (
                         <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
-                          <span>Δ={bs.delta_sum.toLocaleString()}</span>
-                          <span>CV={bs.cv.toFixed(2)}</span>
-                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]</span>
+                          <span>Δ={bs.delta_sum.toLocaleString()}<InfoTip text="Change in cost from previous day (negative = improvement)" /></span>
+                          <span>CV={bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — lower means more consistent results" /></span>
+                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval for the cost estimate" /></span>
                           <span>n={bs.num_samples}</span>
                         </div>
                       )}
@@ -508,6 +509,19 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
   );
 }
 
+const EVENT_TOOLTIPS: Record<string, string> = {
+  Arrival: 'New payment obligations generated',
+  RtgsSubmission: 'Payments submitted to the RTGS engine for settlement',
+  RtgsImmediateSettlement: 'Payments settled immediately (sufficient funds)',
+  PolicySubmit: 'Agent policy decisions executed',
+  CostAccrual: 'Periodic cost calculations applied',
+  QueuedRtgs: 'Payments queued due to insufficient funds',
+  DeferredCreditApplied: 'Intraday credit facility used to cover shortfall',
+  ScenarioEventExecuted: 'Scheduled scenario event triggered',
+  BilateralOffset: 'Bilateral netting applied between two banks',
+  CycleSettlement: 'Multilateral payment cycle detected and settled',
+};
+
 function EventSummary({ day }: { day: { day: number; events: Record<string, unknown>[] } }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -518,10 +532,9 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
     counts[t] = (counts[t] ?? 0) + 1;
   }
 
-  const summaryParts = Object.entries(counts)
+  const summaryEntries = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([type, count]) => `${count} ${type}`);
+    .slice(0, 6);
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
@@ -537,8 +550,8 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
         </button>
       </div>
       <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
-        {summaryParts.map((s, i) => (
-          <span key={i}>{s}</span>
+        {summaryEntries.map(([type, count], i) => (
+          <span key={i}>{count} {type}{EVENT_TOOLTIPS[type] && <InfoTip text={EVENT_TOOLTIPS[type]} />}</span>
         ))}
       </div>
       {expanded && (

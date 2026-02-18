@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { InfoTip } from './Tooltip';
 import * as jsYaml from 'js-yaml';
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -165,10 +166,10 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
       <div className={sectionCls}>
         <h3 className={sectionTitle}>💰 Cost Rates</h3>
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Liquidity Cost (bps/tick)" value={data.cost_rates.liquidity_cost_per_tick_bps} onChange={v => update(d => { d.cost_rates.liquidity_cost_per_tick_bps = v; })} />
-          <NumberField label="Delay Cost (per ¢/tick)" value={data.cost_rates.delay_cost_per_tick_per_cent} onChange={v => update(d => { d.cost_rates.delay_cost_per_tick_per_cent = v; })} step={0.01} />
-          <NumberField label="Deadline Penalty" value={data.cost_rates.deadline_penalty} onChange={v => update(d => { d.cost_rates.deadline_penalty = v; })} />
-          <NumberField label="EOD Penalty / Txn" value={data.cost_rates.eod_penalty_per_transaction} onChange={v => update(d => { d.cost_rates.eod_penalty_per_transaction = v; })} />
+          <NumberField label="Liquidity Cost (bps/tick)" value={data.cost_rates.liquidity_cost_per_tick_bps} onChange={v => update(d => { d.cost_rates.liquidity_cost_per_tick_bps = v; })} tooltip="Basis points charged per tick on committed liquidity. Higher = more expensive to hold cash ready." />
+          <NumberField label="Delay Cost (per ¢/tick)" value={data.cost_rates.delay_cost_per_tick_per_cent} onChange={v => update(d => { d.cost_rates.delay_cost_per_tick_per_cent = v; })} step={0.01} tooltip="Cost per cent of unsettled payment per tick. Penalizes slow settlement." />
+          <NumberField label="Deadline Penalty" value={data.cost_rates.deadline_penalty} onChange={v => update(d => { d.cost_rates.deadline_penalty = v; })} tooltip="Flat fee charged when a payment misses its deadline (in cents)." />
+          <NumberField label="EOD Penalty / Txn" value={data.cost_rates.eod_penalty_per_transaction} onChange={v => update(d => { d.cost_rates.eod_penalty_per_transaction = v; })} tooltip="Flat fee per payment still unsettled at end of day (in cents)." />
         </div>
       </div>
 
@@ -196,11 +197,11 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
           <div className="flex gap-6 mt-2">
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
               <input type="checkbox" checked={data.lsm_config.enable_bilateral} onChange={e => update(d => { d.lsm_config!.enable_bilateral = e.target.checked; })} className="accent-sky-500" />
-              Bilateral
+              Bilateral<InfoTip text="Bilateral offsetting: nets payments between pairs of banks (A owes B, B owes A → only the difference settles)" />
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
               <input type="checkbox" checked={data.lsm_config.enable_cycles} onChange={e => update(d => { d.lsm_config!.enable_cycles = e.target.checked; })} className="accent-sky-500" />
-              Cycles
+              Cycles<InfoTip text="Cycle detection: finds circular payment chains (A→B→C→A) and settles them simultaneously" />
             </label>
           </div>
         )}
@@ -365,15 +366,16 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }:
 
 // ── Reusable number field ───────────────────────────────────────────
 
-function NumberField({ label, value, onChange, step }: {
+function NumberField({ label, value, onChange, step, tooltip }: {
   label: string;
   value: number;
   onChange: (v: number) => void;
   step?: number;
+  tooltip?: string;
 }) {
   return (
     <div>
-      <label className={labelCls}>{label}</label>
+      <label className={labelCls}>{label}{tooltip && <InfoTip text={tooltip} />}</label>
       <input
         type="number"
         step={step}
