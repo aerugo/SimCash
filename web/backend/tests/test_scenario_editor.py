@@ -202,3 +202,94 @@ def test_template_yaml_validates():
         res = client.post("/api/scenarios/validate", json={"yaml_string": yaml_str})
         assert res.status_code == 200
         assert res.json()["valid"] is True
+
+
+# ── Event Timeline Builder YAML format tests ─────────────────────────
+
+# This matches what EventTimelineBuilder.eventsToYaml() now produces:
+# flat fields + schedule (not trigger/params)
+SCENARIO_WITH_BUILDER_EVENTS = """\
+simulation:
+  ticks_per_day: 12
+  num_days: 2
+  rng_seed: 42
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    liquidity_pool: 1000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]
+  - id: BANK_B
+    opening_balance: 0
+    liquidity_pool: 1000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [3, 8]
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.2
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  liquidity_cost_per_tick_bps: 83
+
+scenario_events:
+  - type: DirectTransfer
+    from_agent: BANK_A
+    to_agent: BANK_B
+    amount: 500000
+    schedule:
+      type: OneTime
+      tick: 5
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0
+    schedule:
+      type: Repeating
+      start_tick: 6
+      interval: 12
+  - type: CollateralAdjustment
+    agent: BANK_A
+    delta: 200000
+    schedule:
+      type: OneTime
+      tick: 10
+"""
+
+
+def test_builder_format_events_validate():
+    """Scenarios with events in the builder's new format pass SimulationConfig validation."""
+    res = client.post("/api/scenarios/validate", json={"yaml_string": SCENARIO_WITH_BUILDER_EVENTS})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True, f"Validation errors: {data.get('errors')}"
+    assert data["summary"]["num_agents"] == 2
+    features = data["summary"]["features"]
+    assert any("DirectTransfer" in f for f in features)
+    assert any("GlobalArrivalRateChange" in f for f in features)
+    assert any("CollateralAdjustment" in f for f in features)
+
+
+def test_builder_format_events_save():
+    """Scenarios with builder-format events can be saved as custom scenarios."""
+    res = client.post("/api/scenarios/custom", json={
+        "name": "Builder Events Test",
+        "description": "Tests engine-compatible event format",
+        "yaml_string": SCENARIO_WITH_BUILDER_EVENTS,
+    })
+    assert res.status_code == 200
+    data = res.json()
+    assert data["name"] == "Builder Events Test"
+    assert data["summary"]["num_agents"] == 2

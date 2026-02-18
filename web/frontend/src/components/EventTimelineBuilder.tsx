@@ -73,7 +73,12 @@ export function eventsToYaml(events: ScenarioEvent[]): string {
   const lines: string[] = ['scenario_events:'];
   for (const ev of events) {
     lines.push(`  - type: ${ev.type}`);
-    lines.push(`    trigger:`);
+    // Emit params as flat fields (engine-compatible format)
+    for (const [k, v] of Object.entries(ev.params)) {
+      lines.push(`    ${k}: ${v}`);
+    }
+    // Emit schedule (not trigger)
+    lines.push(`    schedule:`);
     if (ev.trigger.type === 'OneTime') {
       lines.push(`      type: OneTime`);
       lines.push(`      tick: ${ev.trigger.tick}`);
@@ -81,10 +86,6 @@ export function eventsToYaml(events: ScenarioEvent[]): string {
       lines.push(`      type: Repeating`);
       lines.push(`      start_tick: ${ev.trigger.start_tick}`);
       lines.push(`      interval: ${ev.trigger.interval}`);
-    }
-    lines.push(`    params:`);
-    for (const [k, v] of Object.entries(ev.params)) {
-      lines.push(`      ${k}: ${v}`);
     }
   }
   return lines.join('\n');
