@@ -9,8 +9,6 @@ const EVENT_COLORS: Record<EventType, string> = {
   AgentArrivalRateChange: '#a78bfa', // violet-400
   DeadlineWindowChange: '#facc15',   // yellow-400
   CollateralAdjustment: '#34d399',   // emerald-400
-  LiquidityInjection: '#fb923c',     // orange-400
-  CreditLimitChange: '#60a5fa',      // blue-400
 };
 
 const EVENT_LABELS: Record<EventType, string> = {
@@ -19,8 +17,6 @@ const EVENT_LABELS: Record<EventType, string> = {
   AgentArrivalRateChange: 'Agent Arrival Rate',
   DeadlineWindowChange: 'Deadline Window',
   CollateralAdjustment: 'Collateral Adj.',
-  LiquidityInjection: 'Liquidity Injection',
-  CreditLimitChange: 'Credit Limit',
 };
 
 // ── param field definitions ─────────────────────────────────────────
@@ -37,28 +33,19 @@ const PARAM_FIELDS: Record<EventType, FieldDef[]> = {
     { key: 'amount', label: 'Amount', type: 'number' },
   ],
   GlobalArrivalRateChange: [
-    { key: 'new_rate', label: 'New Rate', type: 'number' },
+    { key: 'multiplier', label: 'Rate Multiplier', type: 'number' },
   ],
   AgentArrivalRateChange: [
-    { key: 'agent_id', label: 'Agent', type: 'agent' },
-    { key: 'new_rate', label: 'New Rate', type: 'number' },
+    { key: 'agent', label: 'Agent', type: 'agent' },
+    { key: 'multiplier', label: 'Rate Multiplier', type: 'number' },
   ],
   DeadlineWindowChange: [
-    { key: 'new_min', label: 'New Min', type: 'number' },
-    { key: 'new_max', label: 'New Max', type: 'number' },
+    { key: 'min_ticks_multiplier', label: 'Min Ticks Multiplier', type: 'number' },
+    { key: 'max_ticks_multiplier', label: 'Max Ticks Multiplier', type: 'number' },
   ],
   CollateralAdjustment: [
-    { key: 'agent_id', label: 'Agent', type: 'agent' },
-    { key: 'amount', label: 'Amount', type: 'number' },
-  ],
-  LiquidityInjection: [
-    { key: 'agent_id', label: 'Agent', type: 'agent' },
-    { key: 'amount', label: 'Amount', type: 'number' },
-  ],
-  CreditLimitChange: [
-    { key: 'from_agent', label: 'From Agent', type: 'agent' },
-    { key: 'to_agent', label: 'To Agent', type: 'agent' },
-    { key: 'new_limit', label: 'New Limit', type: 'number' },
+    { key: 'agent', label: 'Agent', type: 'agent' },
+    { key: 'delta', label: 'Delta (±cents)', type: 'number' },
   ],
 };
 
@@ -137,12 +124,10 @@ function defaultParams(type: EventType, agentIds: string[]): Record<string, unkn
   const b = agentIds[1] ?? agentIds[0] ?? 'BANK_B';
   switch (type) {
     case 'DirectTransfer': return { from_agent: a, to_agent: b, amount: 100000 };
-    case 'GlobalArrivalRateChange': return { new_rate: 3.0 };
-    case 'AgentArrivalRateChange': return { agent_id: a, new_rate: 3.0 };
-    case 'DeadlineWindowChange': return { new_min: 2, new_max: 8 };
-    case 'CollateralAdjustment': return { agent_id: a, amount: 50000 };
-    case 'LiquidityInjection': return { agent_id: a, amount: 200000 };
-    case 'CreditLimitChange': return { from_agent: a, to_agent: b, new_limit: 100000 };
+    case 'GlobalArrivalRateChange': return { multiplier: 1.5 };
+    case 'AgentArrivalRateChange': return { agent: a, multiplier: 1.5 };
+    case 'DeadlineWindowChange': return { min_ticks_multiplier: 1.0, max_ticks_multiplier: 1.0 };
+    case 'CollateralAdjustment': return { agent: a, delta: 50000 };
   }
 }
 
@@ -413,9 +398,10 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
 function formatEventLabel(ev: ScenarioEvent): string {
   const parts = [EVENT_LABELS[ev.type]];
   if (ev.params.amount) parts.push(`$${Number(ev.params.amount).toLocaleString()}`);
-  if (ev.params.new_rate) parts.push(`rate=${ev.params.new_rate}`);
+  if (ev.params.delta) parts.push(`Δ${Number(ev.params.delta).toLocaleString()}`);
+  if (ev.params.multiplier) parts.push(`×${ev.params.multiplier}`);
   if (ev.params.from_agent) parts.push(`${ev.params.from_agent}→${ev.params.to_agent ?? '?'}`);
-  else if (ev.params.agent_id) parts.push(String(ev.params.agent_id));
+  else if (ev.params.agent) parts.push(String(ev.params.agent));
   return parts.join(' · ');
 }
 

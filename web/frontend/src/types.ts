@@ -127,9 +127,7 @@ export type EventType =
   | 'GlobalArrivalRateChange'
   | 'AgentArrivalRateChange'
   | 'DeadlineWindowChange'
-  | 'CollateralAdjustment'
-  | 'LiquidityInjection'
-  | 'CreditLimitChange';
+  | 'CollateralAdjustment';
 
 export const EVENT_TYPES: EventType[] = [
   'DirectTransfer',
@@ -137,8 +135,6 @@ export const EVENT_TYPES: EventType[] = [
   'AgentArrivalRateChange',
   'DeadlineWindowChange',
   'CollateralAdjustment',
-  'LiquidityInjection',
-  'CreditLimitChange',
 ];
 
 export interface ScenarioEvent {

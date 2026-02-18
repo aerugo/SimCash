@@ -241,6 +241,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [validating, setValidating] = useState(false);
   const [valid, setValid] = useState<boolean | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);
   const [saving, setSaving] = useState(false);
   const [scenarioName, setScenarioNameRaw] = useState(initialState?.name ?? 'My Scenario');
@@ -307,6 +308,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
     setValidating(true);
     setValid(null);
     setErrors([]);
+    setWarnings([]);
     setSummary(null);
     try {
       const res = await authFetch('/api/scenarios/validate', {

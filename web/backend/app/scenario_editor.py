@@ -92,8 +92,23 @@ def validate_scenario(req: ValidateRequest):
             errors = [str(e)]
         return {"valid": False, "errors": errors}
 
+    # Check for unknown top-level keys
+    KNOWN_TOP_KEYS = {
+        "simulation", "agents", "cost_rates", "lsm_config", "scenario_events",
+        "queue_config", "rtgs_config", "priority_escalation", "policy_feature_toggles",
+    }
+    warnings: list[str] = []
+    for key in config_dict:
+        if key not in KNOWN_TOP_KEYS:
+            if key.startswith("cost"):
+                warnings.append(f"Unknown key '{key}' — did you mean 'cost_rates'?")
+            elif key.startswith("lsm"):
+                warnings.append(f"Unknown key '{key}' — did you mean 'lsm_config'?")
+            else:
+                warnings.append(f"Unknown key '{key}' will be ignored")
+
     summary = _extract_summary(config_dict, sim_config)
-    return {"valid": True, "summary": summary}
+    return {"valid": True, "summary": summary, "warnings": warnings}
 
 
 @router.post("/custom")
