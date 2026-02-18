@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
-  const { gameState: wsState, connected, phase, optimizingAgent, simulatingDay, streamingText, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [replayData, setReplayData] = useState<{
@@ -92,8 +92,13 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {gameState.use_llm && (
             <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">🧠 AI Optimization</span>
           )}
-          {!connected && (
-            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
+          {connectionStatus === 'reconnecting' && (
+            <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
+              🔄 Reconnecting{reconnectAttempt > 0 ? ` (${reconnectAttempt}/10)` : ''}…
+            </span>
+          )}
+          {connectionStatus === 'disconnected' && (
+            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Connection lost — please refresh</span>
           )}
         </div>
         <div className="flex items-center gap-2">

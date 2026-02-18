@@ -554,9 +554,9 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             {config.use_llm && (
               <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
                 <div>
-                  <span className="text-xs text-slate-400">Mock Mode</span>
+                  <span className="text-xs text-slate-400">Simulated AI</span>
                   <span className="text-[10px] text-slate-600 ml-2">
-                    {config.mock_reasoning ? '(no API costs)' : '⚠ Uses Vertex AI API'}
+                    {config.mock_reasoning ? 'Use simulated AI responses (no API cost)' : '⚠ Uses Vertex AI API'}
                   </span>
                 </div>
                 <Toggle label="" value={config.mock_reasoning} onChange={v => setConfig({ ...config, mock_reasoning: v })} />

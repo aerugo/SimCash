@@ -23,9 +23,13 @@ export interface WSMessage {
 
 export type GamePhase = 'idle' | 'simulating' | 'optimizing' | 'complete';
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+
 interface UseGameWebSocketReturn {
   gameState: GameState | null;
   connected: boolean;
+  connectionStatus: ConnectionStatus;
+  reconnectAttempt: number;
   phase: GamePhase;
   optimizingAgent: string | null;
   simulatingDay: number | null;
@@ -36,12 +40,20 @@ interface UseGameWebSocketReturn {
   stop: () => void;
 }
 
+const MAX_RETRIES = 10;
+const INITIAL_BACKOFF_MS = 1000;
+const MAX_BACKOFF_MS = 30000;
+
 export function useGameWebSocket(gameId: string, initialState: GameState): UseGameWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
+  const retryCountRef = useRef(0);
+  const backoffMsRef = useRef(INITIAL_BACKOFF_MS);
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [phase, setPhase] = useState<GamePhase>('idle');
   const [optimizingAgent, setOptimizingAgent] = useState<string | null>(null);
   const [simulatingDay, setSimulatingDay] = useState<number | null>(null);
@@ -71,7 +83,6 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'optimization_start':
         setPhase('optimizing');
         setOptimizingAgent(msg.agent_id ?? null);
-        // Clear streaming text for this agent
         if (msg.agent_id) {
           setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
         }
@@ -87,7 +98,6 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
         break;
 
       case 'optimization_complete':
-        // Clear streaming text for this agent (reasoning now in game state)
         if (msg.agent_id) {
           setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
         }
@@ -116,14 +126,33 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (mountedRef.current) setConnected(true);
+      if (mountedRef.current) {
+        setConnected(true);
+        setConnectionStatus('connected');
+        // Reset backoff on successful connection
+        retryCountRef.current = 0;
+        backoffMsRef.current = INITIAL_BACKOFF_MS;
+        setReconnectAttempt(0);
+      }
     };
 
     ws.onclose = () => {
       if (mountedRef.current) {
         setConnected(false);
-        // Auto-reconnect after 1s
-        reconnectTimer.current = setTimeout(() => connect(), 1000);
+
+        if (retryCountRef.current >= MAX_RETRIES) {
+          setConnectionStatus('disconnected');
+          return;
+        }
+
+        setConnectionStatus('reconnecting');
+        retryCountRef.current += 1;
+        setReconnectAttempt(retryCountRef.current);
+
+        const delay = backoffMsRef.current;
+        backoffMsRef.current = Math.min(backoffMsRef.current * 2, MAX_BACKOFF_MS);
+
+        reconnectTimer.current = setTimeout(() => connect(), delay);
       }
     };
 
@@ -159,5 +188,5 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
   const stop = useCallback(() => send('stop'), [send]);
 
-  return { gameState, connected, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, autoRun, stop };
+  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, autoRun, stop };
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-type DocSection = 'overview' | 'how-it-works' | 'cost-model' | 'policy-optimization' | 'experiments' | 'game-theory' | 'architecture' | 'validation' | 'scenarios' | 'policies' | 'llm-optimization' | 'blog-convergence' | 'blog-coordination' | 'blog-bootstrap' | 'references';
+type DocSection = 'overview' | 'how-it-works' | 'cost-model' | 'policy-optimization' | 'experiments' | 'game-theory' | 'architecture' | 'validation' | 'scenarios' | 'policies' | 'llm-optimization' | 'blog-convergence' | 'blog-coordination' | 'blog-bootstrap' | 'schema-reference' | 'api-reference' | 'references';
 
 interface NavItem {
   id: DocSection;
@@ -28,6 +28,8 @@ const NAV: NavItem[] = [
   { id: 'blog-coordination', label: 'Financial Stress Tests', icon: '📝', group: 'blog' },
   { id: 'blog-bootstrap', label: 'From FIFO to Nash', icon: '📝', group: 'blog' },
   // Reference
+  { id: 'schema-reference', label: 'Schema Reference', icon: '📐', group: 'reference' },
+  { id: 'api-reference', label: 'API Reference', icon: '🔌', group: 'reference' },
   { id: 'references', label: 'References & Reading', icon: '📚', group: 'reference' },
 ];
 
@@ -100,6 +102,8 @@ export function DocsView() {
           {section === 'blog-convergence' && <BlogConvergence />}
           {section === 'blog-coordination' && <BlogCoordination />}
           {section === 'blog-bootstrap' && <BlogBootstrap />}
+          {section === 'schema-reference' && <SchemaReference />}
+          {section === 'api-reference' && <ApiReference />}
           {section === 'references' && <References />}
         </div>
       </article>
@@ -1890,6 +1894,377 @@ function References() {
           <tr><td className="py-2 pr-4 font-mono text-sky-400">Free-riding</td><td>Exploiting others' liquidity commitment while minimizing your own</td></tr>
         </tbody>
       </table>
+    </DocPage>
+  );
+}
+
+/* ─── Reference Pages ─── */
+
+function SchemaReference() {
+  return (
+    <DocPage title="Schema Reference" subtitle="Field-by-field documentation for scenario YAML and policy JSON">
+
+      <h3>Scenario YAML Schema</h3>
+      <p>
+        Scenarios are YAML files that fully configure a simulation run. Below is every top-level
+        field and its nested structure.
+      </p>
+
+      <h4>Top-Level Fields</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">num_ticks</td><td>int</td><td>Number of simulation ticks per day</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">agents</td><td>list</td><td>Array of agent (bank) configurations</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">cost_rates</td><td>object</td><td>Cost model parameters</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">lsm_config</td><td>object</td><td>Liquidity-saving mechanism settings</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">events</td><td>list</td><td>Scheduled scenario events</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">seed</td><td>int</td><td>RNG seed for reproducibility</td></tr>
+        </tbody>
+      </table>
+
+      <h4>agents[].* — Agent Configuration</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">name</td><td>string</td><td>Agent identifier (e.g. "Bank_A")</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">initial_balance</td><td>int</td><td>Starting balance in cents</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">arrival_config</td><td>object</td><td>Payment arrival configuration</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">policy</td><td>object</td><td>Policy config: <code>Fifo</code>, <code>FromJson</code>, or <code>InlineJson</code></td></tr>
+        </tbody>
+      </table>
+
+      <h4>agents[].arrival_config — Payment Arrivals</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">rate_per_tick</td><td>float</td><td>Expected number of payments per tick (Poisson λ)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">amount_distribution</td><td>object</td><td>Distribution for payment amounts</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">counterparty_weights</td><td>dict</td><td>Probability of sending to each counterparty (keys are agent names)</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">deadline_range</td><td>[int, int]</td><td>[min_ticks, max_ticks] for payment deadlines</td></tr>
+        </tbody>
+      </table>
+
+      <p><strong>amount_distribution</strong> variants:</p>
+      <ul>
+        <li><code>{`{type: "Uniform", min: 5000, max: 50000}`}</code></li>
+        <li><code>{`{type: "LogNormal", mean: 10.0, std_dev: 1.0}`}</code></li>
+        <li><code>{`{type: "Normal", mean: 25000, std_dev: 5000}`}</code></li>
+        <li><code>{`{type: "Exponential", lambda: 0.001}`}</code></li>
+      </ul>
+
+      <h4>cost_rates — Cost Model</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">liquidity_cost_per_tick_bps</td><td>float</td><td>Opportunity cost of committed funds (basis points per tick)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">delay_cost_per_tick_per_cent</td><td>float</td><td>Cost per cent of unsettled payment per tick</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">deadline_penalty</td><td>int</td><td>Flat penalty per payment that misses its deadline (cents)</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">eod_penalty_per_transaction</td><td>int</td><td>Penalty per unsettled payment at end of day (cents)</td></tr>
+        </tbody>
+      </table>
+
+      <h4>lsm_config — Liquidity-Saving Mechanisms</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">enable_bilateral</td><td>bool</td><td>Enable bilateral offsetting between agent pairs</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">enable_cycles</td><td>bool</td><td>Enable multilateral cycle detection</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">max_cycle_length</td><td>int</td><td>Maximum number of agents in a settlement cycle</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">max_cycles_per_tick</td><td>int</td><td>Maximum cycles resolved per tick</td></tr>
+        </tbody>
+      </table>
+
+      <h4>events[] — Scheduled Events</h4>
+      <p>Each event has a <code>type</code> and a <code>schedule</code>:</p>
+      <ul>
+        <li><strong>Types:</strong> <code>GlobalArrivalRateChange</code>, <code>DirectTransfer</code>, <code>QueuePriorityChange</code>, <code>CustomTransactionArrival</code>, <code>CollateralAdjustment</code>, <code>AgentArrivalRateChange</code>, <code>CounterpartyWeightChange</code>, <code>DeadlineWindowChange</code></li>
+        <li><strong>Schedule:</strong> <code>{`{type: "OneTime", tick: 150}`}</code> or <code>{`{type: "Repeating", start_tick: 100, interval: 50}`}</code></li>
+      </ul>
+
+      <h4>Example: Minimal Scenario</h4>
+      <CodeBlock>{`num_ticks: 12
+seed: 42
+
+agents:
+  - name: Bank_A
+    initial_balance: 5000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10.0
+        std_dev: 1.0
+      counterparty_weights:
+        Bank_B: 1.0
+      deadline_range: [5, 20]
+    policy:
+      type: Fifo
+
+  - name: Bank_B
+    initial_balance: 5000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: Uniform
+        min: 5000
+        max: 50000
+      counterparty_weights:
+        Bank_A: 1.0
+      deadline_range: [5, 20]
+    policy:
+      type: Fifo
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 83.0
+  delay_cost_per_tick_per_cent: 0.0001
+  deadline_penalty: 50000
+  eod_penalty_per_transaction: 100000`}</CodeBlock>
+
+      <h4>Example: Scenario with Events</h4>
+      <CodeBlock>{`num_ticks: 12
+seed: 99
+
+agents:
+  - name: Bank_A
+    initial_balance: 10000000
+    arrival_config:
+      rate_per_tick: 3.0
+      amount_distribution: { type: Normal, mean: 25000, std_dev: 5000 }
+      counterparty_weights: { Bank_B: 0.6, Bank_C: 0.4 }
+      deadline_range: [4, 15]
+    policy: { type: Fifo }
+  # ... more agents ...
+
+cost_rates:
+  liquidity_cost_per_tick_bps: 83.0
+  delay_cost_per_tick_per_cent: 0.0001
+  deadline_penalty: 50000
+  eod_penalty_per_transaction: 100000
+
+lsm_config:
+  enable_bilateral: true
+  enable_cycles: false
+  max_cycle_length: 4
+  max_cycles_per_tick: 10
+
+events:
+  - type: GlobalArrivalRateChange
+    multiplier: 2.0
+    schedule: { type: OneTime, tick: 6 }
+  - type: DirectTransfer
+    from_agent: CentralBank
+    to_agent: Bank_A
+    amount: 5000000
+    schedule: { type: OneTime, tick: 8 }`}</CodeBlock>
+
+      <h3>Policy JSON Schema</h3>
+      <p>
+        Policies are JSON decision trees that control bank behavior. They can be referenced
+        from scenario YAML via <code>{`policy: {type: "FromJson", path: "..."}`}</code> or
+        inlined via <code>{`policy: {type: "InlineJson", json_string: "..."}`}</code>.
+      </p>
+
+      <h4>Top-Level Fields</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">version</td><td>string</td><td>Schema version, currently <code>"1.0"</code> or <code>"2.0"</code></td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">policy_id</td><td>string</td><td>Unique identifier for this policy</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">parameters</td><td>object</td><td>Named parameters referenced by <code>{`{"param": "name"}`}</code> in trees</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">payment_tree</td><td>TreeNode</td><td>Per-payment decision tree (Release / Hold / Split)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">bank_tree</td><td>TreeNode</td><td>Per-tick bank-level decisions (budgets, state)</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">strategic_collateral_tree</td><td>TreeNode?</td><td>Optional: proactive collateral management</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">end_of_tick_collateral_tree</td><td>TreeNode?</td><td>Optional: reactive collateral cleanup</td></tr>
+        </tbody>
+      </table>
+
+      <h4>parameters.* — Common Parameters</h4>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Field</th>
+            <th className="text-left py-2 text-slate-300">Type</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">initial_liquidity_fraction</td><td>float</td><td>Fraction of pool to commit at start of day (0.0–1.0)</td></tr>
+        </tbody>
+      </table>
+      <p className="text-slate-500 text-xs">Additional custom parameters can be defined and referenced via <code>{`{"param": "name"}`}</code> in tree conditions.</p>
+
+      <h4>TreeNode — Decision Tree Nodes</h4>
+      <p>Every node is one of three types:</p>
+
+      <p><strong>Action node</strong> — terminal leaf that executes an action:</p>
+      <CodeBlock>{`{
+  "type": "action",
+  "node_id": "release_all",
+  "action": "Release"
+}`}</CodeBlock>
+      <p>
+        Valid actions: <code>Release</code>, <code>Hold</code>, <code>Split</code>,{' '}
+        <code>ReleaseWithCredit</code>, <code>PostCollateral</code>, <code>WithdrawCollateral</code>,{' '}
+        <code>HoldCollateral</code>, <code>NoAction</code>, <code>SetReleaseBudget</code>,{' '}
+        <code>SetState</code>, <code>AddState</code>
+      </p>
+
+      <p><strong>Condition node</strong> — branches on a comparison:</p>
+      <CodeBlock>{`{
+  "type": "condition",
+  "node_id": "check_deadline",
+  "condition": {
+    "op": "<=",
+    "left": {"field": "ticks_to_deadline"},
+    "right": {"value": 3}
+  },
+  "on_true": { ... },
+  "on_false": { ... }
+}`}</CodeBlock>
+      <p>
+        Operators: <code>==</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>,{' '}
+        <code>&gt;</code>, <code>&gt;=</code>. Left/right can be <code>{`{"field": "..."}`}</code>,{' '}
+        <code>{`{"value": n}`}</code>, <code>{`{"param": "..."}`}</code>, or{' '}
+        <code>{`{"compute": {op, left, right}}`}</code>.
+      </p>
+
+      <p><strong>Compound condition</strong> — boolean logic over sub-conditions:</p>
+      <CodeBlock>{`{
+  "op": "and",
+  "conditions": [
+    {"op": ">", "left": {"field": "amount"}, "right": {"value": 100000}},
+    {"op": "<", "left": {"field": "balance"}, "right": {"value": 50000}}
+  ]
+}`}</CodeBlock>
+      <p>Operators: <code>and</code>, <code>or</code>, <code>not</code> (single-element array for not).</p>
+
+      <h4>Example: FIFO Policy (simplest)</h4>
+      <CodeBlock>{`{
+  "version": "1.0",
+  "policy_id": "fifo_policy",
+  "parameters": { "initial_liquidity_fraction": 1.0 },
+  "payment_tree": {
+    "type": "action",
+    "node_id": "A1",
+    "action": "Release"
+  }
+}`}</CodeBlock>
+
+      <h4>Example: Deadline-Aware Policy</h4>
+      <CodeBlock>{`{
+  "version": "2.0",
+  "policy_id": "deadline_aware_v1",
+  "parameters": { "initial_liquidity_fraction": 0.085 },
+  "payment_tree": {
+    "type": "condition",
+    "node_id": "root",
+    "condition": {
+      "op": "<=",
+      "left": {"field": "ticks_to_deadline"},
+      "right": {"value": 2}
+    },
+    "on_true": {"type": "action", "node_id": "urgent", "action": "Release"},
+    "on_false": {
+      "type": "condition",
+      "node_id": "check_balance",
+      "condition": {
+        "op": ">=",
+        "left": {"field": "effective_liquidity"},
+        "right": {"compute": {"op": "*", "left": {"field": "amount"}, "right": {"value": 1.5}}}
+      },
+      "on_true": {"type": "action", "node_id": "flush", "action": "Release"},
+      "on_false": {"type": "action", "node_id": "wait", "action": "Hold"}
+    }
+  },
+  "bank_tree": {"type": "action", "node_id": "bank", "action": "NoAction"}
+}`}</CodeBlock>
+    </DocPage>
+  );
+}
+
+function ApiReference() {
+  return (
+    <DocPage title="API Reference" subtitle="REST API for programmatic access">
+      <p>
+        The SimCash backend exposes a full REST API powered by FastAPI. The interactive
+        Swagger UI provides auto-generated documentation for every endpoint, including
+        request/response schemas and a built-in "Try it out" feature.
+      </p>
+
+      <h3>Swagger UI</h3>
+      <p>
+        Open the API docs in a new tab to explore all available endpoints:
+      </p>
+      <p>
+        <a href="/api/docs" target="_blank" rel="noopener noreferrer">
+          📄 Open API Documentation (Swagger UI) →
+        </a>
+      </p>
+      <p>
+        <a href="/api/redoc" target="_blank" rel="noopener noreferrer">
+          📘 Open API Documentation (ReDoc) →
+        </a>
+      </p>
+
+      <h3>Key Endpoints</h3>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-700">
+            <th className="text-left py-2 text-slate-300">Method</th>
+            <th className="text-left py-2 text-slate-300">Path</th>
+            <th className="text-left py-2 text-slate-300">Description</th>
+          </tr>
+        </thead>
+        <tbody className="text-slate-400">
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">POST</td><td className="font-mono">/api/games</td><td>Create a new game session</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">GET</td><td className="font-mono">/api/games/{'{id}'}</td><td>Get game status and results</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">POST</td><td className="font-mono">/api/simulate</td><td>Run a one-shot simulation</td></tr>
+          <tr className="border-b border-slate-800"><td className="py-1.5 pr-4 font-mono text-sky-400">GET</td><td className="font-mono">/api/scenarios</td><td>List available scenarios</td></tr>
+          <tr><td className="py-1.5 pr-4 font-mono text-sky-400">GET</td><td className="font-mono">/api/health</td><td>Health check</td></tr>
+        </tbody>
+      </table>
+
+      <Callout type="info">
+        The API accepts scenario YAML and policy JSON in the formats documented in the{' '}
+        <strong>Schema Reference</strong> section. All monetary values are integers (cents).
+      </Callout>
     </DocPage>
   );
 }

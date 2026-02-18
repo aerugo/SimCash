@@ -120,6 +120,19 @@ export interface AgentReasoning {
 
 export type TabId = 'home' | 'dashboard' | 'events' | 'agents' | 'config' | 'replay' | 'analysis' | 'library' | 'game' | 'docs' | 'scenarios' | 'policies' | 'create' | 'editor';
 
+// Top-level navigation sections
+export type SectionId = 'play' | 'library' | 'create' | 'simulation' | 'game' | 'docs';
+
+export interface NavSection {
+  id: SectionId;
+  label: string;
+  icon: string;
+  defaultTab: TabId;
+  tabs: { id: TabId; label: string }[];
+  requiresSim?: boolean;
+  requiresGame?: boolean;
+}
+
 // ---- Scenario Event Types ----
 
 export type EventType =

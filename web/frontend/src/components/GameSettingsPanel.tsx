@@ -150,14 +150,11 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
         {s.useLlm && (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500">{s.mockReasoning ? 'Algorithmic' : 'LLM-Powered'}</span>
+              <span className="text-[10px] text-slate-500">{s.mockReasoning ? 'Simulated AI' : 'Live AI'}</span>
               <Toggle label="" value={!s.mockReasoning} onChange={v => update({ mockReasoning: !v })} />
             </div>
             <p className="text-[10px] text-slate-500">
-              {s.mockReasoning ? '(fast, deterministic)' : '(Gemini, richer reasoning)'}
-            </p>
-            <p className="text-[10px] text-slate-600">
-              Algorithmic mode uses rule-based optimization. LLM mode uses a language model to reason about strategy.
+              {s.mockReasoning ? 'Use simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses Gemini for richer, LLM-powered reasoning'}
             </p>
           </div>
         )}

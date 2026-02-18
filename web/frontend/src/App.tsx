@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning, GameState, GameSetupConfig } from './types';
+import type { SimulationState, TickResult, SimEvent, Preset, TabId, ScenarioConfig, AgentReasoning, GameState, GameSetupConfig, SectionId, NavSection } from './types';
 import { createSimulation, getPresets, connectWebSocket, createGame } from './api';
 import { ToastContainer, toast } from './components/Toast';
 import { HomeView } from './views/HomeView';
@@ -23,21 +23,52 @@ import { LandingView } from './views/LandingView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { checkAdmin } from './api';
 
-const TABS: { id: TabId; label: string; icon: string; requiresSim?: boolean; requiresGame?: boolean }[] = [
-  { id: 'home', label: 'Setup', icon: '🏠' },
-  { id: 'scenarios', label: 'Scenarios', icon: '📚' },
-  { id: 'policies', label: 'Policies', icon: '🧠' },
-  { id: 'create', label: 'Create', icon: '✏️' },
-  { id: 'game', label: 'Game', icon: '🎮', requiresGame: true },
-  { id: 'dashboard', label: 'Dashboard', icon: '📊', requiresSim: true },
-  { id: 'agents', label: 'Agents', icon: '🧠', requiresSim: true },
-  { id: 'events', label: 'Events', icon: '📋', requiresSim: true },
-  { id: 'config', label: 'Config', icon: '⚙️', requiresSim: true },
-  { id: 'replay', label: 'Replay', icon: '🔄', requiresSim: true },
-  { id: 'analysis', label: 'Analysis', icon: '📈', requiresSim: true },
-  { id: 'docs', label: 'Docs', icon: '📖' },
-  { id: 'library', label: 'Saved', icon: '💾' },
+const SECTIONS: NavSection[] = [
+  {
+    id: 'play', label: 'Play', icon: '🏠', defaultTab: 'home',
+    tabs: [{ id: 'home', label: 'Play' }],
+  },
+  {
+    id: 'library', label: 'Library', icon: '📚', defaultTab: 'scenarios',
+    tabs: [
+      { id: 'scenarios', label: 'Scenarios' },
+      { id: 'policies', label: 'Policies' },
+      { id: 'library', label: 'Saved' },
+    ],
+  },
+  {
+    id: 'create', label: 'Create', icon: '✏️', defaultTab: 'create',
+    tabs: [{ id: 'create', label: 'Create' }],
+  },
+  {
+    id: 'game', label: 'Game', icon: '🎮', defaultTab: 'game',
+    tabs: [{ id: 'game', label: 'Game' }],
+    requiresGame: true,
+  },
+  {
+    id: 'simulation', label: 'Simulation', icon: '📊', defaultTab: 'dashboard',
+    tabs: [
+      { id: 'dashboard', label: 'Dashboard' },
+      { id: 'agents', label: 'Agents' },
+      { id: 'events', label: 'Events' },
+      { id: 'config', label: 'Config' },
+      { id: 'replay', label: 'Replay' },
+      { id: 'analysis', label: 'Analysis' },
+    ],
+    requiresSim: true,
+  },
+  {
+    id: 'docs', label: 'Docs', icon: '📖', defaultTab: 'docs',
+    tabs: [{ id: 'docs', label: 'Docs' }],
+  },
 ];
+
+function getSectionForTab(tabId: TabId): SectionId {
+  for (const s of SECTIONS) {
+    if (s.tabs.some(t => t.id === tabId)) return s.id;
+  }
+  return 'play';
+}
 
 function AppContent() {
   const { user, loading, signOut: handleAuthSignOut } = useAuth();
@@ -236,11 +267,14 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
     return () => window.removeEventListener('keydown', handler);
   }, [isRunning, state, handleRun, handlePause, handleTick, handleReset]);
 
-  const visibleTabs = TABS.filter(t => {
-    if (t.requiresSim && !simId) return false;
-    if (t.requiresGame && !gameId) return false;
+  const visibleSections = SECTIONS.filter(s => {
+    if (s.requiresSim && !simId) return false;
+    if (s.requiresGame && !gameId) return false;
     return true;
   });
+
+  const activeSection = visibleSections.find(s => s.id === getSectionForTab(tab)) ?? visibleSections[0];
+  const showSubTabs = activeSection && activeSection.tabs.length > 1;
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-100">
@@ -276,26 +310,49 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
           </div>
         </div>
 
-        {/* Tab bar */}
+        {/* Section bar */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex gap-1 overflow-x-auto pb-0 -mb-px">
-            {visibleTabs.map(t => (
+            {visibleSections.map(s => (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={s.id}
+                onClick={() => setTab(s.defaultTab)}
                 className={`px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  tab === t.id
+                  activeSection?.id === s.id
                     ? 'border-sky-400 text-sky-400'
                     : 'border-transparent text-slate-500 hover:text-slate-300'
                 }`}
               >
-                <span className="mr-1">{t.icon}</span>
-                <span className="hidden sm:inline">{t.label}</span>
+                <span className="mr-1">{s.icon}</span>
+                <span className="hidden sm:inline">{s.label}</span>
               </button>
             ))}
           </div>
         </div>
       </header>
+
+      {/* Sub-tab bar */}
+      {showSubTabs && (
+        <div className="border-b border-slate-700/50 bg-[#0f172a]/60 sticky top-[57px] z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex gap-1 overflow-x-auto py-0 -mb-px">
+              {activeSection.tabs.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className={`px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
+                    tab === t.id
+                      ? 'border-violet-400 text-violet-300'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
         {tab === 'home' && (
