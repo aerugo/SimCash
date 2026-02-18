@@ -55,7 +55,12 @@ RUN pip install --no-cache-dir \
 
 # Ensure all Python subpackages are available (maturin wheel may not include all)
 COPY api/payment_simulator/ /tmp/ps_src/
-RUN cp -rn /tmp/ps_src/* /usr/local/lib/python3.13/site-packages/payment_simulator/ && rm -rf /tmp/ps_src
+RUN SITE=$(python -c "import payment_simulator; import os; print(os.path.dirname(payment_simulator.__file__))") && \
+    echo "Installing to $SITE" && \
+    cp -r /tmp/ps_src/* "$SITE/" && \
+    rm -rf /tmp/ps_src && \
+    python -c "from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient; print('experiments OK')" && \
+    python -c "from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer; print('ai_cash_mgmt OK')"
 
 # Copy backend
 COPY web/backend/ web/backend/
