@@ -619,6 +619,8 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
         raw_yaml = copy.deepcopy(raw_yaml)
 
+    logger.info("Creating game %s: use_llm=%s mock_reasoning=%s constraint_preset=%s",
+                game_id, config.use_llm, config.mock_reasoning, config.constraint_preset)
     try:
         game = Game(
             game_id=game_id,
