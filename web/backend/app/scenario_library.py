@@ -221,15 +221,28 @@ def _load_preset_scenarios() -> list[dict[str, Any]]:
 _LIBRARY_CACHE: list[dict[str, Any]] | None = None
 
 
-def get_library() -> list[dict[str, Any]]:
-    """Get all scenarios (cached). Returns list of metadata dicts (without raw_config)."""
+def get_library(include_archived: bool = False) -> list[dict[str, Any]]:
+    """Get all scenarios (cached). Returns list of metadata dicts (without raw_config).
+
+    If *include_archived* is False (default), only visible scenarios are returned.
+    Each entry includes ``visible`` (bool) and ``collections`` (list of collection ids).
+    """
     global _LIBRARY_CACHE
     if _LIBRARY_CACHE is None:
         _LIBRARY_CACHE = _load_example_configs() + _load_preset_scenarios()
-    return [
-        {k: v for k, v in s.items() if k != "raw_config"}
-        for s in _LIBRARY_CACHE
-    ]
+
+    from .collections import get_visibility, _scenario_collections_map
+    visibility = get_visibility("scenario")
+    col_map = _scenario_collections_map()
+
+    results = []
+    for s in _LIBRARY_CACHE:
+        entry = {k: v for k, v in s.items() if k != "raw_config"}
+        entry["visible"] = visibility.get(s["id"], True)
+        entry["collections"] = col_map.get(s["id"], [])
+        if include_archived or entry["visible"]:
+            results.append(entry)
+    return results
 
 
 def get_scenario_detail(scenario_id: str) -> dict[str, Any] | None:

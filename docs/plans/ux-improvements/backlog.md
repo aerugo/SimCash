@@ -89,10 +89,10 @@
 
 | # | Task | Priority | Effort | Finding |
 |---|------|----------|--------|---------|
-| 30 | Build batch experiment runner (queue multiple runs, parameter sweeps) | P2 | L | F11.1 |
-| 31 | Add scenario comparison view (overlay results from different runs) | P2 | L | F11.3 |
-| 32 | Add game state annotation/note-taking feature | P2 | M | F11.5 |
-| 33 | Consider "Research Mode" toggle replacing game terminology (🎮→📊) | P2 | M | — |
+| 30 | ~~Build batch experiment runner~~ → moved to parking lot | — | — | F11.1 |
+| 31 | ~~Scenario comparison view~~ → moved to parking lot | — | — | F11.3 |
+| 32 | ~~Add game state annotation/note-taking feature~~ | ✅ DONE | M | F11.5 |
+| 33 | ~~"Research Mode" toggle~~ | ✅ DONE | M | — |
 
 ---
 

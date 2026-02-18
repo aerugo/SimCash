@@ -247,8 +247,9 @@ export async function getGameDayReplay(gameId: string, dayNum: number): Promise<
 
 // ---- Scenario Library API ----
 
-export async function getScenarioLibrary(): Promise<LibraryScenario[]> {
-  const res = await fetch(`${BASE}/scenarios/library`);
+export async function getScenarioLibrary(includeArchived?: boolean): Promise<LibraryScenario[]> {
+  const qs = includeArchived ? '?include_archived=true' : '';
+  const res = await fetch(`${BASE}/scenarios/library${qs}`);
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return data.scenarios;
@@ -262,8 +263,9 @@ export async function getScenarioLibraryDetail(scenarioId: string): Promise<Libr
 
 // ---- Policy Library API ----
 
-export async function getPolicyLibrary(): Promise<LibraryPolicy[]> {
-  const res = await fetch(`${BASE}/policies/library`);
+export async function getPolicyLibrary(includeArchived?: boolean): Promise<LibraryPolicy[]> {
+  const qs = includeArchived ? '?include_archived=true' : '';
+  const res = await fetch(`${BASE}/policies/library${qs}`);
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return data.policies;
@@ -293,6 +295,72 @@ export async function getPolicyDiff(gameId: string, day1: number, day2: number, 
 
 export async function getPaymentTraces(gameId: string, dayNum: number): Promise<PaymentTraceResponse> {
   const res = await authFetch(`${BASE}/games/${gameId}/days/${dayNum}/payments`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Collections API ----
+
+export interface Collection {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  scenario_ids: string[];
+  scenario_count: number;
+}
+
+export interface CollectionDetail {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  scenarios: LibraryScenario[];
+}
+
+export async function fetchCollections(): Promise<Collection[]> {
+  const res = await fetch(`${BASE}/collections`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchCollectionDetail(id: string): Promise<CollectionDetail> {
+  const res = await fetch(`${BASE}/collections/${id}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Admin Library API ----
+
+export interface AdminLibraryItem {
+  id: string;
+  name: string;
+  visible: boolean;
+  collections?: string[];
+}
+
+export interface AdminLibrary {
+  scenarios: AdminLibraryItem[];
+  policies: AdminLibraryItem[];
+}
+
+export async function fetchAdminLibrary(): Promise<AdminLibrary> {
+  const res = await authFetch(`${BASE}/admin/library`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function toggleLibraryVisibility(
+  itemType: 'scenario' | 'policy',
+  itemId: string,
+  visible: boolean,
+): Promise<{ ok: boolean }> {
+  const typePlural = itemType === 'scenario' ? 'scenarios' : 'policies';
+  const res = await authFetch(`${BASE}/admin/library/${typePlural}/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visible }),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

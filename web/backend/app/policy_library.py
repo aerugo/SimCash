@@ -156,8 +156,16 @@ class PolicyLibrary:
             except Exception:
                 pass
 
-    def list_all(self) -> list[dict[str, Any]]:
-        return [p["metadata"] for p in self._policies.values()]
+    def list_all(self, include_archived: bool = False) -> list[dict[str, Any]]:
+        from .collections import get_visibility
+        visibility = get_visibility("policy")
+        results = []
+        for p in self._policies.values():
+            entry = dict(p["metadata"])
+            entry["visible"] = visibility.get(entry["id"], True)
+            if include_archived or entry["visible"]:
+                results.append(entry)
+        return results
 
     def get(self, policy_id: str) -> dict[str, Any] | None:
         entry = self._policies.get(policy_id)

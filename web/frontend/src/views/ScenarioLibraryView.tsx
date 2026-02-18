@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
-import { getScenarioLibrary, getScenarioLibraryDetail } from '../api';
+import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection } from '../api';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'Paper Experiments': '📄',
@@ -39,6 +39,9 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedScenario, setSelectedScenario] = useState<LibraryScenarioDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
@@ -49,15 +52,24 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
   const [optimizationInterval, setOptimizationInterval] = useState(1);
 
   useEffect(() => {
-    getScenarioLibrary()
-      .then(setScenarios)
+    setLoading(true);
+    Promise.all([
+      getScenarioLibrary(showArchived),
+      fetchCollections().catch(() => [] as Collection[]),
+    ])
+      .then(([s, c]) => { setScenarios(s); setCollections(c); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showArchived]);
 
   const categories = [...new Set(scenarios.map(s => s.category))];
+  const activeCollection = collections.find(c => c.id === selectedCollection);
   const searchLower = searchQuery.toLowerCase();
   const filtered = scenarios.filter(s => {
+    if (selectedCollection && activeCollection) {
+      const inCollection = activeCollection.scenario_ids.includes(s.id) || s.collections?.includes(selectedCollection);
+      if (!inCollection) return false;
+    }
     if (selectedCategory && s.category !== selectedCategory) return false;
     if (searchLower) {
       return (
@@ -313,6 +325,35 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
         </p>
       </div>
 
+      {/* Collections */}
+      {collections.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setSelectedCollection(null)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              selectedCollection === null ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All
+          </button>
+          {collections.map(col => (
+            <button
+              key={col.id}
+              onClick={() => setSelectedCollection(col.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                selectedCollection === col.id
+                  ? 'bg-sky-600 text-white'
+                  : col.name === 'Paper Experiments'
+                    ? 'bg-slate-800 text-slate-300 hover:text-slate-100 border border-sky-500/30'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {col.icon} {col.name} ({col.scenario_count})
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search */}
       <div className="mb-4">
         <input
@@ -353,7 +394,9 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
           <button
             key={scenario.id}
             onClick={() => handleSelectScenario(scenario.id)}
-            className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group"
+            className={`bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group ${
+              scenario.visible === false ? 'opacity-50' : ''
+            }`}
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -362,9 +405,16 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
                   {scenario.name}
                 </h3>
               </div>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${DIFFICULTY_COLORS[scenario.difficulty]}`}>
-                {scenario.difficulty}
-              </span>
+              <div className="flex items-center gap-1">
+                {scenario.visible === false && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400 border border-slate-600">
+                    Archived
+                  </span>
+                )}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${DIFFICULTY_COLORS[scenario.difficulty]}`}>
+                  {scenario.difficulty}
+                </span>
+              </div>
             </div>
 
             <p className="text-xs text-slate-400 mb-3 line-clamp-2">{scenario.description}</p>
@@ -395,6 +445,21 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
             </div>
           </button>
         ))}
+      </div>
+
+      {/* Show archived toggle */}
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            showArchived ? 'bg-sky-600' : 'bg-slate-700'
+          }`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+            showArchived ? 'translate-x-4.5' : 'translate-x-0.5'
+          }`} />
+        </button>
+        <span className="text-xs text-slate-400">Show archived scenarios</span>
       </div>
     </div>
   );

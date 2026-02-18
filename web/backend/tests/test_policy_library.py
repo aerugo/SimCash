@@ -25,8 +25,8 @@ class TestPolicyLoading:
         assert POLICY_DIR.exists()
 
     def test_all_policy_files_load(self, library):
-        assert len(library.list_all()) == len(POLICY_FILES)
-        assert len(library.list_all()) >= 25  # at least 25 policies
+        assert len(library.list_all(include_archived=True)) == len(POLICY_FILES)
+        assert len(library.list_all(include_archived=True)) >= 25  # at least 25 policies
 
     def test_all_metadata_fields_populated(self, library):
         for meta in library.list_all():
@@ -155,7 +155,7 @@ class TestAPIEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert "policies" in data
-        assert len(data["policies"]) >= 25
+        assert len(data["policies"]) >= 15  # visible policies
 
     def test_get_policy_detail(self, client):
         resp = client.get("/api/policies/library/fifo")

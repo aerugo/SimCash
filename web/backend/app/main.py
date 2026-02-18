@@ -30,6 +30,7 @@ from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 from .scenario_library import get_library, get_scenario_detail
 from .policy_library import get_library as get_policy_library
+from . import collections as coll_mod
 from .policy_diff import diff_policies
 from .payment_trace import build_payment_traces
 from .policy_editor import router as policy_editor_router
@@ -296,12 +297,41 @@ def compare_runs(req: CompareRequest):
     return {"results": results}
 
 
+# ---- Collections ----
+
+@app.get("/api/collections")
+def list_collections():
+    """List scenario collections with scenario counts."""
+    cols = coll_mod.get_collections()
+    visibility = coll_mod.get_visibility("scenario")
+    result = []
+    for c in cols:
+        visible_count = sum(1 for sid in c["scenario_ids"] if visibility.get(sid, True))
+        result.append({**c, "scenario_count": visible_count})
+    return {"collections": result}
+
+
+@app.get("/api/collections/{collection_id}")
+def get_collection_detail(collection_id: str):
+    """Get collection detail with full scenario list."""
+    col = coll_mod.get_collection(collection_id)
+    if not col:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    # Fetch scenario metadata for each scenario in the collection
+    scenarios = []
+    for sid in col["scenario_ids"]:
+        detail = get_scenario_detail(sid)
+        if detail:
+            scenarios.append({k: v for k, v in detail.items() if k != "raw_config"})
+    return {**col, "scenarios": scenarios}
+
+
 # ---- Scenario Library (read-only, from example configs + presets) ----
 
 @app.get("/api/scenarios/library")
-def list_scenario_library():
+def list_scenario_library(include_archived: bool = False):
     """List all scenarios from example configs + presets with metadata."""
-    return {"scenarios": get_library()}
+    return {"scenarios": get_library(include_archived=include_archived)}
 
 
 @app.get("/api/scenarios/library/{scenario_id}")
@@ -913,6 +943,38 @@ async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user
     return {"status": "revoked", "email": user_email}
 
 
+# ---- Admin Library Management ----
+
+@app.get("/api/admin/library")
+async def admin_library(email: str = Depends(get_admin_user)):
+    """Get all scenarios and policies with visibility (admin only)."""
+    scenarios = get_library(include_archived=True)
+    lib = get_policy_library()
+    policies = lib.list_all(include_archived=True)
+    return {"scenarios": scenarios, "policies": policies}
+
+
+class VisibilityUpdate(PydanticBaseModel):
+    visible: bool
+
+
+@app.patch("/api/admin/library/{item_type}/{item_id}")
+async def admin_toggle_visibility(
+    item_type: str,
+    item_id: str,
+    body: VisibilityUpdate,
+    email: str = Depends(get_admin_user),
+):
+    """Toggle visibility of a scenario or policy (admin only)."""
+    if item_type not in ("scenario", "policy"):
+        raise HTTPException(status_code=400, detail="item_type must be 'scenario' or 'policy'")
+    try:
+        coll_mod.set_visibility(item_type, item_id, body.visible)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    return {"status": "updated", "item_type": item_type, "item_id": item_id, "visible": body.visible}
+
+
 # ---- Platform Settings (Model Selection) ----
 
 class SettingsUpdate(PydanticBaseModel):
@@ -973,10 +1035,10 @@ def list_constraint_presets():
 # ---- Policy Library ----
 
 @app.get("/api/policies/library")
-def list_policy_library():
+def list_policy_library(include_archived: bool = False):
     """List all built-in policies with metadata."""
     lib = get_policy_library()
-    return {"policies": lib.list_all()}
+    return {"policies": lib.list_all(include_archived=include_archived)}
 
 
 @app.get("/api/policies/library/{policy_id}")

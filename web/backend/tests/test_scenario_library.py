@@ -44,7 +44,7 @@ class TestExampleConfigsLoad:
 
     def test_full_library_loads(self):
         """Full library = examples + presets."""
-        library = get_library()
+        library = get_library(include_archived=True)
         assert len(library) == 18  # 11 + 7
 
 
@@ -140,8 +140,8 @@ class TestValidation:
 
 class TestAPI:
     def test_list_library(self, client):
-        """GET /api/scenarios/library returns all scenarios."""
-        resp = client.get("/api/scenarios/library")
+        """GET /api/scenarios/library returns all scenarios when include_archived."""
+        resp = client.get("/api/scenarios/library?include_archived=true")
         assert resp.status_code == 200
         data = resp.json()
         assert "scenarios" in data
@@ -175,8 +175,8 @@ class TestAPI:
         assert "preset_5bank_12tick" in ids
 
     def test_example_configs_in_library(self, client):
-        """Example configs should appear in the library."""
-        resp = client.get("/api/scenarios/library")
+        """Example configs should appear in the library (with include_archived)."""
+        resp = client.get("/api/scenarios/library?include_archived=true")
         ids = [s["id"] for s in resp.json()["scenarios"]]
         assert "target2_crisis_25day" in ids
         assert "test_minimal_eod" in ids

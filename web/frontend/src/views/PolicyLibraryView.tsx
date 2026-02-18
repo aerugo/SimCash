@@ -32,13 +32,15 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compareDetails, setCompareDetails] = useState<LibraryPolicyDetail[]>([]);
   const [compareLoading, setCompareLoading] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
-    getPolicyLibrary()
+    setLoading(true);
+    getPolicyLibrary(showArchived)
       .then(setPolicies)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showArchived]);
 
   const filtered = filterComplexity
     ? policies.filter(p => p.complexity === filterComplexity)
@@ -345,7 +347,7 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
               compareMode && compareIds.includes(policy.id)
                 ? 'border-violet-500/70'
                 : 'border-slate-700 hover:border-sky-500/50'
-            }`}
+            } ${policy.visible === false ? 'opacity-50' : ''}`
           >
             {compareMode && (
               <button
@@ -368,9 +370,16 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
               <h3 className="font-semibold text-slate-100 group-hover:text-sky-300 transition-colors text-sm">
                 {policy.name}
               </h3>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded border ${COMPLEXITY_COLORS[policy.complexity]}`}>
-                {policy.complexity}
-              </span>
+              <div className="flex items-center gap-1">
+                {policy.visible === false && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400 border border-slate-600">
+                    Archived
+                  </span>
+                )}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${COMPLEXITY_COLORS[policy.complexity]}`}>
+                  {policy.complexity}
+                </span>
+              </div>
             </div>
 
             <p className="text-xs text-slate-400 mb-3 line-clamp-2">{policy.description}</p>
@@ -395,6 +404,21 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
           </button>
           </div>
         ))}
+      </div>
+
+      {/* Show archived toggle */}
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          onClick={() => setShowArchived(!showArchived)}
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            showArchived ? 'bg-sky-600' : 'bg-slate-700'
+          }`}
+        >
+          <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+            showArchived ? 'translate-x-4.5' : 'translate-x-0.5'
+          }`} />
+        </button>
+        <span className="text-xs text-slate-400">Show archived policies</span>
       </div>
     </div>
   );

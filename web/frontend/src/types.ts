@@ -272,6 +272,8 @@ export interface LibraryScenario {
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   features_used: string[];
   cost_config: Record<string, number>;
+  visible?: boolean;
+  collections?: string[];
 }
 
 export interface LibraryScenarioDetail extends LibraryScenario {
@@ -292,6 +294,7 @@ export interface LibraryPolicy {
   parameters: Record<string, unknown>;
   context_fields_used: string[];
   total_nodes: number;
+  visible?: boolean;
 }
 
 export interface LibraryPolicyDetail extends LibraryPolicy {
