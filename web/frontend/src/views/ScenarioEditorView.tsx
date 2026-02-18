@@ -320,6 +320,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
       setValid(data.valid);
       if (data.valid) {
         setSummary(data.summary);
+        setWarnings(data.warnings || []);
       } else {
         setErrors(data.errors || ['Unknown error']);
       }
@@ -495,6 +496,13 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
                 <span className="text-emerald-400 text-lg">✓</span>
                 <span className="text-emerald-300 font-semibold text-sm">Valid Scenario</span>
               </div>
+              {warnings.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-amber-300">⚠️ {w}</p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {valid === false && (

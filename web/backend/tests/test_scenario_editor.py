@@ -282,6 +282,40 @@ def test_builder_format_events_validate():
     assert any("CollateralAdjustment" in f for f in features)
 
 
+# ── Unknown key warning tests ─────────────────────────────────────
+
+def test_validate_unknown_key_returns_warning():
+    """YAML with 'cost_config' instead of 'cost_rates' returns a warning."""
+    yaml_str = VALID_YAML.replace("cost_rates:", "cost_config:")
+    res = client.post("/api/scenarios/validate", json={"yaml_string": yaml_str})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True
+    assert any("cost_config" in w and "cost_rates" in w for w in data["warnings"])
+
+
+def test_validate_correct_keys_no_warnings():
+    """YAML with correct keys returns no warnings."""
+    res = client.post("/api/scenarios/validate", json={"yaml_string": VALID_YAML})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True
+    assert data["warnings"] == []
+
+
+def test_validate_multiple_unknown_keys():
+    """Multiple unknown keys return multiple warnings."""
+    yaml_str = VALID_YAML.replace("cost_rates:", "cost_config:") + "\nlsm_stuff:\n  foo: bar\nfizzbuzz:\n  x: 1\n"
+    res = client.post("/api/scenarios/validate", json={"yaml_string": yaml_str})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True
+    assert len(data["warnings"]) == 3
+    assert any("cost_rates" in w for w in data["warnings"])
+    assert any("lsm_config" in w for w in data["warnings"])
+    assert any("fizzbuzz" in w for w in data["warnings"])
+
+
 def test_builder_format_events_save():
     """Scenarios with builder-format events can be saved as custom scenarios."""
     res = client.post("/api/scenarios/custom", json={
