@@ -315,19 +315,6 @@ export function HomeView() {
                       )}
                     </div>
                     <div className="text-sm text-slate-400 mt-1">{s.description}</div>
-                    {s.cost_rates && (
-                      <div className="text-xs text-slate-500 mt-2 flex gap-3">
-                        <span title="Liquidity cost: basis points of committed funds charged per tick. Higher = more expensive to hold liquidity.">
-                          {s.cost_rates.liquidity_cost_per_tick_bps} bps
-                        </span>
-                        <span title="Delay cost: charged per cent of unsettled payment per tick. Penalizes slow settlement.">
-                          ⏱ {s.cost_rates.delay_cost_per_tick_per_cent}/¢/tick
-                        </span>
-                        <span title="Deadline penalty: flat fee per payment still unsettled at end of day. The strongest incentive to settle on time.">
-                          ⚠️ ${(s.cost_rates.deadline_penalty / 100).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
                   </div>
                   <div className="text-xs text-slate-500 flex gap-3">
                     <span>{s.ticks_per_day} ticks</span>
