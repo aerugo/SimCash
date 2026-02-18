@@ -15,6 +15,7 @@ import { DocsView } from './views/DocsView';
 import { ScenarioLibraryView } from './views/ScenarioLibraryView';
 import { PolicyLibraryView } from './views/PolicyLibraryView';
 import { CreateView } from './views/CreateView';
+import type { ScenarioEditorState } from './views/ScenarioEditorView';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
@@ -107,6 +108,8 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
   const [gameId, setGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [scenarioEditorState, setScenarioEditorState] = useState<ScenarioEditorState | undefined>(undefined);
+  const [policyEditorJsonText, setPolicyEditorJsonText] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     getPresets().then(setPresets);
@@ -348,7 +351,13 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
         )}
 
         {tab === 'create' && (
-          <CreateView onGameLaunch={handleGameLaunch} />
+          <CreateView
+            onGameLaunch={handleGameLaunch}
+            scenarioEditorState={scenarioEditorState}
+            onScenarioEditorStateChange={setScenarioEditorState}
+            policyEditorJsonText={policyEditorJsonText}
+            onPolicyEditorJsonTextChange={setPolicyEditorJsonText}
+          />
         )}
 
 

@@ -223,19 +223,42 @@ interface ValidationSummary {
   cost_config: Record<string, number>;
 }
 
-interface Props {
-  onGameLaunch?: (config: GameSetupConfig) => void;
+export interface ScenarioEditorState {
+  yaml: string;
+  name: string;
+  description: string;
 }
 
-export function ScenarioEditorView({ onGameLaunch }: Props) {
-  const [yaml, setYaml] = useState(BLANK_TEMPLATE);
+interface Props {
+  onGameLaunch?: (config: GameSetupConfig) => void;
+  initialState?: ScenarioEditorState;
+  onStateChange?: (state: ScenarioEditorState) => void;
+}
+
+export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }: Props) {
+  const [yaml, setYamlRaw] = useState(initialState?.yaml ?? BLANK_TEMPLATE);
   const [validating, setValidating] = useState(false);
   const [valid, setValid] = useState<boolean | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [summary, setSummary] = useState<ValidationSummary | null>(null);
   const [saving, setSaving] = useState(false);
-  const [scenarioName, setScenarioName] = useState('My Scenario');
-  const [scenarioDesc, setScenarioDesc] = useState('');
+  const [scenarioName, setScenarioNameRaw] = useState(initialState?.name ?? 'My Scenario');
+  const [scenarioDesc, setScenarioDescRaw] = useState(initialState?.description ?? '');
+
+  const setYaml = useCallback((v: string) => {
+    setYamlRaw(v);
+    onStateChange?.({ yaml: v, name: scenarioName, description: scenarioDesc });
+  }, [onStateChange, scenarioName, scenarioDesc]);
+
+  const setScenarioName = useCallback((v: string) => {
+    setScenarioNameRaw(v);
+    onStateChange?.({ yaml, name: v, description: scenarioDesc });
+  }, [onStateChange, yaml, scenarioDesc]);
+
+  const setScenarioDesc = useCallback((v: string) => {
+    setScenarioDescRaw(v);
+    onStateChange?.({ yaml, name: scenarioName, description: v });
+  }, [onStateChange, yaml, scenarioName]);
 
   // Parse YAML to extract agent IDs, total ticks, and events for the timeline builder
   const parsedYaml = useMemo(() => {
@@ -275,7 +298,7 @@ export function ScenarioEditorView({ onGameLaunch }: Props) {
     } catch {
       // if YAML is broken, don't modify
     }
-  }, [yaml]);
+  }, [yaml, setYaml]);
 
   const validate = useCallback(async () => {
     setValidating(true);

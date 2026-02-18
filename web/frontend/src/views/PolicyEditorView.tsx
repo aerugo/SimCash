@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { authFetch } from '../api';
 import type { GameSetupConfig } from '../types';
 
 const BASE = '/api';
@@ -90,8 +91,14 @@ const TEMPLATES: Record<string, { label: string; json: object }> = {
   },
 };
 
+interface SavedPolicy {
+  id: string;
+  name: string;
+  json_string: string;
+}
+
 async function validatePolicy(jsonString: string): Promise<ValidationResult> {
-  const res = await fetch(`${BASE}/policies/editor/validate`, {
+  const res = await authFetch(`${BASE}/policies/editor/validate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ json_string: jsonString }),
@@ -101,7 +108,7 @@ async function validatePolicy(jsonString: string): Promise<ValidationResult> {
 
 async function fetchPolicyLibrary(): Promise<LibraryPolicy[]> {
   try {
-    const res = await fetch(`${BASE}/policies/library`);
+    const res = await authFetch(`${BASE}/policies/library`);
     const data = await res.json();
     return data.policies || [];
   } catch {
@@ -111,7 +118,7 @@ async function fetchPolicyLibrary(): Promise<LibraryPolicy[]> {
 
 async function fetchPolicyDetail(policyId: string): Promise<string | null> {
   try {
-    const res = await fetch(`${BASE}/policies/library/${policyId}`);
+    const res = await authFetch(`${BASE}/policies/library/${policyId}`);
     const data = await res.json();
     return JSON.stringify(data.raw_json || data, null, 2);
   } catch {
@@ -119,15 +126,56 @@ async function fetchPolicyDetail(policyId: string): Promise<string | null> {
   }
 }
 
-export function PolicyEditorView({ onGameLaunch }: { onGameLaunch?: (config: GameSetupConfig) => void }) {
-  const [jsonText, setJsonText] = useState(() => JSON.stringify(TEMPLATES.release_all.json, null, 2));
+async function fetchCustomPolicies(): Promise<SavedPolicy[]> {
+  try {
+    const res = await authFetch(`${BASE}/policies/custom`);
+    const data = await res.json();
+    return data.policies || [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveCustomPolicy(jsonString: string, name: string, description: string = ''): Promise<{ ok: boolean; error?: string; policy?: SavedPolicy }> {
+  try {
+    const res = await authFetch(`${BASE}/policies/custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json_string: jsonString, name, description }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      return { ok: false, error: data.detail || 'Save failed' };
+    }
+    const policy = await res.json();
+    return { ok: true, policy };
+  } catch (e) {
+    return { ok: false, error: `${e}` };
+  }
+}
+
+interface PolicyEditorProps {
+  onGameLaunch?: (config: GameSetupConfig) => void;
+  initialJsonText?: string;
+  onJsonTextChange?: (text: string) => void;
+}
+
+export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChange }: PolicyEditorProps) {
+  const [jsonText, setJsonTextRaw] = useState(() => initialJsonText ?? JSON.stringify(TEMPLATES.release_all.json, null, 2));
+
+  const setJsonText = useCallback((v: string) => {
+    setJsonTextRaw(v);
+    onJsonTextChange?.(v);
+  }, [onJsonTextChange]);
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [libraryPolicies, setLibraryPolicies] = useState<LibraryPolicy[]>([]);
-  const [savedPolicies, setSavedPolicies] = useState<Record<string, string>>({});
+  const [savedPolicies, setSavedPolicies] = useState<SavedPolicy[]>([]);
+  const [saveToast, setSaveToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     fetchPolicyLibrary().then(setLibraryPolicies);
+    fetchCustomPolicies().then(setSavedPolicies);
   }, []);
 
   const handleValidate = useCallback(async () => {
@@ -148,7 +196,7 @@ export function PolicyEditorView({ onGameLaunch }: { onGameLaunch?: (config: Gam
       setJsonText(text);
       setResult(null);
     }
-  }, []);
+  }, [setJsonText]);
 
   const handleLoadLibrary = useCallback(async (policyId: string) => {
     if (!policyId) return;
@@ -157,17 +205,24 @@ export function PolicyEditorView({ onGameLaunch }: { onGameLaunch?: (config: Gam
       setJsonText(detail);
       setResult(null);
     }
-  }, []);
+  }, [setJsonText]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     try {
       const parsed = JSON.parse(jsonText);
-      const id = parsed.policy_id || `custom_${Date.now()}`;
-      setSavedPolicies(prev => ({ ...prev, [id]: jsonText }));
-      setResult(prev => prev ? { ...prev, errors: [] } : null);
+      const name = parsed.policy_id || `custom_${Date.now()}`;
+      const res = await saveCustomPolicy(jsonText, name);
+      if (res.ok) {
+        setSaveToast({ message: '✅ Saved!', type: 'success' });
+        // Refresh saved policies list
+        fetchCustomPolicies().then(setSavedPolicies);
+      } else {
+        setSaveToast({ message: `❌ ${res.error}`, type: 'error' });
+      }
     } catch {
-      // ignore
+      setSaveToast({ message: '❌ Invalid JSON', type: 'error' });
     }
+    setTimeout(() => setSaveToast(null), 3000);
   }, [jsonText]);
 
   const handleTestPolicy = useCallback(() => {
@@ -229,18 +284,18 @@ export function PolicyEditorView({ onGameLaunch }: { onGameLaunch?: (config: Gam
           </select>
         )}
 
-        {Object.keys(savedPolicies).length > 0 && (
+        {savedPolicies.length > 0 && (
           <select
             onChange={e => {
-              const text = savedPolicies[e.target.value];
-              if (text) { setJsonText(text); setResult(null); }
+              const p = savedPolicies.find(sp => sp.id === e.target.value);
+              if (p) { setJsonText(p.json_string); setResult(null); }
             }}
             defaultValue=""
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-sky-500 focus:outline-none"
           >
             <option value="" disabled>Load saved…</option>
-            {Object.keys(savedPolicies).map(id => (
-              <option key={id} value={id}>{id}</option>
+            {savedPolicies.map(p => (
+              <option key={p.id} value={p.id}>{p.name || p.id}</option>
             ))}
           </select>
         )}
@@ -269,6 +324,11 @@ export function PolicyEditorView({ onGameLaunch }: { onGameLaunch?: (config: Gam
             >
               💾 Save
             </button>
+            {saveToast && (
+              <span className={`px-3 py-2 rounded-lg text-sm font-medium ${saveToast.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                {saveToast.message}
+              </span>
+            )}
             {onGameLaunch && (
               <button
                 onClick={handleTestPolicy}

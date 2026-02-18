@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import type { GameSetupConfig } from '../types';
 import { ScenarioEditorView } from './ScenarioEditorView';
+import type { ScenarioEditorState } from './ScenarioEditorView';
 import { PolicyEditorView } from './PolicyEditorView';
 
 interface Props {
   onGameLaunch: (config: GameSetupConfig) => void;
+  scenarioEditorState?: ScenarioEditorState;
+  onScenarioEditorStateChange?: (state: ScenarioEditorState) => void;
+  policyEditorJsonText?: string;
+  onPolicyEditorJsonTextChange?: (text: string) => void;
 }
 
-export function CreateView({ onGameLaunch }: Props) {
+export function CreateView({ onGameLaunch, scenarioEditorState, onScenarioEditorStateChange, policyEditorJsonText, onPolicyEditorJsonTextChange }: Props) {
   const [mode, setMode] = useState<'scenario' | 'policy'>('scenario');
 
   return (
@@ -34,8 +39,8 @@ export function CreateView({ onGameLaunch }: Props) {
         </div>
       </div>
 
-      {mode === 'scenario' && <ScenarioEditorView onGameLaunch={onGameLaunch} />}
-      {mode === 'policy' && <PolicyEditorView onGameLaunch={onGameLaunch} />}
+      {mode === 'scenario' && <ScenarioEditorView onGameLaunch={onGameLaunch} initialState={scenarioEditorState} onStateChange={onScenarioEditorStateChange} />}
+      {mode === 'policy' && <PolicyEditorView onGameLaunch={onGameLaunch} initialJsonText={policyEditorJsonText} onJsonTextChange={onPolicyEditorJsonTextChange} />}
     </div>
   );
 }
