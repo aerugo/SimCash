@@ -5,12 +5,20 @@ run_stream + stream_text to yield text chunks as they arrive.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import sys
 import logging
 from pathlib import Path
 from typing import Any, AsyncIterator
+
+# Timeout for a single LLM optimization call (seconds).
+# Full-policy prompts are larger; Gemini 2.5 Flash can take 2-3min.
+LLM_CALL_TIMEOUT_SECONDS = 180
+
+# If no chunk arrives for this long, assume the connection is dead.
+LLM_CHUNK_STALL_SECONDS = 90
 
 API_DIR = Path(__file__).resolve().parents[3] / "api"
 sys.path.insert(0, str(API_DIR))
@@ -178,13 +186,39 @@ Output ONLY the JSON policy, no explanation."""
 
     yield {"type": "model_info", "model": llm_config.model, "provider": llm_config.provider}
 
-    # Stream the response
+    # Stream the response with timeout protection.
+    # The entire streaming call (connection + all chunks) must complete within
+    # LLM_CALL_TIMEOUT_SECONDS. Without this, a hung Vertex AI call blocks the
+    # game's auto-run loop forever.
     full_text = ""
     try:
-        async with agent.run_stream(user_prompt, model_settings=model_settings) as stream_result:
-            async for chunk in stream_result.stream_text(delta=True):
-                full_text += chunk
-                yield {"type": "chunk", "text": chunk}
+        async with asyncio.timeout(LLM_CALL_TIMEOUT_SECONDS):
+            async with agent.run_stream(user_prompt, model_settings=model_settings) as stream_result:
+                chunk_iter = stream_result.stream_text(delta=True).__aiter__()
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(
+                            chunk_iter.__anext__(),
+                            timeout=LLM_CHUNK_STALL_SECONDS,
+                        )
+                        full_text += chunk
+                        yield {"type": "chunk", "text": chunk}
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        logger.error(
+                            "LLM chunk stall for %s: no data for %ds (got %d chars)",
+                            agent_id, LLM_CHUNK_STALL_SECONDS, len(full_text),
+                        )
+                        yield {"type": "error", "message": f"LLM stalled — no response for {LLM_CHUNK_STALL_SECONDS}s"}
+                        return
+    except asyncio.TimeoutError:
+        logger.error(
+            "LLM call timed out for %s after %ds (got %d chars so far)",
+            agent_id, LLM_CALL_TIMEOUT_SECONDS, len(full_text),
+        )
+        yield {"type": "error", "message": f"LLM call timed out after {LLM_CALL_TIMEOUT_SECONDS}s"}
+        return
     except Exception as e:
         logger.error("Streaming LLM call failed for %s: %s", agent_id, e)
         yield {"type": "error", "message": str(e)}

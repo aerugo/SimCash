@@ -43,6 +43,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   const [gameUseLlm, setGameUseLlm] = useState(true);
   const [gameMockReasoning, setGameMockReasoning] = useState(true);
   const [optimizationInterval, setOptimizationInterval] = useState(1);
+  const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('full');
 
   useEffect(() => {
     getGameScenarios().then(setGameScenarios).catch(() => {});
@@ -336,13 +337,37 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
                   How often the AI re-evaluates its strategy. More days between optimizations = more data per evaluation, slower adaptation.
                 </p>
               </div>
+              {gameUseLlm && (
+              <div>
+                <label className="text-xs text-slate-500 flex justify-between mb-1">
+                  <span>Policy Complexity</span>
+                  <span className="font-mono text-slate-300">
+                    {constraintPreset === 'simple' ? 'Fraction only' : constraintPreset === 'standard' ? 'Trees + splitting' : 'Full power'}
+                  </span>
+                </label>
+                <select
+                  value={constraintPreset}
+                  onChange={e => setConstraintPreset(e.target.value as 'simple' | 'standard' | 'full')}
+                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
+                >
+                  <option value="simple">Simple — fraction only</option>
+                  <option value="standard">Standard — decision trees + splitting</option>
+                  <option value="full">Full — all actions, fields, parameters</option>
+                </select>
+                <p className="text-[10px] text-slate-600 mt-1">
+                  {constraintPreset === 'simple' ? 'AI only tunes initial_liquidity_fraction. Fast, predictable.' :
+                   constraintPreset === 'standard' ? 'AI can build decision trees with Release/Hold/Split actions and balance/timing conditions.' :
+                   'AI has full freedom: all payment actions (Release/Hold/Split/Delay), bank actions, priority/splitting trees, 40+ context fields.'}
+                </p>
+              </div>
+              )}
               <div className="flex gap-6 flex-wrap">
                 <Toggle label="Enable AI Optimization" value={gameUseLlm} onChange={setGameUseLlm} />
                 {gameUseLlm && (
                   <div>
                     <Toggle label="Mock Mode" value={gameMockReasoning} onChange={setGameMockReasoning} />
                     <span className="text-[10px] text-slate-600 ml-2">
-                      {gameMockReasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
+                      {gameMockReasoning ? '(no API costs)' : '⚠ Uses LLM API'}
                     </span>
                   </div>
                 )}
@@ -351,7 +376,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
           </Section>
 
           <button
-            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples, optimization_interval: optimizationInterval })}
+            onClick={() => onGameLaunch?.({ scenario_id: selectedScenario, use_llm: gameUseLlm, mock_reasoning: gameMockReasoning, max_days: maxDays, num_eval_samples: numEvalSamples, optimization_interval: optimizationInterval, constraint_preset: constraintPreset })}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
             🎮 Start Game
