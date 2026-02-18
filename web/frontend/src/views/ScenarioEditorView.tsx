@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import type { GameSetupConfig, ScenarioEvent } from '../types';
 import { authFetch } from '../api';
 import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
+import { ScenarioForm } from '../components/ScenarioForm';
 import * as jsYaml from 'js-yaml';
 
 const BLANK_TEMPLATE = `simulation:
@@ -244,6 +245,8 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [saving, setSaving] = useState(false);
   const [scenarioName, setScenarioNameRaw] = useState(initialState?.name ?? 'My Scenario');
   const [scenarioDesc, setScenarioDescRaw] = useState(initialState?.description ?? '');
+  const [editorMode, setEditorMode] = useState<'form' | 'yaml'>('form');
+  const [modeSwitchError, setModeSwitchError] = useState<string | null>(null);
 
   const setYaml = useCallback((v: string) => {
     setYamlRaw(v);
@@ -405,13 +408,52 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
             />
           </div>
 
-          {/* YAML editor */}
-          <textarea
-            value={yaml}
-            onChange={e => { setYaml(e.target.value); setValid(null); }}
-            spellCheck={false}
-            className="w-full h-[500px] bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500 leading-relaxed"
-          />
+          {/* Mode toggle */}
+          <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => {
+                if (editorMode === 'yaml') {
+                  // Try to parse YAML before switching to form
+                  try {
+                    jsYaml.load(yaml);
+                    setModeSwitchError(null);
+                    setEditorMode('form');
+                  } catch (e) {
+                    setModeSwitchError(`Invalid YAML: ${e instanceof Error ? e.message : String(e)}`);
+                  }
+                }
+              }}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${editorMode === 'form' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              📋 Form
+            </button>
+            <button
+              onClick={() => { setEditorMode('yaml'); setModeSwitchError(null); }}
+              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${editorMode === 'yaml' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              📝 YAML
+            </button>
+          </div>
+
+          {modeSwitchError && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-300">
+              ⚠️ {modeSwitchError}
+            </div>
+          )}
+
+          {/* Editor area */}
+          {editorMode === 'yaml' ? (
+            <textarea
+              value={yaml}
+              onChange={e => { setYaml(e.target.value); setValid(null); }}
+              spellCheck={false}
+              className="w-full h-[500px] bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm text-slate-200 resize-y focus:outline-none focus:border-sky-500 leading-relaxed"
+            />
+          ) : (
+            <div className="max-h-[500px] overflow-y-auto pr-1">
+              <ScenarioForm yaml={yaml} onYamlChange={(v) => { setYaml(v); setValid(null); }} />
+            </div>
+          )}
 
           {/* Action buttons */}
           <div className="flex gap-3">
