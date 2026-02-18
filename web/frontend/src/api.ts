@@ -1,5 +1,5 @@
 import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScenario, ScenarioConfig, CompareResult, AgentReasoning } from './types';
-import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail, PolicyHistoryResponse, PolicyDiffResponse } from './types';
+import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail, PolicyHistoryResponse, PolicyDiffResponse, PaymentTraceResponse } from './types';
 import { getIdToken } from './firebase';
 
 const BASE = '/api';
@@ -285,6 +285,14 @@ export async function getPolicyHistory(gameId: string): Promise<PolicyHistoryRes
 
 export async function getPolicyDiff(gameId: string, day1: number, day2: number, agent: string): Promise<PolicyDiffResponse> {
   const res = await authFetch(`${BASE}/games/${gameId}/policy-diff?day1=${day1}&day2=${day2}&agent=${encodeURIComponent(agent)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ---- Payment Trace API ----
+
+export async function getPaymentTraces(gameId: string, dayNum: number): Promise<PaymentTraceResponse> {
+  const res = await authFetch(`${BASE}/games/${gameId}/days/${dayNum}/payments`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

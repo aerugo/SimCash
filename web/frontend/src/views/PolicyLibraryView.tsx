@@ -28,6 +28,10 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
   const [selectedPolicy, setSelectedPolicy] = useState<LibraryPolicyDetail | null>(null);
   const [, setDetailLoading] = useState(false);
   const [filterComplexity, setFilterComplexity] = useState<string | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [compareDetails, setCompareDetails] = useState<LibraryPolicyDetail[]>([]);
+  const [compareLoading, setCompareLoading] = useState(false);
 
   useEffect(() => {
     getPolicyLibrary()
@@ -52,6 +56,26 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
     }
   };
 
+  const toggleCompare = (id: string) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  };
+
+  // Load compare details when 2 selected
+  useEffect(() => {
+    if (compareIds.length !== 2) { setCompareDetails([]); return; }
+    let cancelled = false;
+    setCompareLoading(true);
+    Promise.all(compareIds.map(id => getPolicyLibraryDetail(id)))
+      .then(details => { if (!cancelled) setCompareDetails(details); })
+      .catch(e => { if (!cancelled) setError((e as Error).message); })
+      .finally(() => { if (!cancelled) setCompareLoading(false); });
+    return () => { cancelled = true; };
+  }, [compareIds]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -65,6 +89,71 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
       <div className="text-center py-20">
         <div className="text-4xl mb-4">⚠️</div>
         <p className="text-red-400">{error}</p>
+      </div>
+    );
+  }
+
+  // Compare view
+  if (compareMode && compareDetails.length === 2) {
+    return (
+      <div>
+        <button
+          onClick={() => { setCompareMode(false); setCompareIds([]); setCompareDetails([]); }}
+          className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
+        >
+          ← Back to Policies
+        </button>
+        <h2 className="text-xl font-bold text-slate-100 mb-4">🔍 Policy Comparison</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {compareDetails.map(pol => (
+            <div key={pol.id} className="bg-slate-800/50 rounded-xl border border-slate-700 p-5">
+              <h3 className="text-lg font-bold text-slate-100 mb-1">{pol.name}</h3>
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`text-xs px-2 py-0.5 rounded border ${COMPLEXITY_COLORS[pol.complexity]}`}>
+                  {pol.complexity}
+                </span>
+                <span className="text-xs text-slate-500">v{pol.version}</span>
+                <span className="text-xs text-slate-500">{pol.total_nodes} nodes</span>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">{pol.description}</p>
+
+              {/* Key parameter */}
+              <div className="bg-slate-900/50 rounded-lg p-3 mb-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">initial_liquidity_fraction</span>
+                  <span className="font-mono text-sky-300 font-bold">
+                    {pol.parameters.initial_liquidity_fraction !== undefined
+                      ? String(pol.parameters.initial_liquidity_fraction)
+                      : '—'}
+                  </span>
+                </div>
+                {Object.entries(pol.parameters)
+                  .filter(([k]) => k !== 'initial_liquidity_fraction')
+                  .map(([k, v]) => (
+                    <div key={k} className="flex justify-between text-xs mt-1">
+                      <span className="text-slate-500">{k}</span>
+                      <span className="text-slate-300 font-mono">{String(v)}</span>
+                    </div>
+                  ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-1 mb-3">
+                {pol.actions_used.map(action => (
+                  <span key={action} className={`text-[10px] px-1.5 py-0.5 rounded ${ACTION_COLORS[action] || 'bg-slate-700 text-slate-400'}`}>
+                    {action}
+                  </span>
+                ))}
+              </div>
+
+              {/* Decision tree */}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-400 mb-2">Decision Tree</h4>
+                <PolicyVisualization policy={pol.raw} compact />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -196,6 +285,34 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
         </p>
       </div>
 
+      {/* Compare mode toggle + status */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => { setCompareMode(!compareMode); if (compareMode) { setCompareIds([]); setCompareDetails([]); } }}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            compareMode ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
+          }`}
+        >
+          {compareMode ? '✕ Exit Compare' : '🔍 Compare'}
+        </button>
+        {compareMode && (
+          <>
+            <span className="text-xs text-slate-500">
+              {compareIds.length}/2 selected
+            </span>
+            {compareIds.length === 2 && (
+              <button
+                onClick={() => {/* compareDetails will load automatically */}}
+                disabled={compareLoading}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-40"
+              >
+                {compareLoading ? 'Loading…' : '→ View Comparison'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Complexity filter */}
       <div className="flex gap-2 mb-6">
         <button
@@ -222,11 +339,31 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
       {/* Policy cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(policy => (
-          <button
+          <div
             key={policy.id}
-            onClick={() => handleSelect(policy.id)}
-            className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group"
+            className={`bg-slate-800/50 rounded-xl border p-5 text-left transition-colors group relative ${
+              compareMode && compareIds.includes(policy.id)
+                ? 'border-violet-500/70'
+                : 'border-slate-700 hover:border-sky-500/50'
+            }`}
           >
+            {compareMode && (
+              <button
+                onClick={() => toggleCompare(policy.id)}
+                className={`absolute top-3 right-3 w-5 h-5 rounded border text-xs flex items-center justify-center transition-colors ${
+                  compareIds.includes(policy.id)
+                    ? 'bg-violet-600 border-violet-500 text-white'
+                    : 'bg-slate-900 border-slate-600 text-slate-500 hover:border-slate-400'
+                }`}
+              >
+                {compareIds.includes(policy.id) ? '✓' : ''}
+              </button>
+            )}
+            <button
+              onClick={() => !compareMode && handleSelect(policy.id)}
+              className="w-full text-left"
+              disabled={compareMode}
+            >
             <div className="flex items-start justify-between mb-2">
               <h3 className="font-semibold text-slate-100 group-hover:text-sky-300 transition-colors text-sm">
                 {policy.name}
@@ -256,6 +393,7 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
               <span>v{policy.version}</span>
             </div>
           </button>
+          </div>
         ))}
       </div>
     </div>

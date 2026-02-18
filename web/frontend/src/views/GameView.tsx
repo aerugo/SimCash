@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 import { PolicyVisualization } from '../components/PolicyVisualization';
 import { InfoTip } from '../components/Tooltip';
+import { PaymentTraceView } from '../components/PaymentTraceView';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -13,6 +14,27 @@ interface Props {
   gameState: GameState;
   onUpdate: (state: GameState) => void;
   onReset: () => void;
+}
+
+function useGameNotes(gameId: string) {
+  const key = `simcash_notes_${gameId}`;
+  const [notes, setNotes] = useState(() => {
+    try { return localStorage.getItem(key) ?? ''; } catch { return ''; }
+  });
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const update = useCallback((text: string) => {
+    setNotes(text);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      try { localStorage.setItem(key, text); } catch { /* ignore */ }
+    }, 500);
+  }, [key]);
+
+  // Cleanup on unmount
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return { notes, update };
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
@@ -26,7 +48,10 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
   } | null>(null);
   const [replayPlaying, setReplayPlaying] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [showPaymentTrace, setShowPaymentTrace] = useState(false);
   const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
+  const [notesOpen, setNotesOpen] = useState(false);
+  const { notes, update: updateNotes } = useGameNotes(gameId);
 
   const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 
@@ -168,7 +193,20 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                   📊 CSV
                 </button>
                 <button
-                  onClick={() => { setExportOpen(false); downloadGameExport(gameId, 'json'); }}
+                  onClick={async () => {
+                    setExportOpen(false);
+                    // Inject notes into JSON export client-side
+                    const { authFetch, getGameExportUrl } = await import('../api');
+                    const res = await authFetch(getGameExportUrl(gameId, 'json'));
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (notes) data.researcher_notes = notes;
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `game_${gameId}.json`; a.click();
+                    URL.revokeObjectURL(url);
+                  }}
                   className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 text-slate-200"
                 >
                   📋 JSON
@@ -639,10 +677,61 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         </div>
       </div>
 
-      {/* Events for selected day — summary + collapsible detail */}
-      {day && day.events.length > 0 && (
+      {/* Payment Trace / Events toggle */}
+      {day && (
+        <div className="flex gap-2 mb-0">
+          <button
+            onClick={() => setShowPaymentTrace(false)}
+            className={`px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${
+              !showPaymentTrace ? 'bg-slate-800 text-white border border-b-0 border-slate-700' : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            📊 Event Summary
+          </button>
+          <button
+            onClick={() => setShowPaymentTrace(true)}
+            className={`px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${
+              showPaymentTrace ? 'bg-slate-800 text-white border border-b-0 border-slate-700' : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            📋 Payment Trace
+          </button>
+        </div>
+      )}
+
+      {day && !showPaymentTrace && day.events.length > 0 && (
         <EventSummary day={day} />
       )}
+
+      {day && showPaymentTrace && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+          <h3 className="text-sm font-semibold text-slate-300 mb-3">
+            📋 Payment Lifecycle — Day {day.day + 1}
+          </h3>
+          <PaymentTraceView gameId={gameId} dayNum={day.day} />
+        </div>
+      )}
+
+      {/* Notes panel */}
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700">
+        <button
+          onClick={() => setNotesOpen(!notesOpen)}
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+        >
+          <span>📝 Notes {notes && <span className="text-xs text-slate-500 font-normal ml-1">({notes.length} chars)</span>}</span>
+          <span className="text-slate-500">{notesOpen ? '▲' : '▼'}</span>
+        </button>
+        {notesOpen && (
+          <div className="px-4 pb-4">
+            <textarea
+              value={notes}
+              onChange={e => updateNotes(e.target.value)}
+              placeholder="Jot observations about this experiment… (auto-saved to browser, included in JSON export)"
+              className="w-full h-32 bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 placeholder-slate-600 resize-y focus:outline-none focus:border-sky-500"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -797,13 +886,42 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
   );
 }
 
+// Shared tooltip hook for SVG charts
+function useChartTooltip() {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
+  const containerRef = useState<HTMLDivElement | null>(null);
+
+  const showTooltip = useCallback((e: React.MouseEvent, content: React.ReactNode) => {
+    const rect = (e.currentTarget as Element).closest('.chart-container')?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip({ x: e.clientX - rect.left + 12, y: e.clientY - rect.top - 8, content });
+  }, []);
+
+  const hideTooltip = useCallback(() => setTooltip(null), []);
+
+  return { tooltip, showTooltip, hideTooltip, containerRef };
+}
+
+function ChartTooltip({ tooltip }: { tooltip: { x: number; y: number; content: React.ReactNode } | null }) {
+  if (!tooltip) return null;
+  return (
+    <div
+      className="absolute pointer-events-none z-50 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-white text-xs shadow-xl whitespace-nowrap"
+      style={{ left: tooltip.x, top: tooltip.y, transform: 'translateY(-100%)' }}
+    >
+      {tooltip.content}
+    </div>
+  );
+}
+
 // Simple SVG line chart for evolution data
-function EvolutionChart({ data, agentIds, format }: {
+function EvolutionChart({ data, agentIds, yLabel, format }: {
   data: Record<string, number[]>;
   agentIds: string[];
   yLabel?: string;
   format: (v: number) => string;
 }) {
+  const { tooltip, showTooltip, hideTooltip } = useChartTooltip();
   const allValues = agentIds.flatMap(aid => data[aid] ?? []);
   if (allValues.length === 0) return <div className="text-xs text-slate-600">No data yet</div>;
 
@@ -822,31 +940,68 @@ function EvolutionChart({ data, agentIds, format }: {
   const toY = (v: number) => pad.t + plotH - ((v - minVal) / range) * plotH;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
-      {/* Y axis labels */}
-      <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" className="fill-slate-500 text-[8px]">{format(maxVal)}</text>
-      <text x={pad.l - 4} y={h - pad.b} textAnchor="end" className="fill-slate-500 text-[8px]">{format(minVal)}</text>
-      {/* X axis labels */}
-      {Array.from({ length: numDays }, (_, i) => (
-        <text key={i} x={toX(i)} y={h - 4} textAnchor="middle" className="fill-slate-500 text-[7px]">{i + 1}</text>
-      ))}
-      {/* Lines */}
-      {agentIds.map((aid, ci) => {
-        const vals = data[aid] ?? [];
-        if (vals.length < 1) return null;
-        const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
-        return (
-          <g key={aid}>
-            <polyline points={points} fill="none" stroke={AGENT_COLORS[ci % AGENT_COLORS.length]} strokeWidth={2} />
-            {vals.map((v, i) => (
-              <circle key={i} cx={toX(i)} cy={toY(v)} r={3} fill={AGENT_COLORS[ci % AGENT_COLORS.length]} />
-            ))}
-            <text x={toX(vals.length - 1) + 4} y={toY(vals[vals.length - 1]) + 3}
-              className="text-[7px]" fill={AGENT_COLORS[ci % AGENT_COLORS.length]}>{aid}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="relative chart-container">
+      <ChartTooltip tooltip={tooltip} />
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full">
+        {/* Y axis labels */}
+        <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" className="fill-slate-500 text-[8px]">{format(maxVal)}</text>
+        <text x={pad.l - 4} y={h - pad.b} textAnchor="end" className="fill-slate-500 text-[8px]">{format(minVal)}</text>
+        {/* X axis labels */}
+        {Array.from({ length: numDays }, (_, i) => (
+          <text key={i} x={toX(i)} y={h - 4} textAnchor="middle" className="fill-slate-500 text-[7px]">{i + 1}</text>
+        ))}
+        {/* Lines */}
+        {agentIds.map((aid, ci) => {
+          const vals = data[aid] ?? [];
+          if (vals.length < 1) return null;
+          const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+          return (
+            <g key={aid}>
+              <polyline points={points} fill="none" stroke={AGENT_COLORS[ci % AGENT_COLORS.length]} strokeWidth={2} />
+              {vals.map((v, i) => (
+                <circle
+                  key={i}
+                  cx={toX(i)}
+                  cy={toY(v)}
+                  r={3}
+                  fill={AGENT_COLORS[ci % AGENT_COLORS.length]}
+                  className="cursor-pointer"
+                  onMouseMove={(e) => showTooltip(e, (
+                    <div>
+                      <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
+                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
+                    </div>
+                  ))}
+                  onMouseLeave={hideTooltip}
+                />
+              ))}
+              {/* Larger invisible hit targets */}
+              {vals.map((v, i) => (
+                <circle
+                  key={`hit-${i}`}
+                  cx={toX(i)}
+                  cy={toY(v)}
+                  r={8}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseMove={(e) => showTooltip(e, (
+                    <div>
+                      <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
+                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
+                    </div>
+                  ))}
+                  onMouseLeave={hideTooltip}
+                />
+              ))}
+              <text x={toX(vals.length - 1) + 4} y={toY(vals[vals.length - 1]) + 3}
+                className="text-[7px]" fill={AGENT_COLORS[ci % AGENT_COLORS.length]}>{aid}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
@@ -854,6 +1009,7 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   balanceHistory: Record<string, number[]>;
   agentIds: string[];
 }) {
+  const { tooltip, showTooltip, hideTooltip } = useChartTooltip();
   const allValues = agentIds.flatMap(aid => balanceHistory[aid] ?? []);
   if (allValues.length === 0) return <div className="text-xs text-slate-600">No data</div>;
 
@@ -874,8 +1030,52 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
 
   const midVal = (maxVal + minVal) / 2;
 
+  // For vertical hover line — find nearest tick column on mouse move over the chart area
+  const [hoverInfo, setHoverInfo] = useState<{ tickIdx: number; svgX: number } | null>(null);
+
+  const handleChartMouseMove = useCallback((e: React.MouseEvent<SVGRectElement>) => {
+    const svg = (e.currentTarget as Element).closest('svg');
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) / rect.width * w;
+    // Find nearest tick
+    let nearest = 0;
+    let minDist = Infinity;
+    for (let i = 0; i < numTicks; i++) {
+      const dist = Math.abs(toX(i) - mouseX);
+      if (dist < minDist) { minDist = dist; nearest = i; }
+    }
+    setHoverInfo({ tickIdx: nearest, svgX: toX(nearest) });
+
+    // Build tooltip content
+    const content = (
+      <div>
+        <div className="font-semibold text-slate-300 mb-1">Tick {nearest + 1}</div>
+        {agentIds.map((aid, ci) => {
+          const vals = balanceHistory[aid] ?? [];
+          const val = vals[nearest];
+          if (val === undefined) return null;
+          return (
+            <div key={aid} className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: AGENT_COLORS[ci % AGENT_COLORS.length] }} />
+              <span style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}:</span>
+              <span className="font-mono">{fmtDollar(val)}</span>
+            </div>
+          );
+        })}
+      </div>
+    );
+    showTooltip(e, content);
+  }, [numTicks, agentIds, balanceHistory, showTooltip, fmtDollar, toX, w]);
+
+  const handleChartMouseLeave = useCallback(() => {
+    setHoverInfo(null);
+    hideTooltip();
+  }, [hideTooltip]);
+
   return (
-    <div>
+    <div className="relative chart-container">
+      <ChartTooltip tooltip={tooltip} />
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         {/* Grid lines */}
         <line x1={pad.l} y1={pad.t} x2={pad.l + plotW} y2={pad.t} stroke="#334155" strokeWidth={0.5} />
@@ -889,6 +1089,10 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
         {numTicks <= 20 && Array.from({ length: numTicks }, (_, i) => (
           <text key={i} x={toX(i)} y={h - 4} textAnchor="middle" className="fill-slate-500 text-[6px]">{i + 1}</text>
         ))}
+        {/* Hover vertical line */}
+        {hoverInfo && (
+          <line x1={hoverInfo.svgX} y1={pad.t} x2={hoverInfo.svgX} y2={pad.t + plotH} stroke="#64748b" strokeWidth={0.5} strokeDasharray="3,3" />
+        )}
         {/* Lines */}
         {agentIds.map((aid, ci) => {
           const vals = balanceHistory[aid] ?? [];
@@ -896,6 +1100,23 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
           const points = vals.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
           return <polyline key={aid} points={points} fill="none" stroke={AGENT_COLORS[ci % AGENT_COLORS.length]} strokeWidth={1.5} />;
         })}
+        {/* Hover dots */}
+        {hoverInfo && agentIds.map((aid, ci) => {
+          const vals = balanceHistory[aid] ?? [];
+          const val = vals[hoverInfo.tickIdx];
+          if (val === undefined) return null;
+          return (
+            <circle key={aid} cx={hoverInfo.svgX} cy={toY(val)} r={3} fill={AGENT_COLORS[ci % AGENT_COLORS.length]} stroke="#1e293b" strokeWidth={1} />
+          );
+        })}
+        {/* Invisible hover rect over entire plot area */}
+        <rect
+          x={pad.l} y={pad.t} width={plotW} height={plotH}
+          fill="transparent"
+          className="cursor-crosshair"
+          onMouseMove={handleChartMouseMove}
+          onMouseLeave={handleChartMouseLeave}
+        />
       </svg>
       {/* Legend */}
       <div className="flex gap-3 justify-center mt-1">

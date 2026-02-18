@@ -31,6 +31,7 @@ from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 from .scenario_library import get_library, get_scenario_detail
 from .policy_library import get_library as get_policy_library
 from .policy_diff import diff_policies
+from .payment_trace import build_payment_traces
 from .policy_editor import router as policy_editor_router
 from .export import router as export_router
 from .scenario_editor import router as scenario_editor_router
@@ -994,6 +995,26 @@ def get_policy_library_tree(policy_id: str):
     if not result:
         raise HTTPException(status_code=404, detail="Policy not found")
     return result
+
+
+# ---- Payment Trace ----
+
+@app.get("/api/games/{game_id}/days/{day_num}/payments")
+def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_current_user)):
+    """Get payment lifecycle traces for a specific game day."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if day_num < 0 or day_num >= len(game.days):
+        raise HTTPException(status_code=404, detail=f"Day {day_num} not found")
+
+    day = game.days[day_num]
+    payments = build_payment_traces(day.events)
+    return {
+        "day": day_num,
+        "total_payments": len(payments),
+        "payments": payments,
+    }
 
 
 # ---- Policy Evolution Endpoints ----

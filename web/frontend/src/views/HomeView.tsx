@@ -261,8 +261,12 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
       {mode === 'game' ? (
         <div className="space-y-6 mb-8">
-          {/* Quick Run CTA */}
-          <div className="text-center">
+          {/* Quick Start Card */}
+          <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center">
+            <h3 className="text-lg font-semibold text-white mb-2">🚀 Quick Start</h3>
+            <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
+              Run your first experiment in one click — watch two banks learn to optimize liquidity over 5 days
+            </p>
             <button
               onClick={() => {
                 onGameLaunch?.({
@@ -277,9 +281,9 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
               }}
               className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
             >
-              ▶ Run an Experiment
+              ▶ Launch Experiment
             </button>
-            <p className="text-xs text-slate-500 mt-2">Launches the 2-bank scenario with default settings</p>
+            <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 days · No API cost</p>
           </div>
 
           {/* Scenario Pack */}

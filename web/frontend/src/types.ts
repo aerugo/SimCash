@@ -300,6 +300,36 @@ export interface LibraryPolicyDetail extends LibraryPolicy {
 
 // ---- Policy Evolution Types ----
 
+// ---- Payment Trace Types ----
+
+export interface PaymentLifecycleEvent {
+  tick: number;
+  event_type: string;
+  details: Record<string, unknown>;
+}
+
+export interface PaymentTrace {
+  index: number;
+  tx_id: string;
+  sender: string | null;
+  receiver: string | null;
+  amount: number | null;
+  arrival_tick: number | null;
+  deadline_tick: number | null;
+  settled_tick: number | null;
+  settlement_type: string | null;
+  status: 'settled' | 'delayed' | 'failed';
+  lifecycle: PaymentLifecycleEvent[];
+}
+
+export interface PaymentTraceResponse {
+  day: number;
+  total_payments: number;
+  payments: PaymentTrace[];
+}
+
+// ---- Policy Evolution Types ----
+
 export interface PolicyHistoryResponse {
   agent_ids: string[];
   days: PolicyHistoryDay[];
