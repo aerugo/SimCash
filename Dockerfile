@@ -53,29 +53,12 @@ RUN pip install --no-cache-dir \
     "google-cloud-storage" \
     "duckdb"
 
-# Ensure all Python subpackages are available (maturin wheel may not include all)
+# Copy Python subpackages not included in the maturin wheel
 COPY api/payment_simulator/ /tmp/ps_src/
-RUN SITE=$(python -c "import payment_simulator; import os; print(os.path.dirname(payment_simulator.__file__))") && \
-    echo "Installing to $SITE" && \
-    ls "$SITE/" && \
-    echo "--- copying subpackages ---" && \
-    for d in /tmp/ps_src/*/; do \
-      base=$(basename "$d"); \
-      if [ ! -d "$SITE/$base" ]; then \
-        echo "Copying new subpackage: $base"; \
-        cp -r "$d" "$SITE/$base"; \
-      else \
-        echo "Merging subpackage: $base"; \
-        cp -r "$d"* "$SITE/$base/"; \
-      fi; \
-    done && \
-    for f in /tmp/ps_src/*.py; do \
-      [ -f "$f" ] && cp "$f" "$SITE/"; \
-    done && \
-    rm -rf /tmp/ps_src && \
-    ls "$SITE/" && \
-    python -c "from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient; print('experiments OK')" && \
-    python -c "from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer; print('ai_cash_mgmt OK')"
+RUN SITE=$(python -c "import payment_simulator, os; print(os.path.dirname(payment_simulator.__file__))") && \
+    cp -r /tmp/ps_src/* "$SITE/" && rm -rf /tmp/ps_src && \
+    python -c "from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient; print('OK: experiments')" && \
+    python -c "from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer; print('OK: ai_cash_mgmt')"
 
 # Copy backend
 COPY web/backend/ web/backend/

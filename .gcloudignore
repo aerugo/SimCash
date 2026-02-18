@@ -24,5 +24,6 @@ docs/papers/simcash-paper/paper_generator/*.lock
 docs/papers/simcash-paper/*.tex
 docs/papers/simcash-paper/*.pdf
 docs/papers/simcash-paper/*.bib
-experiments/
+# Only exclude top-level experiments dir, not api/payment_simulator/experiments/
+/experiments/
 .claude/
