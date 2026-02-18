@@ -53,6 +53,10 @@ RUN pip install --no-cache-dir \
     "google-cloud-storage" \
     "duckdb"
 
+# Ensure all Python subpackages are available (maturin wheel may not include all)
+COPY api/payment_simulator/ /tmp/ps_src/
+RUN cp -rn /tmp/ps_src/* /usr/local/lib/python3.13/site-packages/payment_simulator/ && rm -rf /tmp/ps_src
+
 # Copy backend
 COPY web/backend/ web/backend/
 
