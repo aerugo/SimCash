@@ -51,8 +51,8 @@ export function ScenarioLibraryView() {
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
   const [useLlm, setUseLlm] = useState(true);
-  const [mockReasoning, setMockReasoning] = useState(true);
-  const [numEvalSamples, setNumEvalSamples] = useState(1);
+  const [mockReasoning, setMockReasoning] = useState(false);
+  const [numEvalSamples, setNumEvalSamples] = useState(50);
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
 
@@ -263,17 +263,18 @@ export function ScenarioLibraryView() {
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Opt. Interval</label>
+                <label className="text-xs text-slate-500 block mb-1">Optimization Interval</label>
                 <select
                   value={optimizationInterval}
                   onChange={e => setOptimizationInterval(Number(e.target.value))}
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
                 >
-                  <option value={1}>Every day</option>
-                  <option value={2}>Every 2 days</option>
-                  <option value={3}>Every 3 days</option>
-                  <option value={5}>Every 5 days</option>
+                  <option value={1}>Every round</option>
+                  <option value={2}>Every 2 rounds</option>
+                  <option value={3}>Every 3 rounds</option>
+                  <option value={5}>Every 5 rounds</option>
                 </select>
+                <p className="text-[10px] text-slate-600 mt-1">Rounds between AI policy updates</p>
               </div>
               <div>
                 <label className="text-xs text-slate-500 block mb-1">AI Reasoning</label>
@@ -287,8 +288,8 @@ export function ScenarioLibraryView() {
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
                 >
                   <option value="off">Off (FIFO)</option>
-                  <option value="mock">Mock AI</option>
-                  <option value="real">Real Gemini 2.5 Flash</option>
+                  <option value="mock">Simulated AI (no API cost)</option>
+                  <option value="real">Live AI (Vertex AI)</option>
                 </select>
               </div>
             </div>
