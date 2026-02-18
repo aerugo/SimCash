@@ -187,9 +187,11 @@ export function HomeView() {
         <h2 className="text-3xl font-bold mb-1">Payment System Simulator</h2>
         <p className="text-lg text-violet-300/90 italic mb-3">Can AI agents learn to coordinate in payment systems?</p>
         <p className="text-slate-400 max-w-2xl mx-auto">
-          AI agents independently build decision-tree policies that control every aspect of payment processing —
-          when to release, hold, split, or defer each transaction based on balance, timing, queue state, and counterparty behavior.
-          We watch whether they converge to equilibrium.
+          Banks in real-time gross settlement systems face a fundamental tension:
+          holding liquidity is expensive, but delaying payments is worse — and if every bank waits
+          for incoming funds before releasing outgoing ones, the whole system gridlocks.
+          Here, AI agents independently build decision-tree policies to navigate this coordination problem,
+          and we watch whether they find equilibrium.
         </p>
         <p className="text-xs text-slate-500 mt-2">
           Extends the methodology of BIS Working Paper 1310 (Castro et al., 2025)

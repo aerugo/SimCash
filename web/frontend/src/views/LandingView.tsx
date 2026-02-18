@@ -43,10 +43,11 @@ export function LandingView() {
           Can AI agents learn to coordinate in payment systems?
         </p>
         <p className="text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          An interactive research platform where AI agents independently learn payment strategies
-          in simulated RTGS and LSM systems. Each agent builds a complete decision tree —
-          choosing what to do with every transaction based on balance, timing, queue state,
-          and counterparty behavior. We watch whether they converge to equilibrium.
+          Banks in real-time gross settlement systems face a fundamental tension:
+          holding liquidity is expensive, but delaying payments is worse — and if every bank waits
+          for incoming funds before releasing outgoing ones, the whole system gridlocks.
+          In this interactive research platform, AI agents independently build decision-tree policies
+          to navigate this coordination problem, and we watch whether they find equilibrium.
         </p>
         <button
           onClick={signIn}
