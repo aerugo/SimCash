@@ -1,7 +1,9 @@
 """Tests for the policy editor validation endpoint."""
 import json
 import pytest
-from app.policy_editor import validate_policy_json
+from fastapi.testclient import TestClient
+from app.policy_editor import validate_policy_json, _custom_policies
+from app.main import app
 
 # ---- Templates (must all pass) ----
 
@@ -196,3 +198,117 @@ class TestSummary:
         ]:
             r = validate_policy_json(json.dumps(template))
             assert r.valid, f"Template {name} failed: {r.errors}"
+
+
+# ---- Plan 02: Compound expressions & better errors ----
+
+def _make_condition_policy(condition):
+    """Helper: wrap a condition in a minimal valid policy."""
+    return {
+        "version": "2.0",
+        "policy_id": "test_compound",
+        "parameters": {},
+        "payment_tree": {
+            "type": "condition", "node_id": "c",
+            "condition": condition,
+            "on_true": {"type": "action", "node_id": "a", "action": "Release"},
+            "on_false": {"type": "action", "node_id": "b", "action": "Hold"},
+        },
+    }
+
+
+class TestCompoundExpressions:
+    def test_validate_compound_and_expression(self):
+        cond = {"op": "and", "conditions": [
+            {"op": ">=", "left": {"field": "balance"}, "right": {"value": 100}},
+            {"op": "<=", "left": {"field": "amount"}, "right": {"value": 500}},
+        ]}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+    def test_validate_compound_or_expression(self):
+        cond = {"op": "or", "conditions": [
+            {"op": ">=", "left": {"field": "balance"}, "right": {"value": 100}},
+            {"op": "<=", "left": {"field": "amount"}, "right": {"value": 500}},
+        ]}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+    def test_validate_not_expression(self):
+        cond = {"op": "not", "condition": {
+            "op": ">=", "left": {"field": "balance"}, "right": {"value": 100},
+        }}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+    def test_validate_wrong_op_format_gives_helpful_error(self):
+        cond = {"<=": {"left": {"field": "balance"}, "right": {"value": 1}}}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is False
+        assert any("Did you mean" in e and '"op": "<="' in e for e in r.errors)
+
+    def test_validate_param_reference(self):
+        cond = {"op": ">=", "left": {"field": "balance"}, "right": {"param": "threshold"}}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+    def test_validate_value_literal(self):
+        cond = {"op": ">=", "left": {"field": "balance"}, "right": {"value": 50000}}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+    def test_validate_raw_number(self):
+        cond = {"op": ">=", "left": {"field": "balance"}, "right": 50000}
+        r = validate_policy_json(json.dumps(_make_condition_policy(cond)))
+        assert r.valid is True
+
+
+# ---- Plan 03: Custom policy save endpoints ----
+
+class TestCustomPolicyEndpoints:
+    @pytest.fixture(autouse=True)
+    def _clear_store(self):
+        _custom_policies.clear()
+        yield
+        _custom_policies.clear()
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_save_custom_policy(self, client):
+        resp = client.post("/api/policies/custom", json={
+            "json_string": json.dumps(RELEASE_ALL),
+            "name": "My Policy",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == "custom_release_all"
+        assert data["name"] == "My Policy"
+
+    def test_save_invalid_policy_rejected(self, client):
+        resp = client.post("/api/policies/custom", json={
+            "json_string": '{"bad": true}',
+            "name": "Bad",
+        })
+        assert resp.status_code == 400
+
+    def test_list_custom_policies(self, client):
+        client.post("/api/policies/custom", json={
+            "json_string": json.dumps(RELEASE_ALL), "name": "P1",
+        })
+        resp = client.get("/api/policies/custom")
+        assert resp.status_code == 200
+        assert len(resp.json()["policies"]) == 1
+
+    def test_get_custom_policy(self, client):
+        client.post("/api/policies/custom", json={
+            "json_string": json.dumps(RELEASE_ALL), "name": "P1",
+        })
+        resp = client.get("/api/policies/custom/custom_release_all")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == "custom_release_all"
+
+    def test_get_missing_policy_404(self, client):
+        resp = client.get("/api/policies/custom/nonexistent")
+        assert resp.status_code == 404
