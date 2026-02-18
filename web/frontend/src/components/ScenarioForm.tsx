@@ -51,7 +51,8 @@ function parseYamlToForm(yamlStr: string): ScenarioFormData | null {
     const doc = jsYaml.load(yamlStr) as Record<string, unknown> | null;
     if (!doc) return null;
     const sim = (doc.simulation as Record<string, number>) ?? {};
-    const agents = (doc.agents as AgentFormData[]) ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agents = (doc.agents as any[]) ?? [];
     const costs = (doc.cost_rates as Record<string, number>) ?? {};
     const lsm = doc.lsm_config as { enable_bilateral?: boolean; enable_cycles?: boolean } | undefined;
     const events = doc.scenario_events as unknown[] | undefined;
@@ -74,7 +75,7 @@ function parseYamlToForm(yamlStr: string): ScenarioFormData | null {
             std_dev: a.arrival_config?.amount_distribution?.std_dev ?? 5000,
           },
           counterparty_weights: a.arrival_config?.counterparty_weights ?? {},
-          deadline_range: a.arrival_config?.deadline_range ?? [3, 8],
+          deadline_range: a.arrival_config?.deadline_range ?? a.deadline_range ?? [3, 8],
         },
       })),
       cost_rates: {

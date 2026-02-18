@@ -327,3 +327,102 @@ def test_builder_format_events_save():
     data = res.json()
     assert data["name"] == "Builder Events Test"
     assert data["summary"]["num_agents"] == 2
+
+
+# ── deadline_range placement tests ───────────────────────────────────
+
+DEADLINE_RANGE_INSIDE_ARRIVAL_CONFIG = """\
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    liquidity_pool: 1000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_B: 1.0
+      deadline_range: [3, 8]
+  - id: BANK_B
+    opening_balance: 0
+    liquidity_pool: 1000000
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_A: 1.0
+      deadline_range: [3, 8]
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.2
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  liquidity_cost_per_tick_bps: 83
+"""
+
+DEADLINE_RANGE_AT_AGENT_LEVEL = """\
+simulation:
+  ticks_per_day: 12
+  num_days: 1
+  rng_seed: 42
+
+agents:
+  - id: BANK_A
+    opening_balance: 0
+    liquidity_pool: 1000000
+    deadline_range: [3, 8]
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_B: 1.0
+  - id: BANK_B
+    opening_balance: 0
+    liquidity_pool: 1000000
+    deadline_range: [3, 8]
+    arrival_config:
+      rate_per_tick: 2.0
+      amount_distribution:
+        type: LogNormal
+        mean: 10000
+        std_dev: 5000
+      counterparty_weights:
+        BANK_A: 1.0
+
+cost_rates:
+  delay_cost_per_tick_per_cent: 0.2
+  eod_penalty_per_transaction: 100000
+  deadline_penalty: 50000
+  liquidity_cost_per_tick_bps: 83
+"""
+
+
+def test_deadline_range_inside_arrival_config_valid():
+    """deadline_range nested inside arrival_config should validate successfully."""
+    res = client.post("/api/scenarios/validate", json={"yaml_string": DEADLINE_RANGE_INSIDE_ARRIVAL_CONFIG})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is True, f"Validation errors: {data.get('errors')}"
+
+
+def test_deadline_range_at_agent_level_invalid():
+    """deadline_range at agent level (outside arrival_config) should fail validation."""
+    res = client.post("/api/scenarios/validate", json={"yaml_string": DEADLINE_RANGE_AT_AGENT_LEVEL})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["valid"] is False, "Expected validation to fail when deadline_range is at agent level, not inside arrival_config"
+    error_text = " ".join(data["errors"]).lower()
+    assert "deadline" in error_text or "arrival" in error_text, f"Expected error about deadline_range placement, got: {data['errors']}"
