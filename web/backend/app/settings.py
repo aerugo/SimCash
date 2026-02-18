@@ -31,17 +31,16 @@ AVAILABLE_MODELS: list[dict[str, str]] = [
         "label": "Gemini 2.5 Pro (Stable)",
         "provider": "google-vertex",
     },
-    # Gemini 3.x preview — uncomment when available in your project/region
-    # {
-    #     "id": "google-vertex:gemini-3-flash-preview",
-    #     "label": "Gemini 3 Flash (Preview)",
-    #     "provider": "google-vertex",
-    # },
-    # {
-    #     "id": "google-vertex:gemini-3-pro-preview",
-    #     "label": "Gemini 3 Pro (Preview)",
-    #     "provider": "google-vertex",
-    # },
+    {
+        "id": "google-vertex:gemini-3-flash-preview",
+        "label": "Gemini 3 Flash (Preview)",
+        "provider": "google-vertex",
+    },
+    {
+        "id": "google-vertex:gemini-3-pro-preview",
+        "label": "Gemini 3 Pro (Preview)",
+        "provider": "google-vertex",
+    },
     {
         "id": "google-vertex:gemini-2.5-flash-lite",
         "label": "Gemini 2.5 Flash Lite (Budget)",
@@ -79,10 +78,19 @@ PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
 }
 
 
-# MaaS models that need special provider config (non-google publisher, global region)
+# Models that need special provider config (non-default publisher or global region)
 MAAS_MODEL_CONFIG: dict[str, dict[str, Any]] = {
     "glm-5-maas": {
         "publisher": "zai-org",
+        "region": "global",
+    },
+    # Gemini 3 preview models require global region
+    "gemini-3-flash-preview": {
+        "publisher": "google",
+        "region": "global",
+    },
+    "gemini-3-pro-preview": {
+        "publisher": "google",
         "region": "global",
     },
 }
