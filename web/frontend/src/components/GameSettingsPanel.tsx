@@ -17,7 +17,7 @@ export interface GameSettings {
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   maxDays: 10,
-  numEvalSamples: 1,
+  numEvalSamples: 50,
   optimizationInterval: 1,
   constraintPreset: 'full',
   useLlm: true,
