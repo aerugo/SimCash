@@ -491,3 +491,48 @@ Today: "Watch two AI agents tune a single number in a simple 2-bank scenario."
 Tomorrow: "Design a 5-bank crisis scenario with liquidity shocks at tick 15, assign different strategies to each bank, let the LLM optimize full decision trees with conditional payment release, splitting, priority escalation, and collateral management — then watch them converge to a Nash equilibrium over 25 simulated days."
 
 The engine can already do this. The web just needs to let it.
+
+---
+
+## Wave 5: Production Hardening & Model Validation
+
+### Status: In Progress
+
+With Waves 1-4 complete, the platform needs production hardening: real LLM model validation, deployment verification, and UX fixes from the comprehensive review.
+
+### Tasks
+
+#### 5.1 E2E Model Testing
+**Test every LLM model in the library end-to-end through the UI:**
+- [ ] Gemini 3 Flash (`google-vertex:gemini-3-flash`) — default
+- [ ] Gemini 2.5 Flash (`google-vertex:gemini-2.5-flash`)
+- [ ] Gemini 3 Pro (`google-vertex:gemini-3.0-pro`)
+- [ ] GLM-5 (`google-vertex:glm-5-maas`) — MaaS model, global region, publisher `zai-org`
+
+For each model: create a game → run 1 day → run 1 optimization round → verify the LLM produced a valid policy with a changed `initial_liquidity_fraction`. Skip OpenAI/Anthropic (no API keys deployed).
+
+**Test script**: `web/backend/tests/test_e2e_models.py`
+
+#### 5.2 Cloud Run Deployment Verification
+- [x] SA granted `roles/aiplatform.user` for Vertex AI access
+- [x] Docker image rebuilt with Gemini 3 Flash + GLM-5 support
+- [x] Cloud Run revision `simcash-00006-h6n` deployed with env vars:
+  - `SIMCASH_DEFAULT_MODEL=google-vertex:gemini-3-flash`
+  - `GOOGLE_CLOUD_LOCATION=europe-north1`
+- [ ] Verify real LLM optimization works on deployed Cloud Run instance
+- [ ] Verify admin model switching works on deployed instance
+
+#### 5.3 UX Improvement Backlog
+33 findings from UX review (`docs/reports/ux-review-central-banker-2026-02-18.md`).
+Prioritized task list at `docs/plans/ux-improvements/backlog.md`:
+- [ ] **P0**: Frontend auth dev bypass (frontend requires Firebase even with `SIMCASH_AUTH_DISABLED=true`)
+- [ ] **P1**: 11 items (mock reasoning quality, game day indicators, cost formatting, etc.)
+- [ ] **P2**: 21 items (mobile layout, keyboard shortcuts, export CSV, etc.)
+
+#### 5.4 Multi-Day Scenario Decoupling
+- [ ] Fix game-day ≠ scenario-day issue for multi-day configs like `target2_crisis_25day`
+- Currently: 25 sim-days × 100 ticks = 2500 ticks all run per game-day
+- Needed: each game-day should map to one sim-day
+
+### Budget Constraint
+⚠️ **Hard cap: $100 USD/month** for all API costs. Use mock mode for testing, real LLM only for demos/validation.
