@@ -45,7 +45,7 @@ export function HowItWorks({ defaultOpen = false }: Props) {
               An RTGS (Real-Time Gross Settlement) payment system where banks must decide
               how to handle every incoming payment — release it immediately, hold it for later,
               split it into smaller parts, use credit facilities, or adjust collateral.
-              Based on the coordination game model from Castro et al. (2025).
+             
             </p>
           </div>
 
