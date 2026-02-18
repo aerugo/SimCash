@@ -1171,8 +1171,20 @@ def get_policy_diff(
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pathlib import Path
 
 frontend_dir = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dir.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+    # Serve static assets (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=str(frontend_dir / "assets")), name="assets")
+
+    # SPA catch-all: serve index.html for all non-API/non-WS/non-asset paths
+    @app.get("/{path:path}")
+    async def serve_spa(path: str):
+        # Try to serve static file first
+        file_path = frontend_dir / path
+        if file_path.is_file() and ".." not in path:
+            return FileResponse(str(file_path))
+        # Fall back to index.html for SPA routing
+        return FileResponse(str(frontend_dir / "index.html"))

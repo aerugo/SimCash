@@ -1,20 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { GameState, GameOptimizationResult } from '../types';
+import { useParams, useNavigate } from 'react-router-dom';
+import type { GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 // PolicyVisualization available for future use when game state includes full tree data
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
+import { useGameContext } from '../GameContext';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
-
-interface Props {
-  gameId: string;
-  gameState: GameState;
-  onUpdate: (state: GameState) => void;
-  onReset: () => void;
-}
 
 function useGameNotes(gameId: string) {
   const key = `simcash_notes_${gameId}`;
@@ -37,7 +32,24 @@ function useGameNotes(gameId: string) {
   return { notes, update };
 }
 
-export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
+export function GameView() {
+  const params = useParams<{ gameId: string }>();
+  const nav = useNavigate();
+  const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
+  const gameId = params.gameId ?? contextGameId ?? '';
+  const initialState = contextGameState;
+  const onReset = () => { handleReset(); nav('/'); };
+
+  if (!initialState) {
+    return (
+      <div className="text-center py-20">
+        <div className="text-4xl mb-4">🔍</div>
+        <h2 className="text-xl font-semibold mb-2">Experiment Not Found</h2>
+        <p className="text-sm text-slate-400 mb-4">No active experiment for ID: {gameId}</p>
+        <button onClick={() => nav('/')} className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-medium">← Back to Home</button>
+      </div>
+    );
+  }
   const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);

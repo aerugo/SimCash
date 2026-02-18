@@ -7,7 +7,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   'anthropic': 'bg-amber-900/40 text-amber-400',
 };
 
-export function AdminDashboard({ onClose }: { onClose: () => void }) {
+export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

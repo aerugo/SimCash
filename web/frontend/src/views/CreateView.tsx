@@ -1,18 +1,17 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { GameSetupConfig } from '../types';
 import { ScenarioEditorView } from './ScenarioEditorView';
-import type { ScenarioEditorState } from './ScenarioEditorView';
 import { PolicyEditorView } from './PolicyEditorView';
+import { useGameContext } from '../GameContext';
 
-interface Props {
-  onGameLaunch: (config: GameSetupConfig) => void;
-  scenarioEditorState?: ScenarioEditorState;
-  onScenarioEditorStateChange?: (state: ScenarioEditorState) => void;
-  policyEditorJsonText?: string;
-  onPolicyEditorJsonTextChange?: (text: string) => void;
-}
-
-export function CreateView({ onGameLaunch, scenarioEditorState, onScenarioEditorStateChange, policyEditorJsonText, onPolicyEditorJsonTextChange }: Props) {
+export function CreateView() {
+  const { handleGameLaunch, scenarioEditorState, setScenarioEditorState: onScenarioEditorStateChange, policyEditorJsonText, setPolicyEditorJsonText: onPolicyEditorJsonTextChange } = useGameContext();
+  const navigate = useNavigate();
+  const onGameLaunch = async (config: GameSetupConfig) => {
+    const gid = await handleGameLaunch(config);
+    if (gid) navigate(`/experiment/${gid}`);
+  };
   const [mode, setMode] = useState<'scenario' | 'policy'>('scenario');
 
   return (

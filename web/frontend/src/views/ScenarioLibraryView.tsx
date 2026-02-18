@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
 import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection } from '../api';
+import { useGameContext } from '../GameContext';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'Paper Experiments': '📄',
@@ -27,11 +29,14 @@ const TAG_COLORS: Record<string, string> = {
   paper: 'bg-sky-500/20 text-sky-300',
 };
 
-interface Props {
-  onLaunchGame?: (config: GameSetupConfig) => void;
-}
-
-export function ScenarioLibraryView({ onLaunchGame }: Props) {
+export function ScenarioLibraryView() {
+  const { handleGameLaunch } = useGameContext();
+  const navigate = useNavigate();
+  const { scenarioId: urlScenarioId } = useParams<{ scenarioId: string }>();
+  const onLaunchGame = async (config: GameSetupConfig) => {
+    const gid = await handleGameLaunch(config);
+    if (gid) navigate(`/experiment/${gid}`);
+  };
   const [scenarios, setScenarios] = useState<LibraryScenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +67,13 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
       .finally(() => setLoading(false));
   }, [showArchived]);
 
+  // Auto-open scenario from URL param
+  useEffect(() => {
+    if (urlScenarioId && !selectedScenario && !detailLoading && scenarios.length > 0) {
+      handleSelectScenario(urlScenarioId);
+    }
+  }, [urlScenarioId, scenarios.length]);
+
   const categories = [...new Set(scenarios.map(s => s.category))];
   const activeCollection = collections.find(c => c.id === selectedCollection);
   const searchLower = searchQuery.toLowerCase();
@@ -87,6 +99,10 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
     try {
       const detail = await getScenarioLibraryDetail(id);
       setSelectedScenario(detail);
+      // Update URL without full navigation
+      if (!urlScenarioId || urlScenarioId !== id) {
+        navigate(`/library/scenarios/${id}`, { replace: true });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -140,7 +156,7 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
     return (
       <div>
         <button
-          onClick={() => setSelectedScenario(null)}
+          onClick={() => { setSelectedScenario(null); navigate('/library/scenarios'); }}
           className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
         >
           ← Back to Library

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
+import { Link, useNavigate } from 'react-router-dom';
+import type { ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
 import { getGameScenarios } from '../api';
 import { HowItWorks } from '../components/HowItWorks';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
 import type { GameSettings } from '../components/GameSettingsPanel';
+import { useGameContext } from '../GameContext';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -27,14 +29,13 @@ const DEFAULT_CONFIG: ScenarioConfig = {
   mock_reasoning: true,
 };
 
-interface Props {
-  presets: Preset[];
-  onLaunch: (config: ScenarioConfig | string) => void;
-  onGameLaunch?: (config: GameSetupConfig) => void;
-  onNavigate?: (tab: string) => void;
-}
-
-export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props) {
+export function HomeView() {
+  const { presets, handleLaunch: onLaunch, handleGameLaunch } = useGameContext();
+  const navigate = useNavigate();
+  const onGameLaunch = async (config: GameSetupConfig) => {
+    const gid = await handleGameLaunch(config);
+    if (gid) navigate(`/experiment/${gid}`);
+  };
   const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
@@ -195,38 +196,38 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
       {/* Quick Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <button
-          onClick={() => onNavigate?.('scenarios')}
+        <Link
+          to="/library/scenarios"
           className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group"
         >
           <div className="text-2xl mb-2">📚</div>
           <h3 className="font-semibold text-slate-100 group-hover:text-sky-300 transition-colors mb-1">Explore Scenarios</h3>
           <p className="text-xs text-slate-400">Browse crisis simulations, LSM tests, paper experiments, and more</p>
-        </button>
-        <button
-          onClick={() => onNavigate?.('policies')}
+        </Link>
+        <Link
+          to="/library/policies"
           className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-violet-500/50 transition-colors group"
         >
           <div className="text-2xl mb-2">🧠</div>
           <h3 className="font-semibold text-slate-100 group-hover:text-violet-300 transition-colors mb-1">Policy Library</h3>
           <p className="text-xs text-slate-400">30+ built-in strategies — from simple FIFO to adaptive decision trees</p>
-        </button>
-        <button
-          onClick={() => onNavigate?.('create')}
+        </Link>
+        <Link
+          to="/create"
           className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-amber-500/50 transition-colors group"
         >
           <div className="text-2xl mb-2">✏️</div>
           <h3 className="font-semibold text-slate-100 group-hover:text-amber-300 transition-colors mb-1">Build Your Own</h3>
           <p className="text-xs text-slate-400">Write custom YAML scenarios with live validation and launch them</p>
-        </button>
-        <button
-          onClick={() => onNavigate?.('docs')}
+        </Link>
+        <Link
+          to="/docs"
           className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-emerald-500/50 transition-colors group"
         >
           <div className="text-2xl mb-2">📖</div>
           <h3 className="font-semibold text-slate-100 group-hover:text-emerald-300 transition-colors mb-1">Documentation</h3>
           <p className="text-xs text-slate-400">Learn about RTGS, LSM, game theory, and the SimCash engine</p>
-        </button>
+        </Link>
       </div>
 
       <HowItWorks defaultOpen={true} />

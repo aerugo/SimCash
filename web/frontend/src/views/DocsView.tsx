@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 
@@ -147,13 +148,22 @@ const markdownComponents: Components = {
 };
 
 export function DocsView() {
+  const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [pages, setPages] = useState<DocPage[]>([]);
-  const [activeId, setActiveId] = useState<string>('overview');
+  const [activeId, setActiveId] = useState<string>(slug || 'overview');
   const [content, setContent] = useState<string>('');
   const [activeMeta, setActiveMeta] = useState<DocContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const cache = useRef<Record<string, DocContent>>({});
+
+  // Sync URL slug to activeId
+  useEffect(() => {
+    if (slug && slug !== activeId) {
+      setActiveId(slug);
+    }
+  }, [slug]);
 
   // Fetch page list on mount
   useEffect(() => {
@@ -218,7 +228,7 @@ export function DocsView() {
                 {g.items.map(item => (
                   <button
                     key={item.id}
-                    onClick={() => setActiveId(item.id)}
+                    onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
                     className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                       activeId === item.id
                         ? 'bg-sky-500/10 text-sky-400'
@@ -239,7 +249,7 @@ export function DocsView() {
       <div className="md:hidden w-full mb-4">
         <select
           value={activeId}
-          onChange={e => setActiveId(e.target.value)}
+          onChange={e => { setActiveId(e.target.value); navigate(`/docs/${e.target.value}`); }}
           className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200"
         >
           {pages.map(p => (

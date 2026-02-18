@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryPolicy, LibraryPolicyDetail } from '../types';
 import { getPolicyLibrary, getPolicyLibraryDetail } from '../api';
 import { PolicyVisualization } from '../components/PolicyVisualization';
@@ -21,7 +22,9 @@ interface Props {
   onSelectPolicy?: (policyId: string, policyJson: Record<string, unknown>) => void;
 }
 
-export function PolicyLibraryView({ onSelectPolicy }: Props) {
+export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
+  const { policyId: urlPolicyId } = useParams<{ policyId: string }>();
+  const navigate = useNavigate();
   const [policies, setPolicies] = useState<LibraryPolicy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +45,13 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
       .finally(() => setLoading(false));
   }, [showArchived]);
 
+  // Auto-open policy from URL param
+  useEffect(() => {
+    if (urlPolicyId && !selectedPolicy && policies.length > 0) {
+      handleSelect(urlPolicyId);
+    }
+  }, [urlPolicyId, policies.length]);
+
   const filtered = filterComplexity
     ? policies.filter(p => p.complexity === filterComplexity)
     : policies;
@@ -51,6 +61,9 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
     try {
       const detail = await getPolicyLibraryDetail(id);
       setSelectedPolicy(detail);
+      if (!urlPolicyId || urlPolicyId !== id) {
+        navigate(`/library/policies/${id}`, { replace: true });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -165,7 +178,7 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
     return (
       <div>
         <button
-          onClick={() => setSelectedPolicy(null)}
+          onClick={() => { setSelectedPolicy(null); navigate('/library/policies'); }}
           className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
         >
           ← Back to Policies
