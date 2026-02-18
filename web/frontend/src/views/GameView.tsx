@@ -203,8 +203,14 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             holding too much liquidity (wasted capital) and too little (missed deadlines).
           </p>
           <p className="text-xs text-slate-500 mt-3">
-            All agents start with <span className="font-mono text-slate-400">fraction = 1.000</span> (commit 100% of their pool).
-            The optimizer will learn to reduce this over multiple days.
+            {(() => {
+              const fracs = Object.entries(gameState.current_policies).map(([aid, p]) => ({ aid, f: p.initial_liquidity_fraction }));
+              const allSame = fracs.length > 0 && fracs.every(x => x.f === fracs[0].f);
+              if (allSame) {
+                return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple days.</>;
+              }
+              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={x.f.toFixed(2)}</span></span>)}. The optimizer will refine these over multiple days.</>;
+            })()}
           </p>
         </div>
       )}
