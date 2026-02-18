@@ -323,7 +323,8 @@ export interface CollectionDetail {
 export async function fetchCollections(): Promise<Collection[]> {
   const res = await authFetch(`${BASE}/collections`);
   if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  const data = await res.json();
+  return data.collections ?? data;
 }
 
 export async function fetchCollectionDetail(id: string): Promise<CollectionDetail> {
