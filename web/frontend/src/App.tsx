@@ -17,18 +17,17 @@ import { PolicyLibraryView } from './views/PolicyLibraryView';
 import { CreateView } from './views/CreateView';
 import type { ScenarioEditorState } from './views/ScenarioEditorView';
 import { AuthProvider } from './contexts/AuthContext';
-import { ResearchModeProvider, useResearchMode } from './contexts/ResearchModeContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
 import { LandingView } from './views/LandingView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { checkAdmin } from './api';
 
-function buildSections(l: (game: string, research: string) => string): NavSection[] {
+function buildSections(): NavSection[] {
   return [
     {
-      id: 'play', label: l('Play', 'Run'), icon: '🏠', defaultTab: 'home',
-      tabs: [{ id: 'home', label: l('Play', 'Run') }],
+      id: 'play', label: 'Run', icon: '🏠', defaultTab: 'home',
+      tabs: [{ id: 'home', label: 'Run' }],
     },
     {
       id: 'library', label: 'Library', icon: '📚', defaultTab: 'scenarios',
@@ -43,8 +42,8 @@ function buildSections(l: (game: string, research: string) => string): NavSectio
       tabs: [{ id: 'create', label: 'Create' }],
     },
     {
-      id: 'game', label: l('Game', 'Experiment'), icon: l('🎮', '🧪'), defaultTab: 'game',
-      tabs: [{ id: 'game', label: l('Game', 'Experiment') }],
+      id: 'game', label: 'Experiment', icon: '🧪', defaultTab: 'game',
+      tabs: [{ id: 'game', label: 'Experiment' }],
       requiresGame: true,
     },
     {
@@ -129,16 +128,16 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <ResearchModeProvider>
+      
         <AppContent />
-      </ResearchModeProvider>
+      
     </AuthProvider>
   );
 }
 
 function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignOut: () => void; isAdmin: boolean }) {
-  const { researchMode, toggleResearchMode, label } = useResearchMode();
-  const SECTIONS = buildSections(label);
+  
+  const SECTIONS = buildSections();
   const [presets, setPresets] = useState<Preset[]>([]);
   const [tab, setTab] = useState<TabId>('home');
   const [simId, setSimId] = useState<string | null>(null);
@@ -290,7 +289,7 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
-              💰 SimCash
+              SimCash
             </div>
             <span className="text-xs text-slate-500 hidden sm:inline">Interactive Payment Simulator</span>
           </div>
@@ -304,13 +303,6 @@ function AppMain({ userEmail, onSignOut, isAdmin }: { userEmail: string; onSignO
               </span>
             </div>
           )}
-            <button
-              onClick={toggleResearchMode}
-              className="text-xs px-2 py-1 rounded border border-slate-600 hover:border-slate-500 text-slate-400 hover:text-slate-300 transition-colors"
-              title={researchMode ? 'Switch to Game mode' : 'Switch to Research mode'}
-            >
-              {researchMode ? '📊 Research' : '🎮 Game'}
-            </button>
             {isAdmin && (
               <button
                 onClick={() => setShowAdmin(true)}

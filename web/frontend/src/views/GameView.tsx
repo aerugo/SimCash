@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
-import { useResearchMode } from '../contexts/ResearchModeContext';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 // PolicyVisualization available for future use when game state includes full tree data
 import { InfoTip } from '../components/Tooltip';
@@ -39,7 +38,6 @@ function useGameNotes(gameId: string) {
 }
 
 export function GameView({ gameId, gameState: initialState, onUpdate, onReset }: Props) {
-  const { label: l } = useResearchMode();
   const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
@@ -112,9 +110,9 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
       {/* Top Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold">{l('🎮 Policy Game', '🧪 Policy Experiment')}</h2>
+          <h2 className="text-2xl font-bold">{'Policy Experiment'}</h2>
           <span className="text-lg font-mono text-sky-400">
-            {l('Day', 'Round')} {gameState.current_day}/{gameState.max_days}
+            {'Round'} {gameState.current_day}/{gameState.max_days}
           </span>
           {gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>
@@ -137,15 +135,15 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             disabled={!connected || autoRunning || gameState.is_complete}
             className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
           >
-            ▶ {l('Next Day', 'Next Round')}
+            ▶ {'Next Round'}
           </button>
           <button
             onClick={() => rerun()}
             disabled={!connected || autoRunning || gameState.days.length === 0}
-            title="Re-run the last day with the same seed (deterministic replay)"
+            title="Re-run the last round with the same seed (deterministic replay)"
             className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
           >
-            🔄 {l('Re-run Day', 'Re-run Round')}
+            🔄 {'Re-run Round'}
           </button>
           <button
             onClick={autoRunning ? stop : handleAutoRun}
@@ -220,7 +218,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             onClick={onReset}
             className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium"
           >
-            🔄 New Game
+            New Experiment
           </button>
         </div>
       </div>
@@ -236,14 +234,14 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
       {autoRunning && phase === 'idle' && !gameState.is_complete && speed !== 'fast' && (
         <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl p-3 text-center">
           <span className="text-sm text-slate-400">
-            ⏳ Pausing between days... ({speed === 'normal' ? '3s' : '8s'})
+            ⏳ Pausing between rounds... ({speed === 'normal' ? '3s' : '8s'})
           </span>
         </div>
       )}
 
       {phase === 'simulating' && (
         <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
-          <span className="text-sm">⚙️ {l('Simulating Day', 'Simulating Round')} {(simulatingDay ?? 0) + 1}...</span>
+          <span className="text-sm">⚙️ {'Simulating Round'} {(simulatingDay ?? 0) + 1}...</span>
         </div>
       )}
       {phase === 'optimizing' && optimizingAgent && (
@@ -274,10 +272,10 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
         const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
         return (
           <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
-            <h3 className="text-lg font-semibold text-green-400 mb-3">🏁 Game Complete — {gameState.max_days} Days</h3>
+            <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.max_days} Rounds</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-xs text-slate-500">Day 1 Cost</div>
+                <div className="text-xs text-slate-500">Round 1 Cost</div>
                 <div className="font-mono text-sm">{firstTotal.toLocaleString()}</div>
               </div>
               <div>
@@ -285,7 +283,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                 <div className="font-mono text-sm">{lastTotal.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Cost Reduction<InfoTip text="Percentage decrease in total system cost from Day 1 to the final day" /></div>
+                <div className="text-xs text-slate-500">Cost Reduction<InfoTip text="Percentage decrease in total system cost from Round 1 to the final round" /></div>
                 <div className={`font-mono text-sm ${reduction > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {reduction > 0 ? '↓' : '↑'} {Math.abs(reduction).toFixed(1)}%
                 </div>
@@ -307,11 +305,11 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
       {/* Empty state guidance */}
       {gameState.days.length === 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
-          <div className="text-3xl mb-3">🏦</div>
+          
           <h3 className="text-lg font-semibold mb-2">Ready to Start</h3>
           <p className="text-sm text-slate-400 max-w-lg mx-auto">
-            Click <strong>▶ Next Day</strong> to simulate the first trading day. Each day, banks process payments using their current liquidity policy.
-            After each day, the AI optimizer analyzes costs and proposes improved policies — watching for the sweet spot between
+            Click <strong>▶ Next Day</strong> to simulate the first round. Each round, banks process payments using their current liquidity policy.
+            After each round, the AI optimizer analyzes costs and proposes improved policies — watching for the sweet spot between
             holding too much liquidity (wasted capital) and too little (missed deadlines).
           </p>
           <p className="text-xs text-slate-500 mt-3">
@@ -319,9 +317,9 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
               const fracs = Object.entries(gameState.current_policies).map(([aid, p]) => ({ aid, f: p.initial_liquidity_fraction }));
               const allSame = fracs.length > 0 && fracs.every(x => x.f === fracs[0].f);
               if (allSame) {
-                return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple days.</>;
+                return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple rounds.</>;
               }
-              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={x.f.toFixed(2)}</span></span>)}. The optimizer will refine these over multiple days.</>;
+              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={x.f.toFixed(2)}</span></span>)}. The optimizer will refine these over multiple rounds.</>;
             })()}
           </p>
         </div>
@@ -334,13 +332,13 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {/* Day selector */}
           {gameState.days.length > 0 && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">Day Timeline</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Round Timeline</h3>
               <div className="flex gap-1 flex-wrap">
                 {gameState.days.map((d, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedDay(i)}
-                    title={d.optimized ? `Day ${i + 1} — optimized` : `Day ${i + 1}`}
+                    title={d.optimized ? `Round ${i + 1} — optimized` : `Round ${i + 1}`}
                     className={`w-8 h-8 rounded text-xs font-mono transition-all relative ${
                       selectedDay === i || (selectedDay === null && i === gameState.days.length - 1)
                         ? 'bg-sky-500 text-white'
@@ -365,7 +363,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                     onClick={() => handleReplay(selectedDay ?? gameState.days.length - 1)}
                     className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
                   >
-                    Load Day {(selectedDay ?? gameState.days.length - 1) + 1} Replay
+                    Load Round {(selectedDay ?? gameState.days.length - 1) + 1} Replay
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -432,7 +430,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {day && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Day {day.day + 1} Results{' '}
+                Round {day.day + 1} Results{' '}
                 <span className="text-xs text-slate-500 font-normal ml-1">seed={day.seed}</span>
               </h3>
               {/* Settlement Rate Banner */}
@@ -527,7 +525,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                             <div className="font-mono">{Math.round(costs.delay_cost).toLocaleString()}</div>
                           </div>
                           <div>
-                            <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of day." /></div>
+                            <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of round." /></div>
                             <div className="font-mono text-red-400">{Math.round(costs.penalty_cost).toLocaleString()}</div>
                           </div>
                           <div>
@@ -549,7 +547,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {/* Balance chart for selected day */}
           {day && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">Day {day.day + 1} Balances</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Round {day.day + 1} Balances</h3>
               <MiniBalanceChart balanceHistory={day.balance_history} agentIds={gameState.agent_ids} />
             </div>
           )}
@@ -573,7 +571,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           {/* Cost evolution chart */}
           {gameState.days.length > 0 && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">💰 Cost Evolution</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Cost Evolution</h3>
               <EvolutionChart
                 data={gameState.cost_history}
                 agentIds={gameState.agent_ids}
@@ -597,7 +595,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
                 🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
-                  ? `Day ${selectedDay + 1} Reasoning`
+                  ? `Round ${selectedDay + 1} Reasoning`
                   : 'Latest Reasoning'}
               </h3>
               <div className="space-y-3">
@@ -656,7 +654,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
             <h3 className="text-sm font-semibold text-slate-300 mb-3">
               📋 {selectedDay !== null && selectedDay < gameState.days.length - 1
-                ? `Day ${selectedDay + 1} Policies`
+                ? `Round ${selectedDay + 1} Policies`
                 : 'Current Policies'}
             </h3>
             <div className="space-y-2">
@@ -769,7 +767,7 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-slate-300">
-          Day {day.day + 1} Events ({day.events.length})
+          Round {day.day + 1} Events ({day.events.length})
         </h3>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -861,7 +859,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
               r.accepted ? 'border-green-500' : 'border-red-500'
             }`}>
               <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-slate-500">Day {i + 1}</span>
+                <span className="text-slate-500">Round {i + 1}</span>
                 <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
                   {r.accepted ? '✓' : '✗'}
                 </span>
@@ -971,7 +969,7 @@ function EvolutionChart({ data, agentIds, yLabel, format }: {
                   onMouseMove={(e) => showTooltip(e, (
                     <div>
                       <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
-                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      <div>Round {i + 1}: <span className="font-mono">{format(v)}</span></div>
                       {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
                     </div>
                   ))}
@@ -990,7 +988,7 @@ function EvolutionChart({ data, agentIds, yLabel, format }: {
                   onMouseMove={(e) => showTooltip(e, (
                     <div>
                       <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
-                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      <div>Round {i + 1}: <span className="font-mono">{format(v)}</span></div>
                       {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
                     </div>
                   ))}

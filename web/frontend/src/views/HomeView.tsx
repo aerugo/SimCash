@@ -4,7 +4,6 @@ import { getGameScenarios } from '../api';
 import { HowItWorks } from '../components/HowItWorks';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
 import type { GameSettings } from '../components/GameSettingsPanel';
-import { useResearchMode } from '../contexts/ResearchModeContext';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -36,7 +35,6 @@ interface Props {
 }
 
 export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props) {
-  const { label: l } = useResearchMode();
   const [mode, setMode] = useState<'preset' | 'custom' | 'game'>('game');
   const [selectedPreset, setSelectedPreset] = useState('exp3');
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
@@ -241,7 +239,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             mode === 'game' ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
           }`}
         >
-          {l('🎮 Multi-Day Game', '🧪 Multi-Round Experiment')}
+          {'Multi-Round Experiment'}
         </button>
         <button
           onClick={() => setMode('preset')}
@@ -265,9 +263,9 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
         <div className="space-y-6 mb-8">
           {/* Quick Start Card */}
           <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">{l('🚀 Quick Start', '🚀 Quick Experiment')}</h3>
+            <h3 className="text-lg font-semibold text-white mb-2">{'Quick Experiment'}</h3>
             <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
-              Run your first experiment in one click — watch two banks learn to optimize liquidity over 5 days
+              Run your first experiment in one click — watch two banks learn to optimize liquidity over 5 rounds
             </p>
             <button
               onClick={() => {
@@ -285,7 +283,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             >
               ▶ Launch Experiment
             </button>
-            <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 days · No API cost</p>
+            <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
           </div>
 
           {/* Scenario Pack */}
@@ -313,7 +311,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
                     {s.cost_rates && (
                       <div className="text-xs text-slate-500 mt-2 flex gap-3">
                         <span title="Liquidity cost: basis points of committed funds charged per tick. Higher = more expensive to hold liquidity.">
-                          💰 {s.cost_rates.liquidity_cost_per_tick_bps} bps
+                          {s.cost_rates.liquidity_cost_per_tick_bps} bps
                         </span>
                         <span title="Delay cost: charged per cent of unsettled payment per tick. Penalizes slow settlement.">
                           ⏱ {s.cost_rates.delay_cost_per_tick_per_cent}/¢/tick
@@ -349,7 +347,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
           >
-            {l('🎮 Start Game', '🧪 Start Experiment')}
+            {'Start Experiment'}
           </button>
         </div>
       ) : mode === 'preset' ? (
@@ -494,7 +492,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
           {/* Actions */}
           <div className="flex gap-3">
-            <button onClick={randomize} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium">🎲 Randomize</button>
+            <button onClick={randomize} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium">Randomize</button>
             <button onClick={exportConfig} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium">📥 Export JSON</button>
             <button onClick={importConfig} className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium">📤 Import JSON</button>
           </div>
@@ -540,7 +538,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
               }}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
             >
-              {l('🎮 Start Multi-Day Game', '🧪 Start Multi-Round Experiment')}
+              {'Start Multi-Round Experiment'}
             </button>
           )}
         </div>
@@ -574,7 +572,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             onClick={handleLaunch}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-semibold text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/20"
           >
-            🚀 Launch Simulation
+            Launch Simulation
           </button>
         </>
       )}
