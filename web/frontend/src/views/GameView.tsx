@@ -120,17 +120,17 @@ export function GameView() {
   return (
     <div className="space-y-6">
       {/* Top Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold">{'Policy Experiment'}</h2>
-          <span className="text-lg font-mono text-sky-400">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold">{'Policy Experiment'}</h2>
+          <span className="text-base sm:text-lg font-mono text-sky-400">
             {'Round'} {gameState.current_day}/{gameState.max_days}
           </span>
           {gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>
           )}
           {gameState.use_llm && (
-            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">🧠 AI Optimization</span>
+            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">🧠 AI</span>
           )}
           {connectionStatus === 'reconnecting' && (
             <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
@@ -138,35 +138,36 @@ export function GameView() {
             </span>
           )}
           {connectionStatus === 'disconnected' && (
-            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Connection lost — please refresh</span>
+            <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* Action buttons — wrap on mobile */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={step}
             disabled={!connected || autoRunning || gameState.is_complete}
-            className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
           >
-            ▶ {'Next Round'}
+            ▶ Next
           </button>
           <button
             onClick={() => rerun()}
             disabled={!connected || autoRunning || gameState.days.length === 0}
             title="Re-run the last round with the same seed (deterministic replay)"
-            className="px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
+            className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
           >
-            🔄 {'Re-run Round'}
+            🔄 Re-run
           </button>
           <button
             onClick={autoRunning ? stop : handleAutoRun}
             disabled={!connected || gameState.is_complete}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
               autoRunning
                 ? 'bg-red-600 hover:bg-red-500'
                 : 'bg-violet-600 hover:bg-violet-500 disabled:opacity-40'
             }`}
           >
-            {autoRunning ? '⏹ Stop' : '⏩ Auto-run'}
+            {autoRunning ? '⏹ Stop' : '⏩ Auto'}
           </button>
           {/* Speed control */}
           <div className="flex items-center bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
@@ -177,12 +178,12 @@ export function GameView() {
                   setSpeed(s);
                   if (autoRunning) autoRun(SPEED_MS[s]);
                 }}
-                className={`px-2.5 py-2 text-xs font-medium transition-all ${
+                className={`px-2 py-1.5 text-xs font-medium transition-all ${
                   speed === s
                     ? 'bg-sky-600 text-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700'
                 }`}
-                title={`${s.charAt(0).toUpperCase() + s.slice(1)} speed${s === 'fast' ? ' (no delay)' : s === 'normal' ? ' (3s pause)' : ' (8s pause)'}`}
+                title={`${s.charAt(0).toUpperCase() + s.slice(1)} speed`}
               >
                 {icon}
               </button>
@@ -192,9 +193,9 @@ export function GameView() {
             <button
               onClick={() => setExportOpen(!exportOpen)}
               disabled={gameState.days.length === 0}
-              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-sm font-medium"
+              className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-sm font-medium"
             >
-              📥 Export ▾
+              📥 Export
             </button>
             {exportOpen && (
               <div className="absolute right-0 mt-1 w-36 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
@@ -207,7 +208,6 @@ export function GameView() {
                 <button
                   onClick={async () => {
                     setExportOpen(false);
-                    // Inject notes into JSON export client-side
                     const { authFetch, getGameExportUrl } = await import('../api');
                     const res = await authFetch(getGameExportUrl(gameId, 'json'));
                     if (!res.ok) return;
@@ -228,9 +228,9 @@ export function GameView() {
           </div>
           <button
             onClick={onReset}
-            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium"
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium"
           >
-            New Experiment
+            New
           </button>
         </div>
       </div>

@@ -81,7 +81,7 @@ function LayoutInner() {
                   }`
                 }
               >
-                <span className="mr-1">{section.icon}</span>
+                <span className="sm:mr-1 text-base sm:text-sm">{section.icon}</span>
                 <span className="hidden sm:inline">{section.label}</span>
               </NavLink>
             ))}
