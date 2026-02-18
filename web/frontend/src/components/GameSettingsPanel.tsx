@@ -95,7 +95,7 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           min={1} max={50} className="w-full accent-violet-400"
         />
         <p className="text-[10px] text-slate-600 mt-1">
-          {s.numEvalSamples === 1 ? 'Quick mode — single sample' : s.numEvalSamples >= 50 ? 'Paper-faithful — 50 bootstrap samples' : `${s.numEvalSamples} bootstrap samples per evaluation`}
+          {s.numEvalSamples === 1 ? '1 = fast exploration · 10+ = statistically robust' : s.numEvalSamples >= 50 ? 'Paper-faithful — 50 bootstrap samples' : `${s.numEvalSamples} samples · 10+ = statistically robust`}
         </p>
       </div>
       <div>
@@ -125,7 +125,7 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           <label className="text-xs text-slate-500 flex justify-between mb-1">
             <span>Policy Complexity</span>
             <span className="font-mono text-slate-300">
-              {s.constraintPreset === 'simple' ? 'Fraction only' : s.constraintPreset === 'standard' ? 'Trees + splitting' : 'Full power'}
+              {s.constraintPreset === 'simple' ? 'Simple' : s.constraintPreset === 'standard' ? 'Standard' : 'Full'}
             </span>
           </label>
           <select
@@ -133,25 +133,31 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
             onChange={e => update({ constraintPreset: e.target.value as 'simple' | 'standard' | 'full' })}
             className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
           >
-            <option value="simple">Simple — fraction only</option>
-            <option value="standard">Standard — decision trees + splitting</option>
-            <option value="full">Full — all actions, fields, parameters</option>
+            <option value="simple">Simple</option>
+            <option value="standard">Standard</option>
+            <option value="full">Full</option>
           </select>
           <p className="text-[10px] text-slate-600 mt-1">
-            {s.constraintPreset === 'simple' ? 'AI only tunes initial_liquidity_fraction. Fast, predictable.' :
-             s.constraintPreset === 'standard' ? 'AI can build decision trees with Release/Hold/Split actions and balance/timing conditions.' :
-             'AI has full freedom: all payment actions (Release/Hold/Split/Delay), bank actions, priority/splitting trees, 40+ context fields.'}
+            {s.constraintPreset === 'simple' ? 'AI adjusts liquidity fraction only' :
+             s.constraintPreset === 'standard' ? 'AI also decides payment timing (Release/Hold)' :
+             'AI has complete freedom — all actions, conditions, and parameters'}
           </p>
         </div>
       )}
       <div className="flex gap-6 flex-wrap">
         <Toggle label="Enable AI Optimization" value={s.useLlm} onChange={v => update({ useLlm: v })} />
         {s.useLlm && (
-          <div>
-            <Toggle label="Mock Mode" value={s.mockReasoning} onChange={v => update({ mockReasoning: v })} />
-            <span className="text-[10px] text-slate-600 ml-2">
-              {s.mockReasoning ? '(no API costs)' : '⚠ Uses LLM API'}
-            </span>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500">{s.mockReasoning ? 'Algorithmic' : 'LLM-Powered'}</span>
+              <Toggle label="" value={!s.mockReasoning} onChange={v => update({ mockReasoning: !v })} />
+            </div>
+            <p className="text-[10px] text-slate-500">
+              {s.mockReasoning ? '(fast, deterministic)' : '(Gemini, richer reasoning)'}
+            </p>
+            <p className="text-[10px] text-slate-600">
+              Algorithmic mode uses rule-based optimization. LLM mode uses a language model to reason about strategy.
+            </p>
           </div>
         )}
       </div>

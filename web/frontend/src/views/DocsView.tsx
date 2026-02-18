@@ -135,7 +135,7 @@ function Overview() {
 
       <h3>The Experiment</h3>
       <p>
-        We let AI agents (powered by GPT-5.2) play this game repeatedly. Each day, the Rust
+        We let AI agents (powered by an LLM) play this game repeatedly. Each day, the Rust
         simulation engine runs the payment system with the agents' current policies. At the end
         of each day, each agent independently analyzes its own results — costs incurred, payments
         settled, delays suffered — and proposes an improved policy for the next day.
@@ -536,11 +536,11 @@ function Architecture() {
 
       <h3>LLM Configuration</h3>
       <p>
-        The paper experiments used GPT-5.2 with reasoning effort <code>high</code>,
+        The paper experiments used a large language model with reasoning effort <code>high</code>,
         temperature 0.5, and up to 25 iterations per experiment pass. Each experiment
         was run 3 times (independent passes) to assess reproducibility. The web sandbox
-        defaults to mock mode for zero-cost exploration, with optional real LLM mode
-        using the same model configuration.
+        defaults to algorithmic mode for zero-cost exploration, with optional LLM mode
+        (currently Gemini 2.5 Flash via Google Vertex AI, admin-switchable).
       </p>
 
       <h3>Performance</h3>
@@ -1189,7 +1189,7 @@ function BlogConvergence() {
 
       <h3>The Experiment</h3>
       <p>
-        We set up two AI agents — BANK_A and BANK_B — each powered by GPT-5.2 with high
+        We set up two AI agents — BANK_A and BANK_B — each powered by a large language model (currently Gemini 2.5 Flash) with high
         reasoning effort. Each agent controls a single parameter: <code>initial_liquidity_fraction</code>,
         the fraction of its available liquidity pool to commit at the start of each simulated trading day.
         The value ranges from 0% (commit nothing, extremely risky) to 100% (commit everything,
