@@ -99,7 +99,7 @@ export function LandingView() {
       <div className="max-w-3xl mx-auto px-6 pb-20 text-center">
         <div className="border-t border-slate-800 pt-10">
           <p className="text-slate-500 text-sm leading-relaxed">
-            Built on a <span className="text-emerald-400/80">Rust</span> simulation engine
+            Built on a deterministic simulation engine
             · Powered by <span className="text-cyan-400/80">Vertex AI</span>
             · Based on <span className="text-slate-400">Castro et al. (2025)</span> research on RTGS/LSM coordination games
           </p>

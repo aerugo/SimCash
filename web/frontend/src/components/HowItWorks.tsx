@@ -52,7 +52,7 @@ export function HowItWorks({ defaultOpen = false }: Props) {
           <div>
             <h4 className="font-medium text-slate-300 mb-1">What Agents Control</h4>
             <p>
-              Each agent builds a <strong>policy</strong> — a set of decision trees that the Rust engine
+              Each agent builds a <strong>policy</strong> — a set of decision trees that the simulation engine
               executes automatically every tick. A policy controls:
             </p>
             <ul className="mt-2 space-y-1 ml-4">
