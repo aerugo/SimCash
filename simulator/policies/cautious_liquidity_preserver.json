@@ -5,7 +5,8 @@
   "parameters": {
     "buffer_multiplier": 2.5,
     "urgency_threshold": 3.0,
-    "eod_threshold": 0.8
+    "eod_threshold": 0.8,
+    "initial_liquidity_fraction": 0.7
   },
   "payment_tree": {
     "type": "condition",
@@ -13,8 +14,12 @@
     "description": "Is this end-of-day rush?",
     "condition": {
       "op": "==",
-      "left": {"field": "is_eod_rush"},
-      "right": {"value": 1.0}
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -22,8 +27,12 @@
       "description": "Past deadline? Must release to avoid double penalty",
       "condition": {
         "op": "<=",
-        "left": {"field": "ticks_to_deadline"},
-        "right": {"value": 0.0}
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "action",
@@ -36,8 +45,12 @@
         "description": "Can afford without credit?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
-          "right": {"field": "remaining_amount"}
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -48,7 +61,11 @@
           "type": "action",
           "node_id": "CLP-A3-EOD-Hold",
           "action": "Hold",
-          "parameters": {"reason": {"value": "EOD-NoLiquidity"}}
+          "parameters": {
+            "reason": {
+              "value": "EOD-NoLiquidity"
+            }
+          }
         }
       }
     },
@@ -58,8 +75,12 @@
       "description": "Within urgency threshold?",
       "condition": {
         "op": "<=",
-        "left": {"field": "ticks_to_deadline"},
-        "right": {"param": "urgency_threshold"}
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "param": "urgency_threshold"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -67,8 +88,12 @@
         "description": "Can afford it with current liquidity?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
-          "right": {"field": "remaining_amount"}
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -81,12 +106,18 @@
           "description": "Is deadline penalty cheaper than overdraft for remaining ticks?",
           "condition": {
             "op": "<",
-            "left": {"field": "cost_deadline_penalty"},
+            "left": {
+              "field": "cost_deadline_penalty"
+            },
             "right": {
               "compute": {
                 "op": "*",
-                "left": {"field": "cost_overdraft_this_amount_one_tick"},
-                "right": {"field": "ticks_to_deadline"}
+                "left": {
+                  "field": "cost_overdraft_this_amount_one_tick"
+                },
+                "right": {
+                  "field": "ticks_to_deadline"
+                }
               }
             }
           },
@@ -94,7 +125,11 @@
             "type": "action",
             "node_id": "CLP-A5-Urgent-AcceptPenalty",
             "action": "Hold",
-            "parameters": {"reason": {"value": "PenaltyCheaperThanCredit"}}
+            "parameters": {
+              "reason": {
+                "value": "PenaltyCheaperThanCredit"
+              }
+            }
           },
           "on_false": {
             "type": "action",
@@ -109,12 +144,18 @@
         "description": "Do we have buffer_multiplier times the transaction amount?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": {"field": "remaining_amount"},
-              "right": {"param": "buffer_multiplier"}
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "param": "buffer_multiplier"
+              }
             }
           }
         },
@@ -129,8 +170,12 @@
           "description": "Are we late in the day? (>80% progress)",
           "condition": {
             "op": ">",
-            "left": {"field": "day_progress_fraction"},
-            "right": {"param": "eod_threshold"}
+            "left": {
+              "field": "day_progress_fraction"
+            },
+            "right": {
+              "param": "eod_threshold"
+            }
           },
           "on_true": {
             "type": "condition",
@@ -138,8 +183,12 @@
             "description": "Can barely afford it?",
             "condition": {
               "op": ">=",
-              "left": {"field": "effective_liquidity"},
-              "right": {"field": "remaining_amount"}
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "field": "remaining_amount"
+              }
             },
             "on_true": {
               "type": "action",
@@ -150,14 +199,22 @@
               "type": "action",
               "node_id": "CLP-A9-LateDay-Hold",
               "action": "Hold",
-              "parameters": {"reason": {"value": "LateDay-WaitForInflows"}}
+              "parameters": {
+                "reason": {
+                  "value": "LateDay-WaitForInflows"
+                }
+              }
             }
           },
           "on_false": {
             "type": "action",
             "node_id": "CLP-A10-EarlyDay-Hold",
             "action": "Hold",
-            "parameters": {"reason": {"value": "PreservingBuffer"}}
+            "parameters": {
+              "reason": {
+                "value": "PreservingBuffer"
+              }
+            }
           }
         }
       }
@@ -174,8 +231,12 @@
     "description": "Do we have any collateral posted?",
     "condition": {
       "op": ">",
-      "left": {"field": "posted_collateral"},
-      "right": {"value": 0.0}
+      "left": {
+        "field": "posted_collateral"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -183,16 +244,24 @@
       "description": "Is there still a gap?",
       "condition": {
         "op": "<=",
-        "left": {"field": "queue1_liquidity_gap"},
-        "right": {"value": 0.0}
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "action",
         "node_id": "CLP-ECA1-WithdrawAll",
         "action": "WithdrawCollateral",
         "parameters": {
-          "amount": {"field": "posted_collateral"},
-          "reason": {"value": "GapClosed"}
+          "amount": {
+            "field": "posted_collateral"
+          },
+          "reason": {
+            "value": "GapClosed"
+          }
         }
       },
       "on_false": {
@@ -210,13 +279,21 @@
         "conditions": [
           {
             "op": ">",
-            "left": {"field": "queue1_liquidity_gap"},
-            "right": {"value": 0.0}
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "value": 0.0
+            }
           },
           {
             "op": ">",
-            "left": {"field": "day_progress_fraction"},
-            "right": {"value": 0.85}
+            "left": {
+              "field": "day_progress_fraction"
+            },
+            "right": {
+              "value": 0.85
+            }
           }
         ]
       },
@@ -229,12 +306,18 @@
             "compute": {
               "op": "min",
               "values": [
-                {"field": "queue1_liquidity_gap"},
-                {"field": "remaining_collateral_capacity"}
+                {
+                  "field": "queue1_liquidity_gap"
+                },
+                {
+                  "field": "remaining_collateral_capacity"
+                }
               ]
             }
           },
-          "reason": {"value": "EmergencyEODGap"}
+          "reason": {
+            "value": "EmergencyEODGap"
+          }
         }
       },
       "on_false": {

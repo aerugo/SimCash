@@ -5,7 +5,8 @@
   "parameters": {
     "conservative_buffer": 2.0,
     "critical_deadline_ticks": 10,
-    "prefer_hold_threshold": 0.6
+    "prefer_hold_threshold": 0.6,
+    "initial_liquidity_fraction": 0.65
   },
   "payment_tree": {
     "type": "condition",
@@ -13,8 +14,12 @@
     "description": "Is the deadline critical?",
     "condition": {
       "op": "<=",
-      "left": { "field": "ticks_to_deadline" },
-      "right": { "param": "critical_deadline_ticks" }
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "critical_deadline_ticks"
+      }
     },
     "on_true": {
       "type": "condition",
@@ -22,8 +27,12 @@
       "description": "Can we afford critical payment?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
-        "right": { "field": "remaining_amount" }
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -43,12 +52,18 @@
       "description": "Is our conservative buffer satisfied?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
+        "left": {
+          "field": "effective_liquidity"
+        },
         "right": {
           "compute": {
             "op": "*",
-            "left": { "field": "remaining_amount" },
-            "right": { "param": "conservative_buffer" }
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "conservative_buffer"
+            }
           }
         }
       },
@@ -63,16 +78,24 @@
         "description": "Is this a high priority payment?",
         "condition": {
           "op": ">=",
-          "left": { "field": "priority" },
-          "right": { "value": 8.0 }
+          "left": {
+            "field": "priority"
+          },
+          "right": {
+            "value": 8.0
+          }
         },
         "on_true": {
           "type": "condition",
           "node_id": "T2CO-N5-HighPri-CanAfford",
           "condition": {
             "op": ">=",
-            "left": { "field": "effective_liquidity" },
-            "right": { "field": "remaining_amount" }
+            "left": {
+              "field": "effective_liquidity"
+            },
+            "right": {
+              "field": "remaining_amount"
+            }
           },
           "on_true": {
             "type": "action",
@@ -83,7 +106,11 @@
             "type": "action",
             "node_id": "T2CO-A5-HighPri-Hold",
             "action": "Hold",
-            "parameters": { "reason": { "value": "AwaitingOffsets" } }
+            "parameters": {
+              "reason": {
+                "value": "AwaitingOffsets"
+              }
+            }
           }
         },
         "on_false": {
@@ -91,7 +118,11 @@
           "node_id": "T2CO-A6-Hold",
           "action": "Hold",
           "description": "Wait for LSM offsets",
-          "parameters": { "reason": { "value": "AwaitingOffsets" } }
+          "parameters": {
+            "reason": {
+              "value": "AwaitingOffsets"
+            }
+          }
         }
       }
     }

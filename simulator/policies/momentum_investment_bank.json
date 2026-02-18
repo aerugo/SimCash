@@ -5,7 +5,8 @@
   "parameters": {
     "trivial_priority_threshold": 3.0,
     "trivial_amount_threshold": 10000.0,
-    "congestion_threshold": 50.0
+    "congestion_threshold": 50.0,
+    "initial_liquidity_fraction": 0.4
   },
   "payment_tree": {
     "type": "condition",
@@ -13,8 +14,12 @@
     "description": "Is it the EOD rush? Release everything, even trivial.",
     "condition": {
       "op": "==",
-      "left": {"field": "is_eod_rush"},
-      "right": {"value": 1.0}
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -30,13 +35,21 @@
         "conditions": [
           {
             "op": "<",
-            "left": {"field": "priority"},
-            "right": {"param": "trivial_priority_threshold"}
+            "left": {
+              "field": "priority"
+            },
+            "right": {
+              "param": "trivial_priority_threshold"
+            }
           },
           {
             "op": "<",
-            "left": {"field": "remaining_amount"},
-            "right": {"param": "trivial_amount_threshold"}
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "trivial_amount_threshold"
+            }
           }
         ]
       },
@@ -44,7 +57,11 @@
         "type": "action",
         "node_id": "MIB-A2-HoldTrivial",
         "action": "Hold",
-        "parameters": {"reason": {"value": "LowPriority"}}
+        "parameters": {
+          "reason": {
+            "value": "LowPriority"
+          }
+        }
       },
       "on_false": {
         "type": "condition",
@@ -52,15 +69,21 @@
         "description": "Not trivial. Is the RTGS system congested?",
         "condition": {
           "op": ">",
-          "left": {"field": "rtgs_queue_size"},
-          "right": {"param": "congestion_threshold"}
+          "left": {
+            "field": "rtgs_queue_size"
+          },
+          "right": {
+            "param": "congestion_threshold"
+          }
         },
         "on_true": {
           "type": "action",
           "node_id": "MIB-A3-HoldCongestion",
           "action": "Hold",
           "parameters": {
-            "reason": {"value": "Custom"}
+            "reason": {
+              "value": "Custom"
+            }
           }
         },
         "on_false": {

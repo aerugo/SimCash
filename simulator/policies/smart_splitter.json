@@ -6,7 +6,8 @@
     "split_threshold": 300000.0,
     "min_split_amount": 75000.0,
     "max_splits": 4.0,
-    "urgency_threshold": 4.0
+    "urgency_threshold": 4.0,
+    "initial_liquidity_fraction": 0.5
   },
   "payment_tree": {
     "type": "condition",
@@ -14,8 +15,12 @@
     "description": "End of day? Release everything",
     "condition": {
       "op": "==",
-      "left": {"field": "is_eod_rush"},
-      "right": {"value": 1.0}
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -28,8 +33,12 @@
       "description": "Can we afford the full amount?",
       "condition": {
         "op": ">=",
-        "left": {"field": "effective_liquidity"},
-        "right": {"field": "remaining_amount"}
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -42,8 +51,12 @@
         "description": "Is deadline urgent?",
         "condition": {
           "op": "<=",
-          "left": {"field": "ticks_to_deadline"},
-          "right": {"param": "urgency_threshold"}
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
         },
         "on_true": {
           "type": "condition",
@@ -54,13 +67,21 @@
             "conditions": [
               {
                 "op": ">",
-                "left": {"field": "remaining_amount"},
-                "right": {"param": "split_threshold"}
+                "left": {
+                  "field": "remaining_amount"
+                },
+                "right": {
+                  "param": "split_threshold"
+                }
               },
               {
                 "op": ">",
-                "left": {"field": "effective_liquidity"},
-                "right": {"param": "min_split_amount"}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "param": "min_split_amount"
+                }
               }
             ]
           },
@@ -73,24 +94,34 @@
               "left": {
                 "compute": {
                   "op": "*",
-                  "left": {"field": "cost_split_friction"},
+                  "left": {
+                    "field": "cost_split_friction"
+                  },
                   "right": {
                     "compute": {
                       "op": "-",
-                      "left": {"param": "max_splits"},
-                      "right": {"value": 1.0}
+                      "left": {
+                        "param": "max_splits"
+                      },
+                      "right": {
+                        "value": 1.0
+                      }
                     }
                   }
                 }
               },
-              "right": {"field": "cost_deadline_penalty"}
+              "right": {
+                "field": "cost_deadline_penalty"
+              }
             },
             "on_true": {
               "type": "action",
               "node_id": "SS-A3-Urgent-Split",
               "action": "Split",
               "parameters": {
-                "num_splits": {"param": "max_splits"}
+                "num_splits": {
+                  "param": "max_splits"
+                }
               }
             },
             "on_false": {
@@ -99,12 +130,18 @@
               "description": "Can use credit instead?",
               "condition": {
                 "op": ">=",
-                "left": {"field": "headroom"},
+                "left": {
+                  "field": "headroom"
+                },
                 "right": {
                   "compute": {
                     "op": "-",
-                    "left": {"field": "remaining_amount"},
-                    "right": {"field": "effective_liquidity"}
+                    "left": {
+                      "field": "remaining_amount"
+                    },
+                    "right": {
+                      "field": "effective_liquidity"
+                    }
                   }
                 }
               },
@@ -117,7 +154,11 @@
                 "type": "action",
                 "node_id": "SS-A5-Urgent-Hold",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "UrgentButNoOptions"}}
+                "parameters": {
+                  "reason": {
+                    "value": "UrgentButNoOptions"
+                  }
+                }
               }
             }
           },
@@ -127,12 +168,18 @@
             "description": "Amount too small to split, can use credit?",
             "condition": {
               "op": ">=",
-              "left": {"field": "headroom"},
+              "left": {
+                "field": "headroom"
+              },
               "right": {
                 "compute": {
                   "op": "-",
-                  "left": {"field": "remaining_amount"},
-                  "right": {"field": "effective_liquidity"}
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "field": "effective_liquidity"
+                  }
                 }
               }
             },
@@ -145,7 +192,11 @@
               "type": "action",
               "node_id": "SS-A7-Urgent-SmallHold",
               "action": "Hold",
-              "parameters": {"reason": {"value": "TooSmallToSplit"}}
+              "parameters": {
+                "reason": {
+                  "value": "TooSmallToSplit"
+                }
+              }
             }
           }
         },
@@ -158,13 +209,21 @@
             "conditions": [
               {
                 "op": ">",
-                "left": {"field": "remaining_amount"},
-                "right": {"param": "split_threshold"}
+                "left": {
+                  "field": "remaining_amount"
+                },
+                "right": {
+                  "param": "split_threshold"
+                }
               },
               {
                 "op": ">",
-                "left": {"field": "effective_liquidity"},
-                "right": {"param": "min_split_amount"}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "param": "min_split_amount"
+                }
               }
             ]
           },
@@ -177,15 +236,23 @@
               "left": {
                 "compute": {
                   "op": "*",
-                  "left": {"field": "cost_split_friction"},
-                  "right": {"value": 1.0}
+                  "left": {
+                    "field": "cost_split_friction"
+                  },
+                  "right": {
+                    "value": 1.0
+                  }
                 }
               },
               "right": {
                 "compute": {
                   "op": "*",
-                  "left": {"field": "cost_delay_this_tx_one_tick"},
-                  "right": {"field": "ticks_to_deadline"}
+                  "left": {
+                    "field": "cost_delay_this_tx_one_tick"
+                  },
+                  "right": {
+                    "field": "ticks_to_deadline"
+                  }
                 }
               }
             },
@@ -194,14 +261,20 @@
               "node_id": "SS-A8-NotUrgent-Split",
               "action": "Split",
               "parameters": {
-                "num_splits": {"value": 2.0}
+                "num_splits": {
+                  "value": 2.0
+                }
               }
             },
             "on_false": {
               "type": "action",
               "node_id": "SS-A9-NotUrgent-HoldForInflow",
               "action": "Hold",
-              "parameters": {"reason": {"value": "WaitingForInflows"}}
+              "parameters": {
+                "reason": {
+                  "value": "WaitingForInflows"
+                }
+              }
             }
           },
           "on_false": {
@@ -210,14 +283,22 @@
             "description": "Too small to split. Compare delay vs overdraft",
             "condition": {
               "op": "<",
-              "left": {"field": "cost_delay_this_tx_one_tick"},
-              "right": {"field": "cost_overdraft_this_amount_one_tick"}
+              "left": {
+                "field": "cost_delay_this_tx_one_tick"
+              },
+              "right": {
+                "field": "cost_overdraft_this_amount_one_tick"
+              }
             },
             "on_true": {
               "type": "action",
               "node_id": "SS-A10-NotUrgent-HoldCheap",
               "action": "Hold",
-              "parameters": {"reason": {"value": "DelayCheaperThanCredit"}}
+              "parameters": {
+                "reason": {
+                  "value": "DelayCheaperThanCredit"
+                }
+              }
             },
             "on_false": {
               "type": "condition",
@@ -225,12 +306,18 @@
               "description": "Overdraft cheaper, can use it?",
               "condition": {
                 "op": ">=",
-                "left": {"field": "headroom"},
+                "left": {
+                  "field": "headroom"
+                },
                 "right": {
                   "compute": {
                     "op": "-",
-                    "left": {"field": "remaining_amount"},
-                    "right": {"field": "effective_liquidity"}
+                    "left": {
+                      "field": "remaining_amount"
+                    },
+                    "right": {
+                      "field": "effective_liquidity"
+                    }
                   }
                 }
               },
@@ -243,7 +330,11 @@
                 "type": "action",
                 "node_id": "SS-A12-NotUrgent-FinalHold",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "NoCredit Available"}}
+                "parameters": {
+                  "reason": {
+                    "value": "NoCredit Available"
+                  }
+                }
               }
             }
           }
@@ -265,13 +356,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": {"field": "queue1_liquidity_gap"},
-          "right": {"value": 0.0}
+          "left": {
+            "field": "queue1_liquidity_gap"
+          },
+          "right": {
+            "value": 0.0
+          }
         },
         {
           "op": ">",
-          "left": {"field": "day_progress_fraction"},
-          "right": {"value": 0.75}
+          "left": {
+            "field": "day_progress_fraction"
+          },
+          "right": {
+            "value": 0.75
+          }
         }
       ]
     },
@@ -281,16 +380,24 @@
       "description": "Can we cover the gap?",
       "condition": {
         "op": ">=",
-        "left": {"field": "remaining_collateral_capacity"},
-        "right": {"field": "queue1_liquidity_gap"}
+        "left": {
+          "field": "remaining_collateral_capacity"
+        },
+        "right": {
+          "field": "queue1_liquidity_gap"
+        }
       },
       "on_true": {
         "type": "action",
         "node_id": "SS-ECA1-Post-Gap",
         "action": "PostCollateral",
         "parameters": {
-          "amount": {"field": "queue1_liquidity_gap"},
-          "reason": {"value": "LateDayGap"}
+          "amount": {
+            "field": "queue1_liquidity_gap"
+          },
+          "reason": {
+            "value": "LateDayGap"
+          }
         }
       },
       "on_false": {
@@ -298,8 +405,12 @@
         "node_id": "SS-ECA2-Post-Available",
         "action": "PostCollateral",
         "parameters": {
-          "amount": {"field": "remaining_collateral_capacity"},
-          "reason": {"value": "PartialGap"}
+          "amount": {
+            "field": "remaining_collateral_capacity"
+          },
+          "reason": {
+            "value": "PartialGap"
+          }
         }
       }
     },
@@ -312,13 +423,21 @@
         "conditions": [
           {
             "op": ">",
-            "left": {"field": "posted_collateral"},
-            "right": {"value": 0.0}
+            "left": {
+              "field": "posted_collateral"
+            },
+            "right": {
+              "value": 0.0
+            }
           },
           {
             "op": "<=",
-            "left": {"field": "queue1_liquidity_gap"},
-            "right": {"value": 0.0}
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "value": 0.0
+            }
           }
         ]
       },
@@ -327,8 +446,12 @@
         "node_id": "SS-ECA3-Withdraw",
         "action": "WithdrawCollateral",
         "parameters": {
-          "amount": {"field": "posted_collateral"},
-          "reason": {"value": "GapClosed"}
+          "amount": {
+            "field": "posted_collateral"
+          },
+          "reason": {
+            "value": "GapClosed"
+          }
         }
       },
       "on_false": {

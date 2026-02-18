@@ -8,7 +8,8 @@
     "stress_decay": 0.1,
     "stress_spike_trigger": 0.8,
     "high_stress_threshold": 5.0,
-    "panic_threshold": 8.0
+    "panic_threshold": 8.0,
+    "initial_liquidity_fraction": 0.45
   },
   "bank_tree": {
     "node_id": "B_UpdateState",
@@ -16,17 +17,27 @@
     "description": "Update the bank_state_stress based on current liquidity pressure",
     "condition": {
       "op": ">",
-      "left": { "field": "liquidity_pressure" },
-      "right": { "param": "stress_spike_trigger" }
+      "left": {
+        "field": "liquidity_pressure"
+      },
+      "right": {
+        "param": "stress_spike_trigger"
+      }
     },
     "on_true": {
       "node_id": "B_IncStress",
       "type": "action",
       "action": "AddState",
       "parameters": {
-        "key": { "value": "bank_state_stress" },
-        "value": { "value": 1.0 },
-        "reason": { "value": "High pressure detected" }
+        "key": {
+          "value": "bank_state_stress"
+        },
+        "value": {
+          "value": 1.0
+        },
+        "reason": {
+          "value": "High pressure detected"
+        }
       }
     },
     "on_false": {
@@ -34,23 +45,33 @@
       "type": "action",
       "action": "SetState",
       "parameters": {
-        "key": { "value": "bank_state_stress" },
+        "key": {
+          "value": "bank_state_stress"
+        },
         "value": {
           "compute": {
             "op": "max",
             "values": [
-              { "value": 0.0 },
+              {
+                "value": 0.0
+              },
               {
                 "compute": {
                   "op": "-",
-                  "left": { "field": "bank_state_stress" },
-                  "right": { "param": "stress_decay" }
+                  "left": {
+                    "field": "bank_state_stress"
+                  },
+                  "right": {
+                    "param": "stress_decay"
+                  }
                 }
               }
             ]
           }
         },
-        "reason": { "value": "Decaying stress level" }
+        "reason": {
+          "value": "Decaying stress level"
+        }
       }
     }
   },
@@ -60,17 +81,27 @@
     "description": "Post collateral proactively if memory indicates we are in a high stress regime",
     "condition": {
       "op": ">",
-      "left": { "field": "bank_state_stress" },
-      "right": { "param": "high_stress_threshold" }
+      "left": {
+        "field": "bank_state_stress"
+      },
+      "right": {
+        "param": "high_stress_threshold"
+      }
     },
     "on_true": {
       "node_id": "S_PostDefensive",
       "type": "action",
       "action": "PostCollateral",
       "parameters": {
-        "amount": { "param": "min_collateral_chunk" },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 50 }
+        "amount": {
+          "param": "min_collateral_chunk"
+        },
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 50
+        }
       }
     },
     "on_false": {
@@ -88,13 +119,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": { "field": "bank_state_stress" },
-          "right": { "param": "panic_threshold" }
+          "left": {
+            "field": "bank_state_stress"
+          },
+          "right": {
+            "param": "panic_threshold"
+          }
         },
         {
           "op": "<",
-          "left": { "field": "priority" },
-          "right": { "value": 9 }
+          "left": {
+            "field": "priority"
+          },
+          "right": {
+            "value": 9
+          }
         }
       ]
     },
@@ -102,7 +141,11 @@
       "node_id": "A_HoldPanic",
       "type": "action",
       "action": "Hold",
-      "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+      "parameters": {
+        "reason": {
+          "value": "InsufficientLiquidity"
+        }
+      }
     },
     "on_false": {
       "node_id": "P_StandardLogic",
@@ -110,8 +153,12 @@
       "description": "Standard efficiency check: Release if liquidity > base_buffer",
       "condition": {
         "op": ">",
-        "left": { "field": "available_liquidity" },
-        "right": { "param": "base_buffer" }
+        "left": {
+          "field": "available_liquidity"
+        },
+        "right": {
+          "param": "base_buffer"
+        }
       },
       "on_true": {
         "node_id": "A_Release",
@@ -124,25 +171,41 @@
         "description": "If close to deadline, try to stagger split",
         "condition": {
           "op": "<",
-          "left": { "field": "ticks_to_deadline" },
-          "right": { "value": 10 }
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "value": 10
+          }
         },
         "on_true": {
           "node_id": "A_Stagger",
           "type": "action",
           "action": "StaggerSplit",
           "parameters": {
-            "num_splits": { "value": 5 },
-            "stagger_first_now": { "value": 1 },
-            "stagger_gap_ticks": { "value": 2 },
-            "priority_boost_children": { "value": 2 }
+            "num_splits": {
+              "value": 5
+            },
+            "stagger_first_now": {
+              "value": 1
+            },
+            "stagger_gap_ticks": {
+              "value": 2
+            },
+            "priority_boost_children": {
+              "value": 2
+            }
           }
         },
         "on_false": {
           "node_id": "A_HoldNormal",
           "type": "action",
           "action": "Hold",
-          "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+          "parameters": {
+            "reason": {
+              "value": "InsufficientLiquidity"
+            }
+          }
         }
       }
     }
@@ -153,16 +216,24 @@
     "description": "Only withdraw collateral if stress has fully decayed to 0",
     "condition": {
       "op": "==",
-      "left": { "field": "bank_state_stress" },
-      "right": { "value": 0.0 }
+      "left": {
+        "field": "bank_state_stress"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "node_id": "A_Withdraw",
       "type": "action",
       "action": "WithdrawCollateral",
       "parameters": {
-        "amount": { "field": "excess_collateral" },
-        "reason": { "value": "LiquidityRestored" }
+        "amount": {
+          "field": "excess_collateral"
+        },
+        "reason": {
+          "value": "LiquidityRestored"
+        }
       }
     },
     "on_false": {

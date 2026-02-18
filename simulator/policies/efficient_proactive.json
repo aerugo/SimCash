@@ -4,7 +4,8 @@
   "description": "A proactive, efficient policy that anticipates liquidity needs, uses collateral strategically to minimize costs, and releases payments smoothly to avoid both delay and liquidity penalties.",
   "parameters": {
     "modest_buffer_multiplier": 1.2,
-    "proactive_urgency_threshold": 10.0
+    "proactive_urgency_threshold": 10.0,
+    "initial_liquidity_fraction": 0.5
   },
   "payment_tree": {
     "type": "condition",
@@ -12,8 +13,12 @@
     "description": "Is the deadline approaching?",
     "condition": {
       "op": "<=",
-      "left": { "field": "ticks_to_deadline" },
-      "right": { "param": "proactive_urgency_threshold" }
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "proactive_urgency_threshold"
+      }
     },
     "on_true": {
       "type": "condition",
@@ -21,8 +26,12 @@
       "description": "Can we afford to send this urgent payment?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
-        "right": { "field": "remaining_amount" }
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -42,12 +51,18 @@
       "description": "Is our modest liquidity buffer satisfied?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
+        "left": {
+          "field": "effective_liquidity"
+        },
         "right": {
           "compute": {
             "op": "*",
-            "left": { "field": "remaining_amount" },
-            "right": { "param": "modest_buffer_multiplier" }
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "modest_buffer_multiplier"
+            }
           }
         }
       },
@@ -61,7 +76,11 @@
         "node_id": "ERP-A4-Hold-NonUrgent",
         "action": "Hold",
         "description": "Not urgent and below buffer, hold and wait for better liquidity.",
-        "parameters": { "reason": { "value": "AwaitingInflows" } }
+        "parameters": {
+          "reason": {
+            "value": "AwaitingInflows"
+          }
+        }
       }
     }
   },
@@ -71,8 +90,12 @@
     "description": "Is there an upcoming liquidity gap in our payment queue?",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "value": 0.0 }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -80,9 +103,15 @@
       "action": "PostCollateral",
       "description": "Proactively post collateral to cover the exact anticipated gap.",
       "parameters": {
-        "amount": { "field": "queue1_liquidity_gap" },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 20 }
+        "amount": {
+          "field": "queue1_liquidity_gap"
+        },
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 20
+        }
       }
     },
     "on_false": {
@@ -101,13 +130,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": { "field": "posted_collateral" },
-          "right": { "value": 0.0 }
+          "left": {
+            "field": "posted_collateral"
+          },
+          "right": {
+            "value": 0.0
+          }
         },
         {
           "op": "==",
-          "left": { "field": "credit_used" },
-          "right": { "value": 0.0 }
+          "left": {
+            "field": "credit_used"
+          },
+          "right": {
+            "value": 0.0
+          }
         }
       ]
     },
@@ -117,8 +154,12 @@
       "action": "WithdrawCollateral",
       "description": "Withdraw unused collateral to minimize costs.",
       "parameters": {
-        "amount": { "field": "posted_collateral" },
-        "reason": { "value": "EndOfDayCleanup" }
+        "amount": {
+          "field": "posted_collateral"
+        },
+        "reason": {
+          "value": "EndOfDayCleanup"
+        }
       }
     },
     "on_false": {

@@ -5,7 +5,8 @@
   "parameters": {
     "min_buffer": 50000.0,
     "collateral_buffer_target": 200000.0,
-    "split_threshold_amount": 500000.0
+    "split_threshold_amount": 500000.0,
+    "initial_liquidity_fraction": 0.5
   },
   "strategic_collateral_tree": {
     "node_id": "S1",
@@ -13,8 +14,12 @@
     "description": "Check if Queue 1 liquidity gap exists",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "value": 0 }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0
+      }
     },
     "on_true": {
       "node_id": "S_Action_Post",
@@ -24,11 +29,17 @@
         "amount": {
           "compute": {
             "op": "+",
-            "left": { "field": "queue1_liquidity_gap" },
-            "right": { "param": "collateral_buffer_target" }
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "param": "collateral_buffer_target"
+            }
           }
         },
-        "reason": { "value": "PreemptivePosting" }
+        "reason": {
+          "value": "PreemptivePosting"
+        }
       }
     },
     "on_false": {
@@ -44,15 +55,21 @@
     "description": "Emergency: Is it past deadline?",
     "condition": {
       "op": "==",
-      "left": { "field": "is_past_deadline" },
-      "right": { "value": 1.0 }
+      "left": {
+        "field": "is_past_deadline"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "node_id": "P_Panic_Release",
       "type": "action",
       "action": "Release",
       "parameters": {
-        "priority_flag": { "value": "HIGH" }
+        "priority_flag": {
+          "value": "HIGH"
+        }
       }
     },
     "on_false": {
@@ -61,8 +78,12 @@
       "description": "Can we afford the whole thing?",
       "condition": {
         "op": ">=",
-        "left": { "field": "available_liquidity" },
-        "right": { "field": "amount" }
+        "left": {
+          "field": "available_liquidity"
+        },
+        "right": {
+          "field": "amount"
+        }
       },
       "on_true": {
         "node_id": "P_Full_Release",
@@ -79,17 +100,27 @@
           "conditions": [
             {
               "op": ">",
-              "left": { "field": "amount" },
-              "right": { "param": "split_threshold_amount" }
+              "left": {
+                "field": "amount"
+              },
+              "right": {
+                "param": "split_threshold_amount"
+              }
             },
             {
               "op": ">",
-              "left": { "field": "available_liquidity" },
+              "left": {
+                "field": "available_liquidity"
+              },
               "right": {
                 "compute": {
                   "op": "/",
-                  "left": { "field": "amount" },
-                  "right": { "value": 4 }
+                  "left": {
+                    "field": "amount"
+                  },
+                  "right": {
+                    "value": 4
+                  }
                 }
               }
             }
@@ -100,7 +131,9 @@
           "type": "action",
           "action": "Split",
           "parameters": {
-            "num_splits": { "value": 4 }
+            "num_splits": {
+              "value": 4
+            }
           }
         },
         "on_false": {
@@ -108,7 +141,9 @@
           "type": "action",
           "action": "Hold",
           "parameters": {
-            "reason": { "value": "InsufficientLiquidity" }
+            "reason": {
+              "value": "InsufficientLiquidity"
+            }
           }
         }
       }

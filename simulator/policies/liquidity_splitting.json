@@ -2,15 +2,18 @@
   "version": "1.0",
   "policy_id": "liquidity_splitting_policy",
   "description": "Liquidity-aware splitting policy - intelligently splits large payments when liquidity is constrained",
-
   "payment_tree": {
     "type": "condition",
     "node_id": "N1",
     "description": "Check if past deadline",
     "condition": {
       "op": "<=",
-      "left": { "field": "deadline_tick" },
-      "right": { "field": "current_tick" }
+      "left": {
+        "field": "deadline_tick"
+      },
+      "right": {
+        "field": "current_tick"
+      }
     },
     "on_true": {
       "type": "action",
@@ -23,8 +26,12 @@
       "description": "Check if deadline is urgent (ticks_to_deadline <= 5)",
       "condition": {
         "op": "<=",
-        "left": { "field": "ticks_to_deadline" },
-        "right": { "value": 5.0 }
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "value": 5.0
+        }
       },
       "on_true": {
         "type": "condition",
@@ -32,8 +39,12 @@
         "description": "Urgent: Check if we can afford whole",
         "condition": {
           "op": ">=",
-          "left": { "field": "balance" },
-          "right": { "field": "amount" }
+          "left": {
+            "field": "balance"
+          },
+          "right": {
+            "field": "amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -46,15 +57,21 @@
           "description": "Urgent but can't afford: Check if balance > 0",
           "condition": {
             "op": ">",
-            "left": { "field": "balance" },
-            "right": { "value": 0.0 }
+            "left": {
+              "field": "balance"
+            },
+            "right": {
+              "value": 0.0
+            }
           },
           "on_true": {
             "type": "action",
             "node_id": "A3",
             "action": "Split",
             "parameters": {
-              "num_splits": { "param": "max_splits" }
+              "num_splits": {
+                "param": "max_splits"
+              }
             }
           },
           "on_false": {
@@ -62,7 +79,9 @@
             "node_id": "A4",
             "action": "Hold",
             "parameters": {
-              "reason": { "value": "InsufficientLiquidity" }
+              "reason": {
+                "value": "InsufficientLiquidity"
+              }
             }
           }
         }
@@ -73,8 +92,12 @@
         "description": "Not urgent: Check if we can afford whole",
         "condition": {
           "op": ">=",
-          "left": { "field": "balance" },
-          "right": { "field": "amount" }
+          "left": {
+            "field": "balance"
+          },
+          "right": {
+            "field": "amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -87,15 +110,21 @@
           "description": "Can't afford whole, not urgent: Check if balance > 0 (can do partial)",
           "condition": {
             "op": ">",
-            "left": { "field": "balance" },
-            "right": { "value": 0.0 }
+            "left": {
+              "field": "balance"
+            },
+            "right": {
+              "value": 0.0
+            }
           },
           "on_true": {
             "type": "action",
             "node_id": "A7",
             "action": "Split",
             "parameters": {
-              "num_splits": { "value": 2.0 }
+              "num_splits": {
+                "value": 2.0
+              }
             }
           },
           "on_false": {
@@ -103,19 +132,20 @@
             "node_id": "A6",
             "action": "Hold",
             "parameters": {
-              "reason": { "value": "InsufficientLiquidity" }
+              "reason": {
+                "value": "InsufficientLiquidity"
+              }
             }
           }
         }
       }
     }
   },
-
   "strategic_collateral_tree": null,
   "end_of_tick_collateral_tree": null,
-
   "parameters": {
     "max_splits": 4.0,
-    "min_split_amount": 10000.0
+    "min_split_amount": 10000.0,
+    "initial_liquidity_fraction": 0.55
   }
 }

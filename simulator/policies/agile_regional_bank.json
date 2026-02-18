@@ -7,7 +7,8 @@
     "split_threshold": 100000.0,
     "min_split_amount": 25000.0,
     "max_splits": 8.0,
-    "safety_margin": 1.1
+    "safety_margin": 1.1,
+    "initial_liquidity_fraction": 0.45
   },
   "payment_tree": {
     "type": "condition",
@@ -15,8 +16,12 @@
     "description": "Is it the EOD rush? If so, release everything.",
     "condition": {
       "op": "==",
-      "left": {"field": "is_eod_rush"},
-      "right": {"value": 1.0}
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -29,8 +34,12 @@
       "description": "Not EOD. Is it urgent (or already past deadline)?",
       "condition": {
         "op": "<=",
-        "left": {"field": "ticks_to_deadline"},
-        "right": {"param": "urgency_threshold"}
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "param": "urgency_threshold"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -38,12 +47,18 @@
         "description": "It's urgent. Is the deadline penalty CHEAPER than the overdraft cost to settle?",
         "condition": {
           "op": "<",
-          "left": {"field": "cost_deadline_penalty"},
+          "left": {
+            "field": "cost_deadline_penalty"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": {"field": "cost_overdraft_this_amount_one_tick"},
-              "right": {"field": "ticks_to_deadline"}
+              "left": {
+                "field": "cost_overdraft_this_amount_one_tick"
+              },
+              "right": {
+                "field": "ticks_to_deadline"
+              }
             }
           }
         },
@@ -51,7 +66,11 @@
           "type": "action",
           "node_id": "ARB-A2-HoldAcceptPenalty",
           "action": "Hold",
-          "parameters": {"reason": {"value": "PenaltyCheaperThanCredit"}}
+          "parameters": {
+            "reason": {
+              "value": "PenaltyCheaperThanCredit"
+            }
+          }
         },
         "on_false": {
           "type": "action",
@@ -65,8 +84,12 @@
         "description": "Not urgent. Can we afford to send it now?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
-          "right": {"field": "remaining_amount"}
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -79,14 +102,22 @@
           "description": "Cannot afford. Is it cheaper to hold than use credit?",
           "condition": {
             "op": "<",
-            "left": {"field": "cost_delay_this_tx_one_tick"},
-            "right": {"field": "cost_overdraft_this_amount_one_tick"}
+            "left": {
+              "field": "cost_delay_this_tx_one_tick"
+            },
+            "right": {
+              "field": "cost_overdraft_this_amount_one_tick"
+            }
           },
           "on_true": {
             "type": "action",
             "node_id": "ARB-A5-HoldCheap",
             "action": "Hold",
-            "parameters": {"reason": {"value": "DelayMoreEconomical"}}
+            "parameters": {
+              "reason": {
+                "value": "DelayMoreEconomical"
+              }
+            }
           },
           "on_false": {
             "type": "condition",
@@ -97,13 +128,21 @@
               "conditions": [
                 {
                   "op": ">",
-                  "left": {"field": "remaining_amount"},
-                  "right": {"param": "split_threshold"}
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "split_threshold"
+                  }
                 },
                 {
                   "op": ">",
-                  "left": {"field": "effective_liquidity"},
-                  "right": {"param": "min_split_amount"}
+                  "left": {
+                    "field": "effective_liquidity"
+                  },
+                  "right": {
+                    "param": "min_split_amount"
+                  }
                 }
               ]
             },
@@ -116,17 +155,25 @@
                   "compute": {
                     "op": "min",
                     "values": [
-                      {"param": "max_splits"},
+                      {
+                        "param": "max_splits"
+                      },
                       {
                         "compute": {
                           "op": "max",
                           "values": [
-                            {"value": 2.0},
+                            {
+                              "value": 2.0
+                            },
                             {
                               "compute": {
                                 "op": "/",
-                                "left": {"field": "remaining_amount"},
-                                "right": {"field": "effective_liquidity"}
+                                "left": {
+                                  "field": "remaining_amount"
+                                },
+                                "right": {
+                                  "field": "effective_liquidity"
+                                }
                               }
                             }
                           ]
@@ -141,7 +188,11 @@
               "type": "action",
               "node_id": "ARB-A7-HoldNoLiquidity",
               "action": "Hold",
-              "parameters": {"reason": {"value": "InsufficientLiquidity"}}
+              "parameters": {
+                "reason": {
+                  "value": "InsufficientLiquidity"
+                }
+              }
             }
           }
         }
@@ -159,8 +210,12 @@
     "description": "Am I in trouble? (Gap > 0)",
     "condition": {
       "op": ">",
-      "left": {"field": "queue1_liquidity_gap"},
-      "right": {"value": 0.0}
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -171,18 +226,26 @@
           "compute": {
             "op": "min",
             "values": [
-              {"field": "remaining_collateral_capacity"},
+              {
+                "field": "remaining_collateral_capacity"
+              },
               {
                 "compute": {
                   "op": "*",
-                  "left": {"field": "queue1_liquidity_gap"},
-                  "right": {"param": "safety_margin"}
+                  "left": {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  "right": {
+                    "param": "safety_margin"
+                  }
                 }
               }
             ]
           }
         },
-        "reason": {"value": "DeadlineEmergency"}
+        "reason": {
+          "value": "DeadlineEmergency"
+        }
       }
     },
     "on_false": {
@@ -191,16 +254,24 @@
       "description": "No gap. Can I withdraw excess collateral?",
       "condition": {
         "op": ">",
-        "left": {"field": "posted_collateral"},
-        "right": {"value": 0.0}
+        "left": {
+          "field": "posted_collateral"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "action",
         "node_id": "ARB-EC4-WithdrawAll",
         "action": "WithdrawCollateral",
         "parameters": {
-          "amount": {"field": "posted_collateral"},
-          "reason": {"value": "LiquidityRestored"}
+          "amount": {
+            "field": "posted_collateral"
+          },
+          "reason": {
+            "value": "LiquidityRestored"
+          }
         }
       },
       "on_false": {

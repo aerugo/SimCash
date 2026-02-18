@@ -2,7 +2,6 @@
   "version": "1.0",
   "policy_id": "mock_splitting_policy",
   "description": "Mock splitting policy - always splits transactions into fixed number of parts (testing only)",
-
   "payment_tree": {
     "type": "action",
     "node_id": "A1",
@@ -13,11 +12,10 @@
       }
     }
   },
-
   "strategic_collateral_tree": null,
   "end_of_tick_collateral_tree": null,
-
   "parameters": {
-    "num_splits": 2.0
+    "num_splits": 2.0,
+    "initial_liquidity_fraction": 0.5
   }
 }

@@ -9,7 +9,8 @@
     "split_threshold": 250000.0,
     "max_splits": 3.0,
     "min_split_amount": 80000.0,
-    "buffer_factor": 1.2
+    "buffer_factor": 1.2,
+    "initial_liquidity_fraction": 0.5
   },
   "payment_tree": {
     "type": "condition",
@@ -17,8 +18,12 @@
     "description": "End of day rush? Emergency mode",
     "condition": {
       "op": "==",
-      "left": {"field": "is_eod_rush"},
-      "right": {"value": 1.0}
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -26,8 +31,12 @@
       "description": "Already missed deadline?",
       "condition": {
         "op": "<=",
-        "left": {"field": "ticks_to_deadline"},
-        "right": {"value": 0.0}
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "action",
@@ -40,8 +49,12 @@
         "description": "Can afford without credit?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
-          "right": {"field": "remaining_amount"}
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -54,12 +67,18 @@
           "description": "Compare: EOD penalty vs overdraft cost",
           "condition": {
             "op": "<",
-            "left": {"field": "cost_eod_penalty"},
+            "left": {
+              "field": "cost_eod_penalty"
+            },
             "right": {
               "compute": {
                 "op": "*",
-                "left": {"field": "cost_overdraft_this_amount_one_tick"},
-                "right": {"value": 5.0}
+                "left": {
+                  "field": "cost_overdraft_this_amount_one_tick"
+                },
+                "right": {
+                  "value": 5.0
+                }
               }
             }
           },
@@ -67,7 +86,11 @@
             "type": "action",
             "node_id": "BCO-A3-EOD-AcceptPenalty",
             "action": "Hold",
-            "parameters": {"reason": {"value": "EOD-PenaltyCheaper"}}
+            "parameters": {
+              "reason": {
+                "value": "EOD-PenaltyCheaper"
+              }
+            }
           },
           "on_false": {
             "type": "action",
@@ -83,8 +106,12 @@
       "description": "What time of day is it?",
       "condition": {
         "op": "<",
-        "left": {"field": "day_progress_fraction"},
-        "right": {"param": "early_day_threshold"}
+        "left": {
+          "field": "day_progress_fraction"
+        },
+        "right": {
+          "param": "early_day_threshold"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -92,12 +119,18 @@
         "description": "Early day: Do we have strong buffer (1.5x tx)?",
         "condition": {
           "op": ">=",
-          "left": {"field": "effective_liquidity"},
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": {"field": "remaining_amount"},
-              "right": {"value": 1.5}
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "value": 1.5
+              }
             }
           }
         },
@@ -112,8 +145,12 @@
           "description": "High priority despite weak buffer?",
           "condition": {
             "op": ">=",
-            "left": {"field": "priority"},
-            "right": {"value": 8.0}
+            "left": {
+              "field": "priority"
+            },
+            "right": {
+              "value": 8.0
+            }
           },
           "on_true": {
             "type": "condition",
@@ -121,8 +158,12 @@
             "description": "Can afford high priority?",
             "condition": {
               "op": ">=",
-              "left": {"field": "effective_liquidity"},
-              "right": {"field": "remaining_amount"}
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "field": "remaining_amount"
+              }
             },
             "on_true": {
               "type": "action",
@@ -133,14 +174,22 @@
               "type": "action",
               "node_id": "BCO-A7-Early-Hold",
               "action": "Hold",
-              "parameters": {"reason": {"value": "EarlyDay-PreserveBuffer"}}
+              "parameters": {
+                "reason": {
+                  "value": "EarlyDay-PreserveBuffer"
+                }
+              }
             }
           },
           "on_false": {
             "type": "action",
             "node_id": "BCO-A8-Early-HoldNormal",
             "action": "Hold",
-            "parameters": {"reason": {"value": "EarlyDay-Conservative"}}
+            "parameters": {
+              "reason": {
+                "value": "EarlyDay-Conservative"
+              }
+            }
           }
         }
       },
@@ -150,8 +199,12 @@
         "description": "Mid day? (30-60%)",
         "condition": {
           "op": "<",
-          "left": {"field": "day_progress_fraction"},
-          "right": {"param": "mid_day_threshold"}
+          "left": {
+            "field": "day_progress_fraction"
+          },
+          "right": {
+            "param": "mid_day_threshold"
+          }
         },
         "on_true": {
           "type": "condition",
@@ -159,8 +212,12 @@
           "description": "Mid day: Can we afford it?",
           "condition": {
             "op": ">=",
-            "left": {"field": "effective_liquidity"},
-            "right": {"field": "remaining_amount"}
+            "left": {
+              "field": "effective_liquidity"
+            },
+            "right": {
+              "field": "remaining_amount"
+            }
           },
           "on_true": {
             "type": "action",
@@ -176,13 +233,21 @@
               "conditions": [
                 {
                   "op": ">",
-                  "left": {"field": "remaining_amount"},
-                  "right": {"param": "split_threshold"}
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "split_threshold"
+                  }
                 },
                 {
                   "op": ">",
-                  "left": {"field": "effective_liquidity"},
-                  "right": {"param": "min_split_amount"}
+                  "left": {
+                    "field": "effective_liquidity"
+                  },
+                  "right": {
+                    "param": "min_split_amount"
+                  }
                 }
               ]
             },
@@ -192,12 +257,18 @@
               "description": "Compare split friction vs accumulated delay",
               "condition": {
                 "op": "<",
-                "left": {"field": "cost_split_friction"},
+                "left": {
+                  "field": "cost_split_friction"
+                },
                 "right": {
                   "compute": {
                     "op": "*",
-                    "left": {"field": "cost_delay_this_tx_one_tick"},
-                    "right": {"value": 3.0}
+                    "left": {
+                      "field": "cost_delay_this_tx_one_tick"
+                    },
+                    "right": {
+                      "value": 3.0
+                    }
                   }
                 }
               },
@@ -206,14 +277,20 @@
                 "node_id": "BCO-A10-Mid-Split",
                 "action": "Split",
                 "parameters": {
-                  "num_splits": {"param": "max_splits"}
+                  "num_splits": {
+                    "param": "max_splits"
+                  }
                 }
               },
               "on_false": {
                 "type": "action",
                 "node_id": "BCO-A11-Mid-HoldDelayOK",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "Mid-DelayCheaperThanSplit"}}
+                "parameters": {
+                  "reason": {
+                    "value": "Mid-DelayCheaperThanSplit"
+                  }
+                }
               }
             },
             "on_false": {
@@ -222,8 +299,12 @@
               "description": "Compare credit vs delay costs",
               "condition": {
                 "op": "<",
-                "left": {"field": "cost_overdraft_this_amount_one_tick"},
-                "right": {"field": "cost_delay_this_tx_one_tick"}
+                "left": {
+                  "field": "cost_overdraft_this_amount_one_tick"
+                },
+                "right": {
+                  "field": "cost_delay_this_tx_one_tick"
+                }
               },
               "on_true": {
                 "type": "condition",
@@ -231,12 +312,18 @@
                 "description": "Can use credit?",
                 "condition": {
                   "op": ">=",
-                  "left": {"field": "headroom"},
+                  "left": {
+                    "field": "headroom"
+                  },
                   "right": {
                     "compute": {
                       "op": "-",
-                      "left": {"field": "remaining_amount"},
-                      "right": {"field": "effective_liquidity"}
+                      "left": {
+                        "field": "remaining_amount"
+                      },
+                      "right": {
+                        "field": "effective_liquidity"
+                      }
                     }
                   }
                 },
@@ -249,14 +336,22 @@
                   "type": "action",
                   "node_id": "BCO-A13-Mid-HoldNoCredit",
                   "action": "Hold",
-                  "parameters": {"reason": {"value": "Mid-NoCredit"}}
+                  "parameters": {
+                    "reason": {
+                      "value": "Mid-NoCredit"
+                    }
+                  }
                 }
               },
               "on_false": {
                 "type": "action",
                 "node_id": "BCO-A14-Mid-HoldCheap",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "Mid-DelayCheaper"}}
+                "parameters": {
+                  "reason": {
+                    "value": "Mid-DelayCheaper"
+                  }
+                }
               }
             }
           }
@@ -267,12 +362,18 @@
           "description": "Late day (>60%): Be more aggressive",
           "condition": {
             "op": ">=",
-            "left": {"field": "effective_liquidity"},
+            "left": {
+              "field": "effective_liquidity"
+            },
             "right": {
               "compute": {
                 "op": "*",
-                "left": {"field": "remaining_amount"},
-                "right": {"param": "buffer_factor"}
+                "left": {
+                  "field": "remaining_amount"
+                },
+                "right": {
+                  "param": "buffer_factor"
+                }
               }
             }
           },
@@ -287,8 +388,12 @@
             "description": "Late day + urgent deadline?",
             "condition": {
               "op": "<=",
-              "left": {"field": "ticks_to_deadline"},
-              "right": {"value": 3.0}
+              "left": {
+                "field": "ticks_to_deadline"
+              },
+              "right": {
+                "value": 3.0
+              }
             },
             "on_true": {
               "type": "condition",
@@ -296,12 +401,18 @@
               "description": "Compare: penalty vs overdraft cost for remaining ticks",
               "condition": {
                 "op": "<",
-                "left": {"field": "cost_deadline_penalty"},
+                "left": {
+                  "field": "cost_deadline_penalty"
+                },
                 "right": {
                   "compute": {
                     "op": "*",
-                    "left": {"field": "cost_overdraft_this_amount_one_tick"},
-                    "right": {"field": "ticks_to_deadline"}
+                    "left": {
+                      "field": "cost_overdraft_this_amount_one_tick"
+                    },
+                    "right": {
+                      "field": "ticks_to_deadline"
+                    }
                   }
                 }
               },
@@ -309,7 +420,11 @@
                 "type": "action",
                 "node_id": "BCO-A16-Late-AcceptPenalty",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "Late-PenaltyCheaper"}}
+                "parameters": {
+                  "reason": {
+                    "value": "Late-PenaltyCheaper"
+                  }
+                }
               },
               "on_false": {
                 "type": "action",
@@ -323,8 +438,12 @@
               "description": "Can barely afford it?",
               "condition": {
                 "op": ">=",
-                "left": {"field": "effective_liquidity"},
-                "right": {"field": "remaining_amount"}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "field": "remaining_amount"
+                }
               },
               "on_true": {
                 "type": "action",
@@ -335,7 +454,11 @@
                 "type": "action",
                 "node_id": "BCO-A19-Late-Hold",
                 "action": "Hold",
-                "parameters": {"reason": {"value": "Late-WaitForInflow"}}
+                "parameters": {
+                  "reason": {
+                    "value": "Late-WaitForInflow"
+                  }
+                }
               }
             }
           }
@@ -349,8 +472,12 @@
     "description": "Is there a gap?",
     "condition": {
       "op": ">",
-      "left": {"field": "queue1_liquidity_gap"},
-      "right": {"value": 0.0}
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -358,8 +485,12 @@
       "description": "Are we late enough to post? (>65%)",
       "condition": {
         "op": ">",
-        "left": {"field": "day_progress_fraction"},
-        "right": {"value": 0.65}
+        "left": {
+          "field": "day_progress_fraction"
+        },
+        "right": {
+          "value": 0.65
+        }
       },
       "on_true": {
         "type": "condition",
@@ -370,15 +501,23 @@
           "left": {
             "compute": {
               "op": "*",
-              "left": {"field": "cost_collateral_bps_per_tick"},
-              "right": {"field": "queue1_liquidity_gap"}
+              "left": {
+                "field": "cost_collateral_bps_per_tick"
+              },
+              "right": {
+                "field": "queue1_liquidity_gap"
+              }
             }
           },
           "right": {
             "compute": {
               "op": "/",
-              "left": {"field": "queue1_total_value"},
-              "right": {"value": 100.0}
+              "left": {
+                "field": "queue1_total_value"
+              },
+              "right": {
+                "value": 100.0
+              }
             }
           }
         },
@@ -391,12 +530,18 @@
               "compute": {
                 "op": "min",
                 "values": [
-                  {"field": "queue1_liquidity_gap"},
-                  {"field": "remaining_collateral_capacity"}
+                  {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  {
+                    "field": "remaining_collateral_capacity"
+                  }
                 ]
               }
             },
-            "reason": {"value": "CostEffectiveGapFill"}
+            "reason": {
+              "value": "CostEffectiveGapFill"
+            }
           }
         },
         "on_false": {
@@ -423,8 +568,12 @@
     "description": "Do we have collateral posted?",
     "condition": {
       "op": ">",
-      "left": {"field": "posted_collateral"},
-      "right": {"value": 0.0}
+      "left": {
+        "field": "posted_collateral"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -432,7 +581,9 @@
       "description": "Do we have excess? (headroom > 2x gap)",
       "condition": {
         "op": ">",
-        "left": {"field": "headroom"},
+        "left": {
+          "field": "headroom"
+        },
         "right": {
           "compute": {
             "op": "*",
@@ -440,12 +591,18 @@
               "compute": {
                 "op": "max",
                 "values": [
-                  {"field": "queue1_liquidity_gap"},
-                  {"value": 0.0}
+                  {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  {
+                    "value": 0.0
+                  }
                 ]
               }
             },
-            "right": {"value": 2.0}
+            "right": {
+              "value": 2.0
+            }
           }
         }
       },
@@ -455,8 +612,12 @@
         "description": "Is collateral costly? (>0.01 bp/tick)",
         "condition": {
           "op": ">",
-          "left": {"field": "cost_collateral_bps_per_tick"},
-          "right": {"value": 0.0001}
+          "left": {
+            "field": "cost_collateral_bps_per_tick"
+          },
+          "right": {
+            "value": 0.0001
+          }
         },
         "on_true": {
           "type": "action",
@@ -466,11 +627,17 @@
             "amount": {
               "compute": {
                 "op": "/",
-                "left": {"field": "posted_collateral"},
-                "right": {"value": 2.0}
+                "left": {
+                  "field": "posted_collateral"
+                },
+                "right": {
+                  "value": 2.0
+                }
               }
             },
-            "reason": {"value": "ExcessAndCostly"}
+            "reason": {
+              "value": "ExcessAndCostly"
+            }
           }
         },
         "on_false": {
@@ -485,16 +652,24 @@
         "description": "Is gap completely gone?",
         "condition": {
           "op": "<=",
-          "left": {"field": "queue1_liquidity_gap"},
-          "right": {"value": 0.0}
+          "left": {
+            "field": "queue1_liquidity_gap"
+          },
+          "right": {
+            "value": 0.0
+          }
         },
         "on_true": {
           "type": "action",
           "node_id": "BCO-ECA3-Withdraw-All",
           "action": "WithdrawCollateral",
           "parameters": {
-            "amount": {"field": "posted_collateral"},
-            "reason": {"value": "GapEliminated"}
+            "amount": {
+              "field": "posted_collateral"
+            },
+            "reason": {
+              "value": "GapEliminated"
+            }
           }
         },
         "on_false": {

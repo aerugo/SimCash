@@ -10,7 +10,8 @@
     "urgent_deadline_ticks": 15,
     "critical_deadline_ticks": 8,
     "proactive_collateral_threshold": 100000,
-    "limit_safety_margin": 0.85
+    "limit_safety_margin": 0.85,
+    "initial_liquidity_fraction": 0.55
   },
   "payment_tree": {
     "type": "condition",
@@ -18,8 +19,12 @@
     "description": "Is this a critical deadline situation?",
     "condition": {
       "op": "<=",
-      "left": { "field": "ticks_to_deadline" },
-      "right": { "param": "critical_deadline_ticks" }
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "critical_deadline_ticks"
+      }
     },
     "on_true": {
       "type": "condition",
@@ -27,8 +32,12 @@
       "description": "Can we afford this critical payment?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
-        "right": { "field": "remaining_amount" }
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -49,8 +58,12 @@
       "description": "Is this a high-priority payment (priority >= 8)?",
       "condition": {
         "op": ">=",
-        "left": { "field": "priority" },
-        "right": { "param": "priority_threshold_high" }
+        "left": {
+          "field": "priority"
+        },
+        "right": {
+          "param": "priority_threshold_high"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -58,12 +71,18 @@
         "description": "Have modest buffer for high-priority?",
         "condition": {
           "op": ">=",
-          "left": { "field": "effective_liquidity" },
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": { "field": "remaining_amount" },
-              "right": { "param": "modest_buffer" }
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "param": "modest_buffer"
+              }
             }
           }
         },
@@ -79,8 +98,12 @@
           "description": "Is deadline urgent for high-priority?",
           "condition": {
             "op": "<=",
-            "left": { "field": "ticks_to_deadline" },
-            "right": { "param": "urgent_deadline_ticks" }
+            "left": {
+              "field": "ticks_to_deadline"
+            },
+            "right": {
+              "param": "urgent_deadline_ticks"
+            }
           },
           "on_true": {
             "type": "action",
@@ -92,7 +115,11 @@
             "type": "action",
             "node_id": "T2CPM-A5-HighPri-Hold",
             "action": "Hold",
-            "parameters": { "reason": { "value": "AwaitingOffsets" } },
+            "parameters": {
+              "reason": {
+                "value": "AwaitingOffsets"
+              }
+            },
             "description": "High priority but time available - wait for offsets"
           }
         }
@@ -103,8 +130,12 @@
         "description": "Is this medium priority (>= 6)?",
         "condition": {
           "op": ">=",
-          "left": { "field": "priority" },
-          "right": { "param": "priority_threshold_medium" }
+          "left": {
+            "field": "priority"
+          },
+          "right": {
+            "param": "priority_threshold_medium"
+          }
         },
         "on_true": {
           "type": "condition",
@@ -112,8 +143,12 @@
           "description": "Is medium priority payment urgent?",
           "condition": {
             "op": "<=",
-            "left": { "field": "ticks_to_deadline" },
-            "right": { "param": "urgent_deadline_ticks" }
+            "left": {
+              "field": "ticks_to_deadline"
+            },
+            "right": {
+              "param": "urgent_deadline_ticks"
+            }
           },
           "on_true": {
             "type": "condition",
@@ -121,8 +156,12 @@
             "description": "Can afford urgent medium priority?",
             "condition": {
               "op": ">=",
-              "left": { "field": "effective_liquidity" },
-              "right": { "field": "remaining_amount" }
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "field": "remaining_amount"
+              }
             },
             "on_true": {
               "type": "action",
@@ -141,12 +180,18 @@
             "description": "Have comfortable buffer?",
             "condition": {
               "op": ">=",
-              "left": { "field": "effective_liquidity" },
+              "left": {
+                "field": "effective_liquidity"
+              },
               "right": {
                 "compute": {
                   "op": "*",
-                  "left": { "field": "remaining_amount" },
-                  "right": { "param": "comfortable_buffer" }
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "comfortable_buffer"
+                  }
                 }
               }
             },
@@ -159,7 +204,11 @@
               "type": "action",
               "node_id": "T2CPM-A9-MedPri-Hold",
               "action": "Hold",
-              "parameters": { "reason": { "value": "AwaitingInflows" } }
+              "parameters": {
+                "reason": {
+                  "value": "AwaitingInflows"
+                }
+              }
             }
           }
         },
@@ -169,16 +218,24 @@
           "description": "Is low-priority payment approaching deadline?",
           "condition": {
             "op": "<=",
-            "left": { "field": "ticks_to_deadline" },
-            "right": { "param": "urgent_deadline_ticks" }
+            "left": {
+              "field": "ticks_to_deadline"
+            },
+            "right": {
+              "param": "urgent_deadline_ticks"
+            }
           },
           "on_true": {
             "type": "condition",
             "node_id": "T2CPM-N11-LowPri-CanAfford",
             "condition": {
               "op": ">=",
-              "left": { "field": "effective_liquidity" },
-              "right": { "field": "remaining_amount" }
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "field": "remaining_amount"
+              }
             },
             "on_true": {
               "type": "action",
@@ -197,12 +254,18 @@
             "description": "Have very strong buffer for low priority?",
             "condition": {
               "op": ">=",
-              "left": { "field": "effective_liquidity" },
+              "left": {
+                "field": "effective_liquidity"
+              },
               "right": {
                 "compute": {
                   "op": "*",
-                  "left": { "field": "remaining_amount" },
-                  "right": { "value": 1.6 }
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "value": 1.6
+                  }
                 }
               }
             },
@@ -215,7 +278,11 @@
               "type": "action",
               "node_id": "T2CPM-A13-LowPri-Hold",
               "action": "Hold",
-              "parameters": { "reason": { "value": "PreservingLiquidity" } }
+              "parameters": {
+                "reason": {
+                  "value": "PreservingLiquidity"
+                }
+              }
             }
           }
         }
@@ -228,8 +295,12 @@
     "description": "Is there a significant liquidity gap?",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "param": "proactive_collateral_threshold" }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "param": "proactive_collateral_threshold"
+      }
     },
     "on_true": {
       "type": "action",
@@ -244,16 +315,26 @@
               {
                 "compute": {
                   "op": "*",
-                  "left": { "field": "queue1_liquidity_gap" },
-                  "right": { "value": 1.1 }
+                  "left": {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  "right": {
+                    "value": 1.1
+                  }
                 }
               },
-              { "field": "remaining_collateral_capacity" }
+              {
+                "field": "remaining_collateral_capacity"
+              }
             ]
           }
         },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 25 }
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 25
+        }
       }
     },
     "on_false": {
@@ -262,8 +343,12 @@
       "description": "Is there a minor gap we should address?",
       "condition": {
         "op": ">",
-        "left": { "field": "queue1_liquidity_gap" },
-        "right": { "value": 0.0 }
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "action",
@@ -274,13 +359,21 @@
             "compute": {
               "op": "min",
               "values": [
-                { "field": "queue1_liquidity_gap" },
-                { "field": "remaining_collateral_capacity" }
+                {
+                  "field": "queue1_liquidity_gap"
+                },
+                {
+                  "field": "remaining_collateral_capacity"
+                }
               ]
             }
           },
-          "reason": { "value": "PreemptivePosting" },
-          "auto_withdraw_after_ticks": { "value": 20 }
+          "reason": {
+            "value": "PreemptivePosting"
+          },
+          "auto_withdraw_after_ticks": {
+            "value": 20
+          }
         }
       },
       "on_false": {
@@ -296,8 +389,12 @@
     "description": "Do we have collateral posted?",
     "condition": {
       "op": ">",
-      "left": { "field": "posted_collateral" },
-      "right": { "value": 0.0 }
+      "left": {
+        "field": "posted_collateral"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "condition",
@@ -308,13 +405,21 @@
         "conditions": [
           {
             "op": "<=",
-            "left": { "field": "queue1_liquidity_gap" },
-            "right": { "value": 0.0 }
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "value": 0.0
+            }
           },
           {
             "op": "==",
-            "left": { "field": "credit_used" },
-            "right": { "value": 0.0 }
+            "left": {
+              "field": "credit_used"
+            },
+            "right": {
+              "value": 0.0
+            }
           }
         ]
       },
@@ -323,8 +428,12 @@
         "node_id": "T2CPM-ECA1-Withdraw",
         "action": "WithdrawCollateral",
         "parameters": {
-          "amount": { "field": "posted_collateral" },
-          "reason": { "value": "GapClosed" }
+          "amount": {
+            "field": "posted_collateral"
+          },
+          "reason": {
+            "value": "GapClosed"
+          }
         }
       },
       "on_false": {

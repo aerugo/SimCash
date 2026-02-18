@@ -46,7 +46,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('full');
   const [policyLibrary, setPolicyLibrary] = useState<LibraryPolicy[]>([]);
   const [startingPoliciesOpen, setStartingPoliciesOpen] = useState(false);
-  const [agentPolicies, setAgentPolicies] = useState<Record<string, string>>({});  // agent_id → policy_id or 'default'
+  const [agentPolicies, setAgentPolicies] = useState<Record<string, { policyId: string; fraction: number }>>({});  // agent_id → { policyId, fraction }
   const [policyDetails, setPolicyDetails] = useState<Record<string, string>>({});  // policy_id → raw JSON string
 
   useEffect(() => {
@@ -411,29 +411,56 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
               <span className="text-sm font-semibold text-slate-300">
                 {startingPoliciesOpen ? '▼' : '▶'} Starting Policies <span className="text-slate-500 font-normal">(optional)</span>
               </span>
-              {Object.values(agentPolicies).some(v => v !== 'default') && (
+              {Object.values(agentPolicies).some(v => v.policyId !== 'default') && (
                 <span className="text-xs text-violet-400">Custom policies set</span>
               )}
             </button>
             {startingPoliciesOpen && (
               <div className="px-4 pb-4 space-y-3">
-                {agentIds.map(aid => (
-                  <div key={aid} className="flex items-center gap-3">
-                    <span className="text-sm font-mono text-slate-300 w-20">{aid}</span>
-                    <select
-                      value={agentPolicies[aid] || 'default'}
-                      onChange={e => setAgentPolicies(prev => ({ ...prev, [aid]: e.target.value }))}
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
-                    >
-                      <option value="default">Default (FIFO)</option>
-                      {policyLibrary.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} (frac={String((p.parameters as Record<string, unknown>)?.initial_liquidity_fraction ?? '?')})
-                        </option>
-                      ))}
-                    </select>
+                {agentIds.map(aid => {
+                  const ap = agentPolicies[aid] || { policyId: 'default', fraction: 1.0 };
+                  return (
+                  <div key={aid} className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-mono text-slate-300 w-20">{aid}</span>
+                      <select
+                        value={ap.policyId}
+                        onChange={e => {
+                          const pid = e.target.value;
+                          const libPolicy = policyLibrary.find(p => p.id === pid);
+                          const frac = pid === 'default' ? 1.0
+                            : (libPolicy?.parameters as Record<string, number>)?.initial_liquidity_fraction ?? 0.5;
+                          setAgentPolicies(prev => ({ ...prev, [aid]: { policyId: pid, fraction: frac } }));
+                        }}
+                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
+                      >
+                        <option value="default">Default (FIFO)</option>
+                        {policyLibrary.map(p => {
+                          const frac = (p.parameters as Record<string, number>)?.initial_liquidity_fraction;
+                          return (
+                            <option key={p.id} value={p.id}>
+                              {p.name} (frac={frac != null ? frac.toFixed(2) : '?'})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-2 ml-[92px]">
+                      <span className="text-xs text-slate-500 w-16">Fraction:</span>
+                      <input
+                        type="range"
+                        min="0" max="1" step="0.05"
+                        value={ap.fraction}
+                        onChange={e => setAgentPolicies(prev => ({
+                          ...prev, [aid]: { ...prev[aid], fraction: parseFloat(e.target.value) }
+                        }))}
+                        className="flex-1 h-1.5 accent-violet-500"
+                      />
+                      <span className="text-xs font-mono text-violet-400 w-10 text-right">{ap.fraction.toFixed(2)}</span>
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
                 {agentIds.length > 1 && (
                   <div className="flex items-center gap-3 pt-2 border-t border-slate-700/50">
                     <span className="text-xs text-slate-500 w-20">Apply to all:</span>
@@ -442,8 +469,11 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
                       onChange={e => {
                         const val = e.target.value;
                         if (val) {
-                          const updated: Record<string, string> = {};
-                          agentIds.forEach(aid => { updated[aid] = val; });
+                          const updated: Record<string, { policyId: string; fraction: number }> = {};
+                          const libPolicy = policyLibrary.find(p => p.id === val);
+                          const frac = val === 'default' ? 1.0
+                            : (libPolicy?.parameters as Record<string, number>)?.initial_liquidity_fraction ?? 0.5;
+                          agentIds.forEach(aid => { updated[aid] = { policyId: val, fraction: frac }; });
                           setAgentPolicies(updated);
                         }
                       }}
@@ -465,11 +495,14 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
           <button
             onClick={() => {
-              // Build starting_policies from agentPolicies
+              // Build starting_policies from agentPolicies, injecting fraction
               const startingPolicies: Record<string, string> = {};
-              for (const [aid, policyId] of Object.entries(agentPolicies)) {
-                if (policyId && policyId !== 'default' && policyDetails[policyId]) {
-                  startingPolicies[aid] = policyDetails[policyId];
+              for (const [aid, ap] of Object.entries(agentPolicies)) {
+                if (ap.policyId && ap.policyId !== 'default' && policyDetails[ap.policyId]) {
+                  const policyObj = JSON.parse(policyDetails[ap.policyId]);
+                  if (!policyObj.parameters) policyObj.parameters = {};
+                  policyObj.parameters.initial_liquidity_fraction = ap.fraction;
+                  startingPolicies[aid] = JSON.stringify(policyObj);
                 }
               }
               onGameLaunch?.({

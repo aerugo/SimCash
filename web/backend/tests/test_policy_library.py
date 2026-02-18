@@ -178,3 +178,28 @@ class TestAPIEndpoints:
     def test_unknown_policy_tree_404(self, client):
         resp = client.get("/api/policies/library/nonexistent_xyz/tree")
         assert resp.status_code == 404
+
+
+class TestLibraryFractions:
+    """Every library policy must have initial_liquidity_fraction."""
+
+    def test_all_policies_have_fraction(self, library):
+        for meta in library.list_all():
+            frac = meta["parameters"].get("initial_liquidity_fraction")
+            assert frac is not None, f"{meta['id']} missing initial_liquidity_fraction"
+            assert 0.0 <= frac <= 1.0, f"{meta['id']} fraction {frac} out of range"
+
+    def test_fifo_fraction_is_one(self, library):
+        fifo = library.get("fifo")
+        assert fifo is not None
+        assert fifo["parameters"]["initial_liquidity_fraction"] == 1.0
+
+    def test_aggressive_has_low_fraction(self, library):
+        agg = library.get("aggressive_market_maker")
+        assert agg is not None
+        assert agg["parameters"]["initial_liquidity_fraction"] <= 0.4
+
+    def test_cautious_has_high_fraction(self, library):
+        caut = library.get("cautious_liquidity_preserver")
+        assert caut is not None
+        assert caut["parameters"]["initial_liquidity_fraction"] >= 0.6

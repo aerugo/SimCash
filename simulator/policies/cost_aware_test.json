@@ -8,15 +8,21 @@
     "description": "Compare delay cost vs overdraft cost for this transaction",
     "condition": {
       "op": "<",
-      "left": {"field": "cost_delay_this_tx_one_tick"},
-      "right": {"field": "cost_overdraft_this_amount_one_tick"}
+      "left": {
+        "field": "cost_delay_this_tx_one_tick"
+      },
+      "right": {
+        "field": "cost_overdraft_this_amount_one_tick"
+      }
     },
     "on_true": {
       "type": "action",
       "node_id": "A1_HoldCheaper",
       "action": "Hold",
       "parameters": {
-        "reason": {"value": "DelayCheaperThanOverdraft"}
+        "reason": {
+          "value": "DelayCheaperThanOverdraft"
+        }
       }
     },
     "on_false": {
@@ -28,5 +34,7 @@
   },
   "strategic_collateral_tree": null,
   "end_of_tick_collateral_tree": null,
-  "parameters": {}
+  "parameters": {
+    "initial_liquidity_fraction": 0.5
+  }
 }

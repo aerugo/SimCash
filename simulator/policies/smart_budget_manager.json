@@ -8,7 +8,8 @@
     "base_budget_fraction": 0.3,
     "eod_budget_fraction": 0.7,
     "max_per_cpty_fraction": 0.12,
-    "daily_release_target": 30.0
+    "daily_release_target": 30.0,
+    "initial_liquidity_fraction": 0.45
   },
   "bank_tree": {
     "type": "condition",
@@ -16,8 +17,12 @@
     "description": "Smart budget management with daily targets and counterparty focus",
     "condition": {
       "op": ">=",
-      "left": {"field": "day_progress_fraction"},
-      "right": {"value": 0.8}
+      "left": {
+        "field": "day_progress_fraction"
+      },
+      "right": {
+        "value": 0.8
+      }
     },
     "on_true": {
       "type": "condition",
@@ -25,8 +30,12 @@
       "description": "End-of-day: aggressive budget to clear queues",
       "condition": {
         "op": ">",
-        "left": {"field": "outgoing_queue_size"},
-        "right": {"value": 5.0}
+        "left": {
+          "field": "outgoing_queue_size"
+        },
+        "right": {
+          "value": 5.0
+        }
       },
       "on_true": {
         "type": "action",
@@ -40,11 +49,17 @@
               "left": {
                 "compute": {
                   "op": "+",
-                  "left": {"field": "effective_liquidity"},
-                  "right": {"field": "queue1_total_value"}
+                  "left": {
+                    "field": "effective_liquidity"
+                  },
+                  "right": {
+                    "field": "queue1_total_value"
+                  }
                 }
               },
-              "right": {"param": "eod_budget_fraction"}
+              "right": {
+                "param": "eod_budget_fraction"
+              }
             }
           }
         }
@@ -58,8 +73,12 @@
           "max_value_to_release": {
             "compute": {
               "op": "*",
-              "left": {"field": "effective_liquidity"},
-              "right": {"value": 0.4}
+              "left": {
+                "field": "effective_liquidity"
+              },
+              "right": {
+                "value": 0.4
+              }
             }
           }
         }
@@ -71,12 +90,18 @@
       "description": "Mid-day: check if we're meeting daily targets",
       "condition": {
         "op": "<",
-        "left": {"field": "bank_state_release_count"},
+        "left": {
+          "field": "bank_state_release_count"
+        },
         "right": {
           "compute": {
             "op": "*",
-            "left": {"param": "daily_release_target"},
-            "right": {"field": "day_progress_fraction"}
+            "left": {
+              "param": "daily_release_target"
+            },
+            "right": {
+              "field": "day_progress_fraction"
+            }
           }
         }
       },
@@ -86,8 +111,12 @@
         "description": "Behind target - increase budget with counterparty focus",
         "condition": {
           "op": ">",
-          "left": {"field": "effective_liquidity"},
-          "right": {"param": "min_buffer"}
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "param": "min_buffer"
+          }
         },
         "on_true": {
           "type": "action",
@@ -98,16 +127,29 @@
             "max_value_to_release": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"value": 0.45}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "value": 0.45
+                }
               }
             },
-            "focus_cpty_list": {"value": ["CORRESPONDENT_HUB", "METRO_CENTRAL"]},
+            "focus_cpty_list": {
+              "value": [
+                "CORRESPONDENT_HUB",
+                "METRO_CENTRAL"
+              ]
+            },
             "max_per_cpty": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"param": "max_per_cpty_fraction"}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "param": "max_per_cpty_fraction"
+                }
               }
             }
           }
@@ -121,8 +163,12 @@
             "max_value_to_release": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"value": 0.25}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "value": 0.25
+                }
               }
             }
           }
@@ -134,12 +180,18 @@
         "description": "Ahead of or on target - normal budget",
         "condition": {
           "op": ">",
-          "left": {"field": "effective_liquidity"},
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": {"param": "min_buffer"},
-              "right": {"value": 1.5}
+              "left": {
+                "param": "min_buffer"
+              },
+              "right": {
+                "value": 1.5
+              }
             }
           }
         },
@@ -152,15 +204,23 @@
             "max_value_to_release": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"param": "base_budget_fraction"}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "param": "base_budget_fraction"
+                }
               }
             },
             "max_per_cpty": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"value": 0.1}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "value": 0.1
+                }
               }
             }
           }
@@ -174,8 +234,12 @@
             "max_value_to_release": {
               "compute": {
                 "op": "*",
-                "left": {"field": "effective_liquidity"},
-                "right": {"value": 0.2}
+                "left": {
+                  "field": "effective_liquidity"
+                },
+                "right": {
+                  "value": 0.2
+                }
               }
             }
           }
@@ -192,13 +256,21 @@
       "conditions": [
         {
           "op": "<=",
-          "left": {"field": "ticks_to_deadline"},
-          "right": {"param": "urgency_threshold"}
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
         },
         {
           "op": "==",
-          "left": {"field": "is_past_deadline"},
-          "right": {"value": 1.0}
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
         }
       ]
     },
@@ -213,12 +285,18 @@
       "description": "Normal priority - check liquidity",
       "condition": {
         "op": ">=",
-        "left": {"field": "effective_liquidity"},
+        "left": {
+          "field": "effective_liquidity"
+        },
         "right": {
           "compute": {
             "op": "+",
-            "left": {"field": "remaining_amount"},
-            "right": {"param": "min_buffer"}
+            "left": {
+              "field": "remaining_amount"
+            },
+            "right": {
+              "param": "min_buffer"
+            }
           }
         }
       },
@@ -228,8 +306,12 @@
         "description": "Good liquidity - prioritize by priority level",
         "condition": {
           "op": ">=",
-          "left": {"field": "priority"},
-          "right": {"value": 6.0}
+          "left": {
+            "field": "priority"
+          },
+          "right": {
+            "value": 6.0
+          }
         },
         "on_true": {
           "type": "action",
@@ -242,8 +324,12 @@
           "description": "Lower priority - check queue pressure",
           "condition": {
             "op": "<",
-            "left": {"field": "outgoing_queue_size"},
-            "right": {"value": 10.0}
+            "left": {
+              "field": "outgoing_queue_size"
+            },
+            "right": {
+              "value": 10.0
+            }
           },
           "on_true": {
             "type": "action",
@@ -255,7 +341,9 @@
             "node_id": "A4_HoldLowPriHighQueue",
             "action": "Hold",
             "parameters": {
-              "reason": {"value": "QueuePressure"}
+              "reason": {
+                "value": "QueuePressure"
+              }
             }
           }
         }
@@ -266,12 +354,18 @@
         "description": "Low liquidity - try splitting if have enough for partial",
         "condition": {
           "op": ">",
-          "left": {"field": "effective_liquidity"},
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "/",
-              "left": {"field": "remaining_amount"},
-              "right": {"value": 4.0}
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "value": 4.0
+              }
             }
           }
         },
@@ -280,7 +374,9 @@
           "node_id": "A5_SplitForLiquidity",
           "action": "Split",
           "parameters": {
-            "num_splits": {"value": 4.0}
+            "num_splits": {
+              "value": 4.0
+            }
           }
         },
         "on_false": {
@@ -288,7 +384,9 @@
           "node_id": "A6_HoldInsufficientLiquidity",
           "action": "Hold",
           "parameters": {
-            "reason": {"value": "InsufficientLiquidity"}
+            "reason": {
+              "value": "InsufficientLiquidity"
+            }
           }
         }
       }
@@ -303,13 +401,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": {"field": "queue1_liquidity_gap"},
-          "right": {"value": 3000000.0}
+          "left": {
+            "field": "queue1_liquidity_gap"
+          },
+          "right": {
+            "value": 3000000.0
+          }
         },
         {
           "op": ">=",
-          "left": {"field": "day_progress_fraction"},
-          "right": {"value": 0.6}
+          "left": {
+            "field": "day_progress_fraction"
+          },
+          "right": {
+            "value": 0.6
+          }
         }
       ]
     },
@@ -322,12 +428,20 @@
         "amount": {
           "compute": {
             "op": "*",
-            "left": {"field": "queue1_liquidity_gap"},
-            "right": {"value": 0.5}
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "value": 0.5
+            }
           }
         },
-        "reason": {"value": "LateDayLiquidityBoost"},
-        "auto_withdraw_after_ticks": {"value": 20.0}
+        "reason": {
+          "value": "LateDayLiquidityBoost"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 20.0
+        }
       }
     },
     "on_false": {
@@ -336,8 +450,12 @@
       "description": "Check if early day needs collateral",
       "condition": {
         "op": ">",
-        "left": {"field": "queue1_liquidity_gap"},
-        "right": {"value": 5000000.0}
+        "left": {
+          "field": "queue1_liquidity_gap"
+        },
+        "right": {
+          "value": 5000000.0
+        }
       },
       "on_true": {
         "type": "action",
@@ -349,12 +467,18 @@
             "compute": {
               "op": "max",
               "values": [
-                {"field": "queue1_liquidity_gap"},
-                {"value": 0.0}
+                {
+                  "field": "queue1_liquidity_gap"
+                },
+                {
+                  "value": 0.0
+                }
               ]
             }
           },
-          "reason": {"value": "CoverLargeGap"}
+          "reason": {
+            "value": "CoverLargeGap"
+          }
         }
       },
       "on_false": {
@@ -373,13 +497,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": {"field": "posted_collateral"},
-          "right": {"value": 1000000.0}
+          "left": {
+            "field": "posted_collateral"
+          },
+          "right": {
+            "value": 1000000.0
+          }
         },
         {
           "op": "<",
-          "left": {"field": "outgoing_queue_size"},
-          "right": {"value": 3.0}
+          "left": {
+            "field": "outgoing_queue_size"
+          },
+          "right": {
+            "value": 3.0
+          }
         }
       ]
     },
@@ -392,11 +524,17 @@
         "amount": {
           "compute": {
             "op": "/",
-            "left": {"field": "posted_collateral"},
-            "right": {"value": 2.0}
+            "left": {
+              "field": "posted_collateral"
+            },
+            "right": {
+              "value": 2.0
+            }
           }
         },
-        "reason": {"value": "LowQueueExcessCollateral"}
+        "reason": {
+          "value": "LowQueueExcessCollateral"
+        }
       }
     },
     "on_false": {

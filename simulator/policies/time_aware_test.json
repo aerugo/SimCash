@@ -7,8 +7,12 @@
     "node_id": "C1",
     "condition": {
       "op": "==",
-      "left": { "field": "is_eod_rush" },
-      "right": { "value": 1.0 }
+      "left": {
+        "field": "is_eod_rush"
+      },
+      "right": {
+        "value": 1.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -21,16 +25,24 @@
       "node_id": "C2",
       "condition": {
         "op": ">",
-        "left": { "field": "day_progress_fraction" },
-        "right": { "value": 0.5 }
+        "left": {
+          "field": "day_progress_fraction"
+        },
+        "right": {
+          "value": 0.5
+        }
       },
       "on_true": {
         "type": "condition",
         "node_id": "C3",
         "condition": {
           "op": "<",
-          "left": { "field": "ticks_remaining_in_day" },
-          "right": { "value": 10.0 }
+          "left": {
+            "field": "ticks_remaining_in_day"
+          },
+          "right": {
+            "value": 10.0
+          }
         },
         "on_true": {
           "type": "action",
@@ -57,5 +69,7 @@
   },
   "strategic_collateral_tree": null,
   "end_of_tick_collateral_tree": null,
-  "parameters": {}
+  "parameters": {
+    "initial_liquidity_fraction": 0.5
+  }
 }

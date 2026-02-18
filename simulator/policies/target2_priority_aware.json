@@ -5,7 +5,8 @@
   "parameters": {
     "high_priority_threshold": 7,
     "liquidity_buffer_multiplier": 1.3,
-    "urgent_deadline_ticks": 15
+    "urgent_deadline_ticks": 15,
+    "initial_liquidity_fraction": 0.5
   },
   "payment_tree": {
     "type": "condition",
@@ -13,8 +14,12 @@
     "description": "Is this a high-priority payment?",
     "condition": {
       "op": ">=",
-      "left": { "field": "priority" },
-      "right": { "param": "high_priority_threshold" }
+      "left": {
+        "field": "priority"
+      },
+      "right": {
+        "param": "high_priority_threshold"
+      }
     },
     "on_true": {
       "type": "condition",
@@ -22,8 +27,12 @@
       "description": "Can we afford high-priority payment?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
-        "right": { "field": "remaining_amount" }
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -44,8 +53,12 @@
       "description": "Is the deadline approaching urgently?",
       "condition": {
         "op": "<=",
-        "left": { "field": "ticks_to_deadline" },
-        "right": { "param": "urgent_deadline_ticks" }
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "param": "urgent_deadline_ticks"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -53,8 +66,12 @@
         "description": "Do we have enough liquidity with buffer?",
         "condition": {
           "op": ">=",
-          "left": { "field": "effective_liquidity" },
-          "right": { "field": "remaining_amount" }
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -73,12 +90,18 @@
         "description": "Is our liquidity buffer satisfied?",
         "condition": {
           "op": ">=",
-          "left": { "field": "effective_liquidity" },
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": { "field": "remaining_amount" },
-              "right": { "param": "liquidity_buffer_multiplier" }
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "param": "liquidity_buffer_multiplier"
+              }
             }
           }
         },
@@ -91,7 +114,11 @@
           "type": "action",
           "node_id": "T2PA-A6-Hold",
           "action": "Hold",
-          "parameters": { "reason": { "value": "AwaitingInflows" } }
+          "parameters": {
+            "reason": {
+              "value": "AwaitingInflows"
+            }
+          }
         }
       }
     }
@@ -102,8 +129,12 @@
     "description": "Is there a liquidity gap?",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "value": 0.0 }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -114,13 +145,21 @@
           "compute": {
             "op": "min",
             "values": [
-              { "field": "queue1_liquidity_gap" },
-              { "field": "remaining_collateral_capacity" }
+              {
+                "field": "queue1_liquidity_gap"
+              },
+              {
+                "field": "remaining_collateral_capacity"
+              }
             ]
           }
         },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 25 }
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 25
+        }
       }
     },
     "on_false": {

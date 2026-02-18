@@ -9,7 +9,8 @@
     "conservative_mode_threshold": 0.3,
     "release_count_limit": 8.0,
     "cooldown_after_burst": 10.0,
-    "collateral_threshold": 2000000.0
+    "collateral_threshold": 2000000.0,
+    "initial_liquidity_fraction": 0.45
   },
   "bank_tree": {
     "type": "condition",
@@ -17,8 +18,12 @@
     "description": "Memory-driven bank management: track state, manage modes, pace releases",
     "condition": {
       "op": ">",
-      "left": {"field": "bank_state_cooldown"},
-      "right": {"value": 0.0}
+      "left": {
+        "field": "bank_state_cooldown"
+      },
+      "right": {
+        "value": 0.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -26,9 +31,15 @@
       "description": "In cooldown - tick down counter",
       "action": "AddState",
       "parameters": {
-        "key": {"value": "bank_state_cooldown"},
-        "value": {"value": -1.0},
-        "reason": {"value": "tick_cooldown"}
+        "key": {
+          "value": "bank_state_cooldown"
+        },
+        "value": {
+          "value": -1.0
+        },
+        "reason": {
+          "value": "tick_cooldown"
+        }
       }
     },
     "on_false": {
@@ -37,12 +48,18 @@
       "description": "Not in cooldown - determine operating mode based on liquidity",
       "condition": {
         "op": ">",
-        "left": {"field": "effective_liquidity"},
+        "left": {
+          "field": "effective_liquidity"
+        },
         "right": {
           "compute": {
             "op": "*",
-            "left": {"field": "queue1_total_value"},
-            "right": {"param": "aggressive_mode_threshold"}
+            "left": {
+              "field": "queue1_total_value"
+            },
+            "right": {
+              "param": "aggressive_mode_threshold"
+            }
           }
         }
       },
@@ -52,17 +69,27 @@
         "description": "High liquidity - enter aggressive mode",
         "condition": {
           "op": "!=",
-          "left": {"field": "bank_state_mode"},
-          "right": {"value": 2.0}
+          "left": {
+            "field": "bank_state_mode"
+          },
+          "right": {
+            "value": 2.0
+          }
         },
         "on_true": {
           "type": "action",
           "node_id": "B_ActivateAggressive",
           "action": "SetState",
           "parameters": {
-            "key": {"value": "bank_state_mode"},
-            "value": {"value": 2.0},
-            "reason": {"value": "enter_aggressive_mode"}
+            "key": {
+              "value": "bank_state_mode"
+            },
+            "value": {
+              "value": 2.0
+            },
+            "reason": {
+              "value": "enter_aggressive_mode"
+            }
           }
         },
         "on_false": {
@@ -71,8 +98,12 @@
           "description": "Already aggressive - check if we've released too much",
           "condition": {
             "op": ">=",
-            "left": {"field": "bank_state_release_count"},
-            "right": {"param": "release_count_limit"}
+            "left": {
+              "field": "bank_state_release_count"
+            },
+            "right": {
+              "param": "release_count_limit"
+            }
           },
           "on_true": {
             "type": "action",
@@ -80,9 +111,15 @@
             "description": "Too many releases - enter cooldown",
             "action": "SetState",
             "parameters": {
-              "key": {"value": "bank_state_cooldown"},
-              "value": {"param": "cooldown_after_burst"},
-              "reason": {"value": "burst_release_cooldown"}
+              "key": {
+                "value": "bank_state_cooldown"
+              },
+              "value": {
+                "param": "cooldown_after_burst"
+              },
+              "reason": {
+                "value": "burst_release_cooldown"
+              }
             }
           },
           "on_false": {
@@ -93,8 +130,12 @@
               "max_value_to_release": {
                 "compute": {
                   "op": "*",
-                  "left": {"field": "effective_liquidity"},
-                  "right": {"value": 0.4}
+                  "left": {
+                    "field": "effective_liquidity"
+                  },
+                  "right": {
+                    "value": 0.4
+                  }
                 }
               }
             }
@@ -107,12 +148,18 @@
         "description": "Lower liquidity - check if we should be conservative",
         "condition": {
           "op": "<",
-          "left": {"field": "effective_liquidity"},
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": {"field": "queue1_total_value"},
-              "right": {"param": "conservative_mode_threshold"}
+              "left": {
+                "field": "queue1_total_value"
+              },
+              "right": {
+                "param": "conservative_mode_threshold"
+              }
             }
           }
         },
@@ -122,9 +169,15 @@
           "description": "Low liquidity - enter conservative mode",
           "action": "SetState",
           "parameters": {
-            "key": {"value": "bank_state_mode"},
-            "value": {"value": 0.0},
-            "reason": {"value": "enter_conservative_mode"}
+            "key": {
+              "value": "bank_state_mode"
+            },
+            "value": {
+              "value": 0.0
+            },
+            "reason": {
+              "value": "enter_conservative_mode"
+            }
           }
         },
         "on_false": {
@@ -133,9 +186,15 @@
           "description": "Mid liquidity - normal mode",
           "action": "SetState",
           "parameters": {
-            "key": {"value": "bank_state_mode"},
-            "value": {"value": 1.0},
-            "reason": {"value": "enter_normal_mode"}
+            "key": {
+              "value": "bank_state_mode"
+            },
+            "value": {
+              "value": 1.0
+            },
+            "reason": {
+              "value": "enter_normal_mode"
+            }
           }
         }
       }
@@ -150,13 +209,21 @@
       "conditions": [
         {
           "op": "<=",
-          "left": {"field": "ticks_to_deadline"},
-          "right": {"param": "urgency_threshold"}
+          "left": {
+            "field": "ticks_to_deadline"
+          },
+          "right": {
+            "param": "urgency_threshold"
+          }
         },
         {
           "op": "==",
-          "left": {"field": "is_past_deadline"},
-          "right": {"value": 1.0}
+          "left": {
+            "field": "is_past_deadline"
+          },
+          "right": {
+            "value": 1.0
+          }
         }
       ]
     },
@@ -171,8 +238,12 @@
       "description": "Check operating mode from state register",
       "condition": {
         "op": "==",
-        "left": {"field": "bank_state_mode"},
-        "right": {"value": 0.0}
+        "left": {
+          "field": "bank_state_mode"
+        },
+        "right": {
+          "value": 0.0
+        }
       },
       "on_true": {
         "type": "condition",
@@ -183,17 +254,27 @@
           "conditions": [
             {
               "op": ">=",
-              "left": {"field": "priority"},
-              "right": {"value": 7.0}
+              "left": {
+                "field": "priority"
+              },
+              "right": {
+                "value": 7.0
+              }
             },
             {
               "op": ">=",
-              "left": {"field": "effective_liquidity"},
+              "left": {
+                "field": "effective_liquidity"
+              },
               "right": {
                 "compute": {
                   "op": "+",
-                  "left": {"field": "remaining_amount"},
-                  "right": {"param": "min_buffer"}
+                  "left": {
+                    "field": "remaining_amount"
+                  },
+                  "right": {
+                    "param": "min_buffer"
+                  }
                 }
               }
             }
@@ -209,7 +290,9 @@
           "node_id": "A3_HoldConservative",
           "action": "Hold",
           "parameters": {
-            "reason": {"value": "ConservativeMode"}
+            "reason": {
+              "value": "ConservativeMode"
+            }
           }
         }
       },
@@ -219,8 +302,12 @@
         "description": "Check if in aggressive mode",
         "condition": {
           "op": "==",
-          "left": {"field": "bank_state_mode"},
-          "right": {"value": 2.0}
+          "left": {
+            "field": "bank_state_mode"
+          },
+          "right": {
+            "value": 2.0
+          }
         },
         "on_true": {
           "type": "condition",
@@ -228,8 +315,12 @@
           "description": "Aggressive mode - release more freely",
           "condition": {
             "op": ">",
-            "left": {"field": "effective_liquidity"},
-            "right": {"field": "remaining_amount"}
+            "left": {
+              "field": "effective_liquidity"
+            },
+            "right": {
+              "field": "remaining_amount"
+            }
           },
           "on_true": {
             "type": "action",
@@ -241,7 +332,9 @@
             "node_id": "A6_HoldCantAfford",
             "action": "Hold",
             "parameters": {
-              "reason": {"value": "InsufficientLiquidity"}
+              "reason": {
+                "value": "InsufficientLiquidity"
+              }
             }
           }
         },
@@ -251,16 +344,24 @@
           "description": "Normal mode - balanced approach",
           "condition": {
             "op": ">=",
-            "left": {"field": "effective_liquidity"},
+            "left": {
+              "field": "effective_liquidity"
+            },
             "right": {
               "compute": {
                 "op": "+",
-                "left": {"field": "remaining_amount"},
+                "left": {
+                  "field": "remaining_amount"
+                },
                 "right": {
                   "compute": {
                     "op": "*",
-                    "left": {"param": "min_buffer"},
-                    "right": {"value": 0.5}
+                    "left": {
+                      "param": "min_buffer"
+                    },
+                    "right": {
+                      "value": 0.5
+                    }
                   }
                 }
               }
@@ -276,7 +377,9 @@
             "node_id": "A8_HoldNormal",
             "action": "Hold",
             "parameters": {
-              "reason": {"value": "MaintainingBuffer"}
+              "reason": {
+                "value": "MaintainingBuffer"
+              }
             }
           }
         }
@@ -289,8 +392,12 @@
     "description": "Post temporary collateral when gap is large",
     "condition": {
       "op": ">",
-      "left": {"field": "queue1_liquidity_gap"},
-      "right": {"param": "collateral_threshold"}
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "param": "collateral_threshold"
+      }
     },
     "on_true": {
       "type": "action",
@@ -300,12 +407,20 @@
         "amount": {
           "compute": {
             "op": "*",
-            "left": {"field": "queue1_liquidity_gap"},
-            "right": {"value": 0.5}
+            "left": {
+              "field": "queue1_liquidity_gap"
+            },
+            "right": {
+              "value": 0.5
+            }
           }
         },
-        "reason": {"value": "LargeGap"},
-        "auto_withdraw_after_ticks": {"value": 12.0}
+        "reason": {
+          "value": "LargeGap"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 12.0
+        }
       }
     },
     "on_false": {
@@ -323,13 +438,21 @@
       "conditions": [
         {
           "op": ">",
-          "left": {"field": "posted_collateral"},
-          "right": {"value": 500000.0}
+          "left": {
+            "field": "posted_collateral"
+          },
+          "right": {
+            "value": 500000.0
+          }
         },
         {
           "op": "<",
-          "left": {"field": "queue1_liquidity_gap"},
-          "right": {"value": 0.0}
+          "left": {
+            "field": "queue1_liquidity_gap"
+          },
+          "right": {
+            "value": 0.0
+          }
         }
       ]
     },
@@ -342,11 +465,17 @@
         "amount": {
           "compute": {
             "op": "*",
-            "left": {"field": "posted_collateral"},
-            "right": {"value": 0.4}
+            "left": {
+              "field": "posted_collateral"
+            },
+            "right": {
+              "value": 0.4
+            }
           }
         },
-        "reason": {"value": "ExcessLiquidity"}
+        "reason": {
+          "value": "ExcessLiquidity"
+        }
       }
     },
     "on_false": {

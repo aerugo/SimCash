@@ -4,7 +4,8 @@
   "description": "An aggressive settlement policy that releases payments quickly to maximize throughput. Relies on LSM bilateral and multilateral offsets to manage liquidity. Designed to work well with entry disposition offsetting.",
   "parameters": {
     "minimal_buffer": 1.1,
-    "aggressive_threshold_ticks": 25
+    "aggressive_threshold_ticks": 25,
+    "initial_liquidity_fraction": 0.35
   },
   "payment_tree": {
     "type": "condition",
@@ -12,12 +13,18 @@
     "description": "Can we afford this payment with minimal buffer?",
     "condition": {
       "op": ">=",
-      "left": { "field": "effective_liquidity" },
+      "left": {
+        "field": "effective_liquidity"
+      },
       "right": {
         "compute": {
           "op": "*",
-          "left": { "field": "remaining_amount" },
-          "right": { "param": "minimal_buffer" }
+          "left": {
+            "field": "remaining_amount"
+          },
+          "right": {
+            "param": "minimal_buffer"
+          }
         }
       }
     },
@@ -33,8 +40,12 @@
       "description": "Is deadline within aggressive threshold?",
       "condition": {
         "op": "<=",
-        "left": { "field": "ticks_to_deadline" },
-        "right": { "param": "aggressive_threshold_ticks" }
+        "left": {
+          "field": "ticks_to_deadline"
+        },
+        "right": {
+          "param": "aggressive_threshold_ticks"
+        }
       },
       "on_true": {
         "type": "condition",
@@ -42,8 +53,12 @@
         "description": "Is credit available?",
         "condition": {
           "op": ">",
-          "left": { "field": "credit_headroom" },
-          "right": { "value": 0.0 }
+          "left": {
+            "field": "credit_headroom"
+          },
+          "right": {
+            "value": 0.0
+          }
         },
         "on_true": {
           "type": "action",
@@ -55,7 +70,11 @@
           "type": "action",
           "node_id": "T2AS-A3-Hold",
           "action": "Hold",
-          "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+          "parameters": {
+            "reason": {
+              "value": "InsufficientLiquidity"
+            }
+          }
         }
       },
       "on_false": {
@@ -63,7 +82,11 @@
         "node_id": "T2AS-A4-Hold",
         "action": "Hold",
         "description": "Not urgent yet, wait for incoming payments",
-        "parameters": { "reason": { "value": "AwaitingInflows" } }
+        "parameters": {
+          "reason": {
+            "value": "AwaitingInflows"
+          }
+        }
       }
     }
   },
@@ -73,8 +96,12 @@
     "description": "Is the liquidity gap significant?",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "value": 100000.0 }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 100000.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -85,13 +112,21 @@
           "compute": {
             "op": "min",
             "values": [
-              { "field": "queue1_liquidity_gap" },
-              { "field": "remaining_collateral_capacity" }
+              {
+                "field": "queue1_liquidity_gap"
+              },
+              {
+                "field": "remaining_collateral_capacity"
+              }
             ]
           }
         },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 15 }
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 15
+        }
       }
     },
     "on_false": {

@@ -5,7 +5,8 @@
   "parameters": {
     "limit_safety_margin": 0.8,
     "moderate_buffer": 1.5,
-    "urgent_threshold_ticks": 20
+    "urgent_threshold_ticks": 20,
+    "initial_liquidity_fraction": 0.55
   },
   "payment_tree": {
     "type": "condition",
@@ -13,8 +14,12 @@
     "description": "Is deadline urgent?",
     "condition": {
       "op": "<=",
-      "left": { "field": "ticks_to_deadline" },
-      "right": { "param": "urgent_threshold_ticks" }
+      "left": {
+        "field": "ticks_to_deadline"
+      },
+      "right": {
+        "param": "urgent_threshold_ticks"
+      }
     },
     "on_true": {
       "type": "condition",
@@ -22,8 +27,12 @@
       "description": "Can afford urgent payment?",
       "condition": {
         "op": ">=",
-        "left": { "field": "effective_liquidity" },
-        "right": { "field": "remaining_amount" }
+        "left": {
+          "field": "effective_liquidity"
+        },
+        "right": {
+          "field": "remaining_amount"
+        }
       },
       "on_true": {
         "type": "action",
@@ -42,16 +51,24 @@
       "description": "Is this a smaller payment (less likely to hit limits)?",
       "condition": {
         "op": "<",
-        "left": { "field": "remaining_amount" },
-        "right": { "value": 200000.0 }
+        "left": {
+          "field": "remaining_amount"
+        },
+        "right": {
+          "value": 200000.0
+        }
       },
       "on_true": {
         "type": "condition",
         "node_id": "T2LA-N4-SmallAfford",
         "condition": {
           "op": ">=",
-          "left": { "field": "effective_liquidity" },
-          "right": { "field": "remaining_amount" }
+          "left": {
+            "field": "effective_liquidity"
+          },
+          "right": {
+            "field": "remaining_amount"
+          }
         },
         "on_true": {
           "type": "action",
@@ -63,7 +80,11 @@
           "type": "action",
           "node_id": "T2LA-A4-Small-Hold",
           "action": "Hold",
-          "parameters": { "reason": { "value": "InsufficientLiquidity" } }
+          "parameters": {
+            "reason": {
+              "value": "InsufficientLiquidity"
+            }
+          }
         }
       },
       "on_false": {
@@ -72,12 +93,18 @@
         "description": "Have sufficient buffer for larger payment?",
         "condition": {
           "op": ">=",
-          "left": { "field": "effective_liquidity" },
+          "left": {
+            "field": "effective_liquidity"
+          },
           "right": {
             "compute": {
               "op": "*",
-              "left": { "field": "remaining_amount" },
-              "right": { "param": "moderate_buffer" }
+              "left": {
+                "field": "remaining_amount"
+              },
+              "right": {
+                "param": "moderate_buffer"
+              }
             }
           }
         },
@@ -91,7 +118,11 @@
           "node_id": "T2LA-A6-Large-Hold",
           "action": "Hold",
           "description": "Large payment without buffer - wait for limit capacity",
-          "parameters": { "reason": { "value": "AwaitingLimitCapacity" } }
+          "parameters": {
+            "reason": {
+              "value": "AwaitingLimitCapacity"
+            }
+          }
         }
       }
     }
@@ -102,8 +133,12 @@
     "description": "Is there a moderate liquidity gap?",
     "condition": {
       "op": ">",
-      "left": { "field": "queue1_liquidity_gap" },
-      "right": { "value": 50000.0 }
+      "left": {
+        "field": "queue1_liquidity_gap"
+      },
+      "right": {
+        "value": 50000.0
+      }
     },
     "on_true": {
       "type": "action",
@@ -117,16 +152,26 @@
               {
                 "compute": {
                   "op": "*",
-                  "left": { "field": "queue1_liquidity_gap" },
-                  "right": { "param": "limit_safety_margin" }
+                  "left": {
+                    "field": "queue1_liquidity_gap"
+                  },
+                  "right": {
+                    "param": "limit_safety_margin"
+                  }
                 }
               },
-              { "field": "remaining_collateral_capacity" }
+              {
+                "field": "remaining_collateral_capacity"
+              }
             ]
           }
         },
-        "reason": { "value": "PreemptivePosting" },
-        "auto_withdraw_after_ticks": { "value": 30 }
+        "reason": {
+          "value": "PreemptivePosting"
+        },
+        "auto_withdraw_after_ticks": {
+          "value": 30
+        }
       }
     },
     "on_false": {
