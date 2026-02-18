@@ -18,16 +18,45 @@ export const AuthContext = createContext<AuthContextValue>({
   getToken: async () => null,
 });
 
+// Minimal fake user for dev mode (when backend has SIMCASH_AUTH_DISABLED=true)
+const DEV_USER = {
+  uid: 'dev-user',
+  email: 'dev@localhost',
+  displayName: 'Dev User',
+  emailVerified: true,
+} as unknown as User;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devMode, setDevMode] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return unsub;
+    // Check if backend auth is disabled (dev mode)
+    fetch('/api/auth-mode')
+      .then(r => r.json())
+      .then(data => {
+        if (data.auth_disabled) {
+          setDevMode(true);
+          setUser(DEV_USER);
+          setLoading(false);
+          return;
+        }
+        // Normal Firebase auth
+        const unsub = onAuthStateChanged(auth, (u) => {
+          setUser(u);
+          setLoading(false);
+        });
+        return unsub;
+      })
+      .catch(() => {
+        // Backend unreachable — fall through to Firebase
+        const unsub = onAuthStateChanged(auth, (u) => {
+          setUser(u);
+          setLoading(false);
+        });
+        return unsub;
+      });
   }, []);
 
   const handleSignIn = async () => {
@@ -45,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         signIn: handleSignIn,
         signOut: handleSignOut,
-        getToken: getIdToken,
+        getToken: devMode ? (async () => 'dev-token') : getIdToken,
       }}
     >
       {children}

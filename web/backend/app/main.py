@@ -82,6 +82,12 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/auth-mode")
+def auth_mode():
+    """Returns auth configuration so frontend can skip login in dev mode."""
+    return {"auth_disabled": app_config.is_auth_disabled()}
+
+
 # ---- Presets ----
 
 @app.get("/api/presets")
