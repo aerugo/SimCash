@@ -212,6 +212,7 @@ export interface GameOptimizationResult {
   new_fraction?: number;
   accepted: boolean;
   mock?: boolean;
+  fallback_reason?: string;
   bootstrap?: BootstrapResult;
   rejection_reason?: string;
 }

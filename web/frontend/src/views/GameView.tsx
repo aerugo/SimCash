@@ -235,6 +235,20 @@ export function GameView() {
         </div>
       </div>
 
+      {/* LLM error banner */}
+      {(() => {
+        const allResults = Object.values(gameState.reasoning_history ?? {}).flat();
+        const fallbacks = allResults.filter(r => r.fallback_reason);
+        if (fallbacks.length === 0) return null;
+        const reason = fallbacks[0].fallback_reason || '';
+        const short = reason.length > 120 ? reason.slice(0, 120) + '…' : reason;
+        return (
+          <div className="bg-amber-900/30 border border-amber-700 rounded-lg px-4 py-2 text-sm text-amber-300">
+            ⚠️ <strong>LLM calls are failing</strong> — falling back to simulated AI. {short}
+          </div>
+        );
+      })()}
+
       {/* Progress bar */}
       <div className="w-full bg-slate-800 rounded-full h-2">
         <div
@@ -642,7 +656,7 @@ export function GameView() {
                         <span className="font-mono text-xs" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
                           {aid}
                         </span>
-                        {latest.mock && <span className="text-[10px] text-slate-600 bg-slate-800 px-1 rounded" title="Using mock reasoning (no API call)">sim</span>}
+                        {latest.mock && <span className="text-[10px] text-slate-600 bg-slate-800 px-1 rounded" title={latest.fallback_reason ? `LLM failed: ${latest.fallback_reason}` : "Using mock reasoning (no API call)"}>{latest.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
                         {latest.accepted
                           ? <span className="text-green-400 text-[10px] font-medium">✓ ACCEPTED</span>
                           : <span className="text-red-400 text-[10px] font-medium">✗ REJECTED</span>
@@ -897,7 +911,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory }: {
                     {r.old_fraction.toFixed(3)} → {r.new_fraction?.toFixed(3) ?? r.old_fraction.toFixed(3)}
                   </span>
                 )}
-                {r.mock && <span className="text-slate-600 bg-slate-800 px-1 rounded" title="Mock reasoning">sim</span>}
+                {r.mock && <span className={`bg-slate-800 px-1 rounded ${r.fallback_reason ? 'text-amber-500' : 'text-slate-600'}`} title={r.fallback_reason ? `LLM failed: ${r.fallback_reason}` : "Mock reasoning"}>{r.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
                 {r.bootstrap && (
                   <span className="text-slate-600">
                     Δ={r.bootstrap.delta_sum.toLocaleString()} CV={r.bootstrap.cv.toFixed(2)}
