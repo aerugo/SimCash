@@ -7,7 +7,7 @@ export interface GameSettings {
   maxDays: number;
   numEvalSamples: number;
   optimizationInterval: number;
-  constraintPreset: 'simple' | 'standard' | 'full';
+  constraintPreset: 'simple' | 'full';
   useLlm: boolean;
   mockReasoning: boolean;
   agentPolicies: Record<string, { policyId: string; fraction: number }>;
@@ -21,7 +21,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   optimizationInterval: 1,
   constraintPreset: 'full',
   useLlm: true,
-  mockReasoning: true,
+  mockReasoning: false,
   agentPolicies: {},
   policyDetails: {},
 };
@@ -118,30 +118,29 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           <option value={10}>Every 10 days</option>
         </select>
         <p className="text-[10px] text-slate-600 mt-1">
-          How often the AI re-evaluates its strategy. More days between optimizations = more data per evaluation, slower adaptation.
+          How many rounds to run before the AI re-evaluates its policy. At interval 1, the AI optimizes after every round. At interval 5, it collects 5 rounds of data before proposing a change — more evidence per decision, but slower adaptation.
         </p>
       </div>
       {s.useLlm && (
         <div>
           <label className="text-xs text-slate-500 flex justify-between mb-1">
-            <span>Policy Complexity<InfoTip text="Simple: Agent optimizes only the liquidity fraction (single number). Standard: Agent optimizes fraction + payment timing decisions. Full: Agent designs complete decision trees with conditions, splitting, priorities." /></span>
+            <span>LLM Strategy Depth<InfoTip text="Controls how much of the policy the AI is allowed to optimize. Simple: only tunes initial_liquidity_fraction (a single number). Full: the AI designs complete decision trees with all actions, conditions, and parameters." /></span>
             <span className="font-mono text-slate-300">
-              {s.constraintPreset === 'simple' ? 'Simple' : s.constraintPreset === 'standard' ? 'Standard' : 'Full'}
+              {s.constraintPreset === 'simple' ? 'Simple' : 'Full'}
             </span>
           </label>
           <select
             value={s.constraintPreset}
-            onChange={e => update({ constraintPreset: e.target.value as 'simple' | 'standard' | 'full' })}
+            onChange={e => update({ constraintPreset: e.target.value as 'simple' | 'full' })}
             className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
           >
-            <option value="simple">Simple</option>
-            <option value="standard">Standard</option>
-            <option value="full">Full</option>
+            <option value="simple">Simple — initial_liquidity_fraction only</option>
+            <option value="full">Full — complete decision trees</option>
           </select>
           <p className="text-[10px] text-slate-600 mt-1">
-            {s.constraintPreset === 'simple' ? 'AI adjusts liquidity fraction only' :
-             s.constraintPreset === 'standard' ? 'AI also decides payment timing (Release/Hold)' :
-             'AI has complete freedom — all actions, conditions, and parameters'}
+            {s.constraintPreset === 'simple'
+              ? 'AI only tunes initial_liquidity_fraction — a single number controlling how much of the pool to commit each round'
+              : 'AI has complete freedom — all actions (Release, Hold, Split, ReleaseWithCredit…), conditions, state registers, and all 4 tree types'}
           </p>
         </div>
       )}
@@ -286,7 +285,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
   max_days: number;
   num_eval_samples: number;
   optimization_interval: number;
-  constraint_preset: 'simple' | 'standard' | 'full';
+  constraint_preset: 'simple' | 'full';
   starting_policies?: Record<string, string>;
 } {
   return {

@@ -53,7 +53,7 @@ export function ScenarioLibraryView() {
   const [useLlm, setUseLlm] = useState(true);
   const [mockReasoning, setMockReasoning] = useState(true);
   const [numEvalSamples, setNumEvalSamples] = useState(1);
-  const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('simple');
+  const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
 
   useEffect(() => {
@@ -296,11 +296,10 @@ export function ScenarioLibraryView() {
             {useLlm && (
               <div className="mb-4">
                 <label className="text-xs text-slate-500 block mb-1">LLM Strategy Depth</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {([
-                    { id: 'simple' as const, label: 'Simple', desc: 'Tune one parameter' },
-                    { id: 'standard' as const, label: 'Standard', desc: 'Release/Hold/Split' },
-                    { id: 'full' as const, label: 'Full', desc: 'All actions & fields' },
+                    { id: 'simple' as const, label: 'Simple', desc: 'initial_liquidity_fraction only' },
+                    { id: 'full' as const, label: 'Full', desc: 'Complete decision trees' },
                   ]).map(p => (
                     <button
                       key={p.id}
