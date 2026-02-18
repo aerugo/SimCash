@@ -3,6 +3,8 @@ import type { GameSetupConfig, ScenarioEvent } from '../types';
 import { authFetch } from '../api';
 import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
 import { ScenarioForm } from '../components/ScenarioForm';
+import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
+import type { GameSettings } from '../components/GameSettingsPanel';
 import * as jsYaml from 'js-yaml';
 
 const BLANK_TEMPLATE = `simulation:
@@ -248,6 +250,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [scenarioDesc, setScenarioDescRaw] = useState(initialState?.description ?? '');
   const [editorMode, setEditorMode] = useState<'form' | 'yaml'>('form');
   const [modeSwitchError, setModeSwitchError] = useState<string | null>(null);
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
 
   const setYaml = useCallback((v: string) => {
     setYamlRaw(v);
@@ -349,14 +352,11 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
       }
       const saved = await saveRes.json();
 
-      // Launch game with inline config
+      // Launch game with inline config + game settings
       if (onGameLaunch) {
         onGameLaunch({
           inline_config: saved.config,
-          use_llm: false,
-          mock_reasoning: true,
-          max_days: 10,
-          num_eval_samples: 1,
+          ...gameSettingsToConfig(gameSettings),
         });
       }
     } catch (e) {
@@ -475,6 +475,15 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
               {saving ? '⏳ Launching…' : '🚀 Save & Launch'}
             </button>
           </div>
+
+          {/* Game Settings Panel */}
+          <GameSettingsPanel
+            agentIds={parsedYaml?.agentIds ?? []}
+            settings={gameSettings}
+            onChange={setGameSettings}
+            collapsible
+            defaultOpen={false}
+          />
 
           {/* Event Timeline Builder */}
           {parsedYaml && (

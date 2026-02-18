@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig, LibraryPolicy } from '../types';
-import { getGameScenarios, getPolicyLibrary } from '../api';
+import type { Preset, ScenarioConfig, AgentSetup, PaymentEntry, GameScenario, GameSetupConfig } from '../types';
+import { getGameScenarios } from '../api';
 import { HowItWorks } from '../components/HowItWorks';
+import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
+import type { GameSettings } from '../components/GameSettingsPanel';
 
 const DEFAULT_CONFIG: ScenarioConfig = {
   preset: null,
@@ -38,31 +40,10 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
   const [config, setConfig] = useState<ScenarioConfig>({ ...DEFAULT_CONFIG });
   const [gameScenarios, setGameScenarios] = useState<GameScenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState('2bank_12tick');
-  const [maxDays, setMaxDays] = useState(10);
-  const [numEvalSamples, setNumEvalSamples] = useState(1);
-  const [gameUseLlm, setGameUseLlm] = useState(true);
-  const [gameMockReasoning, setGameMockReasoning] = useState(true);
-  const [optimizationInterval, setOptimizationInterval] = useState(1);
-  const [constraintPreset, setConstraintPreset] = useState<'simple' | 'standard' | 'full'>('full');
-  const [policyLibrary, setPolicyLibrary] = useState<LibraryPolicy[]>([]);
-  const [startingPoliciesOpen, setStartingPoliciesOpen] = useState(false);
-  const [agentPolicies, setAgentPolicies] = useState<Record<string, { policyId: string; fraction: number }>>({});  // agent_id → { policyId, fraction }
-  const [policyDetails, setPolicyDetails] = useState<Record<string, string>>({});  // policy_id → raw JSON string
+  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
 
   useEffect(() => {
     getGameScenarios().then(setGameScenarios).catch(() => {});
-    getPolicyLibrary().then((policies) => {
-      setPolicyLibrary(policies);
-      // Pre-fetch raw JSON for each library policy
-      const details: Record<string, string> = {};
-      Promise.all(policies.map(async (p) => {
-        try {
-          const res = await fetch(`/api/policies/library/${p.id}`);
-          const data = await res.json();
-          if (data.raw) details[p.id] = JSON.stringify(data.raw);
-        } catch { /* ignore */ }
-      })).then(() => setPolicyDetails(details));
-    }).catch(() => {});
   }, []);
 
   // Derive agent IDs from selected scenario
@@ -73,7 +54,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
 
   // Reset agent policies when scenario changes
   useEffect(() => {
-    setAgentPolicies({});
+    setGameSettings(prev => ({ ...prev, agentPolicies: {} }));
   }, [selectedScenario]);
 
   const handleLaunch = () => {
@@ -316,204 +297,18 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
             ))}
           </div>
 
-          {/* Game settings */}
-          <Section title="Game Settings">
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-slate-500 flex justify-between mb-1">
-                  <span>Max Days</span>
-                  <span className="font-mono text-slate-300">{maxDays}</span>
-                </label>
-                <input
-                  type="range" value={maxDays} onChange={e => setMaxDays(Number(e.target.value))}
-                  min={1} max={50} className="w-full accent-violet-400"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-slate-500 flex justify-between mb-1">
-                  <span>Evaluation Samples</span>
-                  <span className="font-mono text-slate-300">{numEvalSamples}</span>
-                </label>
-                <input
-                  type="range" value={numEvalSamples} onChange={e => setNumEvalSamples(Number(e.target.value))}
-                  min={1} max={50} className="w-full accent-violet-400"
-                />
-                <p className="text-[10px] text-slate-600 mt-1">
-                  {numEvalSamples === 1 ? 'Quick mode — single sample' : numEvalSamples >= 50 ? 'Paper-faithful — 50 bootstrap samples' : `${numEvalSamples} bootstrap samples per evaluation`}
-                </p>
-              </div>
-              <div>
-                <label className="text-xs text-slate-500 flex justify-between mb-1">
-                  <span>Optimization Interval</span>
-                  <span className="font-mono text-slate-300">
-                    {optimizationInterval === 1 ? 'Every day' : `Every ${optimizationInterval} days`}
-                  </span>
-                </label>
-                <select
-                  value={optimizationInterval}
-                  onChange={e => setOptimizationInterval(Number(e.target.value))}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
-                >
-                  <option value={1}>Every day (1)</option>
-                  <option value={2}>Every 2 days</option>
-                  <option value={3}>Every 3 days</option>
-                  <option value={5}>Every 5 days</option>
-                  <option value={10}>Every 10 days</option>
-                </select>
-                <p className="text-[10px] text-slate-600 mt-1">
-                  How often the AI re-evaluates its strategy. More days between optimizations = more data per evaluation, slower adaptation.
-                </p>
-              </div>
-              {gameUseLlm && (
-              <div>
-                <label className="text-xs text-slate-500 flex justify-between mb-1">
-                  <span>Policy Complexity</span>
-                  <span className="font-mono text-slate-300">
-                    {constraintPreset === 'simple' ? 'Fraction only' : constraintPreset === 'standard' ? 'Trees + splitting' : 'Full power'}
-                  </span>
-                </label>
-                <select
-                  value={constraintPreset}
-                  onChange={e => setConstraintPreset(e.target.value as 'simple' | 'standard' | 'full')}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
-                >
-                  <option value="simple">Simple — fraction only</option>
-                  <option value="standard">Standard — decision trees + splitting</option>
-                  <option value="full">Full — all actions, fields, parameters</option>
-                </select>
-                <p className="text-[10px] text-slate-600 mt-1">
-                  {constraintPreset === 'simple' ? 'AI only tunes initial_liquidity_fraction. Fast, predictable.' :
-                   constraintPreset === 'standard' ? 'AI can build decision trees with Release/Hold/Split actions and balance/timing conditions.' :
-                   'AI has full freedom: all payment actions (Release/Hold/Split/Delay), bank actions, priority/splitting trees, 40+ context fields.'}
-                </p>
-              </div>
-              )}
-              <div className="flex gap-6 flex-wrap">
-                <Toggle label="Enable AI Optimization" value={gameUseLlm} onChange={setGameUseLlm} />
-                {gameUseLlm && (
-                  <div>
-                    <Toggle label="Mock Mode" value={gameMockReasoning} onChange={setGameMockReasoning} />
-                    <span className="text-[10px] text-slate-600 ml-2">
-                      {gameMockReasoning ? '(no API costs)' : '⚠ Uses LLM API'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Section>
-
-          {/* Starting Policies (collapsible) */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700">
-            <button
-              onClick={() => setStartingPoliciesOpen(!startingPoliciesOpen)}
-              className="w-full flex items-center justify-between p-4 text-left"
-            >
-              <span className="text-sm font-semibold text-slate-300">
-                {startingPoliciesOpen ? '▼' : '▶'} Starting Policies <span className="text-slate-500 font-normal">(optional)</span>
-              </span>
-              {Object.values(agentPolicies).some(v => v.policyId !== 'default') && (
-                <span className="text-xs text-violet-400">Custom policies set</span>
-              )}
-            </button>
-            {startingPoliciesOpen && (
-              <div className="px-4 pb-4 space-y-3">
-                {agentIds.map(aid => {
-                  const ap = agentPolicies[aid] || { policyId: 'default', fraction: 1.0 };
-                  return (
-                  <div key={aid} className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-mono text-slate-300 w-20">{aid}</span>
-                      <select
-                        value={ap.policyId}
-                        onChange={e => {
-                          const pid = e.target.value;
-                          const libPolicy = policyLibrary.find(p => p.id === pid);
-                          const frac = pid === 'default' ? 1.0
-                            : (libPolicy?.parameters as Record<string, number>)?.initial_liquidity_fraction ?? 0.5;
-                          setAgentPolicies(prev => ({ ...prev, [aid]: { policyId: pid, fraction: frac } }));
-                        }}
-                        className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
-                      >
-                        <option value="default">Default (FIFO)</option>
-                        {policyLibrary.map(p => {
-                          const frac = (p.parameters as Record<string, number>)?.initial_liquidity_fraction;
-                          return (
-                            <option key={p.id} value={p.id}>
-                              {p.name} (frac={frac != null ? frac.toFixed(2) : '?'})
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2 ml-[92px]">
-                      <span className="text-xs text-slate-500 w-16">Fraction:</span>
-                      <input
-                        type="range"
-                        min="0" max="1" step="0.05"
-                        value={ap.fraction}
-                        onChange={e => setAgentPolicies(prev => ({
-                          ...prev, [aid]: { ...prev[aid], fraction: parseFloat(e.target.value) }
-                        }))}
-                        className="flex-1 h-1.5 accent-violet-500"
-                      />
-                      <span className="text-xs font-mono text-violet-400 w-10 text-right">{ap.fraction.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  );
-                })}
-                {agentIds.length > 1 && (
-                  <div className="flex items-center gap-3 pt-2 border-t border-slate-700/50">
-                    <span className="text-xs text-slate-500 w-20">Apply to all:</span>
-                    <select
-                      value=""
-                      onChange={e => {
-                        const val = e.target.value;
-                        if (val) {
-                          const updated: Record<string, { policyId: string; fraction: number }> = {};
-                          const libPolicy = policyLibrary.find(p => p.id === val);
-                          const frac = val === 'default' ? 1.0
-                            : (libPolicy?.parameters as Record<string, number>)?.initial_liquidity_fraction ?? 0.5;
-                          agentIds.forEach(aid => { updated[aid] = { policyId: val, fraction: frac }; });
-                          setAgentPolicies(updated);
-                        }
-                      }}
-                      className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1.5 text-sm text-slate-200"
-                    >
-                      <option value="">— select —</option>
-                      <option value="default">Default (FIFO)</option>
-                      {policyLibrary.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Game Settings */}
+          <GameSettingsPanel
+            agentIds={agentIds}
+            settings={gameSettings}
+            onChange={setGameSettings}
+          />
 
           <button
             onClick={() => {
-              // Build starting_policies from agentPolicies, injecting fraction
-              const startingPolicies: Record<string, string> = {};
-              for (const [aid, ap] of Object.entries(agentPolicies)) {
-                if (ap.policyId && ap.policyId !== 'default' && policyDetails[ap.policyId]) {
-                  const policyObj = JSON.parse(policyDetails[ap.policyId]);
-                  if (!policyObj.parameters) policyObj.parameters = {};
-                  policyObj.parameters.initial_liquidity_fraction = ap.fraction;
-                  startingPolicies[aid] = JSON.stringify(policyObj);
-                }
-              }
               onGameLaunch?.({
                 scenario_id: selectedScenario,
-                use_llm: gameUseLlm,
-                mock_reasoning: gameMockReasoning,
-                max_days: maxDays,
-                num_eval_samples: numEvalSamples,
-                optimization_interval: optimizationInterval,
-                constraint_preset: constraintPreset,
-                starting_policies: Object.keys(startingPolicies).length > 0 ? startingPolicies : undefined,
+                ...gameSettingsToConfig(gameSettings),
               });
             }}
             className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
