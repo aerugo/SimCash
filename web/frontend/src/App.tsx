@@ -19,6 +19,7 @@ import type { ScenarioEditorState } from './views/ScenarioEditorView';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './components/LoginPage';
+import { LandingView } from './views/LandingView';
 import { AdminDashboard } from './components/AdminDashboard';
 import { checkAdmin } from './api';
 
@@ -72,7 +73,11 @@ function AppContent() {
     );
   }
 
-  if (!user || accessDenied) {
+  if (!user) {
+    return <LandingView />;
+  }
+
+  if (accessDenied) {
     return <LoginPage accessDenied={accessDenied} />;
   }
 

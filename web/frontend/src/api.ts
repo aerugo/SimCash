@@ -289,6 +289,22 @@ export async function getPolicyDiff(gameId: string, day1: number, day2: number, 
   return res.json();
 }
 
+export function getGameExportUrl(gameId: string, format: 'csv' | 'json'): string {
+  return `${BASE}/games/${gameId}/export?format=${format}`;
+}
+
+export async function downloadGameExport(gameId: string, format: 'csv' | 'json'): Promise<void> {
+  const res = await authFetch(getGameExportUrl(gameId, format));
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `game_${gameId}.${format}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function connectGameWebSocket(gameId: string): Promise<WebSocket> {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const token = await getIdToken();

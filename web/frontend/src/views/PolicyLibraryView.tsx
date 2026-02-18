@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { LibraryPolicy, LibraryPolicyDetail } from '../types';
 import { getPolicyLibrary, getPolicyLibraryDetail } from '../api';
+import { PolicyVisualization } from '../components/PolicyVisualization';
 
 const COMPLEXITY_COLORS: Record<string, string> = {
   simple: 'text-green-400 bg-green-400/10 border-green-400/30',
@@ -154,6 +155,12 @@ export function PolicyLibraryView({ onSelectPolicy }: Props) {
               </div>
             </div>
           )}
+
+          {/* Decision Tree Visualization */}
+          <div className="mb-4">
+            <h3 className="text-sm font-semibold text-slate-400 mb-2">Decision Tree Visualization</h3>
+            <PolicyVisualization policy={selectedPolicy.raw} compact />
+          </div>
 
           {/* Raw JSON */}
           <details className="mb-4">

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { GameState, GameOptimizationResult } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
-import { getGameDayReplay } from '../api';
+import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
+import { PolicyVisualization } from '../components/PolicyVisualization';
 import { InfoTip } from '../components/Tooltip';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
@@ -24,6 +25,7 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
     currentTick: number;
   } | null>(null);
   const [replayPlaying, setReplayPlaying] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const gameState = wsState ?? initialState;
 
@@ -113,6 +115,31 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
           >
             {autoRunning ? '⏹ Stop' : '⏩ Auto-run'}
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen(!exportOpen)}
+              disabled={gameState.days.length === 0}
+              className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-sm font-medium"
+            >
+              📥 Export ▾
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 mt-1 w-36 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                <button
+                  onClick={() => { setExportOpen(false); downloadGameExport(gameId, 'csv'); }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 text-slate-200"
+                >
+                  📊 CSV
+                </button>
+                <button
+                  onClick={() => { setExportOpen(false); downloadGameExport(gameId, 'json'); }}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 text-slate-200"
+                >
+                  📋 JSON
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={onReset}
             className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium"
@@ -324,19 +351,86 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                 Day {day.day + 1} Results{' '}
                 <span className="text-xs text-slate-500 font-normal ml-1">seed={day.seed}</span>
               </h3>
+              {/* Settlement Rate Banner */}
+              {(() => {
+                // Count arrivals and settlements per agent and aggregate
+                const agentArrivals: Record<string, number> = {};
+                const agentSettled: Record<string, number> = {};
+                let totalArrivals = 0;
+                let totalSettled = 0;
+                for (const e of day.events) {
+                  const t = String(e.event_type ?? '');
+                  if (t === 'Arrival') {
+                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
+                    if (sender) {
+                      agentArrivals[sender] = (agentArrivals[sender] ?? 0) + 1;
+                    }
+                    totalArrivals++;
+                  } else if (t === 'RtgsImmediateSettlement' || t === 'CycleSettlement' || t === 'BilateralOffset') {
+                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
+                    if (sender) {
+                      agentSettled[sender] = (agentSettled[sender] ?? 0) + 1;
+                    }
+                    totalSettled++;
+                  }
+                }
+                const aggRate = totalArrivals > 0 ? (totalSettled / totalArrivals * 100) : 0;
+                return (
+                  <div className="bg-slate-900/50 rounded-lg p-3 mb-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-slate-400">
+                        Settlement Rate<InfoTip text="Percentage of payments that settled successfully during the day. Higher is better — unsettled payments incur delay costs and deadline penalties." />
+                      </span>
+                      <span className={`font-mono text-lg font-bold ${aggRate >= 90 ? 'text-green-400' : aggRate >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {aggRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex gap-3 text-[10px] text-slate-500">
+                      <span>{totalSettled}/{totalArrivals} payments settled</span>
+                      {gameState.agent_ids.map((aid, i) => {
+                        const arr = agentArrivals[aid] ?? 0;
+                        const stl = agentSettled[aid] ?? 0;
+                        const rate = arr > 0 ? (stl / arr * 100) : 0;
+                        return (
+                          <span key={aid}>
+                            <span style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>{aid.replace('BANK_', '')}</span>
+                            : {rate.toFixed(1)}%
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="space-y-3">
                 {gameState.agent_ids.map((aid, i) => {
                   const costs = day.costs[aid];
                   const fraction = day.policies[aid]?.initial_liquidity_fraction ?? 1;
+                  // Per-agent settlement rate
+                  let agentArr = 0;
+                  let agentStl = 0;
+                  for (const e of day.events) {
+                    const sender = String((e as Record<string, unknown>).sender_id ?? '');
+                    if (sender !== aid) continue;
+                    const t = String(e.event_type ?? '');
+                    if (t === 'Arrival') agentArr++;
+                    else if (t === 'RtgsImmediateSettlement' || t === 'CycleSettlement' || t === 'BilateralOffset') agentStl++;
+                  }
+                  const agentRate = agentArr > 0 ? (agentStl / agentArr * 100) : 0;
                   return (
                     <div key={aid} className="bg-slate-900/50 rounded-lg p-3">
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-mono text-sm" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
                           {aid}
                         </span>
-                        <span className="text-xs text-slate-400">
-                          fraction={fraction.toFixed(3)}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs font-mono ${agentRate >= 90 ? 'text-green-400' : agentRate >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
+                            {agentRate.toFixed(1)}% settled
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            fraction={fraction.toFixed(3)}
+                          </span>
+                        </div>
                       </div>
                       {costs && (
                         <div className="grid grid-cols-4 gap-2 text-xs">
@@ -450,10 +544,10 @@ export function GameView({ gameId, gameState: initialState, onUpdate, onReset }:
                       </div>
                       {bs && (
                         <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
-                          <span>Δ={bs.delta_sum.toLocaleString()}<InfoTip text="Change in cost from previous day (negative = improvement)" /></span>
-                          <span>CV={bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — lower means more consistent results" /></span>
-                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval for the cost estimate" /></span>
-                          <span>n={bs.num_samples}</span>
+                          <span>Δ={bs.delta_sum.toLocaleString()}<InfoTip text="Cost change from previous day (negative = improvement)" /></span>
+                          <span>CV={bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — measures consistency across bootstrap samples (lower = more reliable)" /></span>
+                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval — true cost likely falls in this range" /></span>
+                          <span>n={bs.num_samples}<InfoTip text="Number of bootstrap evaluation samples" /></span>
                         </div>
                       )}
                       {!latest.accepted && latest.rejection_reason && (

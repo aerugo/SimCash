@@ -239,7 +239,7 @@ export function ScenarioLibraryView({ onLaunchGame }: Props) {
                 >
                   <option value="off">Off (FIFO)</option>
                   <option value="mock">Mock AI</option>
-                  <option value="real">Real GPT-5.2</option>
+                  <option value="real">Real Gemini 2.5 Flash</option>
                 </select>
               </div>
             </div>

@@ -546,7 +546,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-5 mb-6">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-300">🧠 AI Agent Reasoning (GPT-5.2)</h3>
+                <h3 className="text-sm font-semibold text-slate-300">🧠 AI Agent Reasoning (Gemini 2.5 Flash)</h3>
                 <p className="text-xs text-slate-500 mt-1">Watch agents think through decisions in real-time</p>
               </div>
               <Toggle label="" value={config.use_llm} onChange={v => setConfig({ ...config, use_llm: v })} />
@@ -556,7 +556,7 @@ export function HomeView({ presets, onLaunch, onGameLaunch, onNavigate }: Props)
                 <div>
                   <span className="text-xs text-slate-400">Mock Mode</span>
                   <span className="text-[10px] text-slate-600 ml-2">
-                    {config.mock_reasoning ? '(no API costs)' : '⚠ Uses OpenAI API'}
+                    {config.mock_reasoning ? '(no API costs)' : '⚠ Uses Vertex AI API'}
                   </span>
                 </div>
                 <Toggle label="" value={config.mock_reasoning} onChange={v => setConfig({ ...config, mock_reasoning: v })} />

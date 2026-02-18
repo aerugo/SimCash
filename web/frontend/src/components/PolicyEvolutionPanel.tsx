@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import type { PolicyHistoryResponse, PolicyDiffResponse } from '../types';
 import { getPolicyHistory, getPolicyDiff } from '../api';
+import { PolicyVisualization } from './PolicyVisualization';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15'];
 
@@ -178,6 +179,18 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
                   )}
                   {d.reasoning[aid] && (
                     <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{d.reasoning[aid]}</p>
+                  )}
+                  {policy && (policy as Record<string, unknown>).payment_tree && (
+                    <details className="mt-2">
+                      <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">
+                        View Decision Trees
+                      </summary>
+                      <PolicyVisualization
+                        policy={policy as Record<string, unknown>}
+                        compact
+                        className="mt-2"
+                      />
+                    </details>
                   )}
                 </div>
               );

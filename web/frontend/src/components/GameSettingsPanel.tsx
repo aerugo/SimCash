@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { LibraryPolicy } from '../types';
 import { getPolicyLibrary } from '../api';
+import { InfoTip } from './Tooltip';
 
 export interface GameSettings {
   maxDays: number;
@@ -123,7 +124,7 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
       {s.useLlm && (
         <div>
           <label className="text-xs text-slate-500 flex justify-between mb-1">
-            <span>Policy Complexity</span>
+            <span>Policy Complexity<InfoTip text="Simple: Agent optimizes only the liquidity fraction (single number). Standard: Agent optimizes fraction + payment timing decisions. Full: Agent designs complete decision trees with conditions, splitting, priorities." /></span>
             <span className="font-mono text-slate-300">
               {s.constraintPreset === 'simple' ? 'Simple' : s.constraintPreset === 'standard' ? 'Standard' : 'Full'}
             </span>
