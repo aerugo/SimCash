@@ -368,6 +368,35 @@ export async function toggleLibraryVisibility(
   return res.json();
 }
 
+export async function adminCreateCollection(data: {
+  id: string; name: string; icon?: string; description?: string; scenario_ids?: string[];
+}): Promise<Collection> {
+  const res = await authFetch(`${BASE}/admin/collections`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function adminUpdateCollectionScenarios(
+  collectionId: string, scenarioIds: string[],
+): Promise<Collection> {
+  const res = await authFetch(`${BASE}/admin/collections/${collectionId}/scenarios`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario_ids: scenarioIds }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function adminDeleteCollection(collectionId: string): Promise<void> {
+  const res = await authFetch(`${BASE}/admin/collections/${collectionId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text());
+}
+
 export function getGameExportUrl(gameId: string, format: 'csv' | 'json'): string {
   return `${BASE}/games/${gameId}/export?format=${format}`;
 }

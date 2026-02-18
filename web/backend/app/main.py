@@ -978,6 +978,63 @@ async def admin_toggle_visibility(
     return {"status": "updated", "item_type": item_type, "item_id": item_id, "visible": body.visible}
 
 
+# ---- Admin: Collection Management ----
+
+
+class CreateCollectionRequest(PydanticBaseModel):
+    id: str
+    name: str
+    icon: str = "📁"
+    description: str = ""
+    scenario_ids: list[str] = []
+
+
+class UpdateCollectionScenariosRequest(PydanticBaseModel):
+    scenario_ids: list[str]
+
+
+@app.post("/api/admin/collections")
+async def admin_create_collection(
+    body: CreateCollectionRequest,
+    email: str = Depends(get_admin_user),
+):
+    """Create a new collection (admin only)."""
+    try:
+        coll = coll_mod.create_collection(
+            body.id, body.name, body.icon, body.description, body.scenario_ids
+        )
+        return coll
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/api/admin/collections/{collection_id}/scenarios")
+async def admin_update_collection_scenarios(
+    collection_id: str,
+    body: UpdateCollectionScenariosRequest,
+    email: str = Depends(get_admin_user),
+):
+    """Update scenario membership for a collection (admin only)."""
+    try:
+        coll = coll_mod.update_collection_scenarios(collection_id, body.scenario_ids)
+        return coll
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/admin/collections/{collection_id}")
+async def admin_delete_collection(
+    collection_id: str,
+    email: str = Depends(get_admin_user),
+):
+    """Delete a custom collection (admin only). Cannot delete built-in ones."""
+    try:
+        coll_mod.delete_collection(collection_id)
+        return {"status": "deleted", "id": collection_id}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ---- Platform Settings (Model Selection) ----
 
 class SettingsUpdate(PydanticBaseModel):

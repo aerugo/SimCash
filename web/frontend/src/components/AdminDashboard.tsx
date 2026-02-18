@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, inviteUser, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, type AdminUser, type ModelOption, type AdminLibrary } from '../api';
+import { fetchUsers, inviteUser, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, type AdminUser, type ModelOption, type AdminLibrary, type Collection } from '../api';
 
 const PROVIDER_COLORS: Record<string, string> = {
   'google-vertex': 'bg-blue-900/40 text-blue-400',
@@ -28,6 +28,16 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [librarySearch, setLibrarySearch] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  // Collection management state
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [editingCollection, setEditingCollection] = useState<string | null>(null);
+  const [editScenarioIds, setEditScenarioIds] = useState<string[]>([]);
+  const [showNewCollection, setShowNewCollection] = useState(false);
+  const [newCollName, setNewCollName] = useState('');
+  const [newCollIcon, setNewCollIcon] = useState('📁');
+  const [newCollDesc, setNewCollDesc] = useState('');
+  const [collSaving, setCollSaving] = useState(false);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -66,8 +76,20 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
     }
   }, []);
 
+  const loadCollections = useCallback(async () => {
+    try {
+      const data = await fetchCollections();
+      setCollections(data);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => { loadUsers(); loadModels(); }, [loadUsers, loadModels]);
-  useEffect(() => { if (activeTab === 'library' && !library) loadLibrary(); }, [activeTab, library, loadLibrary]);
+  useEffect(() => {
+    if (activeTab === 'library') {
+      if (!library) loadLibrary();
+      loadCollections();
+    }
+  }, [activeTab, library, loadLibrary, loadCollections]);
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
@@ -306,6 +328,132 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                 <p className="text-slate-500 text-xs">Failed to load library data.</p>
               ) : (
                 <>
+                  {/* Collections */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-slate-300">🏷️ Collections</h3>
+                      <button
+                        onClick={() => setShowNewCollection(!showNewCollection)}
+                        className="text-xs text-sky-400 hover:text-sky-300"
+                      >
+                        {showNewCollection ? '✕ Cancel' : '+ New Collection'}
+                      </button>
+                    </div>
+
+                    {showNewCollection && (
+                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 mb-3 space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            value={newCollIcon}
+                            onChange={e => setNewCollIcon(e.target.value)}
+                            className="w-12 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-center"
+                            placeholder="📁"
+                          />
+                          <input
+                            value={newCollName}
+                            onChange={e => setNewCollName(e.target.value)}
+                            className="flex-1 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                            placeholder="Collection name"
+                          />
+                        </div>
+                        <input
+                          value={newCollDesc}
+                          onChange={e => setNewCollDesc(e.target.value)}
+                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                          placeholder="Description (optional)"
+                        />
+                        <button
+                          disabled={!newCollName.trim() || collSaving}
+                          onClick={async () => {
+                            setCollSaving(true);
+                            try {
+                              const id = newCollName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+                              await adminCreateCollection({ id, name: newCollName.trim(), icon: newCollIcon, description: newCollDesc });
+                              setShowNewCollection(false);
+                              setNewCollName(''); setNewCollIcon('📁'); setNewCollDesc('');
+                              await loadCollections();
+                            } catch (e) {
+                              alert(e instanceof Error ? e.message : 'Failed to create collection');
+                            } finally { setCollSaving(false); }
+                          }}
+                          className="px-3 py-1 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 rounded text-xs text-white"
+                        >
+                          Create
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {collections.map(coll => (
+                        <div key={coll.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-slate-200">
+                              {coll.icon} {coll.name}
+                              <span className="text-xs text-slate-500 ml-2">
+                                {coll.scenario_ids
+                                  ? coll.scenario_ids.length
+                                  : '?'} scenarios
+                              </span>
+                            </span>
+                            <div className="flex gap-2">
+                              {editingCollection === coll.id ? (
+                                <button
+                                  disabled={collSaving}
+                                  onClick={async () => {
+                                    setCollSaving(true);
+                                    try {
+                                      await adminUpdateCollectionScenarios(coll.id, editScenarioIds);
+                                      setEditingCollection(null);
+                                      await loadCollections();
+                                    } catch (e) {
+                                      alert(e instanceof Error ? e.message : 'Failed');
+                                    } finally { setCollSaving(false); }
+                                  }}
+                                  className="text-xs text-green-400 hover:text-green-300"
+                                >Save</button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setEditingCollection(coll.id);
+                                    setEditScenarioIds(
+                                      coll.scenario_ids || []
+                                    );
+                                  }}
+                                  className="text-xs text-sky-400 hover:text-sky-300"
+                                >Edit</button>
+                              )}
+                              {editingCollection === coll.id && (
+                                <button onClick={() => setEditingCollection(null)} className="text-xs text-slate-500 hover:text-slate-300">Cancel</button>
+                              )}
+                            </div>
+                          </div>
+
+                          {editingCollection === coll.id && library && (
+                            <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                              {library.scenarios.map(s => (
+                                <label key={s.id} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-slate-100">
+                                  <input
+                                    type="checkbox"
+                                    checked={editScenarioIds.includes(s.id)}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        setEditScenarioIds([...editScenarioIds, s.id]);
+                                      } else {
+                                        setEditScenarioIds(editScenarioIds.filter(x => x !== s.id));
+                                      }
+                                    }}
+                                    className="accent-sky-500"
+                                  />
+                                  {s.name}
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Scenarios */}
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
