@@ -454,7 +454,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
               height="500px"
             />
           ) : (
-            <div className="max-h-[500px] overflow-y-auto pr-1">
+            <div>
               <ScenarioForm yaml={yaml} onYamlChange={(v) => { setYaml(v); setValid(null); }} />
             </div>
           )}
