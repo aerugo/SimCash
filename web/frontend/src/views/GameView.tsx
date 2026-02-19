@@ -41,6 +41,62 @@ function useGameNotes(gameId: string) {
   return { notes, update };
 }
 
+/** Expandable panel showing full LLM reasoning, thinking, and raw response for an agent. */
+function AgentResponseDetail({ result }: { result: GameOptimizationResult }) {
+  const [expanded, setExpanded] = useState<'thinking' | 'response' | null>(null);
+  const hasThinking = !!result.thinking;
+  const hasRaw = !!result.raw_response;
+
+  if (!hasThinking && !hasRaw) return null;
+
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      <div className="flex gap-2">
+        {hasThinking && (
+          <button
+            onClick={() => setExpanded(expanded === 'thinking' ? null : 'thinking')}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+              expanded === 'thinking'
+                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                : 'bg-slate-800 text-slate-500 hover:text-slate-400 border border-slate-700'
+            }`}
+          >
+            🧠 {expanded === 'thinking' ? 'Hide' : 'Show'} Thinking
+          </button>
+        )}
+        {hasRaw && (
+          <button
+            onClick={() => setExpanded(expanded === 'response' ? null : 'response')}
+            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+              expanded === 'response'
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                : 'bg-slate-800 text-slate-500 hover:text-slate-400 border border-slate-700'
+            }`}
+          >
+            📄 {expanded === 'response' ? 'Hide' : 'Show'} Full Response
+          </button>
+        )}
+      </div>
+      {expanded === 'thinking' && result.thinking && (
+        <div className="mt-1 bg-violet-950/30 border border-violet-500/20 rounded-lg p-3 max-h-64 overflow-y-auto">
+          <div className="text-[10px] text-violet-400/60 mb-1 font-medium">Internal Reasoning</div>
+          <pre className="text-xs text-violet-200/80 whitespace-pre-wrap font-mono leading-relaxed">
+            {result.thinking}
+          </pre>
+        </div>
+      )}
+      {expanded === 'response' && result.raw_response && (
+        <div className="mt-1 bg-slate-950/50 border border-slate-600/30 rounded-lg p-3 max-h-64 overflow-y-auto">
+          <div className="text-[10px] text-slate-500 mb-1 font-medium">Full LLM Output</div>
+          <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">
+            {result.raw_response}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GameView() {
   const params = useParams<{ gameId: string }>();
   const nav = useNavigate();
@@ -738,6 +794,26 @@ export function GameView() {
                         </div>
                       )}
                       <p className="text-xs text-slate-400 leading-relaxed">{latest.reasoning}</p>
+
+                      {/* Metadata bar: model, latency, tokens */}
+                      {(latest.latency_seconds || latest.usage || latest.model) && (
+                        <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-slate-600 font-mono">
+                          {latest.model && <span>{latest.model.split(':').pop()}</span>}
+                          {latest.latency_seconds != null && <span>{latest.latency_seconds}s</span>}
+                          {latest.usage && (
+                            <>
+                              <span>{latest.usage.input_tokens.toLocaleString()}→{latest.usage.output_tokens.toLocaleString()} tok</span>
+                              {latest.usage.thinking_tokens > 0 && (
+                                <span>🧠 {latest.usage.thinking_tokens.toLocaleString()} thinking</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Expandable full AI response */}
+                      <AgentResponseDetail result={latest} />
+
                       {gameState.constraint_preset === 'full' && latest.new_policy && latest.old_policy && (
                         <div className="mt-2 pt-2 border-t border-slate-700/50">
                           <PolicyDiffView oldPolicy={latest.old_policy} newPolicy={latest.new_policy} />
@@ -998,6 +1074,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
               {r.rejection_reason && (
                 <div className="text-[9px] text-red-400/70 mt-0.5">{r.rejection_reason}</div>
               )}
+              <AgentResponseDetail result={r} />
             </div>
           ))}
         </div>

@@ -227,34 +227,52 @@ async def stream_optimize(
 
     # Retry loop with exponential backoff
     last_error: Exception | None = None
+    usage_info: dict[str, Any] = {}
+    thinking_text = ""
     for attempt in range(1, MAX_RETRIES + 1):
         full_text = ""
+        thinking_text = ""
+        usage_info = {}
         _llm_start = _time.monotonic()
 
         try:
             async with asyncio.timeout(LLM_CALL_TIMEOUT_SECONDS):
                 async with agent.run_stream(user_prompt, model_settings=model_settings) as stream_result:
-                    chunk_iter = stream_result.stream_text(delta=True).__aiter__()
-                    while True:
-                        try:
-                            chunk = await asyncio.wait_for(
-                                chunk_iter.__anext__(),
-                                timeout=LLM_CHUNK_STALL_SECONDS,
-                            )
-                            full_text += chunk
-                            yield {"type": "chunk", "text": chunk}
-                        except StopAsyncIteration:
-                            break
-                        except asyncio.TimeoutError:
-                            raise asyncio.TimeoutError(
-                                f"No data for {LLM_CHUNK_STALL_SECONDS}s (got {len(full_text)} chars)"
-                            )
+                    # Use stream_responses to capture thinking parts AND text parts
+                    from pydantic_ai.messages import ThinkingPart, TextPart
+                    prev_text_len = 0
+                    async for response, _is_last in stream_result.stream_responses(debounce_by=None):
+                        for part in response.parts:
+                            if isinstance(part, ThinkingPart) and part.content:
+                                # Accumulate thinking (may arrive in chunks)
+                                if len(part.content) > len(thinking_text):
+                                    thinking_text = part.content
+                            elif isinstance(part, TextPart) and part.content:
+                                # Yield text deltas
+                                new_text = part.content
+                                if len(new_text) > prev_text_len:
+                                    delta = new_text[prev_text_len:]
+                                    full_text = new_text
+                                    prev_text_len = len(new_text)
+                                    yield {"type": "chunk", "text": delta}
+
+                    # Capture usage after stream completes
+                    try:
+                        u = stream_result.usage()
+                        usage_info = {
+                            "input_tokens": u.input_tokens or 0,
+                            "output_tokens": u.output_tokens or 0,
+                            "thinking_tokens": (u.details or {}).get("thoughts_tokens", 0),
+                            "total_tokens": (u.input_tokens or 0) + (u.output_tokens or 0),
+                        }
+                    except Exception:
+                        pass
 
             # Success — break out of retry loop
             _llm_elapsed = _time.monotonic() - _llm_start
             logger.warning(
-                "LLM call for %s completed: %.1fs, response=%d chars (attempt %d)",
-                agent_id, _llm_elapsed, len(full_text), attempt,
+                "LLM call for %s completed: %.1fs, response=%d chars, thinking=%d chars (attempt %d)",
+                agent_id, _llm_elapsed, len(full_text), len(thinking_text), attempt,
             )
             break
 
@@ -318,6 +336,10 @@ async def stream_optimize(
                 "accepted": True,
                 "mock": False,
                 "raw_response": full_text,
+                "thinking": thinking_text,
+                "usage": usage_info,
+                "latency_seconds": round(_llm_elapsed, 1),
+                "model": llm_config.model,
             },
         }
     except Exception as e:
@@ -332,6 +354,10 @@ async def stream_optimize(
                 "accepted": False,
                 "mock": False,
                 "raw_response": full_text,
+                "thinking": thinking_text,
+                "usage": usage_info,
+                "latency_seconds": round(_llm_elapsed, 1),
+                "model": llm_config.model,
             },
         }
 
