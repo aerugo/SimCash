@@ -216,7 +216,7 @@ export function GameView() {
           <button
             onClick={step}
             disabled={!connected || autoRunning || gameState.is_complete}
-            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm font-medium text-white"
             data-tour="next-btn"
           >
             ▶ Next
@@ -225,7 +225,7 @@ export function GameView() {
             onClick={() => rerun()}
             disabled={!connected || autoRunning || gameState.days.length === 0}
             title="Re-run the last round with the same seed (deterministic replay)"
-            className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
+            className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm font-medium text-white"
             data-tour="rerun-btn"
           >
             🔄 Re-run
@@ -234,10 +234,10 @@ export function GameView() {
           <button
             onClick={autoRunning ? stop : handleAutoRun}
             disabled={!connected || gameState.is_complete}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium text-white ${
               autoRunning
                 ? 'bg-red-600 hover:bg-red-500'
-                : 'bg-violet-600 hover:bg-violet-500 disabled:opacity-40'
+                : 'bg-slate-700 hover:bg-slate-600 disabled:opacity-40'
             }`}
           >
             {autoRunning ? '⏹ Stop' : '⏩ Auto'}
@@ -253,7 +253,7 @@ export function GameView() {
                 }}
                 className={`px-2 py-1.5 text-xs font-medium transition-all ${
                   speed === s
-                    ? 'bg-sky-600 text-white'
+                    ? 'bg-slate-600 text-white'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700'
                 }`}
                 title={`${s.charAt(0).toUpperCase() + s.slice(1)} speed`}
@@ -267,7 +267,7 @@ export function GameView() {
             <button
               onClick={() => setExportOpen(!exportOpen)}
               disabled={gameState.days.length === 0}
-              className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-sm font-medium"
+              className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm font-medium text-white"
             >
               📥 Export
             </button>

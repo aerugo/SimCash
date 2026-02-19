@@ -216,31 +216,27 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
           <button
             onClick={onBack}
             disabled={step === 0}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-500 hover:text-white hover:bg-slate-700/60 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+            aria-label="Back"
           >
-            ← Back
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
 
-          {/* Progress dots */}
-          <div className="flex gap-1">
-            {TOUR_STEPS.map((_, i) => (
-              <div
-                key={i}
-                className={`w-1.5 h-1.5 rounded-full transition-all ${
-                  i === step ? 'bg-sky-400 scale-125' :
-                  i < step ? 'bg-violet-500/60' : 'bg-slate-700'
-                }`}
-              />
-            ))}
+          {/* Progress bar */}
+          <div className="flex-1 mx-3 h-1 bg-slate-700/60 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-sky-500 rounded-full transition-all duration-300"
+              style={{ width: `${((step + 1) / totalSteps) * 100}%` }}
+            />
           </div>
 
           <button
             onClick={onNext}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-600 hover:bg-sky-500 text-white transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500 hover:bg-sky-400 text-white transition-colors"
           >
-            {currentStep.waitForRound ? 'Got it →' :
-             currentStep.waitForAuto ? 'Got it →' :
-             step === totalSteps - 1 ? 'Finish 🎉' : 'Next →'}
+            {currentStep.waitForRound ? 'OK' :
+             currentStep.waitForAuto ? 'OK' :
+             step === totalSteps - 1 ? 'Finish' : 'Next'}
           </button>
         </div>
       </div>
