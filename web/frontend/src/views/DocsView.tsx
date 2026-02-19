@@ -217,7 +217,21 @@ export function DocsView() {
   }
 
   return (
-    <div className="flex gap-6 max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto">
+      {/* Mobile nav */}
+      <div className="md:hidden mb-4">
+        <select
+          value={activeId}
+          onChange={e => { setActiveId(e.target.value); navigate(`/docs/${e.target.value}`); }}
+          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200"
+        >
+          {pages.map(p => (
+            <option key={p.id} value={p.id}>{p.icon} {p.title}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex gap-6">
       {/* Sidebar */}
       <nav className="w-56 shrink-0 hidden md:block">
         <div className="sticky top-24 space-y-5">
@@ -245,21 +259,8 @@ export function DocsView() {
         </div>
       </nav>
 
-      {/* Mobile nav */}
-      <div className="md:hidden w-full mb-4">
-        <select
-          value={activeId}
-          onChange={e => { setActiveId(e.target.value); navigate(`/docs/${e.target.value}`); }}
-          className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200"
-        >
-          {pages.map(p => (
-            <option key={p.id} value={p.id}>{p.icon} {p.title}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Content */}
-      <article className="flex-1 min-w-0">
+      <article className="flex-1 min-w-0 overflow-x-hidden">
         {loadingContent ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-400" />
@@ -280,6 +281,7 @@ export function DocsView() {
           </div>
         )}
       </article>
+      </div>
     </div>
   );
 }

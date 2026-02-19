@@ -8,6 +8,8 @@ import { PolicyDiffView, PolicyChangeSummary } from '../components/PolicyDiffVie
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
+import { useTour } from '../hooks/useTour';
+import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -130,6 +132,8 @@ export function GameView() {
   const [notesOpen, setNotesOpen] = useState(false);
   const { notes, update: updateNotes } = useGameNotes(gameId);
 
+  const tour = useTour(gameState?.days?.length ?? 0, autoRunning);
+
   const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 
   const gameState = wsState ?? initialState;
@@ -186,7 +190,7 @@ export function GameView() {
     <div className="space-y-6">
       {/* Top Bar */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-tour="top-bar">
           <h2 className="text-xl sm:text-2xl font-bold">{'Policy Experiment'}</h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
             {'Round'} {gameState.current_day}/{gameState.max_days}
@@ -212,6 +216,7 @@ export function GameView() {
             onClick={step}
             disabled={!connected || autoRunning || gameState.is_complete}
             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-sm font-medium"
+            data-tour="next-btn"
           >
             ▶ Next
           </button>
@@ -220,9 +225,11 @@ export function GameView() {
             disabled={!connected || autoRunning || gameState.days.length === 0}
             title="Re-run the last round with the same seed (deterministic replay)"
             className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-sm font-medium"
+            data-tour="rerun-btn"
           >
             🔄 Re-run
           </button>
+          <span className="contents" data-tour="auto-btn">
           <button
             onClick={autoRunning ? stop : handleAutoRun}
             disabled={!connected || gameState.is_complete}
@@ -254,7 +261,8 @@ export function GameView() {
               </button>
             ))}
           </div>
-          <div className="relative">
+          </span>
+          <div className="relative" data-tour="export-btn">
             <button
               onClick={() => setExportOpen(!exportOpen)}
               disabled={gameState.days.length === 0}
@@ -315,7 +323,7 @@ export function GameView() {
       })()}
 
       {/* Progress bar */}
-      <div className="w-full bg-slate-800 rounded-full h-2">
+      <div className="w-full bg-slate-800 rounded-full h-2" data-tour="progress-bar">
         <div
           className="bg-gradient-to-r from-sky-500 to-violet-500 h-2 rounded-full transition-all"
           style={{ width: `${(gameState.current_day / gameState.max_days) * 100}%` }}
@@ -415,7 +423,7 @@ export function GameView() {
 
       {/* Empty state guidance */}
       {gameState.days.length === 0 && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 text-center" data-tour="empty-state">
           
           <h3 className="text-lg font-semibold mb-2">Ready to Start</h3>
           <p className="text-sm text-slate-400 max-w-lg mx-auto">
@@ -445,7 +453,7 @@ export function GameView() {
         <div className="space-y-4">
           {/* Day selector */}
           {gameState.days.length > 0 && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="round-timeline">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Round Timeline</h3>
               <div className="flex gap-1 flex-wrap">
                 {gameState.days.map((d, i) => (
@@ -469,7 +477,7 @@ export function GameView() {
 
           {/* Replay controls */}
           {day && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="replay">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold text-slate-300">🔁 Tick Replay</h3>
                 {!replayData || replayData.dayNum !== (selectedDay ?? gameState.days.length - 1) ? (
@@ -542,7 +550,7 @@ export function GameView() {
 
           {/* Day costs */}
           {day && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="day-costs">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
                 Round {day.day + 1} Results{' '}
                 <span className="text-xs text-slate-500 font-normal ml-1">seed={day.seed}</span>
