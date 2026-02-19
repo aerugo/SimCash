@@ -75,7 +75,7 @@ function LayoutInner() {
                 👑 Admin
               </NavLink>
             )}
-            <ThemeToggle theme={theme} toggle={toggleTheme} />
+            {/* Theme toggle hidden — light mode is default */}
             <span className="text-xs hidden md:inline" style={{ color: 'var(--text-muted)' }}>{userEmail}</span>
             <button onClick={onSignOut} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>Sign out</button>
           </div>
