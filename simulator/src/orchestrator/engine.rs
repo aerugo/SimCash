@@ -68,7 +68,7 @@
 
 use crate::arrivals::{ArrivalBandsConfig, ArrivalConfig, ArrivalGenerator};
 use crate::core::time::TimeManager;
-use crate::costs::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
+use crate::costs::{get_priority_band, CostRates, PenaltyMode, PriorityBand, PriorityDelayMultipliers};
 use crate::models::agent::Agent;
 use crate::models::event::{Event, EventLog};
 use crate::models::state::SimulationState;
@@ -3987,7 +3987,7 @@ impl Orchestrator {
                         tx.deadline_tick(),                   // deadline_tick
                         tx.overdue_since_tick().unwrap(),     // overdue_since_tick
                         current_tick - tx.overdue_since_tick().unwrap(), // total_ticks_overdue
-                        self.cost_rates.deadline_penalty,     // deadline_penalty_cost
+                        self.cost_rates.deadline_penalty.resolve(tx.amount()),     // deadline_penalty_cost
                         // Estimate accumulated delay cost
                         (tx.remaining_amount() as f64
                             * self.cost_rates.delay_cost_per_tick_per_cent
@@ -4504,6 +4504,9 @@ impl Orchestrator {
                     // Mark as overdue
                     tx_mut.mark_overdue(tick).ok();
 
+                    // Resolve deadline penalty for this transaction
+                    let resolved_penalty = self.cost_rates.deadline_penalty.resolve(amount);
+
                     // Emit event
                     self.log_event(Event::TransactionWentOverdue {
                         tick,
@@ -4514,13 +4517,21 @@ impl Orchestrator {
                         remaining_amount,
                         deadline_tick,
                         ticks_overdue: tick - deadline_tick,
-                        deadline_penalty_cost: self.cost_rates.deadline_penalty,
+                        deadline_penalty_cost: resolved_penalty,
                     });
                 }
             }
 
-            // Calculate penalty cost
-            let penalty_cost = (newly_overdue_txs.len() as i64) * self.cost_rates.deadline_penalty;
+            // Calculate penalty cost — resolve per transaction for rate mode
+            let penalty_cost = {
+                let mut total = 0i64;
+                for tx_id in &newly_overdue_txs {
+                    if let Some(tx) = self.state.get_transaction(tx_id) {
+                        total += self.cost_rates.deadline_penalty.resolve(tx.amount());
+                    }
+                }
+                total
+            };
 
             // Calculate overdraft cost (liquidity cost)
             let liquidity_cost = self.calculate_overdraft_cost(balance);
@@ -5088,8 +5099,31 @@ impl Orchestrator {
 
             if overdue_count > 0 {
                 // Calculate penalty for OVERDUE transactions only
-                let penalty =
-                    (overdue_count as i64) * self.cost_rates.eod_penalty_per_transaction;
+                // For rate mode, resolve per-transaction using remaining unsettled amount
+                let penalty = {
+                    let mut total = 0i64;
+
+                    // Re-scan Q1 for overdue remaining amounts
+                    let agent = self.state.get_agent(&agent_id).unwrap();
+                    for tx_id in agent.outgoing_queue() {
+                        if let Some(tx) = self.state.get_transaction(tx_id) {
+                            if tx.deadline_tick() < current_tick {
+                                total += self.cost_rates.eod_penalty.resolve(tx.remaining_amount());
+                            }
+                        }
+                    }
+
+                    // Re-scan Q2 for overdue remaining amounts
+                    for tx_id in self.state.rtgs_queue() {
+                        if let Some(tx) = self.state.get_transaction(tx_id) {
+                            if tx.sender_id() == agent_id && tx.deadline_tick() < current_tick {
+                                total += self.cost_rates.eod_penalty.resolve(tx.remaining_amount());
+                            }
+                        }
+                    }
+
+                    total
+                };
                 total_penalties += penalty;
 
                 // Accumulate penalty cost
@@ -5727,7 +5761,7 @@ mod tests {
         let cost_rates = CostRates {
             delay_cost_per_tick_per_cent: 0.0001, // 1 bp per tick
             overdue_delay_multiplier: 5.0,         // 5x for overdue
-            deadline_penalty: 100_000,             // $1000 one-time
+            deadline_penalty: PenaltyMode::Fixed { amount: 100_000 },             // $1000 one-time
             ..Default::default()
         };
 
@@ -5766,7 +5800,7 @@ mod tests {
     #[test]
     fn test_one_time_deadline_penalty() {
         let cost_rates = CostRates {
-            deadline_penalty: 100_000, // $1000
+            deadline_penalty: PenaltyMode::Fixed { amount: 100_000 }, // $1000
             ..Default::default()
         };
 
@@ -5806,7 +5840,7 @@ mod tests {
         let cost_rates = CostRates {
             delay_cost_per_tick_per_cent: 0.0001,
             overdue_delay_multiplier: 5.0,
-            deadline_penalty: 100_000,
+            deadline_penalty: PenaltyMode::Fixed { amount: 100_000 },
             ..Default::default()
         };
 

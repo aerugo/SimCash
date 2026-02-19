@@ -7,7 +7,55 @@ use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
 use crate::arrivals::{AmountDistribution, ArrivalBandConfig, ArrivalBandsConfig, ArrivalConfig, PriorityDistribution};
+use crate::costs::PenaltyMode;
 use crate::events::{EventSchedule, ScenarioEvent, ScheduledEvent};
+
+/// Parse a PenaltyMode from a Python value.
+///
+/// Accepts either:
+/// - An integer (i64) → `PenaltyMode::Fixed { amount }`
+/// - A dict with `{"mode": "fixed", "amount": N}` or `{"mode": "rate", "bps_per_event": F}`
+fn parse_penalty_mode(value: Option<Bound<'_, pyo3::PyAny>>, default_amount: i64) -> PyResult<PenaltyMode> {
+    match value {
+        None => Ok(PenaltyMode::Fixed { amount: default_amount }),
+        Some(v) => {
+            // Try extracting as i64 first (backwards compat)
+            if let Ok(amount) = v.extract::<i64>() {
+                return Ok(PenaltyMode::Fixed { amount });
+            }
+            // Try as dict
+            if let Ok(dict) = v.downcast::<PyDict>() {
+                let mode: String = dict
+                    .get_item("mode")?
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("PenaltyMode dict requires 'mode' field"))?
+                    .extract()?;
+                match mode.as_str() {
+                    "fixed" => {
+                        let amount: i64 = dict
+                            .get_item("amount")?
+                            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Fixed mode requires 'amount'"))?
+                            .extract()?;
+                        Ok(PenaltyMode::Fixed { amount })
+                    }
+                    "rate" => {
+                        let bps: f64 = dict
+                            .get_item("bps_per_event")?
+                            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("Rate mode requires 'bps_per_event'"))?
+                            .extract()?;
+                        Ok(PenaltyMode::Rate { bps_per_event: bps })
+                    }
+                    other => Err(pyo3::exceptions::PyValueError::new_err(
+                        format!("Unknown penalty mode: '{other}'. Expected 'fixed' or 'rate'")
+                    )),
+                }
+            } else {
+                Err(pyo3::exceptions::PyTypeError::new_err(
+                    "Penalty must be an integer or a dict with 'mode' field"
+                ))
+            }
+        }
+    }
+}
 use crate::orchestrator::{AgentConfig, AgentLimitsConfig, CostRates, OrchestratorConfig, PolicyConfig, PriorityDelayMultipliers, PriorityEscalationConfig, Queue1Ordering, TickResult};
 use crate::settlement::lsm::LsmConfig;
 
@@ -821,17 +869,16 @@ fn parse_cost_rates(py_costs: &Bound<'_, PyDict>) -> PyResult<CostRates> {
             .transpose()?
             .unwrap_or(0.0002),
 
-        eod_penalty_per_transaction: py_costs
-            .get_item("eod_penalty_per_transaction")?
-            .map(|v| v.extract())
-            .transpose()?
-            .unwrap_or(10_000),
+        eod_penalty: parse_penalty_mode(
+            // Accept both old name "eod_penalty_per_transaction" and new "eod_penalty"
+            py_costs.get_item("eod_penalty")?.or(py_costs.get_item("eod_penalty_per_transaction")?),
+            10_000,
+        )?,
 
-        deadline_penalty: py_costs
-            .get_item("deadline_penalty")?
-            .map(|v| v.extract())
-            .transpose()?
-            .unwrap_or(50_000),
+        deadline_penalty: parse_penalty_mode(
+            py_costs.get_item("deadline_penalty")?,
+            50_000,
+        )?,
 
         split_friction_cost: py_costs
             .get_item("split_friction_cost")?

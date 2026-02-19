@@ -9,7 +9,7 @@
 mod test_cost_context {
     use crate::models::{Agent, Transaction};
     use crate::SimulationState;
-    use crate::orchestrator::CostRates;
+    use crate::orchestrator::{CostRates, PenaltyMode};
     use crate::policy::tree::context::EvalContext;
 
     /// Helper: Create test context with cost rates
@@ -29,8 +29,8 @@ mod test_cost_context {
             delay_cost_per_tick_per_cent: 0.0001,
             collateral_cost_per_tick_bps: 0.0002,
             split_friction_cost: 1000,
-            deadline_penalty: 100_000,
-            eod_penalty_per_transaction: 500_000,
+            deadline_penalty: PenaltyMode::Fixed { amount: 100_000 },
+            eod_penalty: PenaltyMode::Fixed { amount: 500_000 },
             ..Default::default()
         };
 
@@ -188,8 +188,8 @@ mod test_cost_context {
             delay_cost_per_tick_per_cent: 0.0,
             collateral_cost_per_tick_bps: 0.0,
             split_friction_cost: 0,
-            deadline_penalty: 0,
-            eod_penalty_per_transaction: 0,
+            deadline_penalty: PenaltyMode::Fixed { amount: 0 },
+            eod_penalty: PenaltyMode::Fixed { amount: 0 },
             ..Default::default()
         };
 

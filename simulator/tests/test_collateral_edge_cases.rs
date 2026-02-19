@@ -14,7 +14,7 @@
 use payment_simulator_core_rs::{
     orchestrator::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
     settlement::LsmConfig,
-    CostRates,
+    CostRates, PenaltyMode,
 };
 
 // Helper to create minimal test config with specific unsecured cap
@@ -74,8 +74,8 @@ fn create_test_config_with_haircut(
             overdraft_bps_per_tick: 5.0, // 5 bps (was 0.0005, which was wrong interpretation)
             delay_cost_per_tick_per_cent: 0.0001,
             collateral_cost_per_tick_bps: 2.0, // 2 bps (was 0.0002, which was wrong interpretation)
-            eod_penalty_per_transaction: 100_000,
-            deadline_penalty: 50_000,
+            eod_penalty: PenaltyMode::Fixed { amount: 100_000 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 50_000 },
             split_friction_cost: 100,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
             priority_delay_multipliers: None, // Enhancement 11.1

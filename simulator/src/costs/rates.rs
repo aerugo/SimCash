@@ -156,11 +156,17 @@ pub struct CostRates {
     /// (e.g., 0.0002 = 2 bps annualized / 100 ticks = 0.02 bps per tick)
     pub collateral_cost_per_tick_bps: f64,
 
-    /// End-of-day penalty for each unsettled transaction (cents)
-    pub eod_penalty_per_transaction: i64,
+    /// End-of-day penalty for each overdue unsettled transaction.
+    ///
+    /// Can be `Fixed { amount }` (flat cents per tx) or
+    /// `Rate { bps_per_event }` (bps applied to remaining unsettled amount).
+    pub eod_penalty: PenaltyMode,
 
-    /// Penalty for missing deadline (cents per transaction)
-    pub deadline_penalty: i64,
+    /// Penalty for missing deadline.
+    ///
+    /// Can be `Fixed { amount }` (flat cents per tx) or
+    /// `Rate { bps_per_event }` (bps applied to transaction amount).
+    pub deadline_penalty: PenaltyMode,
 
     /// Split friction cost per split (cents)
     ///
@@ -212,8 +218,8 @@ impl Default for CostRates {
             overdraft_bps_per_tick: 0.001,        // 1 bp/tick
             delay_cost_per_tick_per_cent: 0.0001, // 0.1 bp/tick
             collateral_cost_per_tick_bps: 0.0002, // 2 bps annualized / 100 ticks
-            eod_penalty_per_transaction: 10_000,  // $100 per unsettled tx
-            deadline_penalty: 50_000,             // $500 per missed deadline
+            eod_penalty: PenaltyMode::Fixed { amount: 10_000 },  // $100 per unsettled tx
+            deadline_penalty: PenaltyMode::Fixed { amount: 50_000 },  // $500 per missed deadline
             split_friction_cost: 1000,            // $10 per split
             overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
             priority_delay_multipliers: None,     // No priority differentiation by default
@@ -232,8 +238,8 @@ mod tests {
         assert_eq!(rates.overdraft_bps_per_tick, 0.001);
         assert_eq!(rates.delay_cost_per_tick_per_cent, 0.0001);
         assert_eq!(rates.collateral_cost_per_tick_bps, 0.0002);
-        assert_eq!(rates.eod_penalty_per_transaction, 10_000);
-        assert_eq!(rates.deadline_penalty, 50_000);
+        assert_eq!(rates.eod_penalty, PenaltyMode::Fixed { amount: 10_000 });
+        assert_eq!(rates.deadline_penalty, PenaltyMode::Fixed { amount: 50_000 });
         assert_eq!(rates.split_friction_cost, 1000);
         assert_eq!(rates.overdue_delay_multiplier, 5.0);
         assert!(rates.priority_delay_multipliers.is_none());

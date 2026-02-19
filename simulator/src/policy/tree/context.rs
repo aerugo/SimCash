@@ -546,11 +546,11 @@ impl EvalContext {
         );
         fields.insert(
             "cost_deadline_penalty".to_string(),
-            cost_rates.deadline_penalty as f64,
+            cost_rates.deadline_penalty.resolve(tx.amount()) as f64,
         );
         fields.insert(
             "cost_eod_penalty".to_string(),
-            cost_rates.eod_penalty_per_transaction as f64,
+            cost_rates.eod_penalty.resolve(tx.remaining_amount()) as f64,
         );
 
         // Derived cost calculations specific to this transaction
@@ -813,13 +813,15 @@ impl EvalContext {
             "cost_split_friction".to_string(),
             cost_rates.split_friction_cost as f64,
         );
+        // Bank-level context: no specific transaction, so resolve with 0
+        // (Fixed mode returns the fixed amount; Rate mode returns 0)
         fields.insert(
             "cost_deadline_penalty".to_string(),
-            cost_rates.deadline_penalty as f64,
+            cost_rates.deadline_penalty.resolve(0) as f64,
         );
         fields.insert(
             "cost_eod_penalty".to_string(),
-            cost_rates.eod_penalty_per_transaction as f64,
+            cost_rates.eod_penalty.resolve(0) as f64,
         );
 
         // Time/day fields
