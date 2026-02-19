@@ -74,7 +74,7 @@ export function HomeView() {
             onGameLaunch({
               scenario_id: '2bank_12tick',
               use_llm: true,
-              mock_reasoning: true,
+              simulated_ai: true,
               max_days: 5,
               num_eval_samples: 1,
               optimization_interval: 1,

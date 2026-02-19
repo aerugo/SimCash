@@ -15,7 +15,7 @@ def is_auth_disabled() -> bool:
 
 AUTH_DISABLED: bool = _bool_env("SIMCASH_AUTH_DISABLED")
 STORAGE_MODE: str = os.getenv("SIMCASH_STORAGE_MODE", "memory")  # memory | gcs
-MOCK_DEFAULT: bool = _bool_env("SIMCASH_MOCK_DEFAULT", False)
+SIMULATED_AI_DEFAULT: bool = _bool_env("SIMCASH_SIMULATED_AI", False)
 GCS_BUCKET: str = os.getenv("SIMCASH_GCS_BUCKET", "simcash-487714-games")
 CONFIGS_DIR: str = os.getenv("SIMCASH_CONFIGS_DIR", "configs")
 PORT: int = int(os.getenv("PORT", "8080"))

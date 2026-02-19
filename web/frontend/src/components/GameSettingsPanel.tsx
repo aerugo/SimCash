@@ -9,7 +9,7 @@ export interface GameSettings {
   optimizationInterval: number;
   constraintPreset: 'simple' | 'full';
   useLlm: boolean;
-  mockReasoning: boolean;
+  simulatedAi: boolean;
   agentPolicies: Record<string, { policyId: string; fraction: number }>;
   /** Cached policy JSON strings keyed by policy ID (populated by the panel) */
   policyDetails: Record<string, string>;
@@ -21,7 +21,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   optimizationInterval: 1,
   constraintPreset: 'full',
   useLlm: true,
-  mockReasoning: false,
+  simulatedAi: false,
   agentPolicies: {},
   policyDetails: {},
 };
@@ -149,11 +149,11 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
         {s.useLlm && (
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500">{s.mockReasoning ? 'Simulated AI' : 'Live AI'}</span>
-              <Toggle label="" value={!s.mockReasoning} onChange={v => update({ mockReasoning: !v })} />
+              <span className="text-[10px] text-slate-500">{s.simulatedAi ? 'Simulated AI' : 'Live AI'}</span>
+              <Toggle label="" value={!s.simulatedAi} onChange={v => update({ simulatedAi: !v })} />
             </div>
             <p className="text-[10px] text-slate-500">
-              {s.mockReasoning ? 'Use simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses Gemini for richer, LLM-powered reasoning'}
+              {s.simulatedAi ? 'Use simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses Gemini for richer, LLM-powered reasoning'}
             </p>
           </div>
         )}
@@ -281,7 +281,7 @@ export function buildStartingPoliciesPayload(settings: GameSettings): Record<str
 /** Convert GameSettings to the GameSetupConfig fields needed for launch */
 export function gameSettingsToConfig(settings: GameSettings): {
   use_llm: boolean;
-  mock_reasoning: boolean;
+  simulated_ai: boolean;
   max_days: number;
   num_eval_samples: number;
   optimization_interval: number;
@@ -290,7 +290,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
 } {
   return {
     use_llm: settings.useLlm,
-    mock_reasoning: settings.mockReasoning,
+    simulated_ai: settings.simulatedAi,
     max_days: settings.maxDays,
     num_eval_samples: settings.numEvalSamples,
     optimization_interval: settings.optimizationInterval,

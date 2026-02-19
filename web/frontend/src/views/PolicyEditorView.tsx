@@ -235,7 +235,7 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
         scenario_id: 'gridlock_risk',
         max_days: 1,
         use_llm: false,
-        mock_reasoning: true,
+        simulated_ai: true,
         num_eval_samples: 1,
         inline_config: {
           simulation: { ticks_per_day: 12, num_days: 1 },

@@ -45,7 +45,7 @@ export function LibraryView({ onLaunch }: Props) {
         enable_bilateral_lsm: false,
         enable_cycle_lsm: false,
         use_llm: false,
-        mock_reasoning: true,
+        simulated_ai: true,
       },
     });
     toast(`Scenario "${newName}" created`, 'success');

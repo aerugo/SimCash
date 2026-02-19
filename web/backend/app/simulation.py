@@ -122,7 +122,7 @@ class SimulationManager:
             total_ticks=total_ticks,
             agent_types=agent_types,
             use_llm=config.use_llm,
-            mock_reasoning=config.mock_reasoning,
+            simulated_ai=config.simulated_ai,
             scenario_config=config,
         )
         self.simulations[sim_id] = instance
@@ -149,7 +149,7 @@ class SimulationInstance:
         total_ticks: int,
         agent_types: dict[str, AgentType],
         use_llm: bool = False,
-        mock_reasoning: bool = True,
+        simulated_ai: bool = True,
         scenario_config: ScenarioConfig | None = None,
     ) -> None:
         self.sim_id = sim_id
@@ -162,7 +162,7 @@ class SimulationInstance:
         self.balance_history: dict[str, list[int]] = {}
         self.cost_history: dict[str, list[dict[str, float]]] = {}
         self.use_llm = use_llm
-        self.mock_reasoning = mock_reasoning
+        self.simulated_ai = simulated_ai
         self.scenario_config = scenario_config
         self.reasoning_history: dict[str, list[dict[str, Any]]] = {}
 
@@ -261,7 +261,7 @@ class SimulationInstance:
         current_agent_cost = old_costs.get(target_agent, 0)
         self.iteration += 1
 
-        if self.mock_reasoning:
+        if self.simulated_ai:
             old_policy = self.policies.get(target_agent, make_default_policy(target_agent))
             old_frac = old_policy.get("parameters", {}).get("initial_liquidity_fraction", 0.5)
             new_frac = max(0.05, min(0.95, old_frac + random.uniform(-0.15, 0.15)))
@@ -347,7 +347,7 @@ class SimulationInstance:
                     tick=tick_num,
                     agent_state=agent_state,
                     scenario_context=ctx,
-                    mock=self.mock_reasoning,
+                    mock=self.simulated_ai,
                 )
                 reasoning[aid] = trace
                 if aid not in self.reasoning_history:

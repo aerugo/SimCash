@@ -51,7 +51,7 @@ export function ScenarioLibraryView() {
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
   const [useLlm, setUseLlm] = useState(true);
-  const [mockReasoning, setMockReasoning] = useState(false);
+  const [simulatedAi, setSimulatedAi] = useState(false);
   const [numEvalSamples, setNumEvalSamples] = useState(50);
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
@@ -116,7 +116,7 @@ export function ScenarioLibraryView() {
       scenario_id: selectedScenario.id,
       inline_config: selectedScenario.raw_config,
       use_llm: useLlm,
-      mock_reasoning: mockReasoning,
+      simulated_ai: simulatedAi,
       max_days: maxDays,
       num_eval_samples: numEvalSamples,
       optimization_interval: optimizationInterval,
@@ -279,11 +279,11 @@ export function ScenarioLibraryView() {
               <div>
                 <label className="text-xs text-slate-500 block mb-1">AI Reasoning</label>
                 <select
-                  value={useLlm ? (mockReasoning ? 'mock' : 'real') : 'off'}
+                  value={useLlm ? (simulatedAi ? 'mock' : 'real') : 'off'}
                   onChange={e => {
                     const v = e.target.value;
                     setUseLlm(v !== 'off');
-                    setMockReasoning(v === 'mock');
+                    setSimulatedAi(v === 'mock');
                   }}
                   className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
                 >

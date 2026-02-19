@@ -71,14 +71,14 @@ class Game:
     """Multi-day policy optimization game."""
 
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
-                 mock_reasoning: bool = True, max_days: int = 10,
+                 simulated_ai: bool = True, max_days: int = 10,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
                  starting_policies: dict[str, str] | None = None):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
-        self.mock_reasoning = mock_reasoning
+        self.simulated_ai = simulated_ai
         self.max_days = max_days
         self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
         self.optimization_interval = max(1, optimization_interval)
@@ -312,7 +312,7 @@ class Game:
             )
 
         # --- Mock mode: sequential (instant, no parallelism needed) ---
-        if self.mock_reasoning:
+        if self.simulated_ai:
             for aid in self.agent_ids:
                 await send_fn({
                     "type": "optimization_start",
@@ -475,7 +475,7 @@ class Game:
             )
 
         async def optimize_one(aid: str) -> tuple[str, dict]:
-            if self.mock_reasoning:
+            if self.simulated_ai:
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
             else:
                 try:

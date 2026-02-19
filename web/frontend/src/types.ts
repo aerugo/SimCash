@@ -102,7 +102,7 @@ export interface ScenarioConfig {
   enable_bilateral_lsm: boolean;
   enable_cycle_lsm: boolean;
   use_llm: boolean;
-  mock_reasoning: boolean;
+  simulated_ai: boolean;
 }
 
 export interface SavedScenario {
@@ -289,7 +289,7 @@ export interface GameSetupConfig {
   scenario_id?: string;
   inline_config?: Record<string, unknown>;
   use_llm: boolean;
-  mock_reasoning: boolean;
+  simulated_ai: boolean;
   max_days: number;
   num_eval_samples: number;
   optimization_interval?: number;
