@@ -63,38 +63,34 @@ export function HomeView() {
         </Link>
       </div>
 
+      {/* Quick Tutorial Card */}
+      <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center mb-8">
+        <h3 className="text-lg font-semibold text-white mb-2">Quick Tutorial</h3>
+        <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
+          Run a demo experiment in one click with simulated AI responses — results appear instantly.
+          Real experiments use an LLM for optimization, where each round waits for the AI to analyze
+          results and propose an improved policy (typically 10–40 seconds per optimization).
+        </p>
+        <button
+          onClick={() => {
+            onGameLaunch({
+              scenario_id: '2bank_12tick',
+              use_llm: true,
+              mock_reasoning: true,
+              max_days: 5,
+              num_eval_samples: 1,
+              optimization_interval: 1,
+              constraint_preset: 'full',
+            }, true);
+          }}
+          className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
+        >
+          ▶ Launch Tutorial
+        </button>
+        <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
+      </div>
+
       <HowItWorks defaultOpen={true} />
-
-      <div className="space-y-6 mb-8">
-          {/* Quick Start Card */}
-          <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">{'Quick Experiment'}</h3>
-            <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
-              Run a demo experiment in one click with simulated AI responses — results appear instantly.
-              Real experiments use an LLM for optimization, where each round waits for the AI to analyze
-              results and propose an improved policy (typically 10–40 seconds per optimization).
-            </p>
-            <button
-              onClick={() => {
-                onGameLaunch({
-                  scenario_id: '2bank_12tick',
-                  use_llm: true,
-                  mock_reasoning: true,
-                  max_days: 5,
-                  num_eval_samples: 1,
-                  optimization_interval: 1,
-                  constraint_preset: 'full',
-                }, true);
-              }}
-              className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
-            >
-              ▶ Launch Experiment
-            </button>
-            <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
-          </div>
-
-          {/* Game settings removed — use Create page for custom experiments */}
-        </div>
     </div>
   );
 }
