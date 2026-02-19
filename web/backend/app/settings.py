@@ -148,6 +148,11 @@ class SettingsManager:
             return self._cache
 
         settings = self._load_from_firestore()
+        # If Firestore unavailable and we have a cached copy (e.g. from
+        # update_settings), keep using it instead of resetting to defaults.
+        if not self._is_firestore_available() and self._cache is not None:
+            self._cache_time = now  # refresh TTL
+            return self._cache
         self._cache = settings
         self._cache_time = now
         return settings
