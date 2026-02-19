@@ -72,55 +72,70 @@
 
 .light {
   /* Backgrounds — warm paper-white, not clinical */
-  --bg-base: #f9f8f6;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #f4f3f0;
-  --bg-card: rgba(255, 255, 255, 0.85);
-  --bg-inset: #f4f3f0;
+  --bg-base: #FAFAF7;
+  --bg-surface: #FFFFFF;
+  --bg-surface-hover: #F3F2EE;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-inset: #F3F2EE;
+  --bg-well: #ECEAE5;
 
   /* Text — warm charcoal hierarchy with clear steps */
-  --text-primary: #1a1a1a;
-  --text-secondary: #555555;
-  --text-muted: #8c8c8c;
-  /* Single accent: refined slate-blue. Used sparingly — links, active states */
-  --text-accent: #4a6fa5;
-  --text-accent-2: #4a6fa5;
+  --text-primary: #1A1816;
+  --text-secondary: #5C5650;
+  --text-muted: #958E85;
+  --text-faint: #C4BFB8;
+  /* Single accent: refined slate-blue */
+  --text-accent: #4A6FA5;
+  --text-accent-2: #4A6FA5;
+  --text-accent-deep: #3D5C8A;
 
   /* Borders — barely there, warm gray */
-  --border-color: #e5e3df;
-  --border-subtle: #eeedea;
+  --border-color: #E4E1DB;
+  --border-subtle: #EEEDEA;
 
-  /* Buttons — solid, no gradients. Understated. */
-  --btn-primary-bg: #4a6fa5;
-  --btn-primary-hover: #3d5d8a;
-  --btn-accent-bg: #4a6fa5;
-  --btn-accent-hover: #3d5d8a;
-  --btn-muted-bg: #eeedea;
-  --btn-muted-hover: #e5e3df;
+  /* Buttons — solid, no gradients */
+  --btn-primary-bg: #4A6FA5;
+  --btn-primary-hover: #3B5A87;
+  --btn-accent-bg: #4A6FA5;
+  --btn-accent-hover: #3B5A87;
+  --btn-muted-bg: #EEEDEA;
+  --btn-muted-hover: #E4E1DB;
 
-  /* Gradients — in light mode, use solid colors instead */
-  --gradient-primary: #4a6fa5;
-  --gradient-accent: #4a6fa5;
-  --gradient-success: #3a7d5c;
+  /* Gradients — solid in light mode */
+  --gradient-primary: #4A6FA5;
+  --gradient-accent: #4A6FA5;
+  --gradient-success: #3D7A55;
 
   /* Status — desaturated, not screaming */
-  --color-success: #3a7d5c;
-  --color-warning: #a07c2e;
-  --color-danger: #b84c43;
+  --color-success: #3D7A55;
+  --color-warning: #9A7B2D;
+  --color-danger: #B04A3A;
+
+  /* Status backgrounds — soft tints for banners/callouts */
+  --color-success-bg: #EFF6F1;
+  --color-warning-bg: #FBF7EC;
+  --color-danger-bg: #FBF0EE;
+
+  /* Tag colors — semantic, muted pastels */
+  --tag-blue-bg: #EDF1F7;   --tag-blue-fg: #4A6FA5;
+  --tag-green-bg: #EEF5F0;  --tag-green-fg: #3D7A55;
+  --tag-amber-bg: #F8F4EA;  --tag-amber-fg: #9A7B2D;
+  --tag-red-bg: #F8EFED;    --tag-red-fg: #B04A3A;
+  --tag-gray-bg: #F0EEEB;   --tag-gray-fg: #5C5650;
 
   /* Inputs */
-  --input-bg: #ffffff;
-  --input-border: #e5e3df;
-  --code-bg: #f4f3f0;
-  --tooltip-bg: #ffffff;
+  --input-bg: #FFFFFF;
+  --input-border: #E4E1DB;
+  --code-bg: #F3F2EE;
+  --tooltip-bg: #FFFFFF;
   --overlay-bg: rgba(0, 0, 0, 0.2);
 
   /* Chart colors — muted but distinct */
-  --agent-1: #4a6fa5;
-  --agent-2: #7a6b98;
-  --agent-3: #3a7d5c;
-  --agent-4: #b8854a;
-  --agent-5: #a06070;
+  --agent-1: #4A6FA5;
+  --agent-2: #7A6B98;
+  --agent-3: #3D7A55;
+  --agent-4: #B8854A;
+  --agent-5: #A06070;
 
   /* Legacy compat */
   --bg-primary: var(--bg-base);
@@ -296,15 +311,14 @@ body {
 }
 
 /* --- Gradient buttons: solid in light mode for elegance --- */
-.light .bg-gradient-to-r.from-violet-500.to-pink-500,
-.light .bg-gradient-to-r.from-violet-400.to-pink-400 {
-  background: var(--gradient-accent) !important;
-  background-image: none !important;
-}
-
-.light .bg-gradient-to-r.from-sky-500.to-violet-500,
-.light .bg-gradient-to-r.from-sky-400.to-violet-400 {
-  background: var(--gradient-primary) !important;
+/* Gradient buttons → solid accent. Override the gradient stops and image. */
+.light .from-violet-500,
+.light .from-violet-400,
+.light .from-sky-500,
+.light .from-sky-400 {
+  --tw-gradient-from: var(--btn-primary-bg) !important;
+  --tw-gradient-to: var(--btn-primary-bg) !important;
+  background: var(--btn-primary-bg) !important;
   background-image: none !important;
 }
 
@@ -331,25 +345,35 @@ body {
   background-color: var(--btn-accent-hover) !important;
 }
 
-/* --- Cards & panels: barely-there tints --- */
+/* --- Cards & panels: semantic tints instead of flat gray --- */
 .light .bg-sky-500\/10,
-.light .bg-violet-500\/10,
+.light .bg-violet-500\/10 {
+  background-color: var(--tag-blue-bg) !important;
+}
 .light .bg-green-500\/10,
-.light .bg-emerald-500\/10,
+.light .bg-emerald-500\/10 {
+  background-color: var(--tag-green-bg) !important;
+}
 .light .bg-amber-500\/10,
-.light .bg-amber-900\/30,
+.light .bg-amber-900\/30 {
+  background-color: var(--tag-amber-bg) !important;
+}
 .light .bg-red-500\/10 {
-  background-color: var(--bg-inset) !important;
+  background-color: var(--tag-red-bg) !important;
 }
 
-/* Gradient panels → flat subtle inset */
-.light .from-violet-500\/10,
-.light .from-green-500\/10 {
-  --tw-gradient-from: var(--bg-inset) !important;
+/* Gradient panels → soft accent tint */
+.light .from-violet-500\/10 {
+  --tw-gradient-from: #EEF2F8 !important;
 }
-.light .to-pink-500\/10,
+.light .to-pink-500\/10 {
+  --tw-gradient-to: #EEF2F8 !important;
+}
+.light .from-green-500\/10 {
+  --tw-gradient-from: var(--color-success-bg) !important;
+}
 .light .to-emerald-500\/10 {
-  --tw-gradient-to: var(--bg-inset) !important;
+  --tw-gradient-to: var(--color-success-bg) !important;
 }
 
 /* --- Status colors --- */
@@ -363,6 +387,24 @@ body {
 .light .text-red-400,
 .light .text-red-300 {
   color: var(--color-danger) !important;
+}
+
+/* --- Tag/badge pill colors: semantic not monochrome --- */
+.light .bg-sky-500\/20 {
+  background-color: var(--tag-blue-bg) !important;
+}
+.light .bg-violet-500\/20 {
+  background-color: var(--tag-blue-bg) !important;
+}
+.light .bg-green-500\/20,
+.light .bg-emerald-500\/20 {
+  background-color: var(--tag-green-bg) !important;
+}
+.light .bg-amber-500\/20 {
+  background-color: var(--tag-amber-bg) !important;
+}
+.light .bg-red-500\/20 {
+  background-color: var(--tag-red-bg) !important;
 }
 
 /* --- Inputs & selects --- */
@@ -427,4 +469,89 @@ body {
 .light .group-hover\:text-amber-300,
 .light .group-hover\:text-emerald-300 {
   color: var(--text-primary) !important;
+}
+
+/* --- Header: white surface in light mode, not transparent wash --- */
+.light header {
+  background-color: var(--bg-surface) !important;
+  backdrop-filter: none !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* --- CTA buttons with gradients: solid accent in light mode --- */
+/* Only target buttons (not container cards which also use bg-gradient-to-r) */
+.light button.bg-gradient-to-r,
+.light a.bg-gradient-to-r,
+.light [type="submit"].bg-gradient-to-r {
+  background: var(--btn-primary-bg) !important;
+  background-image: none !important;
+}
+.light button.bg-gradient-to-r:hover,
+.light a.bg-gradient-to-r:hover {
+  background: var(--btn-primary-hover) !important;
+}
+
+/* --- Progress bar track --- */
+.light .bg-slate-700\/30 {
+  background-color: var(--bg-well) !important;
+}
+
+/* --- Ring/focus states use accent --- */
+.light .ring-sky-500,
+.light .ring-violet-500 {
+  --tw-ring-color: var(--text-accent) !important;
+}
+
+/* --- Admin badge: subtle in light mode --- */
+.light .text-amber-400 {
+  color: var(--color-warning) !important;
+}
+.light .text-amber-300 {
+  color: var(--color-warning) !important;
+}
+
+/* --- Placeholder text --- */
+.light ::placeholder {
+  color: var(--text-faint) !important;
+}
+
+/* --- Completion/success banners --- */
+.light .bg-green-500\/5,
+.light .bg-emerald-500\/5 {
+  background-color: var(--color-success-bg) !important;
+}
+.light .border-green-500\/20,
+.light .border-emerald-500\/20 {
+  border-color: #C8E6D0 !important;
+}
+
+/* --- Warning banners --- */
+.light .bg-amber-500\/5 {
+  background-color: var(--color-warning-bg) !important;
+}
+.light .border-amber-500\/20 {
+  border-color: #E8DFC0 !important;
+}
+
+/* --- Error/danger banners --- */
+.light .bg-red-500\/5 {
+  background-color: var(--color-danger-bg) !important;
+}
+.light .border-red-500\/20 {
+  border-color: #E8C8C0 !important;
+}
+
+/* --- Streaming optimization box: accent border --- */
+.light .border-sky-500\/30 {
+  border-color: var(--text-accent) !important;
+}
+
+/* --- Dividers/separators --- */
+.light .divide-slate-700 > * + * {
+  border-color: var(--border-color) !important;
+}
+
+/* --- Footer text --- */
+.light footer {
+  color: var(--text-muted) !important;
 }
