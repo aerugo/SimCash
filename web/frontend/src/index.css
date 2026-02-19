@@ -332,17 +332,28 @@ body {
 /* --- Solid buttons --- */
 .light .bg-sky-600 {
   background-color: var(--btn-primary-bg) !important;
+  color: #FFFFFF !important;
 }
 .light .bg-sky-500,
 .light .hover\:bg-sky-500:hover {
   background-color: var(--btn-primary-hover) !important;
+  color: #FFFFFF !important;
 }
 
 .light .bg-violet-600 {
   background-color: var(--btn-accent-bg) !important;
+  color: #FFFFFF !important;
 }
 .light .hover\:bg-violet-500:hover {
   background-color: var(--btn-accent-hover) !important;
+  color: #FFFFFF !important;
+}
+
+/* Gradient buttons also need white text */
+.light button.bg-gradient-to-r,
+.light a.bg-gradient-to-r,
+.light [type="submit"].bg-gradient-to-r {
+  color: #FFFFFF !important;
 }
 
 /* --- Cards & panels: semantic tints instead of flat gray --- */
@@ -563,6 +574,20 @@ body {
   color: #3D3833 !important;
 }
 
+/* --- Scenario form: light elegant sections --- */
+.light .bg-slate-800\/60 {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+.light .bg-slate-900\/60 {
+  background-color: var(--bg-inset) !important;
+  border-color: var(--border-color) !important;
+}
+.light .bg-slate-800\/40 {
+  background-color: var(--bg-inset) !important;
+}
+
 /* --- Disabled buttons: slightly more visible in light mode --- */
 .light button:disabled {
   opacity: 0.45 !important;
@@ -681,4 +706,66 @@ body {
 .light .bg-slate-700.text-slate-400 {
   background-color: var(--tag-gray-bg) !important;
   color: var(--tag-gray-fg) !important;
+}
+
+/* --- Filter pills / tab buttons: rounded pill style in light mode --- */
+/* Inactive filter pills: subtle warm tint instead of flat white */
+.light button.rounded-lg.text-xs.bg-slate-800 {
+  background-color: var(--bg-inset) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border-subtle) !important;
+}
+.light button.rounded-lg.text-xs.bg-slate-800:hover {
+  background-color: var(--bg-well) !important;
+  color: var(--text-primary) !important;
+}
+
+/* --- Launch / CTA buttons: ensure white text on accent bg --- */
+.light .bg-sky-600,
+.light .bg-violet-600,
+.light .bg-emerald-600,
+.light button.bg-gradient-to-r {
+  color: #FFFFFF !important;
+}
+
+/* --- Scenario detail launch config inputs: elegant in light mode --- */
+.light .bg-slate-900.border.border-slate-700 {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+}
+
+/* --- Strategy depth toggle buttons in light mode --- */
+.light button.border-sky-500.bg-sky-500\/10 {
+  background-color: var(--tag-blue-bg) !important;
+  border-color: var(--text-accent) !important;
+}
+.light button.border-slate-700.bg-slate-900 {
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* --- Tab toggle containers: visible pill container in light mode --- */
+/* The bg-slate-800 rounded-lg p-1 wrapper for Scenario/Policy and Form/YAML tabs */
+.light .bg-slate-800.rounded-lg.p-1 {
+  background-color: var(--bg-well) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* --- Scenario/Policy editor: form section cards with warm left accent --- */
+.light .bg-slate-800\/60.border.border-slate-700.rounded-xl {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--border-color) !important;
+  border-left: 3px solid var(--text-accent) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* --- Agent cards inside scenario form: subtle inset --- */
+.light .bg-slate-900\/60.border.border-slate-700.rounded-lg {
+  background-color: var(--bg-inset) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* --- Arrival config sub-sections --- */
+.light .bg-slate-800\/40.rounded-lg {
+  background-color: var(--bg-inset) !important;
 }

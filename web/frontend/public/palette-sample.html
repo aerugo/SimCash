@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SimCash Light Mode — Full UI Sample</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --paper:        #FAFAF7;
+    --surface:      #FFFFFF;
+    --inset:        #F3F2EE;
+    --well:         #ECEAE5;
+
+    --ink:          #1A1816;
+    --ink-secondary:#5C5650;
+    --ink-tertiary: #958E85;
+    --ink-faint:    #C4BFB8;
+
+    --rule:         #E4E1DB;
+    --rule-subtle:  #EEEDEA;
+
+    --accent:       #4A6FA5;
+    --accent-hover: #3B5A87;
+    --accent-light: #EEF2F8;
+    --accent-text:  #3D5C8A;
+
+    --success:      #3D7A55;
+    --success-bg:   #EFF6F1;
+    --warning:      #9A7B2D;
+    --warning-bg:   #FBF7EC;
+    --danger:       #B04A3A;
+    --danger-bg:    #FBF0EE;
+
+    --tag-blue-bg:  #EDF1F7;  --tag-blue-fg:  #4A6FA5;
+    --tag-green-bg: #EEF5F0;  --tag-green-fg: #3D7A55;
+    --tag-amber-bg: #F8F4EA;  --tag-amber-fg: #9A7B2D;
+    --tag-red-bg:   #F8EFED;  --tag-red-fg:   #B04A3A;
+    --tag-gray-bg:  #F0EEEB;  --tag-gray-fg:  #5C5650;
+
+    /* Chart palette — muted, distinguishable */
+    --chart-1: #4A6FA5;
+    --chart-2: #7A6B98;
+    --chart-3: #3D7A55;
+    --chart-4: #B8854A;
+    --chart-5: #A06070;
+
+    --font-heading: 'Instrument Serif', serif;
+    --font-body: 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+
+  /* ── Shared ─────────────────── */
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  h1 { font-family: var(--font-heading); font-weight: 400; font-size: 34px; letter-spacing: -0.3px; margin-bottom: 6px; }
+  h2 { font-family: var(--font-heading); font-weight: 400; font-size: 22px; margin: 32px 0 14px; }
+  h3 { font-family: var(--font-body); font-size: 13px; font-weight: 600; color: var(--ink-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin: 24px 0 10px; }
+  p { color: var(--ink-secondary); font-size: 14px; margin-bottom: 12px; }
+  .subtitle { font-family: var(--font-heading); font-style: italic; color: var(--accent-text); font-size: 18px; margin-bottom: 16px; }
+  .caption { color: var(--ink-tertiary); font-size: 12px; }
+  .mono { font-family: var(--font-mono); font-size: 13px; }
+  a { color: var(--accent-text); text-decoration: none; }
+  hr { border: none; border-top: 1px solid var(--rule); margin: 32px 0; }
+
+  /* ── Navbar ─────────────────── */
+  .navbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--rule);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .navbar-brand { font-family: var(--font-heading); font-size: 22px; color: var(--accent); }
+  .navbar-links { display: flex; gap: 20px; }
+  .navbar-links a { font-size: 13px; font-weight: 500; color: var(--ink-tertiary); padding-bottom: 2px; }
+  .navbar-links a.active { color: var(--ink); border-bottom: 2px solid var(--accent); }
+  .navbar-right { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-tertiary); }
+  .theme-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 14px; }
+
+  /* ── Buttons ────────────────── */
+  .btn { display: inline-flex; align-items: center; gap: 5px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--font-body); border: none; cursor: pointer; transition: all .15s; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-dark { background: var(--ink); color: #fff; }
+  .btn-outline { background: transparent; color: var(--ink-secondary); border: 1px solid var(--rule); }
+  .btn-outline:hover { border-color: var(--ink-faint); background: var(--inset); }
+  .btn-ghost { background: transparent; color: var(--accent-text); padding: 8px 10px; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-warning { background: var(--warning); color: #fff; }
+  .btn-danger-outline { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── Tags ────────────────────── */
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+  .tag-blue { background: var(--tag-blue-bg); color: var(--tag-blue-fg); }
+  .tag-green { background: var(--tag-green-bg); color: var(--tag-green-fg); }
+  .tag-amber { background: var(--tag-amber-bg); color: var(--tag-amber-fg); }
+  .tag-red { background: var(--tag-red-bg); color: var(--tag-red-fg); }
+  .tag-gray { background: var(--tag-gray-bg); color: var(--tag-gray-fg); }
+
+  /* ── Cards ───────────────────── */
+  .card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 20px; transition: border-color .15s; }
+  .card:hover { border-color: var(--ink-faint); }
+  .card-title { font-family: var(--font-heading); font-size: 18px; color: var(--ink); margin-bottom: 4px; }
+  .card-desc { font-size: 13px; color: var(--ink-secondary); }
+  .card-meta { font-size: 11px; color: var(--ink-tertiary); margin-top: 8px; }
+  .card-grid { display: grid; gap: 14px; }
+  .card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .card-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* ── Inputs ──────────────────── */
+  .input, .select { padding: 8px 12px; border: 1px solid var(--rule); border-radius: 8px; font-size: 13px; font-family: var(--font-body); background: var(--surface); color: var(--ink); outline: none; transition: border-color .15s; }
+  .input:focus, .select:focus { border-color: var(--accent); }
+  .input::placeholder { color: var(--ink-faint); }
+  label { font-size: 12px; font-weight: 500; color: var(--ink-secondary); display: block; margin-bottom: 4px; }
+
+  /* ── Slider ──────────────────── */
+  .slider-row { margin: 8px 0; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-secondary); margin-bottom: 4px; }
+  .slider-label span:last-child { font-family: var(--font-mono); color: var(--accent-text); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 4px; }
+
+  /* ── Toggle ──────────────────── */
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-secondary); }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--well); position: relative; cursor: pointer; transition: background .15s; }
+  .toggle.on { background: var(--accent); }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: white; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* ── Progress ────────────────── */
+  .progress-bar { height: 6px; background: var(--well); border-radius: 3px; overflow: hidden; margin: 8px 0; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
+
+  /* ── Callout ─────────────────── */
+  .callout { background: var(--inset); border-left: 3px solid var(--accent); border-radius: 0 8px 8px 0; padding: 14px 18px; font-size: 13px; color: var(--ink-secondary); margin: 12px 0; }
+  .callout-success { border-left-color: var(--success); }
+  .callout-warning { border-left-color: var(--warning); background: var(--warning-bg); }
+
+  /* ── Fake chart ──────────────── */
+  .chart-area { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; }
+  .chart-title { font-family: var(--font-heading); font-size: 16px; margin-bottom: 12px; }
+  .chart-canvas { position: relative; height: 160px; background: var(--inset); border-radius: 8px; overflow: hidden; }
+  .chart-line { position: absolute; bottom: 0; left: 0; right: 0; }
+  .chart-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 11px; color: var(--ink-tertiary); }
+  .chart-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+  /* ── Round timeline ──────────── */
+  .timeline { display: flex; gap: 4px; margin: 8px 0; }
+  .timeline-item { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .timeline-item.done { background: var(--inset); color: var(--ink-secondary); }
+  .timeline-item.active { background: var(--accent); color: white; }
+  .timeline-item.future { background: var(--well); color: var(--ink-faint); }
+  .timeline-item .brain { position: absolute; top: -3px; right: -2px; font-size: 8px; }
+
+  /* ── Cost breakdown ──────────── */
+  .cost-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .cost-item { text-align: center; }
+  .cost-label { font-size: 11px; color: var(--ink-tertiary); margin-bottom: 2px; }
+  .cost-value { font-family: var(--font-mono); font-size: 15px; font-weight: 500; color: var(--ink); }
+  .cost-value.good { color: var(--success); }
+  .cost-value.bad { color: var(--danger); }
+
+  /* ── Streaming text ──────────── */
+  .streaming-box { background: var(--inset); border: 1px solid var(--rule-subtle); border-radius: 8px; padding: 12px; max-height: 100px; overflow: hidden; }
+  .streaming-text { font-family: var(--font-mono); font-size: 12px; color: var(--ink-secondary); line-height: 1.5; }
+  .cursor-blink { display: inline-block; width: 6px; height: 14px; background: var(--accent); animation: blink 1s infinite; vertical-align: text-bottom; margin-left: 2px; }
+  @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+
+  /* ── Experiment complete ─────── */
+  .complete-banner { background: var(--success-bg); border: 1px solid #c8e6d0; border-radius: 12px; padding: 20px; }
+  .complete-banner h3 { color: var(--success); text-transform: none; letter-spacing: 0; font-family: var(--font-heading); font-size: 18px; margin-bottom: 12px; }
+
+  /* ── Policy display ──────────── */
+  .policy-box { background: var(--inset); border-radius: 8px; padding: 12px; font-family: var(--font-mono); font-size: 12px; color: var(--ink-secondary); }
+
+  /* ── Table ───────────────────── */
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--ink-tertiary); text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 10px; border-bottom: 2px solid var(--rule); }
+  td { padding: 8px 10px; font-size: 13px; color: var(--ink-secondary); border-bottom: 1px solid var(--rule-subtle); }
+
+  /* ── Layout helpers ──────────── */
+  .flex { display: flex; }
+  .gap-sm { gap: 8px; }
+  .gap-md { gap: 16px; }
+  .items-center { align-items: center; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mt-sm { margin-top: 8px; }
+  .mt-md { margin-top: 16px; }
+  .mb-sm { margin-bottom: 8px; }
+  .mb-md { margin-bottom: 16px; }
+  .section { margin: 24px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ NAVBAR ═══════ -->
+<div class="navbar">
+  <div class="navbar-brand">SimCash</div>
+  <div class="navbar-links">
+    <a class="active">Run</a>
+    <a>Library</a>
+    <a>Create</a>
+    <a>Docs</a>
+  </div>
+  <div class="navbar-right">
+    <div class="theme-btn">🌙</div>
+    <span>hugi@example.com</span>
+    <span>Sign out</span>
+  </div>
+</div>
+
+<div class="container" style="padding-top: 24px; padding-bottom: 48px;">
+
+<!-- ═══════ PAGE HEADER ═══════ -->
+<h1>Payment System Simulator</h1>
+<p class="subtitle">Can AI agents learn to coordinate in payment systems?</p>
+<p>Banks in real-time gross settlement systems face a fundamental tension: holding liquidity is expensive, but delaying payments is worse. Here, AI agents independently build decision-tree policies to navigate this coordination problem, and we watch whether they find equilibrium.</p>
+
+<hr>
+
+<!-- ═══════ NAV CARDS ═══════ -->
+<div class="card-grid card-grid-4 mb-md">
+  <div class="card">
+    <div style="font-size: 20px; margin-bottom: 6px;">📚</div>
+    <div class="card-title" style="font-size: 15px;">Explore Scenarios</div>
+    <div class="card-desc">Browse crisis simulations, LSM tests, and paper experiments</div>
+  </div>
+  <div class="card">
+    <div style="font-size: 20px; margin-bottom: 6px;">🧠</div>
+    <div class="card-title" style="font-size: 15px;">Policy Library</div>
+    <div class="card-desc">30+ built-in strategies from FIFO to adaptive trees</div>
+  </div>
+  <div class="card">
+    <div style="font-size: 20px; margin-bottom: 6px;">✏️</div>
+    <div class="card-title" style="font-size: 15px;">Build Your Own</div>
+    <div class="card-desc">Write custom YAML scenarios with live validation</div>
+  </div>
+  <div class="card">
+    <div style="font-size: 20px; margin-bottom: 6px;">📖</div>
+    <div class="card-title" style="font-size: 15px;">Documentation</div>
+    <div class="card-desc">Learn about RTGS, LSM, game theory, and the engine</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ═══════ EXPERIMENT RUNNER ═══════ -->
+<div class="flex items-center gap-md mb-sm">
+  <h2 style="margin: 0;">Policy Experiment</h2>
+  <span class="mono" style="color: var(--accent-text); font-size: 15px;">Round 7/10</span>
+  <span class="tag tag-green" style="font-size: 10px;">🧠 AI</span>
+</div>
+
+<!-- Progress -->
+<div class="progress-bar"><div class="progress-fill" style="width: 70%;"></div></div>
+
+<!-- Controls -->
+<div class="flex items-center gap-sm mt-md mb-md">
+  <button class="btn btn-primary btn-sm">▶ Next</button>
+  <button class="btn btn-outline btn-sm">🔄 Re-run</button>
+  <button class="btn btn-outline btn-sm" style="color: var(--accent-text);">⏩ Auto</button>
+  <div class="flex" style="border: 1px solid var(--rule); border-radius: 6px; overflow: hidden;">
+    <button class="btn btn-sm" style="border-radius: 0; background: var(--accent); color: white; border: none; padding: 5px 8px;">⏩</button>
+    <button class="btn btn-sm" style="border-radius: 0; background: var(--surface); border: none; padding: 5px 8px; color: var(--ink-tertiary);">▶️</button>
+    <button class="btn btn-sm" style="border-radius: 0; background: var(--surface); border: none; padding: 5px 8px; color: var(--ink-tertiary);">🐢</button>
+  </div>
+  <button class="btn btn-outline btn-sm">📥 Export</button>
+  <button class="btn btn-outline btn-sm">New</button>
+</div>
+
+<!-- Round timeline -->
+<div class="card mb-md">
+  <h3 style="margin-top: 0;">Round Timeline</h3>
+  <div class="timeline">
+    <div class="timeline-item done" style="position:relative;">1<span class="brain">🧠</span></div>
+    <div class="timeline-item done" style="position:relative;">2<span class="brain">🧠</span></div>
+    <div class="timeline-item done" style="position:relative;">3<span class="brain">🧠</span></div>
+    <div class="timeline-item done" style="position:relative;">4<span class="brain">🧠</span></div>
+    <div class="timeline-item done" style="position:relative;">5<span class="brain">🧠</span></div>
+    <div class="timeline-item done" style="position:relative;">6<span class="brain">🧠</span></div>
+    <div class="timeline-item active">7</div>
+    <div class="timeline-item future">8</div>
+    <div class="timeline-item future">9</div>
+    <div class="timeline-item future">10</div>
+  </div>
+</div>
+
+<!-- Main layout: 2 columns -->
+<div class="grid-2">
+  <!-- Left column -->
+  <div>
+    <!-- Cost breakdown -->
+    <div class="card mb-md">
+      <h3 style="margin-top: 0;">Round 7 — Cost Breakdown</h3>
+      <div class="cost-grid">
+        <div class="cost-item">
+          <div class="cost-label">Liquidity</div>
+          <div class="cost-value">12,450</div>
+        </div>
+        <div class="cost-item">
+          <div class="cost-label">Delay</div>
+          <div class="cost-value">3,200</div>
+        </div>
+        <div class="cost-item">
+          <div class="cost-label">Penalty</div>
+          <div class="cost-value good">0</div>
+        </div>
+        <div class="cost-item">
+          <div class="cost-label">Settlement</div>
+          <div class="cost-value good">96.2%</div>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <table>
+          <thead><tr><th>Agent</th><th>Liq. Cost</th><th>Delay</th><th>Total</th></tr></thead>
+          <tbody>
+            <tr><td><strong style="color: var(--ink);">BANK_A</strong></td><td>7,200</td><td>1,100</td><td class="mono" style="color: var(--ink);">8,300</td></tr>
+            <tr><td><strong style="color: var(--ink);">BANK_B</strong></td><td>5,250</td><td>2,100</td><td class="mono" style="color: var(--ink);">7,350</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Balance chart -->
+    <div class="chart-area mb-md">
+      <div class="chart-title">Round 7 — Balances</div>
+      <div class="chart-canvas">
+        <svg width="100%" height="100%" viewBox="0 0 400 160" preserveAspectRatio="none">
+          <polyline points="0,120 40,100 80,60 120,80 160,40 200,70 240,50 280,30 320,60 360,40 400,45" fill="none" stroke="#4A6FA5" stroke-width="2.5" opacity="0.8"/>
+          <polyline points="0,130 40,110 80,90 120,100 160,70 200,90 240,80 280,60 320,70 360,55 400,50" fill="none" stroke="#7A6B98" stroke-width="2.5" opacity="0.8"/>
+          <!-- Grid lines -->
+          <line x1="0" y1="40" x2="400" y2="40" stroke="#E4E1DB" stroke-width="0.5"/>
+          <line x1="0" y1="80" x2="400" y2="80" stroke="#E4E1DB" stroke-width="0.5"/>
+          <line x1="0" y1="120" x2="400" y2="120" stroke="#E4E1DB" stroke-width="0.5"/>
+        </svg>
+      </div>
+      <div class="chart-legend">
+        <span><span class="chart-dot" style="background: var(--chart-1);"></span>BANK_A</span>
+        <span><span class="chart-dot" style="background: var(--chart-2);"></span>BANK_B</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div>
+    <!-- Cost evolution chart -->
+    <div class="chart-area mb-md">
+      <div class="chart-title">Cost Evolution</div>
+      <div class="chart-canvas">
+        <svg width="100%" height="100%" viewBox="0 0 400 160" preserveAspectRatio="none">
+          <polyline points="0,20 57,40 114,55 171,65 228,80 285,90 342,100 400,105" fill="none" stroke="#4A6FA5" stroke-width="2" opacity="0.5"/>
+          <polyline points="0,10 57,30 114,50 171,70 228,85 285,95 342,105 400,110" fill="none" stroke="#7A6B98" stroke-width="2" opacity="0.5"/>
+          <!-- Total -->
+          <polyline points="0,15 57,35 114,52 171,68 228,82 285,92 342,102 400,108" fill="none" stroke="#1A1816" stroke-width="2.5"/>
+          <line x1="0" y1="40" x2="400" y2="40" stroke="#E4E1DB" stroke-width="0.5"/>
+          <line x1="0" y1="80" x2="400" y2="80" stroke="#E4E1DB" stroke-width="0.5"/>
+          <line x1="0" y1="120" x2="400" y2="120" stroke="#E4E1DB" stroke-width="0.5"/>
+        </svg>
+      </div>
+      <div class="chart-legend">
+        <span><span class="chart-dot" style="background: var(--ink);"></span>Total</span>
+        <span><span class="chart-dot" style="background: var(--chart-1);"></span>BANK_A</span>
+        <span><span class="chart-dot" style="background: var(--chart-2);"></span>BANK_B</span>
+      </div>
+    </div>
+
+    <!-- AI Reasoning -->
+    <div class="card mb-md">
+      <h3 style="margin-top: 0;">AI Reasoning — Round 7</h3>
+      <div style="margin-bottom: 8px;">
+        <strong style="font-size: 13px;">BANK_A</strong>
+        <span class="caption" style="margin-left: 6px;">gemini-3-flash · 24.3s · 1,842 tokens</span>
+      </div>
+      <p style="font-size: 13px; margin-bottom: 8px;">Reduced liquidity fraction from 0.62 → 0.55. Delay costs are manageable — the bigger risk is over-committing capital when counterparty payments arrive early enough to fund outflows.</p>
+      <div class="flex gap-sm">
+        <button class="btn btn-sm btn-outline" style="font-size: 11px;">📄 Full Response</button>
+        <button class="btn btn-sm btn-outline" style="font-size: 11px;">🧠 Thinking</button>
+      </div>
+    </div>
+
+    <!-- Policy -->
+    <div class="card mb-md">
+      <h3 style="margin-top: 0;">Current Policies</h3>
+      <div style="margin-bottom: 8px;">
+        <span style="font-size: 12px; font-weight: 600; color: var(--ink);">BANK_A</span>
+        <span class="mono caption" style="margin-left: 6px;">frac=0.550</span>
+      </div>
+      <div class="policy-box mb-sm" style="font-size: 11px;">
+        if urgency > 0.7 → Release<br>
+        elif queue_size > 5 → Hold<br>
+        else → Release
+      </div>
+      <div style="margin-bottom: 8px;">
+        <span style="font-size: 12px; font-weight: 600; color: var(--ink);">BANK_B</span>
+        <span class="mono caption" style="margin-left: 6px;">frac=0.480</span>
+      </div>
+      <div class="policy-box" style="font-size: 11px;">
+        if balance_ratio < 0.3 → Hold<br>
+        elif deadline_ticks ≤ 2 → Release<br>
+        else → Hold
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Streaming optimization -->
+<div class="card mb-md" style="border-color: var(--accent); border-width: 1px;">
+  <div class="flex items-center gap-sm mb-sm">
+    <span style="font-size: 13px; font-weight: 600;">🧠 Optimizing BANK_A</span>
+    <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: blink 1s infinite;"></span>
+  </div>
+  <div class="streaming-box">
+    <div class="streaming-text">
+      Analyzing Round 7 results... Settlement rate improved to 96.2% but liquidity cost increased by 8%. The counterparty's strategy shift to more conservative holding means I receive fewer early payments. I should reduce my initial commitment and rely more on incoming flows...<span class="cursor-blink"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Completion banner -->
+<div class="complete-banner mb-md">
+  <h3>Experiment Complete — 10 Rounds</h3>
+  <div class="cost-grid">
+    <div class="cost-item"><div class="cost-label">Round 1 Cost</div><div class="cost-value">28,400</div></div>
+    <div class="cost-item"><div class="cost-label">Final Cost</div><div class="cost-value">15,650</div></div>
+    <div class="cost-item"><div class="cost-label">Cost Reduction</div><div class="cost-value good">↓ 44.9%</div></div>
+    <div class="cost-item"><div class="cost-label">Final Fractions</div><div class="cost-value mono" style="font-size: 12px;">A: 0.550 · B: 0.480</div></div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ═══════ SETTINGS PANEL ═══════ -->
+<h2>Game Settings</h2>
+<div class="card">
+  <div class="grid-2">
+    <div>
+      <div class="slider-row">
+        <div class="slider-label"><span>Max Days</span><span>10</span></div>
+        <input type="range" min="1" max="30" value="10">
+      </div>
+      <div class="slider-row mt-md">
+        <div class="slider-label"><span>Evaluation Samples</span><span>50</span></div>
+        <input type="range" min="1" max="100" value="50">
+      </div>
+    </div>
+    <div>
+      <label>Optimization Interval</label>
+      <select class="select" style="width: 100%; margin-bottom: 12px;">
+        <option>Every day (1)</option>
+      </select>
+      <label>LLM Strategy Depth</label>
+      <select class="select" style="width: 100%;">
+        <option>Full — complete decision trees</option>
+      </select>
+    </div>
+  </div>
+  <div class="flex items-center gap-md mt-md">
+    <div class="toggle-row"><div class="toggle on"></div> Enable AI Optimization</div>
+    <div class="toggle-row"><div class="toggle on"></div> Live AI</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ═══════ SCENARIO CARDS ═══════ -->
+<h2>Scenario Library</h2>
+<div class="card-grid card-grid-3 mb-md">
+  <div class="card">
+    <div class="card-title">2 Banks, 12 Ticks</div>
+    <div class="card-desc">How do two banks optimise the liquidity-delay trade-off over a realistic trading day?</div>
+    <div class="flex gap-sm mt-sm"><span class="tag tag-green">stochastic</span><span class="tag tag-blue">intermediate</span></div>
+    <div class="card-meta">2 banks · 12 ticks/day</div>
+  </div>
+  <div class="card">
+    <div class="card-title">BIS Working Paper 1310</div>
+    <div class="card-desc">The fundamental tension between holding liquidity and delaying payments.</div>
+    <div class="flex gap-sm mt-sm"><span class="tag tag-amber">deterministic</span><span class="tag tag-gray">lsm</span></div>
+    <div class="card-meta">2 banks · 3 ticks/day</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Crisis Resolution — 10 Day</div>
+    <div class="card-desc">Can a central bank intervention stabilise a payment system in crisis?</div>
+    <div class="flex gap-sm mt-sm"><span class="tag tag-red">crisis</span><span class="tag tag-green">multi-day</span></div>
+    <div class="card-meta">4 banks · 100 ticks/day · 10 days</div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ═══════ CALLOUTS ═══════ -->
+<div class="callout mb-md">💡 <strong>Key insight:</strong> Stability does not imply optimality. LLM agents reliably converge to stable policy profiles, but these aren't always Pareto-efficient.</div>
+<div class="callout callout-warning mb-md">⚠️ <strong>LLM calls are failing</strong> — falling back to simulated AI. Rate limit exceeded (429).</div>
+
+<hr>
+<p class="caption" style="text-align: center;">SimCash Design System — Instrument Serif + Plus Jakarta Sans</p>
+
+</div>
+</body>
+</html>

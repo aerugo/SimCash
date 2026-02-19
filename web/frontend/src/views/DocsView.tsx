@@ -45,29 +45,6 @@ const markdownComponents: Components = {
     <h4 className="text-sm font-medium text-slate-300 mt-4 mb-2">{children}</h4>
   ),
   p: ({ children }) => {
-    // Detect callout blocks (lines starting with > emoji)
-    const text = String(children);
-    if (text.startsWith('ℹ️') || text.startsWith('> ℹ️')) {
-      return (
-        <div className="border-l-4 border-sky-500/30 bg-sky-500/5 rounded-r-lg p-4 my-4 text-sm">
-          {children}
-        </div>
-      );
-    }
-    if (text.startsWith('⚠️') || text.startsWith('> ⚠️')) {
-      return (
-        <div className="border-l-4 border-amber-500/30 bg-amber-500/5 rounded-r-lg p-4 my-4 text-sm">
-          {children}
-        </div>
-      );
-    }
-    if (text.startsWith('💡') || text.startsWith('> 💡')) {
-      return (
-        <div className="border-l-4 border-violet-500/30 bg-violet-500/5 rounded-r-lg p-4 my-4 text-sm">
-          {children}
-        </div>
-      );
-    }
     return <p className="text-slate-300 leading-relaxed mb-4">{children}</p>;
   },
   blockquote: ({ children }) => {
