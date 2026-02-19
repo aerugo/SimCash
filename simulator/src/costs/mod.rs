@@ -13,7 +13,7 @@ pub mod rates;
 pub mod schema_docs;
 
 // Re-exports
-pub use rates::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
+pub use rates::{get_priority_band, CostRates, PenaltyMode, PriorityBand, PriorityDelayMultipliers};
 pub use schema_docs::{
     get_cost_schema, CostCategory, CostElement, CostExample, CostSchemaDoc, CostSchemaDocumented,
 };

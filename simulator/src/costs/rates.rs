@@ -5,6 +5,71 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Penalty calculation mode — fixed amount or rate-based.
+///
+/// Allows penalties (deadline, EOD) to be configured as either a fixed
+/// amount in cents or a rate (basis points) applied to transaction value.
+///
+/// # Examples
+///
+/// ```
+/// use payment_simulator_core_rs::costs::PenaltyMode;
+///
+/// // Fixed: always $500 regardless of transaction size
+/// let fixed = PenaltyMode::Fixed { amount: 50_000 };
+/// assert_eq!(fixed.resolve(1_000_000), 50_000);
+/// assert_eq!(fixed.resolve(100), 50_000);
+///
+/// // Rate: 1% of transaction value
+/// let rate = PenaltyMode::Rate { bps_per_event: 100.0 };
+/// assert_eq!(rate.resolve(1_000_000), 10_000); // $100 on $10,000
+/// assert_eq!(rate.resolve(100), 1);             // $0.01 on $1
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum PenaltyMode {
+    /// Fixed penalty amount in cents (current behavior).
+    Fixed {
+        /// Penalty amount in cents.
+        amount: i64,
+    },
+    /// Rate applied to transaction amount: `amount × bps / 10_000`.
+    Rate {
+        /// Basis points per event. Must be non-negative and finite.
+        bps_per_event: f64,
+    },
+}
+
+impl PenaltyMode {
+    /// Resolve the penalty to a concrete i64 amount given a transaction value.
+    ///
+    /// - `Fixed`: returns the fixed amount, ignoring `transaction_amount_cents`.
+    /// - `Rate`: returns `|transaction_amount_cents| × bps_per_event / 10_000`,
+    ///   using u128 intermediate arithmetic to prevent overflow.
+    ///
+    /// Returns 0 for NaN, infinite, or negative `bps_per_event` values.
+    pub fn resolve(&self, transaction_amount_cents: i64) -> i64 {
+        match self {
+            PenaltyMode::Fixed { amount } => *amount,
+            PenaltyMode::Rate { bps_per_event } => {
+                // Guard: NaN, Inf, negative bps → 0
+                if bps_per_event.is_nan()
+                    || bps_per_event.is_infinite()
+                    || *bps_per_event < 0.0
+                {
+                    return 0;
+                }
+                // Use absolute value — penalties are always positive
+                let abs_amount = transaction_amount_cents.unsigned_abs() as u128;
+                // Scale to micro-bps for integer precision before dividing
+                let rate_micro = (*bps_per_event * 1_000_000.0) as u128;
+                let result = abs_amount * rate_micro / (10_000 * 1_000_000);
+                result.min(i64::MAX as u128) as i64
+            }
+        }
+    }
+}
+
 /// Priority band for categorizing transaction urgency
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PriorityBand {
