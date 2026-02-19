@@ -15,9 +15,7 @@ them elsewhere.
 cost = committed_balance × (bps / 10000) per tick
 ```
 
-The rate depends on the scenario: Castro's r_c = 0.1 is divided by ticks per day,
-giving 500 bps/tick (2-tick scenarios), 333 bps/tick (3-tick), or 83 bps/tick (12-tick).
-Always the cheapest cost — you prefer committing liquidity over the alternatives.
+A basis point (bp) is 1/100th of a percent, so 100 bps = 1%. The rate is applied per tick, so the effective daily cost depends on how many ticks make up a day. For example, at 100 bps/tick over a 12-tick day, the daily cost is 12% of committed balance. When configuring scenarios, set this relative to the other cost rates — liquidity cost should typically be the cheapest, reflecting that holding reserves is preferable to the alternatives (delays, penalties, overdrafts).
 
 ## 2. Delay Cost (r_d)
 
