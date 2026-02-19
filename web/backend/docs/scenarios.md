@@ -59,6 +59,33 @@ cost_rates:
   deadline_penalty: 50000
 ```
 
+## Configuration Hierarchy
+
+```
+SimulationConfig (root)
+├── simulation: SimulationSettings
+│   ├── ticks_per_day: int
+│   ├── num_days: int
+│   └── rng_seed: int
+├── agents: List[AgentConfig]
+│   └── AgentConfig
+│       ├── id: str
+│       ├── opening_balance: int (cents)
+│       ├── unsecured_cap: int (cents)
+│       ├── policy: PolicyConfig
+│       ├── arrival_config: Optional[ArrivalConfig]
+│       ├── arrival_bands: Optional[ArrivalBandsConfig]
+│       ├── posted_collateral: Optional[int]
+│       ├── collateral_haircut: Optional[float]
+│       ├── limits: Optional[Dict]
+│       ├── liquidity_pool: Optional[int]
+│       └── liquidity_allocation_fraction: Optional[float]
+├── cost_rates: CostRates
+├── lsm_config: LsmConfig
+├── policy_feature_toggles: Optional[PolicyFeatureToggles]
+└── scenario_events: Optional[List[ScenarioEvent]]
+```
+
 ## Payment Generation Modes
 
 SimCash supports three modes for generating payment arrivals, which can be combined
@@ -82,11 +109,47 @@ via `GlobalArrivalRateChange` or `AgentArrivalRateChange` events.
 Payment amounts are sampled independently from one of four distributions:
 
 | Type | Parameters | Use Case |
-|------|-----------|----------|
+|------|------------|----------|
 | `LogNormal` | mean, std_dev (log-scale) | Realistic: many small, few large payments |
 | `Normal` | mean, std_dev (cents) | Symmetric distribution around mean |
 | `Uniform` | min, max (cents) | Equal probability in range |
 | `Exponential` | lambda | Many small, exponentially fewer large |
+
+### Priority Distributions
+
+Payment priorities can be assigned via three distribution types:
+
+| Type | Parameters | Description |
+|------|------------|-------------|
+| `Fixed` | value | All transactions get the same priority |
+| `Categorical` | values, weights | Weighted random selection from discrete values |
+| `Uniform` | min, max | Uniform random in range |
+
+## Cost Rates
+
+Cost rates control how the engine scores settlement outcomes. All monetary values are integer cents.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `overdraft_bps_per_tick` | `0.001` | Overdraft cost in basis points per tick |
+| `delay_cost_per_tick_per_cent` | `0.0001` | Delay cost per tick per cent held |
+| `collateral_cost_per_tick_bps` | `0.0002` | Collateral opportunity cost |
+| `eod_penalty_per_transaction` | `10000` | Penalty per unsettled transaction at end of day |
+| `deadline_penalty` | `50000` | One-time penalty when deadline is missed |
+| `split_friction_cost` | `1000` | Cost per payment split |
+| `overdue_delay_multiplier` | `5.0` | Multiplier on delay cost after deadline |
+
+## LSM Configuration
+
+The Liquidity-Saving Mechanism (LSM) enables bilateral and multilateral offsetting
+to reduce liquidity requirements.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enable_bilateral` | `true` | Enable bilateral offsetting |
+| `enable_cycles` | `true` | Enable cycle detection (multilateral) |
+| `max_cycle_length` | `4` | Maximum cycle length |
+| `max_cycles_per_tick` | `10` | Max cycles resolved per tick |
 
 ## Custom Events
 
@@ -94,7 +157,7 @@ Scenario events are deterministic interventions injected at specific ticks. They
 create crisis narratives, central bank interventions, and controlled stress tests.
 
 | Event Type | Effect |
-|-----------|--------|
+|------------|--------|
 | `DirectTransfer` | Instant balance move between agents, bypasses all queues |
 | `CustomTransactionArrival` | Inject a transaction that flows through normal settlement |
 | `CollateralAdjustment` | Add or remove collateral from an agent |
@@ -127,6 +190,17 @@ scenario_events:
       end_tick: 400
 ```
 
+## Validation Rules
+
+| Rule | Description |
+|------|-------------|
+| Unique agent IDs | All agent `id` values must be unique (uppercase alphanumeric) |
+| Counterparty references | Referenced agents in weights/limits must exist |
+| Arrival exclusivity | Cannot have both `arrival_config` and `arrival_bands` on one agent |
+| Positive timing | `ticks_per_day` and `num_days` must be > 0 |
+| Integer money | All monetary values are `i64` cents — no floats |
+| Priority range | Priority values must be 0–10 |
+
 ## Scenario Design: Building a Stress Test
 
 A realistic multi-phase crisis scenario follows this pattern:
@@ -140,32 +214,3 @@ A realistic multi-phase crisis scenario follows this pattern:
 > ℹ️ All events are deterministic and tick-based — there's no conditional logic
 > ("if balance drops below X, inject liquidity"). This is by design: determinism ensures
 > perfect reproducibility. The same config + same seed always produces byte-identical results.
-
-## Key Library Scenarios
-
-### TARGET2 Crisis (25 days, 4 agents)
-
-The flagship TARGET2 scenario. Tests all T2 features: dual priority system,
-bilateral/multilateral limits, algorithm sequencing, priority escalation. Features four
-distinct phases (Normal → Pressure → Crisis → Resolution) with one agent deliberately
-running a bad policy to create cascading gridlock. A "good policy" and "bad policy"
-variant let you compare system outcomes.
-
-### BIS Liquidity-Delay Tradeoff (1 day, 2 agents)
-
-Direct replication of BIS Working Paper 1310 Box 3. Minimal configuration — 3 ticks,
-4 deterministic transactions, a liquidity pool with allocation fraction. Tests the
-fundamental tradeoff between liquidity cost and delay cost in a controlled setting.
-
-### Crisis Resolution (10 days, 4 agents)
-
-Extends the advanced policy crisis scenario with a Day 4 "central bank intervention" —
-massive $500K DirectTransfer injections and $100K–$200K collateral boosts. Days 5–10
-show gradual recovery via stepped arrival rate restoration
-(0.5 → 0.7 → 0.8 → 0.85 → 0.9 → 1.0).
-
-### Suboptimal Policies (10/25 days, 4 agents)
-
-A/B comparison of policy quality. Two "optimal" agents (well-tuned parameters) vs two
-"suboptimal" agents (conservative hoarder and reactive spender). Shows how subtle
-parameter differences compound over time, especially with high delay costs.
