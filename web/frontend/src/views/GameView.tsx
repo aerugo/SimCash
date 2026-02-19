@@ -5,6 +5,7 @@ import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
 import { PolicyDiffView, PolicyChangeSummary } from '../components/PolicyDiffView';
+import { ReasoningExplorer } from '../components/ReasoningExplorer';
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
@@ -43,61 +44,7 @@ function useGameNotes(gameId: string) {
   return { notes, update };
 }
 
-/** Expandable panel showing full LLM reasoning, thinking, and raw response for an agent. */
-function AgentResponseDetail({ result }: { result: GameOptimizationResult }) {
-  const [expanded, setExpanded] = useState<'thinking' | 'response' | null>(null);
-  const hasThinking = !!result.thinking;
-  const hasRaw = !!result.raw_response;
-
-  if (!hasThinking && !hasRaw) return null;
-
-  return (
-    <div className="mt-2 flex flex-col gap-1">
-      <div className="flex gap-2">
-        {hasThinking && (
-          <button
-            onClick={() => setExpanded(expanded === 'thinking' ? null : 'thinking')}
-            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-              expanded === 'thinking'
-                ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
-                : 'bg-slate-800 text-slate-500 hover:text-slate-400 border border-slate-700'
-            }`}
-          >
-            🧠 {expanded === 'thinking' ? 'Hide' : 'Show'} Thinking
-          </button>
-        )}
-        {hasRaw && (
-          <button
-            onClick={() => setExpanded(expanded === 'response' ? null : 'response')}
-            className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-              expanded === 'response'
-                ? 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                : 'bg-slate-800 text-slate-500 hover:text-slate-400 border border-slate-700'
-            }`}
-          >
-            📄 {expanded === 'response' ? 'Hide' : 'Show'} Full Response
-          </button>
-        )}
-      </div>
-      {expanded === 'thinking' && result.thinking && (
-        <div className="mt-1 bg-violet-950/30 border border-violet-500/20 rounded-lg p-3 max-h-64 overflow-y-auto">
-          <div className="text-[10px] text-violet-400/60 mb-1 font-medium">Internal Reasoning</div>
-          <pre className="text-xs text-violet-200/80 whitespace-pre-wrap font-mono leading-relaxed">
-            {result.thinking}
-          </pre>
-        </div>
-      )}
-      {expanded === 'response' && result.raw_response && (
-        <div className="mt-1 bg-slate-950/50 border border-slate-600/30 rounded-lg p-3 max-h-64 overflow-y-auto">
-          <div className="text-[10px] text-slate-500 mb-1 font-medium">Full LLM Output</div>
-          <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">
-            {result.raw_response}
-          </pre>
-        </div>
-      )}
-    </div>
-  );
-}
+/* AgentResponseDetail replaced by ReasoningExplorer component */
 
 export function GameView() {
   const params = useParams<{ gameId: string }>();
@@ -139,10 +86,12 @@ export function GameView() {
 
   const tour = useTour(gameState.days.length, autoRunning);
 
-  // Sync state up to parent
+  // Sync state up to parent — use ref to avoid dependency on onUpdate
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
   useEffect(() => {
-    if (wsState) onUpdate(wsState);
-  }, [wsState, onUpdate]);
+    if (wsState) onUpdateRef.current(wsState);
+  }, [wsState]);
 
   // Auto-select latest day when new days arrive
   useEffect(() => {
@@ -821,7 +770,7 @@ export function GameView() {
                       )}
 
                       {/* Expandable full AI response */}
-                      <AgentResponseDetail result={latest} />
+                      <ReasoningExplorer result={latest} />
 
                       {gameState.constraint_preset === 'full' && latest.new_policy && latest.old_policy && (
                         <div className="mt-2 pt-2 border-t border-slate-700/50">
@@ -1014,11 +963,12 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
   fractionHistory: Record<string, number[]>;
   constraintPreset?: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(agentIds[0] ?? '');
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
 
   const history = reasoningHistory[selectedAgent] ?? [];
   const fractions = fractionHistory[selectedAgent] ?? [];
+  const selected = selectedRound !== null ? history[selectedRound] : null;
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
@@ -1028,7 +978,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
           {agentIds.map((aid, i) => (
             <button
               key={aid}
-              onClick={() => setSelectedAgent(aid)}
+              onClick={() => { setSelectedAgent(aid); setSelectedRound(null); }}
               className={`px-2 py-0.5 rounded text-xs font-mono transition-all ${
                 selectedAgent === aid
                   ? 'text-white'
@@ -1039,70 +989,115 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
               {aid}
             </button>
           ))}
-          <button onClick={() => setExpanded(!expanded)} className="text-xs text-slate-500 hover:text-slate-300 ml-2">
-            {expanded ? '▲ collapse' : `▼ ${history.length} iterations`}
-          </button>
         </div>
       </div>
 
-      {/* Compact: fraction steps (simple) or change summaries (full) */}
-      {!expanded && constraintPreset !== 'full' && (
-        <div className="flex items-center gap-1 flex-wrap text-xs font-mono">
+      {/* Round pills — clickable iteration selector */}
+      <div className="flex items-center gap-1 flex-wrap mb-2">
+        {history.map((r, i) => {
+          const isSelected = selectedRound === i;
+          const fraction = constraintPreset !== 'full' && fractions[i + 1] != null
+            ? fractions[i + 1].toFixed(3) : null;
+          return (
+            <button
+              key={i}
+              onClick={() => setSelectedRound(isSelected ? null : i)}
+              className={`group flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono transition-all border ${
+                isSelected
+                  ? 'bg-slate-700 border-slate-500 text-white'
+                  : 'bg-slate-900/50 border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600'
+              }`}
+              title={r.reasoning}
+            >
+              <span className="text-slate-600 group-hover:text-slate-400">R{i + 1}</span>
+              <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
+                {r.accepted ? '✓' : '✗'}
+              </span>
+              {fraction && <span className={isSelected ? 'text-slate-300' : 'text-slate-600'}>{fraction}</span>}
+              {r.mock && !r.fallback_reason && <span className="text-slate-700">sim</span>}
+              {r.fallback_reason && <span className="text-amber-600">⚠</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Fraction trajectory (always visible, compact) */}
+      {constraintPreset !== 'full' && fractions.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap text-[10px] font-mono text-slate-500 mb-2">
           {fractions.map((f, i) => (
             <span key={i} className="flex items-center gap-0.5">
-              {i > 0 && <span className="text-slate-600">→</span>}
-              <span className={`${i === fractions.length - 1 ? 'text-white font-bold' : 'text-slate-400'}`}>
+              {i > 0 && <span className="text-slate-700">→</span>}
+              <span className={`${
+                selectedRound !== null && i === selectedRound + 1
+                  ? 'text-white font-bold'
+                  : i === fractions.length - 1
+                    ? 'text-slate-300'
+                    : 'text-slate-500'
+              }`}>
                 {f.toFixed(3)}
               </span>
             </span>
           ))}
         </div>
       )}
-      {!expanded && constraintPreset === 'full' && (
-        <div className="space-y-1">
-          {history.map((r, i) => (
-            <div key={i} className="flex items-center gap-2 text-[10px]">
-              <span className="text-slate-500 shrink-0">R{i + 1}</span>
-              <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>{r.accepted ? '✓' : '✗'}</span>
-              <PolicyChangeSummary oldPolicy={r.old_policy} newPolicy={r.new_policy} />
+
+      {/* Selected round detail */}
+      {selected && (
+        <div className={`bg-slate-900/50 rounded-lg p-3 border-l-2 ${
+          selected.accepted ? 'border-green-500' : 'border-red-500'
+        }`}>
+          <div className="flex items-center gap-2 text-[10px] mb-1">
+            <span className="text-slate-400 font-medium">Round {selectedRound! + 1}</span>
+            <span className={selected.accepted ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+              {selected.accepted ? '✓ ACCEPTED' : '✗ REJECTED'}
+            </span>
+            {constraintPreset !== 'full' && selected.old_fraction != null && (
+              <span className="font-mono text-slate-400">
+                {selected.old_fraction.toFixed(3)} → {selected.new_fraction?.toFixed(3) ?? selected.old_fraction.toFixed(3)}
+              </span>
+            )}
+            {constraintPreset === 'full' && (
+              <PolicyChangeSummary oldPolicy={selected.old_policy} newPolicy={selected.new_policy} />
+            )}
+            {selected.mock && <span className={`bg-slate-800 px-1 rounded ${selected.fallback_reason ? 'text-amber-500' : 'text-slate-600'}`}>{selected.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
+          </div>
+
+          {selected.bootstrap && (
+            <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
+              <span>Δ={selected.bootstrap.delta_sum.toLocaleString()}</span>
+              <span>CV={selected.bootstrap.cv.toFixed(2)}</span>
+              <span>CI=[{selected.bootstrap.ci_lower.toLocaleString()},{selected.bootstrap.ci_upper.toLocaleString()}]</span>
             </div>
-          ))}
+          )}
+
+          {selected.rejection_reason && (
+            <div className="text-[10px] text-red-400/80 mb-1">{selected.rejection_reason}</div>
+          )}
+
+          <p className="text-xs text-slate-400 leading-relaxed mb-1">{selected.reasoning}</p>
+
+          {/* Token stats */}
+          {(selected.latency_seconds || selected.usage) && (
+            <div className="flex flex-wrap gap-2 text-[10px] text-slate-600 font-mono mb-1">
+              {selected.latency_seconds != null && <span>⏱ {selected.latency_seconds.toFixed(1)}s</span>}
+              {selected.usage && (
+                <>
+                  <span>📥 {selected.usage.input_tokens.toLocaleString()}</span>
+                  <span>📤 {selected.usage.output_tokens.toLocaleString()}</span>
+                  {selected.usage.thinking_tokens > 0 && <span>🧠 {selected.usage.thinking_tokens.toLocaleString()}</span>}
+                </>
+              )}
+            </div>
+          )}
+
+          <ReasoningExplorer result={selected} compact />
         </div>
       )}
 
-      {/* Expanded: full iteration history */}
-      {expanded && (
-        <div className="space-y-2 max-h-64 overflow-y-auto">
-          {history.map((r, i) => (
-            <div key={i} className={`bg-slate-900/50 rounded p-2 border-l-2 ${
-              r.accepted ? 'border-green-500' : 'border-red-500'
-            }`}>
-              <div className="flex items-center gap-2 text-[10px]">
-                <span className="text-slate-500">Round {i + 1}</span>
-                <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
-                  {r.accepted ? '✓' : '✗'}
-                </span>
-                {constraintPreset !== 'full' && r.old_fraction != null && (
-                  <span className="font-mono text-slate-400">
-                    {r.old_fraction.toFixed(3)} → {r.new_fraction?.toFixed(3) ?? r.old_fraction.toFixed(3)}
-                  </span>
-                )}
-                {constraintPreset === 'full' && (
-                  <PolicyChangeSummary oldPolicy={r.old_policy} newPolicy={r.new_policy} />
-                )}
-                {r.mock && <span className={`bg-slate-800 px-1 rounded ${r.fallback_reason ? 'text-amber-500' : 'text-slate-600'}`} title={r.fallback_reason ? `LLM failed: ${r.fallback_reason}` : "Mock reasoning"}>{r.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
-                {r.bootstrap && (
-                  <span className="text-slate-600">
-                    Δ={r.bootstrap.delta_sum.toLocaleString()} CV={r.bootstrap.cv.toFixed(2)}
-                  </span>
-                )}
-              </div>
-              {r.rejection_reason && (
-                <div className="text-[9px] text-red-400/70 mt-0.5">{r.rejection_reason}</div>
-              )}
-              <AgentResponseDetail result={r} />
-            </div>
-          ))}
+      {/* No round selected hint */}
+      {!selected && history.length > 0 && (
+        <div className="text-[10px] text-slate-600 text-center py-2">
+          Click a round above to explore reasoning
         </div>
       )}
     </div>
@@ -1112,7 +1107,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
 // Shared tooltip hook for SVG charts
 function useChartTooltip() {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; content: React.ReactNode } | null>(null);
-  const containerRef = useState<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const showTooltip = useCallback((e: React.MouseEvent, content: React.ReactNode) => {
     const rect = (e.currentTarget as Element).closest('.chart-container')?.getBoundingClientRect();
