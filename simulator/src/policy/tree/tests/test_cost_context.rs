@@ -404,4 +404,177 @@ mod test_cost_context {
         assert!(field_names.contains(&"cost_delay_this_tx_one_tick"));
         assert!(field_names.contains(&"cost_overdraft_this_amount_one_tick"));
     }
+
+    // ========================================================================
+    // Phase 4: Rate-mode penalty context tests (INV-9 compliance)
+    // ========================================================================
+
+    #[test]
+    fn test_rate_mode_deadline_penalty_resolves_with_tx_amount() {
+        // Rate mode: 100 bps = 1% of tx amount
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let tx = Transaction::new(
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            500_000, // $5,000
+            0,
+            100,
+        );
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Rate { bps_per_event: 100.0 }, // 1%
+            eod_penalty: PenaltyMode::Fixed { amount: 0 },
+            ..Default::default()
+        };
+
+        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+
+        // 1% of 500_000 = 5_000
+        assert_eq!(
+            context.get_field("cost_deadline_penalty").unwrap(),
+            5_000.0,
+            "Rate-mode deadline penalty should resolve with tx amount"
+        );
+    }
+
+    #[test]
+    fn test_rate_mode_eod_penalty_resolves_with_remaining_amount() {
+        // Rate mode: 200 bps = 2% of remaining amount
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let tx = Transaction::new(
+            "BANK_A".to_string(),
+            "BANK_B".to_string(),
+            800_000, // $8,000
+            0,
+            100,
+        );
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Fixed { amount: 0 },
+            eod_penalty: PenaltyMode::Rate { bps_per_event: 200.0 }, // 2%
+            ..Default::default()
+        };
+
+        let context = EvalContext::build(&tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+
+        // 2% of 800_000 remaining = 16_000
+        assert_eq!(
+            context.get_field("cost_eod_penalty").unwrap(),
+            16_000.0,
+            "Rate-mode EOD penalty should resolve with remaining amount"
+        );
+    }
+
+    #[test]
+    fn test_rate_mode_different_tx_amounts_give_different_penalties() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Rate { bps_per_event: 100.0 },
+            eod_penalty: PenaltyMode::Fixed { amount: 0 },
+            ..Default::default()
+        };
+
+        // Small tx: $1,000 (100_000 cents)
+        let small_tx = Transaction::new(
+            "BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100,
+        );
+        let ctx_small = EvalContext::build(&small_tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+
+        // Large tx: $100,000 (10_000_000 cents)
+        let large_tx = Transaction::new(
+            "BANK_A".to_string(), "BANK_B".to_string(), 10_000_000, 0, 100,
+        );
+        let ctx_large = EvalContext::build(&large_tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+
+        let penalty_small = ctx_small.get_field("cost_deadline_penalty").unwrap();
+        let penalty_large = ctx_large.get_field("cost_deadline_penalty").unwrap();
+
+        // 1% of 100_000 = 1_000; 1% of 10_000_000 = 100_000
+        assert_eq!(penalty_small, 1_000.0);
+        assert_eq!(penalty_large, 100_000.0);
+        assert!(penalty_large > penalty_small,
+            "Rate-mode penalty should scale with tx amount");
+    }
+
+    #[test]
+    fn test_fixed_mode_same_penalty_regardless_of_tx_amount() {
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Fixed { amount: 50_000 },
+            eod_penalty: PenaltyMode::Fixed { amount: 0 },
+            ..Default::default()
+        };
+
+        let small_tx = Transaction::new(
+            "BANK_A".to_string(), "BANK_B".to_string(), 100_000, 0, 100,
+        );
+        let large_tx = Transaction::new(
+            "BANK_A".to_string(), "BANK_B".to_string(), 10_000_000, 0, 100,
+        );
+
+        let ctx_small = EvalContext::build(&small_tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+        let ctx_large = EvalContext::build(&large_tx, &agent, &state, 50, &cost_rates, 100, 0.8);
+
+        assert_eq!(ctx_small.get_field("cost_deadline_penalty").unwrap(), 50_000.0);
+        assert_eq!(ctx_large.get_field("cost_deadline_penalty").unwrap(), 50_000.0,
+            "Fixed-mode penalty should be constant regardless of tx amount");
+    }
+
+    #[test]
+    fn test_bank_level_context_rate_mode_resolves_to_zero() {
+        // Bank-level context has no specific transaction, so rate mode resolves with 0
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Rate { bps_per_event: 100.0 },
+            eod_penalty: PenaltyMode::Rate { bps_per_event: 200.0 },
+            ..Default::default()
+        };
+
+        let context = EvalContext::bank_level(&agent, &state, 50, &cost_rates, 100, 0.8);
+
+        // Rate mode with no tx → resolves to 0
+        assert_eq!(
+            context.get_field("cost_deadline_penalty").unwrap(),
+            0.0,
+            "Bank-level rate-mode penalty should be 0 (no transaction to resolve against)"
+        );
+        assert_eq!(
+            context.get_field("cost_eod_penalty").unwrap(),
+            0.0,
+            "Bank-level rate-mode EOD penalty should be 0"
+        );
+    }
+
+    #[test]
+    fn test_bank_level_context_fixed_mode_returns_amount() {
+        // Bank-level context: fixed mode should still return the fixed amount
+        let agent = Agent::new("BANK_A".to_string(), 1_000_000);
+        let state = SimulationState::new(vec![agent.clone()]);
+
+        let cost_rates = CostRates {
+            deadline_penalty: PenaltyMode::Fixed { amount: 50_000 },
+            eod_penalty: PenaltyMode::Fixed { amount: 10_000 },
+            ..Default::default()
+        };
+
+        let context = EvalContext::bank_level(&agent, &state, 50, &cost_rates, 100, 0.8);
+
+        assert_eq!(
+            context.get_field("cost_deadline_penalty").unwrap(),
+            50_000.0,
+            "Bank-level fixed-mode penalty should return fixed amount"
+        );
+        assert_eq!(
+            context.get_field("cost_eod_penalty").unwrap(),
+            10_000.0,
+        );
+    }
 }
