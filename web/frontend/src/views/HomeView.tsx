@@ -2,9 +2,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { GameSetupConfig } from '../types';
 import { HowItWorks } from '../components/HowItWorks';
 import { useGameContext } from '../GameContext';
+import { useAuthInfo } from '../AuthInfoContext';
 
 export function HomeView() {
   const { handleGameLaunch } = useGameContext();
+  const { isGuest, onSignIn } = useAuthInfo();
   const navigate = useNavigate();
   const onGameLaunch = async (config: GameSetupConfig, tour = false) => {
     const gid = await handleGameLaunch(config);
@@ -87,6 +89,15 @@ export function HomeView() {
         </button>
         <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
       </div>
+
+      {isGuest && (
+        <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4 text-center mb-8">
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <button onClick={onSignIn} className="font-medium underline" style={{ color: 'var(--text-accent)' }}>Sign in</button>
+            {' '}to save experiments and use real AI optimization
+          </p>
+        </div>
+      )}
 
       <HowItWorks defaultOpen={true} />
     </div>

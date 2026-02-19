@@ -16,6 +16,16 @@ import { ReplayView } from './views/ReplayView';
 import { AnalysisView } from './views/AnalysisView';
 import { LibraryView } from './views/LibraryView';
 import { useGameContext } from './GameContext';
+import { useAuthInfo } from './AuthInfoContext';
+import { LoginPrompt } from './components/LoginPrompt';
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isGuest } = useAuthInfo();
+  if (isGuest) {
+    return <LoginPrompt reason="You need to sign in to access this feature." />;
+  }
+  return <>{children}</>;
+}
 
 function AdminRoute() {
   const navigate = useNavigate();
@@ -74,11 +84,11 @@ export const router = createBrowserRouter([
       { path: 'library/policies', element: <PolicyLibraryView /> },
       { path: 'library/policies/:policyId', element: <PolicyLibraryView /> },
       { path: 'create', element: <CreateView /> },
-      { path: 'experiments', element: <ExperimentsView /> },
+      { path: 'experiments', element: <RequireAuth><ExperimentsView /></RequireAuth> },
       { path: 'experiment/:gameId', element: <GameView /> },
       { path: 'docs', element: <DocsView /> },
       { path: 'docs/:slug', element: <DocsView /> },
-      { path: 'admin', element: <AdminRoute /> },
+      { path: 'admin', element: <RequireAuth><AdminRoute /></RequireAuth> },
       // Legacy simulation routes
       { path: 'simulation/dashboard', element: <SimDashboardRoute /> },
       { path: 'simulation/agents', element: <SimAgentsRoute /> },

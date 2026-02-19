@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, WebSocket, status
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from . import config
 
@@ -192,3 +195,39 @@ async def get_ws_user(websocket: WebSocket) -> str:
         await websocket.accept()
         await websocket.close(code=4001, reason="Invalid token")
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_optional_user(request: Request) -> str:
+    """Returns uid if authenticated, else 'guest-{session_id}' from cookie."""
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        guest_id = request.cookies.get("simcash_guest")
+        if not guest_id:
+            guest_id = f"guest-{uuid4().hex[:12]}"
+        return f"guest-{guest_id}" if not guest_id.startswith("guest-") else guest_id
+
+
+async def get_optional_ws_user(websocket: WebSocket) -> str:
+    """WS variant: returns uid if authenticated, else guest id from cookie/query."""
+    try:
+        return await get_ws_user(websocket)
+    except (HTTPException, Exception):
+        guest_id = websocket.cookies.get("simcash_guest")
+        if not guest_id:
+            guest_id = f"guest-{uuid4().hex[:12]}"
+        return f"guest-{guest_id}" if not guest_id.startswith("guest-") else guest_id
+
+
+class GuestCookieMiddleware(BaseHTTPMiddleware):
+    """Sets a stable guest cookie if not present."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if not request.cookies.get("simcash_guest"):
+            guest_id = f"guest-{uuid4().hex[:12]}"
+            response.set_cookie(
+                "simcash_guest", guest_id,
+                max_age=86400, httponly=True, samesite="lax",
+            )
+        return response

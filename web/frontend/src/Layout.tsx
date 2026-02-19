@@ -14,7 +14,7 @@ const NAV_SECTIONS = [
 
 function LayoutInner() {
   const { simId, state, gameId } = useGameContext();
-  const { isAdmin, userEmail, onSignOut } = useAuthInfo();
+  const { isAdmin, userEmail, isGuest, onSignOut, onSignIn } = useAuthInfo();
   const location = useLocation();
   useTheme(); // apply theme on mount
 
@@ -64,8 +64,14 @@ function LayoutInner() {
               </NavLink>
             )}
             {/* Theme toggle hidden — light mode is default */}
-            <span className="text-xs hidden md:inline" style={{ color: 'var(--text-muted)' }}>{userEmail}</span>
-            <button onClick={onSignOut} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>Sign out</button>
+            {isGuest ? (
+              <button onClick={onSignIn} className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-accent)', border: '1px solid var(--border-color)' }}>Sign In</button>
+            ) : (
+              <>
+                <span className="text-xs hidden md:inline" style={{ color: 'var(--text-muted)' }}>{userEmail}</span>
+                <button onClick={onSignOut} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>Sign out</button>
+              </>
+            )}
           </div>
         </div>
 

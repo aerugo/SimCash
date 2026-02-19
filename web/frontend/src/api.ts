@@ -13,7 +13,7 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  return fetch(url, { ...init, headers });
+  return fetch(url, { ...init, headers, credentials: 'include' });
 }
 
 // ---- Admin API ----

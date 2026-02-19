@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email
+from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email, get_optional_user, get_optional_ws_user, GuestCookieMiddleware
 
 from .models import (
     CompareRequest,
@@ -64,6 +64,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(GuestCookieMiddleware)
+
 app.include_router(scenario_editor_router)
 app.include_router(policy_editor_router)
 app.include_router(export_router)
@@ -82,8 +84,10 @@ saved_policies: dict[str, ManualPolicy] = {}
 
 
 def _save_game_checkpoint(game: Game):
-    """Save game checkpoint (non-blocking for async context)."""
+    """Save game checkpoint (non-blocking for async context). Skips guests."""
     uid = getattr(game, '_uid', 'dev-user')
+    if uid.startswith("guest-"):
+        return
     scenario_id = getattr(game, '_scenario_id', '')
     try:
         checkpoint = game.to_checkpoint(scenario_id=scenario_id, uid=uid)
@@ -629,7 +633,7 @@ def list_scenario_pack():
 # ---- Multi-Day Games ----
 
 @app.get("/api/games/scenarios")
-def list_game_scenarios(uid: str = Depends(get_current_user)):
+def list_game_scenarios(uid: str = Depends(get_optional_user)):
     """List scenarios available for game creation with preview metadata."""
     scenarios = []
     for entry in SCENARIO_PACK:
@@ -647,9 +651,13 @@ def list_game_scenarios(uid: str = Depends(get_current_user)):
 
 
 @app.post("/api/games")
-async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_current_user)):
+async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_optional_user)):
     """Create a multi-day policy optimization game."""
     import copy
+
+    # Guests can only run simulated AI
+    if uid.startswith("guest-") and not config.simulated_ai:
+        raise HTTPException(status_code=403, detail="Login required to run experiments with real AI")
 
     logger.info("User %s creating game", uid)
     game_id = str(uuid.uuid4())[:8]
@@ -684,24 +692,25 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     game._created_at = datetime.now(timezone.utc).isoformat()
     game_manager[game_id] = game
 
-    # Persist: create DuckDB + update index + save checkpoint
-    game_storage.create_game_db(uid, game_id)
-    scenario_entry = get_scenario_by_id(config.scenario_id) or {}
-    game_storage.update_index(uid, {
-        "game_id": game_id,
-        "scenario_id": config.scenario_id,
-        "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
-        "created_at": game._created_at,
-        "updated_at": game._created_at,
-        "days_completed": 0,
-        "max_days": config.max_days,
-        "status": "created",
-        "use_llm": config.use_llm,
-        "num_agents": len(game.agent_ids),
-        "ticks_per_day": raw_yaml.get("simulation", {}).get("ticks_per_day", 0),
-        "uid": uid,
-    })
-    _save_game_checkpoint(game)
+    # Persist: create DuckDB + update index + save checkpoint (skip for guests)
+    if not uid.startswith("guest-"):
+        game_storage.create_game_db(uid, game_id)
+        scenario_entry = get_scenario_by_id(config.scenario_id) or {}
+        game_storage.update_index(uid, {
+            "game_id": game_id,
+            "scenario_id": config.scenario_id,
+            "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
+            "created_at": game._created_at,
+            "updated_at": game._created_at,
+            "days_completed": 0,
+            "max_days": config.max_days,
+            "status": "created",
+            "use_llm": config.use_llm,
+            "num_agents": len(game.agent_ids),
+            "ticks_per_day": raw_yaml.get("simulation", {}).get("ticks_per_day", 0),
+            "uid": uid,
+        })
+        _save_game_checkpoint(game)
 
     return {"game_id": game_id, "game": game.get_state()}
 
@@ -728,7 +737,7 @@ def list_games(uid: str = Depends(get_current_user)):
 
 
 @app.get("/api/games/{game_id}")
-def get_game(game_id: str, uid: str = Depends(get_current_user)):
+def get_game(game_id: str, uid: str = Depends(get_optional_user)):
     """Get game state. Checks memory first, then storage."""
     game = game_manager.get(game_id)
     if not game:
@@ -740,7 +749,7 @@ def get_game(game_id: str, uid: str = Depends(get_current_user)):
 
 
 @app.get("/api/games/{game_id}/days/{day_num}/replay")
-def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_current_user)):
+def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_optional_user)):
     """Get tick-by-tick replay data for a specific game day."""
     game = game_manager.get(game_id)
     if not game:
@@ -770,7 +779,7 @@ def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_current_u
 
 
 @app.post("/api/games/{game_id}/step")
-async def step_game(game_id: str, uid: str = Depends(get_current_user)):
+async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
     """Run next day + optimize. Returns day results + reasoning."""
     game = game_manager.get(game_id)
     if not game:
@@ -807,7 +816,7 @@ async def step_game(game_id: str, uid: str = Depends(get_current_user)):
 
 
 @app.post("/api/games/{game_id}/auto")
-async def auto_run_game(game_id: str, uid: str = Depends(get_current_user)):
+async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
     """Run all remaining days."""
     game = game_manager.get(game_id)
     if not game:
@@ -828,7 +837,7 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_current_user)):
 
 
 @app.get("/api/games/{game_id}/download")
-def download_game(game_id: str, uid: str = Depends(get_current_user)):
+def download_game(game_id: str, uid: str = Depends(get_optional_user)):
     """Download the DuckDB file for a game."""
     from fastapi.responses import FileResponse
     db_path = game_storage.load_game(uid, game_id)
@@ -838,7 +847,7 @@ def download_game(game_id: str, uid: str = Depends(get_current_user)):
 
 
 @app.delete("/api/games/{game_id}")
-def delete_game(game_id: str, uid: str = Depends(get_current_user)):
+def delete_game(game_id: str, uid: str = Depends(get_optional_user)):
     """Delete a game."""
     if game_id in game_manager:
         del game_manager[game_id]
@@ -862,9 +871,9 @@ async def game_ws(websocket: WebSocket, game_id: str):
       game_complete       — all days finished
       error               — something went wrong
     """
-    # Authenticate before accepting
+    # Authenticate before accepting (guests allowed)
     try:
-        uid = await get_ws_user(websocket)
+        uid = await get_optional_ws_user(websocket)
     except Exception:
         return
     logger.info("WS game connection from user %s for game %s", uid, game_id)
@@ -1132,8 +1141,8 @@ async def update_settings(req: SettingsUpdate, email: str = Depends(get_admin_us
 
 
 @app.get("/api/settings/models")
-async def list_models(_user: str = Depends(get_current_user)):
-    """List available optimization models (any authenticated user)."""
+async def list_models():
+    """List available optimization models (public)."""
     return {"models": settings_manager.get_available_models()}
 
 
@@ -1178,7 +1187,7 @@ def get_policy_library_tree(policy_id: str):
 # ---- Payment Trace ----
 
 @app.get("/api/games/{game_id}/days/{day_num}/payments")
-def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_current_user)):
+def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_optional_user)):
     """Get payment lifecycle traces for a specific game day."""
     game = game_manager.get(game_id)
     if not game:
@@ -1198,7 +1207,7 @@ def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_curren
 # ---- Policy Evolution Endpoints ----
 
 @app.get("/api/games/{game_id}/policy-history")
-def get_policy_history(game_id: str, uid: str = Depends(get_current_user)):
+def get_policy_history(game_id: str, uid: str = Depends(get_optional_user)):
     """Get full policy evolution data for a game."""
     game = game_manager.get(game_id)
     if not game:
@@ -1253,7 +1262,7 @@ def get_policy_diff(
     day1: int = Query(...),
     day2: int = Query(...),
     agent: str = Query(...),
-    uid: str = Depends(get_current_user),
+    uid: str = Depends(get_optional_user),
 ):
     """Get structural diff between policies on two days for an agent."""
     game = game_manager.get(game_id)
