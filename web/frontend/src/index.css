@@ -377,7 +377,8 @@ body {
 }
 
 /* --- Status colors --- */
-.light .text-green-400 {
+.light .text-green-400,
+.light .text-green-300 {
   color: var(--color-success) !important;
 }
 .light .text-amber-400,
@@ -388,12 +389,17 @@ body {
 .light .text-red-300 {
   color: var(--color-danger) !important;
 }
+.light .text-purple-300,
+.light .text-purple-400 {
+  color: #7A6B98 !important;
+}
 
 /* --- Tag/badge pill colors: semantic not monochrome --- */
 .light .bg-sky-500\/20 {
   background-color: var(--tag-blue-bg) !important;
 }
-.light .bg-violet-500\/20 {
+.light .bg-violet-500\/20,
+.light .bg-purple-500\/20 {
   background-color: var(--tag-blue-bg) !important;
 }
 .light .bg-green-500\/20,
@@ -423,16 +429,8 @@ body {
   border-color: var(--border-color) !important;
 }
 
-.light .font-mono {
-  color: var(--text-accent) !important;
-}
-
-/* Don't override font-mono color on buttons and large text */
-.light button .font-mono,
-.light .text-lg .font-mono,
-.light .text-sm .font-mono {
-  color: inherit !important;
-}
+/* font-mono: only accent-color in specific data display contexts, not globally */
+/* Removed global .light .font-mono override — was breaking form labels */
 
 /* --- Sliders & toggles --- */
 .light input[type="range"] {
@@ -443,14 +441,7 @@ body {
   background-color: var(--btn-primary-bg) !important;
 }
 
-/* --- Accent backgrounds for badges/tags --- */
-.light .bg-sky-500\/20,
-.light .bg-violet-500\/20,
-.light .bg-green-500\/20,
-.light .bg-amber-500\/20,
-.light .bg-red-500\/20 {
-  background-color: var(--bg-inset) !important;
-}
+/* (semantic tag/badge backgrounds handled in earlier section) */
 
 /* --- Hover states for cards: single consistent accent --- */
 .light .hover\:border-sky-500\/50:hover,
@@ -554,4 +545,140 @@ body {
 /* --- Footer text --- */
 .light footer {
   color: var(--text-muted) !important;
+}
+
+/* --- Modal cards: white surface in light mode --- */
+.light .bg-slate-900.border {
+  background-color: var(--bg-surface) !important;
+}
+
+/* --- Completion banner: green tint --- */
+.light .bg-green-500\/10.border {
+  background-color: var(--color-success-bg) !important;
+}
+
+/* --- Form labels: stronger contrast on inset backgrounds --- */
+.light .text-slate-400.text-xs,
+.light label.text-slate-400 {
+  color: #3D3833 !important;
+}
+
+/* --- Disabled buttons: slightly more visible in light mode --- */
+.light button:disabled {
+  opacity: 0.45 !important;
+}
+
+/* --- Emerald/green buttons (Export) --- */
+.light .bg-emerald-700 {
+  background-color: var(--color-success) !important;
+}
+.light .hover\:bg-emerald-600:hover {
+  background-color: #2F6344 !important;
+}
+
+/* --- Border green for completion banner --- */
+.light .border-green-500\/30 {
+  border-color: #C8E6D0 !important;
+}
+
+/* (completion banner gradients handled above in gradient panel section) */
+
+/* --- Game view: card panels need visible structure --- */
+.light .bg-slate-800\/50 {
+  background-color: var(--bg-surface) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* --- COMPLETE badge --- */
+.light .bg-green-500\/20.text-green-400,
+.light .bg-green-500\/20 {
+  background-color: var(--tag-green-bg) !important;
+}
+
+/* --- Complexity badges and tinted backgrounds --- */
+.light .bg-red-400\/10 {
+  background-color: var(--tag-red-bg) !important;
+}
+.light .bg-amber-400\/10 {
+  background-color: var(--tag-amber-bg) !important;
+}
+.light .bg-green-400\/10 {
+  background-color: var(--tag-green-bg) !important;
+}
+.light .border-red-400\/30 {
+  border-color: #D4A09A !important;
+}
+.light .border-amber-400\/30 {
+  border-color: #D4C48A !important;
+}
+.light .border-green-400\/30 {
+  border-color: #9ECAAA !important;
+}
+
+/* --- Slider: track color before thumb (WebKit) --- */
+.light input[type="range"]::-webkit-slider-runnable-track {
+  background: var(--bg-well) !important;
+}
+
+/* --- Animate-pulse (loading states) tone down in light mode --- */
+.light .animate-pulse {
+  opacity: 0.7;
+}
+
+/* --- Round timeline: inactive pills readable in light mode --- */
+.light .bg-slate-700 {
+  background-color: var(--bg-inset) !important;
+}
+.light .bg-slate-700:hover,
+.light .hover\:bg-slate-600:hover {
+  background-color: var(--bg-well) !important;
+}
+
+/* --- Policy action tags: ensure "NoAction" (slate-500/20 slate-400) visible --- */
+.light .bg-slate-500\/20 {
+  background-color: var(--tag-gray-bg) !important;
+}
+
+/* --- Accent-tinted info panels (sky/violet bg with 10% opacity) --- */
+.light .bg-sky-500\/10.border {
+  background-color: var(--tag-blue-bg) !important;
+}
+
+/* --- Text on accent backgrounds stays readable --- */
+.light .text-pink-200,
+.light .text-pink-300 {
+  color: white !important;
+}
+
+/* --- Scenario tag colors: all the missing tag bg/fg pairs --- */
+.light .bg-blue-500\/20 {
+  background-color: var(--tag-blue-bg) !important;
+}
+.light .text-blue-300 {
+  color: var(--tag-blue-fg) !important;
+}
+.light .bg-teal-500\/20 {
+  background-color: #EDF5F4 !important;
+}
+.light .text-teal-300 {
+  color: #2D7A6F !important;
+}
+.light .bg-orange-500\/20 {
+  background-color: var(--tag-amber-bg) !important;
+}
+.light .text-orange-300 {
+  color: #A06830 !important;
+}
+.light .bg-pink-500\/20 {
+  background-color: #F8EEF2 !important;
+}
+.light .text-sky-300 {
+  color: var(--tag-blue-fg) !important;
+}
+
+/* --- Fallback tags (bg-slate-700 text-slate-300/400 used for unknown tags) --- */
+.light .bg-slate-700.text-slate-300,
+.light .bg-slate-700.text-slate-400 {
+  background-color: var(--tag-gray-bg) !important;
+  color: var(--tag-gray-fg) !important;
 }
