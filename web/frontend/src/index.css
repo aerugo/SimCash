@@ -1,32 +1,439 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════
+   Theme: CSS Custom Properties
+   Dark mode = default. Light mode = .light on <html>.
+   ═══════════════════════════════════════════════════════════ */
+
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
-  --border: #334155;
+  /* Backgrounds */
+  --bg-base: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-hover: #334155;
+  --bg-card: rgba(30, 41, 59, 0.5);
+  --bg-inset: rgba(15, 23, 42, 0.5);
+
+  /* Text */
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
-  --accent: #38bdf8;
-  --accent-2: #a78bfa;
-  --success: #4ade80;
-  --warning: #fbbf24;
-  --danger: #f87171;
+  --text-muted: #64748b;
+  --text-accent: #38bdf8;
+  --text-accent-2: #a78bfa;
+
+  /* Borders */
+  --border-color: #334155;
+  --border-subtle: #1e293b;
+
+  /* Interactive */
+  --btn-primary-bg: #0284c7;
+  --btn-primary-hover: #0369a1;
+  --btn-accent-bg: #7c3aed;
+  --btn-accent-hover: #6d28d9;
+  --btn-muted-bg: #334155;
+  --btn-muted-hover: #475569;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(to right, #0ea5e9, #7c3aed);
+  --gradient-accent: linear-gradient(to right, #7c3aed, #ec4899);
+  --gradient-success: linear-gradient(to right, #10b981, #059669);
+
+  /* Status */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-danger: #f87171;
+
+  /* Surfaces for specific use */
+  --input-bg: #0f172a;
+  --input-border: #334155;
+  --code-bg: #0f172a;
+  --tooltip-bg: #1e293b;
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+
+  /* Chart agent colors */
+  --agent-1: #38bdf8;
+  --agent-2: #a78bfa;
+  --agent-3: #34d399;
+  --agent-4: #fb923c;
+  --agent-5: #f472b6;
+
+  /* Legacy compat */
+  --bg-primary: var(--bg-base);
+  --bg-secondary: var(--bg-surface);
+  --accent: var(--text-accent);
+  --accent-2: var(--text-accent-2);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Light Mode — warm, elegant, minimalist
+   ═══════════════════════════════════════════════════════════ */
+
+.light {
+  --bg-base: #faf8f5;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f5f2ee;
+  --bg-card: rgba(255, 255, 255, 0.8);
+  --bg-inset: #f5f2ee;
+
+  --text-primary: #2c2825;
+  --text-secondary: #6b6560;
+  --text-muted: #9b9590;
+  --text-accent: #2e7d7d;
+  --text-accent-2: #6b5b99;
+
+  --border-color: #e8e4df;
+  --border-subtle: #f0ece7;
+
+  --btn-primary-bg: #2e7d7d;
+  --btn-primary-hover: #256767;
+  --btn-accent-bg: #6b5b99;
+  --btn-accent-hover: #5a4a88;
+  --btn-muted-bg: #e8e4df;
+  --btn-muted-hover: #ddd8d2;
+
+  --gradient-primary: linear-gradient(to right, #2e7d7d, #6b5b99);
+  --gradient-accent: linear-gradient(to right, #6b5b99, #b0718a);
+  --gradient-success: linear-gradient(to right, #2d8a4e, #1e6b3a);
+
+  --color-success: #2d8a4e;
+  --color-warning: #b8860b;
+  --color-danger: #c0392b;
+
+  --input-bg: #ffffff;
+  --input-border: #e8e4df;
+  --code-bg: #f5f2ee;
+  --tooltip-bg: #ffffff;
+  --overlay-bg: rgba(0, 0, 0, 0.3);
+
+  --agent-1: #2e7d7d;
+  --agent-2: #6b5b99;
+  --agent-3: #2d8a4e;
+  --agent-4: #c97a3a;
+  --agent-5: #b0718a;
+
+  --bg-primary: var(--bg-base);
+  --bg-secondary: var(--bg-surface);
+  --accent: var(--text-accent);
+  --accent-2: var(--text-accent-2);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Base styles
+   ═══════════════════════════════════════════════════════════ */
 
 body {
   margin: 0;
-  background: var(--bg-primary);
+  background: var(--bg-base);
   color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {
   box-sizing: border-box;
 }
 
+/* Smooth theme transitions on key elements */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Themed utility classes (use these instead of hardcoded Tailwind colors)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Backgrounds */
+.bg-base { background-color: var(--bg-base); }
+.bg-surface { background-color: var(--bg-surface); }
+.bg-surface-hover:hover { background-color: var(--bg-surface-hover); }
+.bg-card { background-color: var(--bg-card); }
+.bg-inset { background-color: var(--bg-inset); }
+
+/* Text */
+.text-base-primary { color: var(--text-primary); }
+.text-base-secondary { color: var(--text-secondary); }
+.text-base-muted { color: var(--text-muted); }
+.text-base-accent { color: var(--text-accent); }
+
+/* Borders */
+.border-theme { border-color: var(--border-color); }
+.border-theme-subtle { border-color: var(--border-subtle); }
+
+/* Inputs */
+.input-theme {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
+  color: var(--text-primary);
+}
+
 /* react-simple-code-editor textarea */
 .code-editor-textarea {
   outline: none !important;
-  caret-color: #e2e8f0;
+  caret-color: var(--text-primary);
+}
+
+/* Scrollbar theming for light mode */
+.light ::-webkit-scrollbar-track {
+  background: var(--bg-inset);
+}
+.light ::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Light Mode: Override Tailwind color utilities globally
+   This avoids rewriting every component's classes.
+   ═══════════════════════════════════════════════════════════ */
+
+/* --- Backgrounds --- */
+.light .bg-\[\#0f172a\],
+.light .bg-\[\#0f172a\]\/80,
+.light .bg-\[\#0f172a\]\/60 {
+  background-color: var(--bg-base) !important;
+}
+
+.light .bg-slate-950,
+.light .bg-slate-900,
+.light .bg-slate-900\/50 {
+  background-color: var(--bg-inset) !important;
+}
+
+.light .bg-slate-800,
+.light .bg-slate-800\/50,
+.light .bg-slate-800\/40,
+.light .bg-slate-800\/30 {
+  background-color: var(--bg-surface) !important;
+}
+
+.light .bg-slate-700,
+.light .bg-slate-700\/50,
+.light .bg-slate-700\/30 {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+.light .bg-slate-600 {
+  background-color: var(--border-color) !important;
+}
+
+/* --- Text colors --- */
+.light .text-slate-100,
+.light .text-slate-200,
+.light .text-white {
+  color: var(--text-primary) !important;
+}
+
+.light .text-slate-300 {
+  color: var(--text-secondary) !important;
+}
+
+.light .text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+
+.light .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+
+.light .text-slate-600 {
+  color: var(--text-muted) !important;
+}
+
+.light .text-sky-400,
+.light .text-sky-300 {
+  color: var(--text-accent) !important;
+}
+
+.light .text-violet-400,
+.light .text-violet-300,
+.light .text-violet-300\/90 {
+  color: var(--text-accent-2) !important;
+}
+
+/* --- Borders --- */
+.light .border-slate-700,
+.light .border-slate-700\/50,
+.light .border-slate-700\/30 {
+  border-color: var(--border-color) !important;
+}
+
+.light .border-slate-600,
+.light .border-slate-600\/50,
+.light .border-slate-600\/30 {
+  border-color: var(--border-color) !important;
+}
+
+.light .border-slate-800 {
+  border-color: var(--border-subtle) !important;
+}
+
+.light .border-sky-500,
+.light .border-sky-500\/50,
+.light .border-sky-400 {
+  border-color: var(--text-accent) !important;
+}
+
+.light .border-violet-500,
+.light .border-violet-500\/50,
+.light .border-violet-500\/30 {
+  border-color: var(--text-accent-2) !important;
+}
+
+/* --- Gradient buttons: softer in light mode --- */
+.light .bg-gradient-to-r.from-violet-500.to-pink-500,
+.light .bg-gradient-to-r.from-violet-400.to-pink-400 {
+  background: var(--gradient-accent) !important;
+}
+
+.light .bg-gradient-to-r.from-sky-500.to-violet-500,
+.light .bg-gradient-to-r.from-sky-400.to-violet-400 {
+  background: var(--gradient-primary) !important;
+}
+
+.light .shadow-violet-500\/25,
+.light .shadow-violet-500\/20,
+.light .shadow-sky-500\/20 {
+  box-shadow: 0 10px 15px -3px rgba(107, 91, 153, 0.1) !important;
+}
+
+/* --- Solid buttons --- */
+.light .bg-sky-600 {
+  background-color: var(--btn-primary-bg) !important;
+}
+.light .bg-sky-500,
+.light .hover\:bg-sky-500:hover {
+  background-color: var(--btn-primary-hover) !important;
+}
+
+.light .bg-violet-600 {
+  background-color: var(--btn-accent-bg) !important;
+}
+.light .hover\:bg-violet-500:hover {
+  background-color: var(--btn-accent-hover) !important;
+}
+
+/* --- Cards & panels with colored tints --- */
+.light .bg-sky-500\/10 {
+  background-color: rgba(46, 125, 125, 0.06) !important;
+}
+.light .bg-violet-500\/10 {
+  background-color: rgba(107, 91, 153, 0.06) !important;
+}
+.light .bg-green-500\/10,
+.light .bg-emerald-500\/10 {
+  background-color: rgba(45, 138, 78, 0.06) !important;
+}
+.light .bg-amber-500\/10,
+.light .bg-amber-900\/30 {
+  background-color: rgba(184, 134, 11, 0.06) !important;
+}
+.light .bg-red-500\/10 {
+  background-color: rgba(192, 57, 43, 0.06) !important;
+}
+
+/* Gradient panels */
+.light .from-violet-500\/10 {
+  --tw-gradient-from: rgba(107, 91, 153, 0.06) !important;
+}
+.light .to-pink-500\/10 {
+  --tw-gradient-to: rgba(176, 113, 138, 0.06) !important;
+}
+.light .from-green-500\/10 {
+  --tw-gradient-from: rgba(45, 138, 78, 0.06) !important;
+}
+.light .to-emerald-500\/10 {
+  --tw-gradient-to: rgba(45, 138, 78, 0.04) !important;
+}
+
+/* --- Status colors --- */
+.light .text-green-400 {
+  color: var(--color-success) !important;
+}
+.light .text-amber-400,
+.light .text-amber-300 {
+  color: var(--color-warning) !important;
+}
+.light .text-red-400,
+.light .text-red-300 {
+  color: var(--color-danger) !important;
+}
+
+/* --- Inputs & selects --- */
+.light select,
+.light input[type="number"],
+.light input[type="text"],
+.light textarea {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* --- Code blocks --- */
+.light pre, .light code {
+  background-color: var(--code-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.light .font-mono {
+  color: var(--text-accent) !important;
+}
+
+/* Don't override font-mono color on buttons and large text */
+.light button .font-mono,
+.light .text-lg .font-mono,
+.light .text-sm .font-mono {
+  color: inherit !important;
+}
+
+/* --- Accent backgrounds for badges/tags --- */
+.light .bg-sky-500\/20 {
+  background-color: rgba(46, 125, 125, 0.1) !important;
+}
+.light .bg-violet-500\/20 {
+  background-color: rgba(107, 91, 153, 0.1) !important;
+}
+.light .bg-green-500\/20 {
+  background-color: rgba(45, 138, 78, 0.1) !important;
+}
+.light .bg-amber-500\/20 {
+  background-color: rgba(184, 134, 11, 0.1) !important;
+}
+.light .bg-red-500\/20 {
+  background-color: rgba(192, 57, 43, 0.1) !important;
+}
+
+/* --- Hover states for cards --- */
+.light .hover\:border-sky-500\/50:hover {
+  border-color: var(--text-accent) !important;
+}
+.light .hover\:border-violet-500\/50:hover {
+  border-color: var(--text-accent-2) !important;
+}
+.light .hover\:border-amber-500\/50:hover {
+  border-color: var(--color-warning) !important;
+}
+.light .hover\:border-emerald-500\/50:hover {
+  border-color: var(--color-success) !important;
+}
+.light .hover\:border-slate-600:hover {
+  border-color: var(--border-color) !important;
+}
+
+/* Group hover text */
+.light .group-hover\:text-sky-300 {
+  color: var(--text-accent) !important;
+}
+.light .group-hover\:text-violet-300 {
+  color: var(--text-accent-2) !important;
+}
+.light .group-hover\:text-amber-300 {
+  color: var(--color-warning) !important;
+}
+.light .group-hover\:text-emerald-300 {
+  color: var(--color-success) !important;
 }

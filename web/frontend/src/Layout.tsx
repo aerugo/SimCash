@@ -2,6 +2,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useGameContext, GameProvider } from './GameContext';
 import { useAuthInfo } from './AuthInfoContext';
 import { ToastContainer } from './components/Toast';
+import { useTheme } from './hooks/useTheme';
 
 const NAV_SECTIONS = [
   { to: '/', label: 'Run', icon: '🏠', exact: true },
@@ -10,10 +11,24 @@ const NAV_SECTIONS = [
   { to: '/docs', label: 'Docs', icon: '📖', match: '/docs' },
 ];
 
+function ThemeToggle({ theme, toggle }: { theme: string; toggle: () => void }) {
+  return (
+    <button
+      onClick={toggle}
+      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+      style={{ backgroundColor: 'var(--btn-muted-bg)', color: 'var(--text-secondary)' }}
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+    >
+      {theme === 'dark' ? '☀️' : '🌙'}
+    </button>
+  );
+}
+
 function LayoutInner() {
   const { simId, state, gameId } = useGameContext();
   const { isAdmin, userEmail, onSignOut } = useAuthInfo();
   const location = useLocation();
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const showExperiment = !!gameId;
   const showSimulation = !!simId;
@@ -30,23 +45,23 @@ function LayoutInner() {
   const isSimulation = location.pathname.startsWith('/simulation');
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-100">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Header */}
-      <header className="border-b border-slate-700 bg-[#0f172a]/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 80%, transparent)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <NavLink to="/" className="text-2xl font-bold bg-gradient-to-r from-sky-400 to-violet-400 bg-clip-text text-transparent">
+            <NavLink to="/" className="text-2xl font-bold" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               SimCash
             </NavLink>
-            <span className="text-xs text-slate-500 hidden sm:inline">Interactive Payment Simulator</span>
+            <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>Interactive Payment Simulator</span>
           </div>
           <div className="flex items-center gap-3">
             {simId && state && (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <span className="font-mono bg-slate-800 px-2 py-1 rounded text-xs">{simId}</span>
+              <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                <span className="font-mono px-2 py-1 rounded text-xs" style={{ backgroundColor: 'var(--bg-surface)' }}>{simId}</span>
                 <span className="text-xs">
                   Tick {state.current_tick}/{state.total_ticks}
-                  {state.is_complete && <span className="ml-1 text-green-400">✓</span>}
+                  {state.is_complete && <span className="ml-1" style={{ color: 'var(--color-success)' }}>✓</span>}
                 </span>
               </div>
             )}
@@ -60,8 +75,9 @@ function LayoutInner() {
                 👑 Admin
               </NavLink>
             )}
-            <span className="text-xs text-slate-500 hidden md:inline">{userEmail}</span>
-            <button onClick={onSignOut} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">Sign out</button>
+            <ThemeToggle theme={theme} toggle={toggleTheme} />
+            <span className="text-xs hidden md:inline" style={{ color: 'var(--text-muted)' }}>{userEmail}</span>
+            <button onClick={onSignOut} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>Sign out</button>
           </div>
         </div>
 
@@ -74,12 +90,9 @@ function LayoutInner() {
                 to={section.to}
                 end={section.exact}
                 className={() =>
-                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    isActive(section)
-                      ? 'border-sky-400 text-sky-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`
+                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors`
                 }
+                style={{ borderColor: isActive(section) ? 'var(--text-accent)' : 'transparent', color: isActive(section) ? 'var(--text-accent)' : 'var(--text-muted)' }}
               >
                 <span className="sm:mr-1 text-base sm:text-sm">{section.icon}</span>
                 <span className="hidden sm:inline">{section.label}</span>
@@ -88,13 +101,10 @@ function LayoutInner() {
             {showExperiment && (
               <NavLink
                 to={`/experiment/${gameId}`}
-                className={({ isActive: active }) =>
-                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    active || location.pathname.startsWith('/experiment')
-                      ? 'border-sky-400 text-sky-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`
+                className={() =>
+                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors`
                 }
+                style={{ borderColor: location.pathname.startsWith('/experiment') ? 'var(--text-accent)' : 'transparent', color: location.pathname.startsWith('/experiment') ? 'var(--text-accent)' : 'var(--text-muted)' }}
               >
                 <span className="mr-1">🧪</span>
                 <span className="hidden sm:inline">Experiment</span>
@@ -104,12 +114,9 @@ function LayoutInner() {
               <NavLink
                 to="/simulation/dashboard"
                 className={() =>
-                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    isSimulation
-                      ? 'border-sky-400 text-sky-400'
-                      : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`
+                  `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors`
                 }
+                style={{ borderColor: isSimulation ? 'var(--text-accent)' : 'transparent', color: isSimulation ? 'var(--text-accent)' : 'var(--text-muted)' }}
               >
                 <span className="mr-1">📊</span>
                 <span className="hidden sm:inline">Simulation</span>
@@ -121,29 +128,11 @@ function LayoutInner() {
 
       {/* Library sub-tab bar */}
       {isLibrary && (
-        <div className="border-b border-slate-700/50 bg-[#0f172a]/60 sticky top-[57px] z-40">
+        <div className="sticky top-[57px] z-40" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 60%, transparent)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex gap-1 overflow-x-auto py-0 -mb-px">
-              <NavLink
-                to="/library/scenarios"
-                className={() =>
-                  `px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    isScenarios ? 'border-violet-400 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`
-                }
-              >
-                Scenarios
-              </NavLink>
-              <NavLink
-                to="/library/policies"
-                className={() =>
-                  `px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                    isPolicies ? 'border-violet-400 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300'
-                  }`
-                }
-              >
-                Policies
-              </NavLink>
+              <NavLink to="/library/scenarios" className="px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors" style={{ borderColor: isScenarios ? 'var(--text-accent-2)' : 'transparent', color: isScenarios ? 'var(--text-accent-2)' : 'var(--text-muted)' }}>Scenarios</NavLink>
+              <NavLink to="/library/policies" className="px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors" style={{ borderColor: isPolicies ? 'var(--text-accent-2)' : 'transparent', color: isPolicies ? 'var(--text-accent-2)' : 'var(--text-muted)' }}>Policies</NavLink>
             </div>
           </div>
         </div>
@@ -151,7 +140,7 @@ function LayoutInner() {
 
       {/* Simulation sub-tab bar */}
       {isSimulation && (
-        <div className="border-b border-slate-700/50 bg-[#0f172a]/60 sticky top-[57px] z-40">
+        <div className="sticky top-[57px] z-40" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 60%, transparent)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
             <div className="flex gap-1 overflow-x-auto py-0 -mb-px">
               {[
@@ -165,11 +154,8 @@ function LayoutInner() {
                 <NavLink
                   key={tab.to}
                   to={tab.to}
-                  className={({ isActive: active }) =>
-                    `px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors ${
-                      active ? 'border-violet-400 text-violet-300' : 'border-transparent text-slate-500 hover:text-slate-300'
-                    }`
-                  }
+                  className="px-3 py-1.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors"
+                  style={({ isActive: active }) => ({ borderColor: active ? 'var(--text-accent-2)' : 'transparent', color: active ? 'var(--text-accent-2)' : 'var(--text-muted)' })}
                 >
                   {tab.label}
                 </NavLink>
@@ -185,7 +171,7 @@ function LayoutInner() {
 
       {/* Keyboard hint */}
       {simId && isSimulation && (
-        <div className="fixed bottom-4 left-4 text-[10px] text-slate-600 hidden lg:block pointer-events-none">
+        <div className="fixed bottom-4 left-4 text-[10px] hidden lg:block pointer-events-none" style={{ color: 'var(--text-muted)' }}>
           Space: play/pause · →: step · R: reset
         </div>
       )}
