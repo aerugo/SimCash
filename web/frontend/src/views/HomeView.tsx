@@ -193,9 +193,6 @@ export function HomeView() {
           Here, AI agents independently build decision-tree policies to navigate this coordination problem,
           and we watch whether they find equilibrium.
         </p>
-        <p className="text-xs text-slate-500 mt-2">
-          Extends the methodology of BIS Working Paper 1310 (Castro et al., 2025)
-        </p>
       </div>
 
       {/* Quick Navigation Cards */}
