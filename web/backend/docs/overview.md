@@ -12,11 +12,11 @@ In systems like TARGET2, Fedwire, and RIX-RTGS, banks hold accounts at the centr
 - **Delaying payments is expensive** — client SLAs, regulatory deadlines, and reputational pressure demand timely settlement
 - **If everyone waits for incoming funds before releasing outgoing ones, the system gridlocks**
 
-This creates a multi-player coordination game. Cooperation (paying early) benefits the system, but each individual bank has an incentive to wait and free-ride on others' liquidity. The game structure shifts between a Stag Hunt and a Prisoner's Dilemma depending on system parameters — and Liquidity-Saving Mechanisms change the payoff matrix entirely.
+This creates a multi-player coordination game. Cooperation (paying early) benefits the system, but each individual bank has an incentive to wait and free-ride on others' liquidity.
 
 ## What SimCash Simulates
 
-The simulation engine models a complete RTGS business day at tick-level granularity, capturing the full complexity of real payment infrastructure:
+The simulation engine models a complete RTGS business day at tick-level granularity:
 
 ### Two-Queue Architecture
 
@@ -29,7 +29,7 @@ This separation captures the key distinction: banks *choose* when to submit (str
 
 ### Liquidity-Saving Mechanisms
 
-When payments sit in Queue 2, the engine runs TARGET2-style LSM algorithms in sequence:
+When payments sit in Queue 2, the engine can optionally run LSM algorithms in sequence:
 
 1. **FIFO Settlement** — process queued payments in submission order
 2. **Bilateral Offsetting** — if Bank A owes Bank B and vice versa, settle both at the net liquidity cost
@@ -81,16 +81,10 @@ Over multiple rounds, independently-optimizing agents explore the strategy space
 
 When multiple agents optimize simultaneously, the system exhibits classic game-theoretic dynamics:
 
-- **Delayed best-response** — each agent optimizes against yesterday's observed counterparty behavior, mirroring how real treasury departments operate
+- **Delayed best-response** — each agent optimizes against yesterday's observed counterparty behavior
 - **Convergence patterns** — agents typically find stable policy profiles, but stability doesn't guarantee optimality
 - **Coordination failures** — free-riding emerges when one agent exploits another's liquidity commitment
-- **LSM as mechanism design** — liquidity-saving mechanisms reshape incentives, often promoting more cooperative outcomes
-
-## Architecture
-
-The engine is built in **Rust** for speed and determinism (1,200+ ticks/second, bit-for-bit reproducible with seeded RNG), with a **Python** orchestration layer connected via PyO3 FFI. All monetary values use integer arithmetic (cents) — no floating point. The web platform adds a FastAPI backend and React frontend for interactive experimentation.
-
-Configuration is YAML-based with full Pydantic validation. The system supports configurable features including deferred crediting, priority escalation, bilateral/multilateral exposure limits, and multiple queue ordering modes — all modeled after TARGET2's actual design.
+- **LSM as mechanism design** — liquidity-saving mechanisms reshape incentives
 
 ## What You Can Explore
 
