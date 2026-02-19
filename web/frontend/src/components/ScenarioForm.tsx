@@ -12,8 +12,11 @@ interface AgentFormData {
     rate_per_tick: number;
     amount_distribution: {
       type: string;
-      mean: number;
-      std_dev: number;
+      mean?: number;
+      std_dev?: number;
+      min?: number;
+      max?: number;
+      rate?: number;
     };
     counterparty_weights: Record<string, number>;
     deadline_range: [number, number];
@@ -309,12 +312,30 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }:
               <NumberField label="Rate/Tick" value={agent.arrival_config.rate_per_tick} onChange={v => onChange(a => { a.arrival_config.rate_per_tick = v; })} step={0.1} />
               <div>
                 <label className={labelCls}>Distribution</label>
-                <select value={agent.arrival_config.amount_distribution.type} onChange={e => onChange(a => { a.arrival_config.amount_distribution.type = e.target.value; })} className={inputCls}>
+                <select value={agent.arrival_config.amount_distribution.type} onChange={e => onChange(a => {
+                  const t = e.target.value;
+                  if (t === 'Uniform') a.arrival_config.amount_distribution = { type: 'Uniform', min: 1000, max: 20000 };
+                  else if (t === 'Normal') a.arrival_config.amount_distribution = { type: 'Normal', mean: 10000, std_dev: 5000 };
+                  else if (t === 'Exponential') a.arrival_config.amount_distribution = { type: 'Exponential', rate: 0.0001 };
+                  else a.arrival_config.amount_distribution = { type: 'LogNormal', mean: 10000, std_dev: 5000 };
+                })} className={inputCls}>
                   <option value="LogNormal">LogNormal</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Uniform">Uniform</option>
+                  <option value="Exponential">Exponential</option>
                 </select>
               </div>
-              <NumberField label="Mean" value={agent.arrival_config.amount_distribution.mean} onChange={v => onChange(a => { a.arrival_config.amount_distribution.mean = v; })} />
-              <NumberField label="Std Dev" value={agent.arrival_config.amount_distribution.std_dev} onChange={v => onChange(a => { a.arrival_config.amount_distribution.std_dev = v; })} />
+              {(agent.arrival_config.amount_distribution.type === 'LogNormal' || agent.arrival_config.amount_distribution.type === 'Normal') && <>
+                <NumberField label="Mean" value={agent.arrival_config.amount_distribution.mean} onChange={v => onChange(a => { a.arrival_config.amount_distribution.mean = v; })} />
+                <NumberField label="Std Dev" value={agent.arrival_config.amount_distribution.std_dev} onChange={v => onChange(a => { a.arrival_config.amount_distribution.std_dev = v; })} />
+              </>}
+              {agent.arrival_config.amount_distribution.type === 'Uniform' && <>
+                <NumberField label="Min" value={agent.arrival_config.amount_distribution.min} onChange={v => onChange(a => { a.arrival_config.amount_distribution.min = v; })} />
+                <NumberField label="Max" value={agent.arrival_config.amount_distribution.max} onChange={v => onChange(a => { a.arrival_config.amount_distribution.max = v; })} />
+              </>}
+              {agent.arrival_config.amount_distribution.type === 'Exponential' && <>
+                <NumberField label="Rate (λ)" value={agent.arrival_config.amount_distribution.rate} onChange={v => onChange(a => { a.arrival_config.amount_distribution.rate = v; })} step={0.0001} />
+              </>}
             </div>
           </div>
 
