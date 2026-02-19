@@ -50,8 +50,8 @@ class ScenarioConfig(BaseModel):
     enable_bilateral_lsm: bool = False
     enable_cycle_lsm: bool = False
     # LLM reasoning
-    use_llm: bool = False
-    mock_reasoning: bool = True
+    use_llm: bool = True
+    mock_reasoning: bool = False
 
 
 class PaymentEntry(BaseModel):
@@ -149,8 +149,8 @@ class CreateGameRequest(BaseModel):
     """Configuration for creating a multi-day policy optimization game."""
     scenario_id: str = "2bank_12tick"
     inline_config: dict[str, Any] | None = None
-    use_llm: bool = False
-    mock_reasoning: bool = True
+    use_llm: bool = True
+    mock_reasoning: bool = False
     max_days: int = Field(default=10, ge=1, le=100)
     num_eval_samples: int = Field(default=1, ge=1, le=50)
     optimization_interval: int = Field(default=1, ge=1, le=50)
