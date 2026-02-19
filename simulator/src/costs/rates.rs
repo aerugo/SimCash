@@ -5,6 +5,71 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Penalty calculation mode — fixed amount or rate-based.
+///
+/// Allows penalties (deadline, EOD) to be configured as either a fixed
+/// amount in cents or a rate (basis points) applied to transaction value.
+///
+/// # Examples
+///
+/// ```
+/// use payment_simulator_core_rs::costs::PenaltyMode;
+///
+/// // Fixed: always $500 regardless of transaction size
+/// let fixed = PenaltyMode::Fixed { amount: 50_000 };
+/// assert_eq!(fixed.resolve(1_000_000), 50_000);
+/// assert_eq!(fixed.resolve(100), 50_000);
+///
+/// // Rate: 1% of transaction value
+/// let rate = PenaltyMode::Rate { bps_per_event: 100.0 };
+/// assert_eq!(rate.resolve(1_000_000), 10_000); // $100 on $10,000
+/// assert_eq!(rate.resolve(100), 1);             // $0.01 on $1
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum PenaltyMode {
+    /// Fixed penalty amount in cents (current behavior).
+    Fixed {
+        /// Penalty amount in cents.
+        amount: i64,
+    },
+    /// Rate applied to transaction amount: `amount × bps / 10_000`.
+    Rate {
+        /// Basis points per event. Must be non-negative and finite.
+        bps_per_event: f64,
+    },
+}
+
+impl PenaltyMode {
+    /// Resolve the penalty to a concrete i64 amount given a transaction value.
+    ///
+    /// - `Fixed`: returns the fixed amount, ignoring `transaction_amount_cents`.
+    /// - `Rate`: returns `|transaction_amount_cents| × bps_per_event / 10_000`,
+    ///   using u128 intermediate arithmetic to prevent overflow.
+    ///
+    /// Returns 0 for NaN, infinite, or negative `bps_per_event` values.
+    pub fn resolve(&self, transaction_amount_cents: i64) -> i64 {
+        match self {
+            PenaltyMode::Fixed { amount } => *amount,
+            PenaltyMode::Rate { bps_per_event } => {
+                // Guard: NaN, Inf, negative bps → 0
+                if bps_per_event.is_nan()
+                    || bps_per_event.is_infinite()
+                    || *bps_per_event < 0.0
+                {
+                    return 0;
+                }
+                // Use absolute value — penalties are always positive
+                let abs_amount = transaction_amount_cents.unsigned_abs() as u128;
+                // Scale to micro-bps for integer precision before dividing
+                let rate_micro = (*bps_per_event * 1_000_000.0) as u128;
+                let result = abs_amount * rate_micro / (10_000 * 1_000_000);
+                result.min(i64::MAX as u128) as i64
+            }
+        }
+    }
+}
+
 /// Priority band for categorizing transaction urgency
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PriorityBand {
@@ -91,11 +156,17 @@ pub struct CostRates {
     /// (e.g., 0.0002 = 2 bps annualized / 100 ticks = 0.02 bps per tick)
     pub collateral_cost_per_tick_bps: f64,
 
-    /// End-of-day penalty for each unsettled transaction (cents)
-    pub eod_penalty_per_transaction: i64,
+    /// End-of-day penalty for each overdue unsettled transaction.
+    ///
+    /// Can be `Fixed { amount }` (flat cents per tx) or
+    /// `Rate { bps_per_event }` (bps applied to remaining unsettled amount).
+    pub eod_penalty: PenaltyMode,
 
-    /// Penalty for missing deadline (cents per transaction)
-    pub deadline_penalty: i64,
+    /// Penalty for missing deadline.
+    ///
+    /// Can be `Fixed { amount }` (flat cents per tx) or
+    /// `Rate { bps_per_event }` (bps applied to transaction amount).
+    pub deadline_penalty: PenaltyMode,
 
     /// Split friction cost per split (cents)
     ///
@@ -147,8 +218,8 @@ impl Default for CostRates {
             overdraft_bps_per_tick: 0.001,        // 1 bp/tick
             delay_cost_per_tick_per_cent: 0.0001, // 0.1 bp/tick
             collateral_cost_per_tick_bps: 0.0002, // 2 bps annualized / 100 ticks
-            eod_penalty_per_transaction: 10_000,  // $100 per unsettled tx
-            deadline_penalty: 50_000,             // $500 per missed deadline
+            eod_penalty: PenaltyMode::Fixed { amount: 10_000 },  // $100 per unsettled tx
+            deadline_penalty: PenaltyMode::Fixed { amount: 50_000 },  // $500 per missed deadline
             split_friction_cost: 1000,            // $10 per split
             overdue_delay_multiplier: 5.0,        // 5x multiplier for overdue
             priority_delay_multipliers: None,     // No priority differentiation by default
@@ -167,8 +238,8 @@ mod tests {
         assert_eq!(rates.overdraft_bps_per_tick, 0.001);
         assert_eq!(rates.delay_cost_per_tick_per_cent, 0.0001);
         assert_eq!(rates.collateral_cost_per_tick_bps, 0.0002);
-        assert_eq!(rates.eod_penalty_per_transaction, 10_000);
-        assert_eq!(rates.deadline_penalty, 50_000);
+        assert_eq!(rates.eod_penalty, PenaltyMode::Fixed { amount: 10_000 });
+        assert_eq!(rates.deadline_penalty, PenaltyMode::Fixed { amount: 50_000 });
         assert_eq!(rates.split_friction_cost, 1000);
         assert_eq!(rates.overdue_delay_multiplier, 5.0);
         assert!(rates.priority_delay_multipliers.is_none());

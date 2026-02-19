@@ -13,7 +13,7 @@
 
 use payment_simulator_core_rs::models::{Event, Transaction};
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering,
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PenaltyMode, PolicyConfig, Queue1Ordering,
 };
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 
@@ -738,8 +738,8 @@ fn create_basic_config() -> OrchestratorConfig {
             overdraft_bps_per_tick: 0.0001, // 1 bps per tick
             delay_cost_per_tick_per_cent: 0.00001,
             collateral_cost_per_tick_bps: 0.0002,
-            eod_penalty_per_transaction: 10000, // $100
-            deadline_penalty: 5000,             // $50 per missed deadline
+            eod_penalty: PenaltyMode::Fixed { amount: 10000 }, // $100
+            deadline_penalty: PenaltyMode::Fixed { amount: 5000 },             // $50 per missed deadline
             split_friction_cost: 0,             // Default to 0, tests override
             overdue_delay_multiplier: 5.0,      // Phase 3: Escalating delay cost for overdue
             priority_delay_multipliers: None,   // Enhancement 11.1

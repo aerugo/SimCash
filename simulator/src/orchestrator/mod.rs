@@ -16,7 +16,7 @@ pub use engine::{
     OrchestratorConfig, PolicyConfig, PriorityEscalationConfig, Queue1Ordering, SimulationError, TickResult,
 };
 // BIS model support - CostRates and priority types are now in costs module
-pub use crate::costs::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
+pub use crate::costs::{get_priority_band, CostRates, PenaltyMode, PriorityBand, PriorityDelayMultipliers};
 
 // Re-export checkpoint types
 pub use checkpoint::{AgentSnapshot, StateSnapshot, TransactionSnapshot};

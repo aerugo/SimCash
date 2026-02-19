@@ -3,7 +3,7 @@
 // EOD penalties should ONLY apply to transactions that are overdue at end of day,
 // not all unsettled transactions.
 
-use crate::costs::CostRates;
+use crate::costs::{CostRates, PenaltyMode};
 use crate::orchestrator::engine::{AgentConfig, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
 use crate::settlement::lsm::LsmConfig;
 
@@ -46,8 +46,8 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
             },
         ],
         cost_rates: CostRates {
-            eod_penalty_per_transaction: 5_000_00, // $5,000
-            deadline_penalty: 2_500_00,            // $2,500
+            eod_penalty: PenaltyMode::Fixed { amount: 5_000_00 }, // $5,000
+            deadline_penalty: PenaltyMode::Fixed { amount: 2_500_00 },            // $2,500
             ..Default::default()
         },
         lsm_config: LsmConfig::default(),
@@ -167,8 +167,8 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
             },
         ],
         cost_rates: CostRates {
-            eod_penalty_per_transaction: 5_000_00,
-            deadline_penalty: 2_500_00,
+            eod_penalty: PenaltyMode::Fixed { amount: 5_000_00 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 2_500_00 },
             ..Default::default()
         },
         lsm_config: LsmConfig::default(),
@@ -255,8 +255,8 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
             },
         ],
         cost_rates: CostRates {
-            eod_penalty_per_transaction: 5_000_00,
-            deadline_penalty: 2_500_00,
+            eod_penalty: PenaltyMode::Fixed { amount: 5_000_00 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 2_500_00 },
             ..Default::default()
         },
         lsm_config: LsmConfig::default(),

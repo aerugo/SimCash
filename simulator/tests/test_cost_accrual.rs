@@ -8,7 +8,7 @@
 //! - Cost accumulation over multiple ticks
 
 use payment_simulator_core_rs::{
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PenaltyMode, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
     Transaction,
 };
@@ -254,7 +254,7 @@ fn test_end_of_day_penalty() {
     // Create orchestrator with 10 ticks per day for faster testing
     let mut config = create_test_config();
     config.ticks_per_day = 10;
-    config.cost_rates.eod_penalty_per_transaction = 10_000; // $100 per unsettled tx
+    config.cost_rates.eod_penalty = PenaltyMode::Fixed { amount: 10_000 }; // $100 per unsettled tx
     config.agent_configs[0].opening_balance = 0; // No liquidity - transaction can't settle
     config.agent_configs[0].unsecured_cap = 0; // No credit
     config.agent_configs[0].policy = PolicyConfig::Fifo; // Submit immediately to RTGS
@@ -293,8 +293,10 @@ fn test_end_of_day_penalty() {
 
     // deadline_penalty_cost includes both deadline penalty and EOD penalty
     // Default deadline_penalty is 50_000 ($500), plus EOD penalty of 10_000 ($100)
-    let expected_deadline_penalty = orchestrator.cost_rates().deadline_penalty;
-    let expected_eod_penalty = 10_000; // Set in config above
+    // Default deadline_penalty is Fixed{50_000}, resolve with tx amount (1_000_000 cents)
+    let expected_deadline_penalty = orchestrator.cost_rates().deadline_penalty.resolve(1_000_000);
+    // EOD penalty is Fixed{10_000}, resolve with remaining amount (1_000_000 cents)
+    let expected_eod_penalty = orchestrator.cost_rates().eod_penalty.resolve(1_000_000);
     let expected_total = expected_deadline_penalty + expected_eod_penalty;
 
     assert_eq!(
@@ -552,4 +554,108 @@ fn test_all_cost_types_together() {
         + costs_final.total_penalty_cost
         + costs_final.total_split_friction_cost;
     assert_eq!(costs_final.total(), expected_total);
+}
+
+// =============================================================================
+// Phase 2: Rate-mode penalty tests
+// =============================================================================
+
+#[test]
+fn test_deadline_penalty_rate_mode_scales_with_amount() {
+    let mut config = create_test_config();
+    // 100 bps = 1% of transaction amount
+    config.cost_rates.deadline_penalty = PenaltyMode::Rate { bps_per_event: 100.0 };
+    config.cost_rates.eod_penalty = PenaltyMode::Fixed { amount: 0 }; // disable EOD to isolate
+    config.agent_configs[0].opening_balance = 500_000; // insufficient for 1M tx
+    config.agent_configs[0].unsecured_cap = 0; // no credit
+    let mut orch = Orchestrator::new(config).unwrap();
+
+    // Submit $10,000 (1_000_000 cents) tx with deadline at tick 2
+    orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 2, 5, false).unwrap();
+
+    // Run past deadline (tick 3+)
+    for _ in 0..4 {
+        orch.tick().unwrap();
+    }
+
+    let costs = orch.get_costs("BANK_A").unwrap();
+    // 1% of 1_000_000 = 10_000
+    assert_eq!(costs.total_penalty_cost, 10_000,
+        "Rate-mode deadline penalty should be 1% of tx amount (1_000_000 × 100bps / 10000 = 10_000)");
+}
+
+#[test]
+fn test_deadline_penalty_rate_mode_different_amounts() {
+    // Two transactions with different amounts should get different penalties
+    let mut config = create_test_config();
+    config.cost_rates.deadline_penalty = PenaltyMode::Rate { bps_per_event: 100.0 }; // 1%
+    config.cost_rates.eod_penalty = PenaltyMode::Fixed { amount: 0 };
+    config.agent_configs[0].opening_balance = 100_000; // very low
+    config.agent_configs[0].unsecured_cap = 0;
+    let mut orch = Orchestrator::new(config).unwrap();
+
+    // Submit two txs with different amounts, same deadline
+    orch.submit_transaction("BANK_A", "BANK_B", 500_000, 2, 5, false).unwrap();   // $5,000
+    orch.submit_transaction("BANK_A", "BANK_B", 1_500_000, 2, 5, false).unwrap(); // $15,000
+
+    // Run past deadline
+    for _ in 0..4 {
+        orch.tick().unwrap();
+    }
+
+    let costs = orch.get_costs("BANK_A").unwrap();
+    // 1% of $5,000 = $50 (5_000 cents) + 1% of $15,000 = $150 (15_000 cents) = $200 (20_000 cents)
+    assert_eq!(costs.total_penalty_cost, 20_000,
+        "Rate-mode should sum resolved penalties per transaction");
+}
+
+#[test]
+fn test_fixed_mode_unchanged_regression() {
+    // Fixed mode must produce identical results to pre-change behavior
+    let mut config = create_test_config();
+    config.cost_rates.deadline_penalty = PenaltyMode::Fixed { amount: 100_000 };
+    config.cost_rates.eod_penalty = PenaltyMode::Fixed { amount: 0 };
+    config.agent_configs[0].opening_balance = 500_000;
+    config.agent_configs[0].unsecured_cap = 0;
+    let mut orch = Orchestrator::new(config).unwrap();
+
+    orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 2, 5, false).unwrap();
+
+    for _ in 0..4 {
+        orch.tick().unwrap();
+    }
+
+    let costs = orch.get_costs("BANK_A").unwrap();
+    // Fixed 100_000 regardless of tx amount
+    assert_eq!(costs.total_penalty_cost, 100_000,
+        "Fixed mode must return exact amount regardless of tx size");
+}
+
+#[test]
+fn test_eod_penalty_rate_mode_uses_remaining_amount() {
+    let mut config = create_test_config();
+    config.cost_rates.deadline_penalty = PenaltyMode::Fixed { amount: 0 }; // disable to isolate
+    // 200 bps = 2% of remaining unsettled amount
+    config.cost_rates.eod_penalty = PenaltyMode::Rate { bps_per_event: 200.0 };
+    config.num_days = 1;
+    config.ticks_per_day = 10;
+    config.agent_configs[0].opening_balance = 500_000; // insufficient for 1M tx
+    config.agent_configs[0].unsecured_cap = 0;
+    let mut orch = Orchestrator::new(config).unwrap();
+
+    // Submit $10,000 (1_000_000 cents) tx with deadline at tick 2 (will be overdue by EOD)
+    orch.submit_transaction("BANK_A", "BANK_B", 1_000_000, 2, 5, false).unwrap();
+
+    // Run full day (10 ticks)
+    for _ in 0..10 {
+        orch.tick().unwrap();
+    }
+
+    let costs = orch.get_costs("BANK_A").unwrap();
+    // 2% of 1_000_000 remaining = 20_000
+    // (penalty_cost includes both deadline penalty (0) + EOD penalty)
+    // The EOD penalty should be 20_000
+    assert!(costs.total_penalty_cost >= 20_000,
+        "EOD rate-mode penalty should be at least 2% of remaining amount: got {}",
+        costs.total_penalty_cost);
 }

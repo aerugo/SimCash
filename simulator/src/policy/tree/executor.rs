@@ -3,7 +3,7 @@
 // Implements CashManagerPolicy trait for JSON decision tree policies.
 // Provides unified interface for both trait-based and tree-based policies.
 
-use crate::orchestrator::CostRates;
+use crate::orchestrator::{CostRates, PenaltyMode};
 use crate::policy::tree::{
     build_decision, traverse_tree, validate_tree, DecisionTreeDef, EvalContext, EvalError,
     ValidationError,
@@ -590,7 +590,7 @@ impl CashManagerPolicy for TreePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::orchestrator::CostRates;
+    use crate::orchestrator::{CostRates, PenaltyMode};
     use crate::policy::tree::types::{ActionType, Expression, TreeNode, Value, ValueOrCompute};
     use crate::{Agent, Transaction};
     use serde_json::json;
@@ -601,8 +601,8 @@ mod tests {
             overdraft_bps_per_tick: 0.0001,
             delay_cost_per_tick_per_cent: 0.00001,
             collateral_cost_per_tick_bps: 0.0002,
-            eod_penalty_per_transaction: 10000,
-            deadline_penalty: 5000,
+            eod_penalty: PenaltyMode::Fixed { amount: 10000 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 5000 },
             split_friction_cost: 1000,
             ..Default::default()
         }

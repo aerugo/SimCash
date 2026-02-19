@@ -2,7 +2,7 @@
 // Tests multi-day simulations with GNB, ARB, and MIB policies
 
 use payment_simulator_core_rs::orchestrator::{
-    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering};
+    AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PenaltyMode, PolicyConfig, Queue1Ordering};
 use payment_simulator_core_rs::settlement::lsm::LsmConfig;
 use std::{fs, path::PathBuf};
 
@@ -83,8 +83,8 @@ fn create_config(num_days: usize) -> OrchestratorConfig {
             delay_cost_per_tick_per_cent: 0.01,
             collateral_cost_per_tick_bps: 1.0,
             split_friction_cost: 100_00,
-            deadline_penalty: 1000_00,
-            eod_penalty_per_transaction: 5000_00,
+            deadline_penalty: PenaltyMode::Fixed { amount: 1000_00 },
+            eod_penalty: PenaltyMode::Fixed { amount: 5000_00 },
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
             priority_delay_multipliers: None, // Enhancement 11.1
             liquidity_cost_per_tick_bps: 0.0, // Enhancement 11.2

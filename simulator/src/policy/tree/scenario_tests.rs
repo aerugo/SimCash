@@ -9,7 +9,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::orchestrator::{CostRates, PolicyConfig};
+    use crate::orchestrator::{CostRates, PenaltyMode, PolicyConfig};
     use crate::policy::tree::{
         create_policy, ActionType, Computation, DecisionTreeDef, Expression, TreeNode, TreePolicy,
         Value,
@@ -24,8 +24,8 @@ mod tests {
             overdraft_bps_per_tick: 0.0001,
             delay_cost_per_tick_per_cent: 0.00001,
             collateral_cost_per_tick_bps: 0.0002,
-            eod_penalty_per_transaction: 10000,
-            deadline_penalty: 5000,
+            eod_penalty: PenaltyMode::Fixed { amount: 10000 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 5000 },
             split_friction_cost: 1000,
             ..Default::default()
         }

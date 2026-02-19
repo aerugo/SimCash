@@ -289,7 +289,8 @@ def test_config_with_cost_rates():
         # Verify cost rates loaded
         assert config.cost_rates is not None
         assert config.cost_rates.overdraft_bps_per_tick == 0.002
-        assert config.cost_rates.eod_penalty_per_transaction == 20_000
+        assert config.cost_rates.eod_penalty.mode == "fixed"
+        assert config.cost_rates.eod_penalty.amount == 20_000
     finally:
         Path(config_path).unlink()
 

@@ -37,7 +37,7 @@ pub use models::{
     state::SimulationState,
     transaction::{RtgsPriority, Transaction, TransactionError, TransactionStatus},
 };
-pub use costs::{get_priority_band, CostRates, PriorityBand, PriorityDelayMultipliers};
+pub use costs::{get_priority_band, CostRates, PenaltyMode, PriorityBand, PriorityDelayMultipliers};
 pub use orchestrator::{
     AgentConfig, CostAccumulator, CostBreakdown, Orchestrator, OrchestratorConfig, PolicyConfig,
     SimulationError, TickResult,

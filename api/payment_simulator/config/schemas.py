@@ -601,6 +601,65 @@ class PriorityDelayMultipliers(BaseModel):
     )
 
 
+class PenaltyMode(BaseModel):
+    """Penalty calculation mode — fixed amount or rate-based.
+
+    Allows penalties (deadline, EOD) to be configured as either a fixed
+    amount in cents or a rate (basis points) applied to transaction value.
+
+    Examples:
+        Fixed: PenaltyMode(mode="fixed", amount=50_000)
+        Rate:  PenaltyMode(mode="rate", bps_per_event=50.0)
+    """
+
+    mode: Literal["fixed", "rate"]
+    amount: int | None = Field(None, description="Fixed penalty amount in cents (for mode='fixed')")
+    bps_per_event: float | None = Field(
+        None, description="Basis points per event applied to tx amount (for mode='rate')", ge=0
+    )
+
+    @model_validator(mode="after")
+    def validate_mode_fields(self) -> PenaltyMode:
+        """Ensure required fields are present for each mode."""
+        match self.mode:
+            case "fixed":
+                if self.amount is None:
+                    raise ValueError("Fixed mode requires 'amount'")
+            case "rate":
+                if self.bps_per_event is None:
+                    raise ValueError("Rate mode requires 'bps_per_event'")
+        return self
+
+    def to_ffi_dict(self) -> dict[str, str | int | float]:
+        """Serialize to FFI-compatible dict.
+
+        Returns:
+            Dict with 'mode' key and mode-specific value key.
+        """
+        match self.mode:
+            case "fixed":
+                return {"mode": "fixed", "amount": self.amount}  # type: ignore[return-value]
+            case "rate":
+                return {"mode": "rate", "bps_per_event": self.bps_per_event}  # type: ignore[return-value]
+
+
+def _parse_penalty_mode(value: int | dict[str, Any] | PenaltyMode) -> PenaltyMode:
+    """Parse a penalty value into PenaltyMode.
+
+    Accepts:
+    - int: backwards compat → Fixed mode
+    - dict: explicit mode specification
+    - PenaltyMode: pass through
+    """
+    if isinstance(value, PenaltyMode):
+        return value
+    if isinstance(value, int):
+        return PenaltyMode(mode="fixed", amount=value)
+    if isinstance(value, dict):
+        return PenaltyMode(**value)
+    raise ValueError(f"Penalty must be int, dict, or PenaltyMode, got {type(value)}")
+
+
 class CostRates(BaseModel):
     """Cost calculation rates."""
 
@@ -613,11 +672,14 @@ class CostRates(BaseModel):
     collateral_cost_per_tick_bps: float = Field(
         0.0002, description="Collateral opportunity cost in basis points per tick", ge=0
     )
-    eod_penalty_per_transaction: int = Field(
-        10_000, description="End-of-day penalty per unsettled transaction (cents)", ge=0
+    eod_penalty: PenaltyMode = Field(
+        default_factory=lambda: PenaltyMode(mode="fixed", amount=10_000),
+        description="End-of-day penalty for each overdue unsettled transaction",
+        alias="eod_penalty_per_transaction",
     )
-    deadline_penalty: int = Field(
-        50_000, description="Penalty for missing deadline (cents)", ge=0
+    deadline_penalty: PenaltyMode = Field(
+        default_factory=lambda: PenaltyMode(mode="fixed", amount=50_000),
+        description="Penalty for missing deadline",
     )
     split_friction_cost: int = Field(
         1000, description="Friction cost per split (cents)", ge=0
@@ -631,6 +693,14 @@ class CostRates(BaseModel):
     liquidity_cost_per_tick_bps: float = Field(
         0.0, description="Liquidity opportunity cost in basis points per tick (Enhancement 11.2)", ge=0
     )
+
+    model_config = {"populate_by_name": True}
+
+    @field_validator("deadline_penalty", "eod_penalty", mode="before")
+    @classmethod
+    def parse_penalty_mode(cls, v: int | dict[str, Any] | PenaltyMode) -> PenaltyMode:
+        """Accept bare int (backwards compat) or dict/PenaltyMode."""
+        return _parse_penalty_mode(v)
 
 
 # ============================================================================
@@ -1285,8 +1355,8 @@ class SimulationConfig(BaseModel):
             "overdraft_bps_per_tick": self.cost_rates.overdraft_bps_per_tick,
             "delay_cost_per_tick_per_cent": self.cost_rates.delay_cost_per_tick_per_cent,
             "collateral_cost_per_tick_bps": self.cost_rates.collateral_cost_per_tick_bps,
-            "eod_penalty_per_transaction": self.cost_rates.eod_penalty_per_transaction,
-            "deadline_penalty": self.cost_rates.deadline_penalty,
+            "eod_penalty": self.cost_rates.eod_penalty.to_ffi_dict(),
+            "deadline_penalty": self.cost_rates.deadline_penalty.to_ffi_dict(),
             "split_friction_cost": self.cost_rates.split_friction_cost,
             "overdue_delay_multiplier": self.cost_rates.overdue_delay_multiplier,
             "liquidity_cost_per_tick_bps": self.cost_rates.liquidity_cost_per_tick_bps,

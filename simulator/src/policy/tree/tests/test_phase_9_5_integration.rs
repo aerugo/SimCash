@@ -7,7 +7,7 @@
 
 #[cfg(test)]
 mod test_phase_9_5_integration {
-    use crate::orchestrator::CostRates;
+    use crate::orchestrator::{CostRates, PenaltyMode};
     use crate::policy::tree::{EvalContext, TreePolicy};
     use crate::policy::CashManagerPolicy;
     use crate::{Agent, SimulationState, Transaction};
@@ -30,8 +30,8 @@ mod test_phase_9_5_integration {
             overdraft_bps_per_tick: 10.0,         // 10 bps per tick (expensive)
             delay_cost_per_tick_per_cent: 0.00001, // 0.001 bps per tick (cheap)
             collateral_cost_per_tick_bps: 0.0002,  // 0.02 bps per tick
-            eod_penalty_per_transaction: 1000_00,  // $1,000 EOD penalty
-            deadline_penalty: 500_00,               // $500 deadline penalty
+            eod_penalty: PenaltyMode::Fixed { amount: 1000_00 },  // $1,000 EOD penalty
+            deadline_penalty: PenaltyMode::Fixed { amount: 500_00 },               // $500 deadline penalty
             split_friction_cost: 10_00,             // $10 per split
             ..Default::default()
         }
@@ -188,7 +188,7 @@ mod test_phase_9_5_integration {
 
         let cost_rates = CostRates {
             overdraft_bps_per_tick: 2.0, // Overdraft cheaper than deadline penalty
-            deadline_penalty: 500_00,     // $500 penalty
+            deadline_penalty: PenaltyMode::Fixed { amount: 500_00 },     // $500 penalty
             ..create_cost_rates()
         };
 

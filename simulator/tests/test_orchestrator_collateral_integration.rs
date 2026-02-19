@@ -9,7 +9,7 @@
 // 5. Events are logged with correct reasons
 
 use payment_simulator_core_rs::{
-    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PolicyConfig, Queue1Ordering},
+    orchestrator::{AgentConfig, CostRates, Orchestrator, OrchestratorConfig, PenaltyMode, PolicyConfig, Queue1Ordering},
     settlement::lsm::LsmConfig,
 };
 
@@ -72,8 +72,8 @@ fn create_test_config(agent_id: &str, balance: i64, policy_json: &str) -> Orches
             overdraft_bps_per_tick: 0.0001,
             delay_cost_per_tick_per_cent: 0.00001,
             collateral_cost_per_tick_bps: 0.0002,
-            eod_penalty_per_transaction: 10000,
-            deadline_penalty: 5000,
+            eod_penalty: PenaltyMode::Fixed { amount: 10000 },
+            deadline_penalty: PenaltyMode::Fixed { amount: 5000 },
             split_friction_cost: 1000,
             overdue_delay_multiplier: 5.0, // Phase 3: Escalating delay cost for overdue
             priority_delay_multipliers: None, // Enhancement 11.1
