@@ -31,7 +31,10 @@ interface UseGameWebSocketReturn {
   connectionStatus: ConnectionStatus;
   reconnectAttempt: number;
   phase: GamePhase;
+  /** First agent currently optimizing (for backwards compat display). */
   optimizingAgent: string | null;
+  /** All agents currently optimizing (parallel mode). */
+  optimizingAgents: Set<string>;
   simulatingDay: number | null;
   lastDay: DayResult | null;
   streamingText: Record<string, string>;
@@ -57,6 +60,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [phase, setPhase] = useState<GamePhase>('idle');
   const [optimizingAgent, setOptimizingAgent] = useState<string | null>(null);
+  const [optimizingAgents, setOptimizingAgents] = useState<Set<string>>(new Set());
   const [simulatingDay, setSimulatingDay] = useState<number | null>(null);
   const [lastDay, setLastDay] = useState<DayResult | null>(null);
   const [streamingText, setStreamingText] = useState<Record<string, string>>({});
@@ -68,6 +72,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'game_state':
         setGameState(msg.data as GameState);
         setOptimizingAgent(null);
+        setOptimizingAgents(new Set());
         setPhase('idle');
         break;
 
@@ -83,8 +88,9 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
 
       case 'optimization_start':
         setPhase('optimizing');
-        setOptimizingAgent(msg.agent_id ?? null);
         if (msg.agent_id) {
+          setOptimizingAgent(prev => prev ?? msg.agent_id!); // keep first if already set
+          setOptimizingAgents(prev => new Set([...prev, msg.agent_id!]));
           setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
         }
         break;
@@ -101,12 +107,25 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
       case 'optimization_complete':
         if (msg.agent_id) {
           setStreamingText(prev => ({ ...prev, [msg.agent_id!]: '' }));
+          setOptimizingAgents(prev => {
+            const next = new Set(prev);
+            next.delete(msg.agent_id!);
+            // If no more agents optimizing, clear the singular field too
+            if (next.size === 0) {
+              setOptimizingAgent(null);
+            } else {
+              // Update singular to show one of the remaining agents
+              setOptimizingAgent([...next][0]);
+            }
+            return next;
+          });
         }
         break;
 
       case 'game_complete':
         setGameState(msg.data as GameState);
         setOptimizingAgent(null);
+        setOptimizingAgents(new Set());
         setPhase('complete');
         break;
 
@@ -194,5 +213,5 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
   const stop = useCallback(() => send('stop'), [send]);
 
-  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop };
+  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop };
 }

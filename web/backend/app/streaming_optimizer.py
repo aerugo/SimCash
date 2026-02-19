@@ -2,6 +2,8 @@
 
 Builds the same prompt as _real_optimize() but uses pydantic-ai's
 run_stream + stream_text to yield text chunks as they arrive.
+
+Supports retry with exponential backoff for transient errors (429, 503).
 """
 from __future__ import annotations
 
@@ -10,20 +12,32 @@ import json
 import re
 import sys
 import logging
+import time as _time
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 # Timeout for a single LLM optimization call (seconds).
-# Full-policy prompts are larger; Gemini 2.5 Flash can take 2-3min.
 LLM_CALL_TIMEOUT_SECONDS = 180
 
 # If no chunk arrives for this long, assume the connection is dead.
 LLM_CHUNK_STALL_SECONDS = 90
 
+# Retry settings for transient errors (429 RESOURCE_EXHAUSTED, 503, etc.)
+MAX_RETRIES = 3
+INITIAL_BACKOFF_SECONDS = 2.0
+MAX_BACKOFF_SECONDS = 30.0
+
 API_DIR = Path(__file__).resolve().parents[3] / "api"
 sys.path.insert(0, str(API_DIR))
 
 logger = logging.getLogger(__name__)
+
+
+def _is_retryable(error: Exception) -> bool:
+    """Check if an error is transient and worth retrying."""
+    msg = str(error).lower()
+    # 429 RESOURCE_EXHAUSTED, 503 UNAVAILABLE, connection resets
+    return any(code in msg for code in ("429", "resource_exhausted", "503", "unavailable", "deadline_exceeded", "connection reset"))
 
 
 def _create_agent(llm_config: Any, system_prompt: str) -> Any:
@@ -56,20 +70,18 @@ def _create_agent(llm_config: Any, system_prompt: str) -> Any:
     return Agent(llm_config.full_model_string, system_prompt=system_prompt)
 
 
-async def stream_optimize(
+def _build_optimization_prompt(
     agent_id: str,
     current_policy: dict[str, Any],
-    last_day: Any,  # GameDay
+    last_day: Any,
     all_days: list[Any],
     raw_yaml: dict[str, Any],
     constraint_preset: str = "simple",
-) -> AsyncIterator[dict[str, Any]]:
-    """Stream LLM optimization, yielding events as they happen.
+) -> tuple[str, str, dict[str, Any]]:
+    """Build system prompt and user prompt for optimization.
 
-    Yields dicts with:
-      {"type": "chunk", "text": "..."}     — text delta
-      {"type": "result", "data": {...}}    — final parsed result (same shape as _real_optimize return)
-      {"type": "error", "message": "..."}  — on failure
+    Returns (system_prompt, user_prompt, context) where context holds
+    current_fraction, agent_cost, cost_breakdown for result formatting.
     """
     from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
     from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
@@ -81,32 +93,14 @@ async def stream_optimize(
     )
     from payment_simulator.ai_cash_mgmt.prompts.user_prompt_builder import UserPromptBuilder
     from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import build_single_agent_context
-    from payment_simulator.llm.config import LLMConfig
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
-
-    try:
-        from pydantic_ai import Agent
-    except ImportError as e:
-        yield {"type": "error", "message": f"pydantic_ai required: {e}"}
-        return
-
-    # Build constraints from preset
     from .constraint_presets import build_constraints
-    constraints = build_constraints(constraint_preset, raw_yaml)
 
+    constraints = build_constraints(constraint_preset, raw_yaml)
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
-    # Get LLM config from platform settings (admin-switchable)
-    from .settings import settings_manager
-    llm_config = settings_manager.get_llm_config()
-
-    # Build system prompt
     cost_rates = raw_yaml.get("cost_rates", {})
     system_prompt = optimizer.get_system_prompt(cost_rates=cost_rates)
 
-    # Build iteration history
     current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
     agent_cost = last_day.per_agent_costs.get(agent_id, 0)
     agent_costs = last_day.costs.get(agent_id, {})
@@ -133,7 +127,6 @@ async def stream_optimize(
             is_best_so_far=is_best,
         ))
 
-    # Filter events for agent isolation
     filtered_events = filter_events_for_agent(agent_id, last_day.events)
     simulation_trace = None
     if filtered_events:
@@ -146,7 +139,6 @@ async def stream_optimize(
         "iteration": len(all_days),
     }
 
-    # Build the prompt (same as PolicyOptimizer.optimize does internally)
     prompt = build_single_agent_context(
         current_iteration=len(all_days),
         current_policy=current_policy,
@@ -162,12 +154,10 @@ async def stream_optimize(
         agent_id=agent_id,
     )
 
-    # Add policy section
     user_prompt_builder = UserPromptBuilder(agent_id, current_policy)
     policy_section = user_prompt_builder._build_policy_section()
     prompt += f"\n\n{policy_section}"
 
-    # Build final user prompt (same as ExperimentLLMClient._build_user_prompt)
     user_prompt = f"""{prompt}
 
 Current policy:
@@ -176,52 +166,133 @@ Current policy:
 Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""
 
-    # Create pydantic-ai agent
+    context = {
+        "current_fraction": current_fraction,
+        "agent_cost": agent_cost,
+        "cost_breakdown": cost_breakdown,
+    }
+    return system_prompt, user_prompt, context
+
+
+async def stream_optimize(
+    agent_id: str,
+    current_policy: dict[str, Any],
+    last_day: Any,  # GameDay
+    all_days: list[Any],
+    raw_yaml: dict[str, Any],
+    constraint_preset: str = "simple",
+) -> AsyncIterator[dict[str, Any]]:
+    """Stream LLM optimization with retry on transient errors.
+
+    Yields dicts with:
+      {"type": "chunk", "text": "..."}     — text delta
+      {"type": "result", "data": {...}}    — final parsed result
+      {"type": "error", "message": "..."}  — on failure (after all retries exhausted)
+      {"type": "retry", "attempt": N, "delay": S, "reason": "..."} — retry notification
+    """
+    from payment_simulator.llm.config import LLMConfig
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+
+    try:
+        from pydantic_ai import Agent
+    except ImportError as e:
+        yield {"type": "error", "message": f"pydantic_ai required: {e}"}
+        return
+
+    # Build prompts (done once, not retried)
+    system_prompt, user_prompt, ctx = _build_optimization_prompt(
+        agent_id, current_policy, last_day, all_days, raw_yaml, constraint_preset,
+    )
+    current_fraction = ctx["current_fraction"]
+    agent_cost = ctx["agent_cost"]
+    cost_breakdown = ctx["cost_breakdown"]
+
+    # Get LLM config
+    from .settings import settings_manager
+    llm_config = settings_manager.get_llm_config()
+
     agent = _create_agent(llm_config, system_prompt)
     model_settings = llm_config.to_model_settings()
-
-    # Fix: google-vertex provider needs thinking_config in model_settings
     if llm_config.provider == "google-vertex" and llm_config.thinking_config:
         model_settings["google_thinking_config"] = llm_config.thinking_config
 
     yield {"type": "model_info", "model": llm_config.model, "provider": llm_config.provider}
 
-    # Stream the response with timeout protection.
-    # The entire streaming call (connection + all chunks) must complete within
-    # LLM_CALL_TIMEOUT_SECONDS. Without this, a hung Vertex AI call blocks the
-    # game's auto-run loop forever.
-    full_text = ""
-    try:
-        async with asyncio.timeout(LLM_CALL_TIMEOUT_SECONDS):
-            async with agent.run_stream(user_prompt, model_settings=model_settings) as stream_result:
-                chunk_iter = stream_result.stream_text(delta=True).__aiter__()
-                while True:
-                    try:
-                        chunk = await asyncio.wait_for(
-                            chunk_iter.__anext__(),
-                            timeout=LLM_CHUNK_STALL_SECONDS,
-                        )
-                        full_text += chunk
-                        yield {"type": "chunk", "text": chunk}
-                    except StopAsyncIteration:
-                        break
-                    except asyncio.TimeoutError:
-                        logger.error(
-                            "LLM chunk stall for %s: no data for %ds (got %d chars)",
-                            agent_id, LLM_CHUNK_STALL_SECONDS, len(full_text),
-                        )
-                        yield {"type": "error", "message": f"LLM stalled — no response for {LLM_CHUNK_STALL_SECONDS}s"}
-                        return
-    except asyncio.TimeoutError:
-        logger.error(
-            "LLM call timed out for %s after %ds (got %d chars so far)",
-            agent_id, LLM_CALL_TIMEOUT_SECONDS, len(full_text),
-        )
-        yield {"type": "error", "message": f"LLM call timed out after {LLM_CALL_TIMEOUT_SECONDS}s"}
-        return
-    except Exception as e:
-        logger.error("Streaming LLM call failed for %s: %s", agent_id, e)
-        yield {"type": "error", "message": str(e)}
+    logger.warning(
+        "LLM call for %s: system_prompt=%d chars, user_prompt=%d chars, model=%s",
+        agent_id, len(system_prompt), len(user_prompt), llm_config.model,
+    )
+
+    # Retry loop with exponential backoff
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        full_text = ""
+        _llm_start = _time.monotonic()
+
+        try:
+            async with asyncio.timeout(LLM_CALL_TIMEOUT_SECONDS):
+                async with agent.run_stream(user_prompt, model_settings=model_settings) as stream_result:
+                    chunk_iter = stream_result.stream_text(delta=True).__aiter__()
+                    while True:
+                        try:
+                            chunk = await asyncio.wait_for(
+                                chunk_iter.__anext__(),
+                                timeout=LLM_CHUNK_STALL_SECONDS,
+                            )
+                            full_text += chunk
+                            yield {"type": "chunk", "text": chunk}
+                        except StopAsyncIteration:
+                            break
+                        except asyncio.TimeoutError:
+                            raise asyncio.TimeoutError(
+                                f"No data for {LLM_CHUNK_STALL_SECONDS}s (got {len(full_text)} chars)"
+                            )
+
+            # Success — break out of retry loop
+            _llm_elapsed = _time.monotonic() - _llm_start
+            logger.warning(
+                "LLM call for %s completed: %.1fs, response=%d chars (attempt %d)",
+                agent_id, _llm_elapsed, len(full_text), attempt,
+            )
+            break
+
+        except Exception as e:
+            _llm_elapsed = _time.monotonic() - _llm_start
+            last_error = e
+
+            if attempt < MAX_RETRIES and _is_retryable(e):
+                backoff = min(INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1)), MAX_BACKOFF_SECONDS)
+                reason = str(e)[:120]
+                logger.warning(
+                    "LLM call for %s failed (attempt %d/%d, %.1fs): %s — retrying in %.1fs",
+                    agent_id, attempt, MAX_RETRIES, _llm_elapsed, reason, backoff,
+                )
+                yield {
+                    "type": "retry",
+                    "attempt": attempt,
+                    "max_retries": MAX_RETRIES,
+                    "delay": backoff,
+                    "reason": reason,
+                }
+                await asyncio.sleep(backoff)
+                # Clear any partial text from failed attempt for the UI
+                if full_text:
+                    yield {"type": "chunk", "text": f"\n\n[Retry {attempt + 1}/{MAX_RETRIES}]\n"}
+                continue
+            else:
+                logger.error(
+                    "LLM call for %s failed (attempt %d/%d, %.1fs): %s — no more retries",
+                    agent_id, attempt, MAX_RETRIES, _llm_elapsed, e,
+                )
+                error_msg = _format_error_for_user(e, attempt)
+                yield {"type": "error", "message": error_msg}
+                return
+    else:
+        # All retries exhausted (shouldn't reach here due to return above, but safety net)
+        error_msg = _format_error_for_user(last_error, MAX_RETRIES) if last_error else "Unknown error"
+        yield {"type": "error", "message": error_msg}
         return
 
     # Parse the accumulated response into a policy
@@ -255,7 +326,7 @@ Output ONLY the JSON policy, no explanation."""
             "type": "result",
             "data": {
                 "new_policy": None,
-                "reasoning": f"LLM optimization failed for {agent_id}: {e}. Keeping fraction at {current_fraction:.3f}.",
+                "reasoning": f"LLM response could not be parsed for {agent_id}: {e}. Keeping fraction at {current_fraction:.3f}.",
                 "old_fraction": current_fraction,
                 "new_fraction": None,
                 "accepted": False,
@@ -263,6 +334,24 @@ Output ONLY the JSON policy, no explanation."""
                 "raw_response": full_text,
             },
         }
+
+
+def _format_error_for_user(error: Exception | None, attempts: int) -> str:
+    """Convert an exception to a human-readable error message."""
+    if error is None:
+        return "Optimization failed after all retries."
+
+    msg = str(error)
+    if "429" in msg or "resource_exhausted" in msg.lower():
+        return f"Rate limited by the AI provider (tried {attempts}× with backoff). The model is temporarily overloaded — try again in a minute."
+    if "503" in msg or "unavailable" in msg.lower():
+        return f"AI service temporarily unavailable (tried {attempts}×). Please retry shortly."
+    if "timeout" in msg.lower() or isinstance(error, asyncio.TimeoutError):
+        return f"AI response timed out after {LLM_CALL_TIMEOUT_SECONDS}s (tried {attempts}×). The model may be overloaded."
+    if "404" in msg or "not_found" in msg.lower():
+        return f"Model not found or not accessible. Check the model configuration in Admin settings."
+    # Generic fallback
+    return f"Optimization failed: {msg[:200]}"
 
 
 def _parse_policy_response(text: str) -> dict[str, Any]:
@@ -276,7 +365,6 @@ def _parse_policy_response(text: str) -> dict[str, Any]:
             text = match.group(1).strip()
 
     # Try to find JSON object
-    # Sometimes the LLM wraps the JSON in explanation text
     brace_start = text.find("{")
     brace_end = text.rfind("}")
     if brace_start != -1 and brace_end != -1:
@@ -284,7 +372,6 @@ def _parse_policy_response(text: str) -> dict[str, Any]:
 
     policy = json.loads(text)
 
-    # Ensure required fields
     if "version" not in policy:
         policy["version"] = "2.0"
     if "policy_id" not in policy:

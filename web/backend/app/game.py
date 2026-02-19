@@ -285,11 +285,18 @@ class Game:
     async def optimize_policies_streaming(self, send_fn):
         """Run optimization with streaming text chunks.
 
+        All agents optimise in parallel (up to 10 concurrently). Each agent's
+        LLM call streams chunks independently; the WebSocket receives
+        interleaved events tagged with agent_id so the frontend can display
+        per-agent progress.
+
         Args:
             send_fn: async callable(dict) to send WS messages.
                 Called with optimization_start, optimization_chunk,
                 optimization_complete messages.
         """
+        import asyncio
+        import time as _time
         from .bootstrap_eval import WebBootstrapEvaluator
         from .streaming_optimizer import stream_optimize
 
@@ -304,25 +311,43 @@ class Game:
                 cv_threshold=0.5,
             )
 
-        for aid in self.agent_ids:
-            await send_fn({
-                "type": "optimization_start",
-                "day": last_day.day_num,
-                "agent_id": aid,
-            })
-
-            logger.info("Optimize %s: mock_reasoning=%s", aid, self.mock_reasoning)
-            if self.mock_reasoning:
-                # Mock doesn't stream — just send result
+        # --- Mock mode: sequential (instant, no parallelism needed) ---
+        if self.mock_reasoning:
+            for aid in self.agent_ids:
+                await send_fn({
+                    "type": "optimization_start",
+                    "day": last_day.day_num,
+                    "agent_id": aid,
+                })
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                if evaluator and result.get("new_policy"):
+                    result = self._run_bootstrap(evaluator, aid, result)
                 await send_fn({
                     "type": "optimization_complete",
                     "day": last_day.day_num,
                     "agent_id": aid,
                     "data": result,
                 })
-            else:
-                # Stream real LLM response
+                self._apply_result(aid, result)
+            return
+
+        # --- Real LLM mode: parallel agent optimization ---
+        MAX_CONCURRENT = 10
+        semaphore = asyncio.Semaphore(min(len(self.agent_ids), MAX_CONCURRENT))
+
+        # Results collected per agent (order doesn't matter for policy application
+        # since agents are game-theoretically isolated — each only sees own results).
+        results: dict[str, dict] = {}
+
+        async def optimize_one_agent(aid: str) -> None:
+            """Run LLM optimization for a single agent, streaming events to WS."""
+            async with semaphore:
+                await send_fn({
+                    "type": "optimization_start",
+                    "day": last_day.day_num,
+                    "agent_id": aid,
+                })
+
                 result = None
                 try:
                     async for event in stream_optimize(
@@ -336,10 +361,17 @@ class Game:
                                 "agent_id": aid,
                                 "text": event["text"],
                             })
+                        elif event["type"] == "retry":
+                            # Notify frontend of retry
+                            await send_fn({
+                                "type": "optimization_chunk",
+                                "day": last_day.day_num,
+                                "agent_id": aid,
+                                "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n",
+                            })
                         elif event["type"] == "result":
                             result = event["data"]
                         elif event["type"] == "error":
-                            # Fall back to mock
                             result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                             result["fallback_reason"] = event["message"]
                 except Exception as e:
@@ -352,35 +384,7 @@ class Game:
 
                 # Bootstrap evaluation gate
                 if evaluator and result.get("new_policy"):
-                    other_policies = {
-                        other_aid: self.policies[other_aid]
-                        for other_aid in self.agent_ids if other_aid != aid
-                    }
-                    eval_result = evaluator.evaluate(
-                        raw_yaml=self.raw_yaml,
-                        agent_id=aid,
-                        old_policy=self.policies[aid],
-                        new_policy=result["new_policy"],
-                        base_seed=self._base_seed + self.current_day * 100,
-                        other_policies=other_policies,
-                    )
-                    result["bootstrap"] = {
-                        "delta_sum": eval_result.delta_sum,
-                        "mean_delta": eval_result.mean_delta,
-                        "cv": eval_result.cv,
-                        "ci_lower": eval_result.ci_lower,
-                        "ci_upper": eval_result.ci_upper,
-                        "num_samples": eval_result.num_samples,
-                        "old_mean_cost": eval_result.old_mean_cost,
-                        "new_mean_cost": eval_result.new_mean_cost,
-                        "rejection_reason": eval_result.rejection_reason,
-                    }
-                    if not eval_result.accepted:
-                        result["accepted"] = False
-                        result["rejection_reason"] = eval_result.rejection_reason
-                        result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
-                        result["new_policy"] = None
-                        result["new_fraction"] = None
+                    result = self._run_bootstrap(evaluator, aid, result)
 
                 await send_fn({
                     "type": "optimization_complete",
@@ -388,21 +392,73 @@ class Game:
                     "agent_id": aid,
                     "data": result,
                 })
+                results[aid] = result
 
-            # Apply policy if accepted
-            if result and result.get("new_policy"):
-                self.policies[aid] = result["new_policy"]
+        # Fire all agent tasks concurrently
+        _par_start = _time.monotonic()
+        tasks = [asyncio.create_task(optimize_one_agent(aid)) for aid in self.agent_ids]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        _par_elapsed = _time.monotonic() - _par_start
+        logger.warning(
+            "Parallel optimization for %d agents completed in %.1fs",
+            len(self.agent_ids), _par_elapsed,
+        )
 
-            if result:
-                self.reasoning_history[aid].append(result)
+        # Apply results (order doesn't matter — agents are isolated)
+        for aid in self.agent_ids:
+            if aid in results:
+                self._apply_result(aid, results[aid])
+
+    def _run_bootstrap(self, evaluator, aid: str, result: dict) -> dict:
+        """Run bootstrap paired evaluation and annotate result."""
+        import time as _time
+        other_policies = {
+            other_aid: self.policies[other_aid]
+            for other_aid in self.agent_ids if other_aid != aid
+        }
+        _bs_start = _time.monotonic()
+        eval_result = evaluator.evaluate(
+            raw_yaml=self.raw_yaml,
+            agent_id=aid,
+            old_policy=self.policies[aid],
+            new_policy=result["new_policy"],
+            base_seed=self._base_seed + self.current_day * 100,
+            other_policies=other_policies,
+        )
+        logger.warning("Bootstrap eval for %s: %.1fs (%d samples)", aid, _time.monotonic() - _bs_start, self.num_eval_samples)
+        result["bootstrap"] = {
+            "delta_sum": eval_result.delta_sum,
+            "mean_delta": eval_result.mean_delta,
+            "cv": eval_result.cv,
+            "ci_lower": eval_result.ci_lower,
+            "ci_upper": eval_result.ci_upper,
+            "num_samples": eval_result.num_samples,
+            "old_mean_cost": eval_result.old_mean_cost,
+            "new_mean_cost": eval_result.new_mean_cost,
+            "rejection_reason": eval_result.rejection_reason,
+        }
+        if not eval_result.accepted:
+            result["accepted"] = False
+            result["rejection_reason"] = eval_result.rejection_reason
+            result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
+            result["new_policy"] = None
+            result["new_fraction"] = None
+        return result
+
+    def _apply_result(self, aid: str, result: dict) -> None:
+        """Apply an optimization result: update policy and record history."""
+        if result and result.get("new_policy"):
+            self.policies[aid] = result["new_policy"]
+        if result:
+            self.reasoning_history[aid].append(result)
 
     async def optimize_policies(self) -> dict[str, dict]:
         """Run optimization step between days. Returns reasoning per agent.
-        
-        When num_eval_samples > 1, uses WebBootstrapEvaluator for paired
-        comparison (accept only if statistically significant improvement).
-        When num_eval_samples == 1, always accepts (temporal mode).
+
+        All agents optimise in parallel. When num_eval_samples > 1, uses
+        WebBootstrapEvaluator for paired comparison.
         """
+        import asyncio
         from .bootstrap_eval import WebBootstrapEvaluator
 
         if not self.days:
@@ -418,7 +474,7 @@ class Game:
                 cv_threshold=0.5,
             )
 
-        for aid in self.agent_ids:
+        async def optimize_one(aid: str) -> tuple[str, dict]:
             if self.mock_reasoning:
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
             else:
@@ -430,43 +486,22 @@ class Game:
                     logger.warning("Real LLM optimization failed for %s, falling back to mock: %s", aid, e)
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
 
-            # Bootstrap evaluation gate: only accept if statistically better
             if evaluator and result.get("new_policy"):
-                other_policies = {
-                    other_aid: self.policies[other_aid]
-                    for other_aid in self.agent_ids if other_aid != aid
-                }
-                eval_result = evaluator.evaluate(
-                    raw_yaml=self.raw_yaml,
-                    agent_id=aid,
-                    old_policy=self.policies[aid],
-                    new_policy=result["new_policy"],
-                    base_seed=self._base_seed + self.current_day * 100,
-                    other_policies=other_policies,
-                )
-                result["bootstrap"] = {
-                    "delta_sum": eval_result.delta_sum,
-                    "mean_delta": eval_result.mean_delta,
-                    "cv": eval_result.cv,
-                    "ci_lower": eval_result.ci_lower,
-                    "ci_upper": eval_result.ci_upper,
-                    "num_samples": eval_result.num_samples,
-                    "old_mean_cost": eval_result.old_mean_cost,
-                    "new_mean_cost": eval_result.new_mean_cost,
-                    "rejection_reason": eval_result.rejection_reason,
-                }
-                if not eval_result.accepted:
-                    result["accepted"] = False
-                    result["rejection_reason"] = eval_result.rejection_reason
-                    result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
-                    result["new_policy"] = None  # Don't apply rejected policy
-                    result["new_fraction"] = None
+                result = self._run_bootstrap(evaluator, aid, result)
 
-            if result.get("new_policy"):
-                self.policies[aid] = result["new_policy"]
+            return aid, result
 
+        # Run all agents concurrently
+        tasks = [optimize_one(aid) for aid in self.agent_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for item in results:
+            if isinstance(item, Exception):
+                logger.error("Agent optimization raised: %s", item)
+                continue
+            aid, result = item
+            self._apply_result(aid, result)
             reasoning[aid] = result
-            self.reasoning_history[aid].append(result)
 
         return reasoning
 
