@@ -157,8 +157,3 @@ The SimCash simulation engine is **fully deterministic**. Given the same seed an
 
 This property is essential for reproducible research, replay systems, and policy comparison. Note that when LLM-based policy optimization is used, the optimization step introduces non-determinism — LLM responses vary between runs even with identical inputs. The simulation itself remains deterministic: given the same policy and seed, results are identical.
 
----
-
-## Balance Conservation
-
-The system enforces a strict invariant: the **total balance across all agents is conserved** by settlement operations. Every debit has an equal credit. LSM cycles are net-zero by construction. This mirrors the closed-system property of real central bank settlement: money moves between accounts but is never created or destroyed by the settlement process.
