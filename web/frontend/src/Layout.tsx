@@ -50,7 +50,7 @@ function LayoutInner() {
       <header className="backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 80%, transparent)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <NavLink to="/" className="text-2xl font-bold" style={{ background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <NavLink to="/" className="text-2xl font-bold" style={{ color: 'var(--text-accent)' }}>
               SimCash
             </NavLink>
             <span className="text-xs hidden sm:inline" style={{ color: 'var(--text-muted)' }}>Interactive Payment Simulator</span>

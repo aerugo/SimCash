@@ -71,48 +71,58 @@
    ═══════════════════════════════════════════════════════════ */
 
 .light {
-  --bg-base: #faf8f5;
+  /* Backgrounds — warm paper-white, not clinical */
+  --bg-base: #f9f8f6;
   --bg-surface: #ffffff;
-  --bg-surface-hover: #f5f2ee;
-  --bg-card: rgba(255, 255, 255, 0.8);
-  --bg-inset: #f5f2ee;
+  --bg-surface-hover: #f4f3f0;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-inset: #f4f3f0;
 
-  --text-primary: #2c2825;
-  --text-secondary: #6b6560;
-  --text-muted: #9b9590;
-  --text-accent: #2e7d7d;
-  --text-accent-2: #6b5b99;
+  /* Text — warm charcoal hierarchy with clear steps */
+  --text-primary: #1a1a1a;
+  --text-secondary: #555555;
+  --text-muted: #8c8c8c;
+  /* Single accent: refined slate-blue. Used sparingly — links, active states */
+  --text-accent: #4a6fa5;
+  --text-accent-2: #4a6fa5;
 
-  --border-color: #e8e4df;
-  --border-subtle: #f0ece7;
+  /* Borders — barely there, warm gray */
+  --border-color: #e5e3df;
+  --border-subtle: #eeedea;
 
-  --btn-primary-bg: #2e7d7d;
-  --btn-primary-hover: #256767;
-  --btn-accent-bg: #6b5b99;
-  --btn-accent-hover: #5a4a88;
-  --btn-muted-bg: #e8e4df;
-  --btn-muted-hover: #ddd8d2;
+  /* Buttons — solid, no gradients. Understated. */
+  --btn-primary-bg: #4a6fa5;
+  --btn-primary-hover: #3d5d8a;
+  --btn-accent-bg: #4a6fa5;
+  --btn-accent-hover: #3d5d8a;
+  --btn-muted-bg: #eeedea;
+  --btn-muted-hover: #e5e3df;
 
-  --gradient-primary: linear-gradient(to right, #2e7d7d, #6b5b99);
-  --gradient-accent: linear-gradient(to right, #6b5b99, #b0718a);
-  --gradient-success: linear-gradient(to right, #2d8a4e, #1e6b3a);
+  /* Gradients — in light mode, use solid colors instead */
+  --gradient-primary: #4a6fa5;
+  --gradient-accent: #4a6fa5;
+  --gradient-success: #3a7d5c;
 
-  --color-success: #2d8a4e;
-  --color-warning: #b8860b;
-  --color-danger: #c0392b;
+  /* Status — desaturated, not screaming */
+  --color-success: #3a7d5c;
+  --color-warning: #a07c2e;
+  --color-danger: #b84c43;
 
+  /* Inputs */
   --input-bg: #ffffff;
-  --input-border: #e8e4df;
-  --code-bg: #f5f2ee;
+  --input-border: #e5e3df;
+  --code-bg: #f4f3f0;
   --tooltip-bg: #ffffff;
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  --overlay-bg: rgba(0, 0, 0, 0.2);
 
-  --agent-1: #2e7d7d;
-  --agent-2: #6b5b99;
-  --agent-3: #2d8a4e;
-  --agent-4: #c97a3a;
-  --agent-5: #b0718a;
+  /* Chart colors — muted but distinct */
+  --agent-1: #4a6fa5;
+  --agent-2: #7a6b98;
+  --agent-3: #3a7d5c;
+  --agent-4: #b8854a;
+  --agent-5: #a06070;
 
+  /* Legacy compat */
   --bg-primary: var(--bg-base);
   --bg-secondary: var(--bg-surface);
   --accent: var(--text-accent);
@@ -244,6 +254,7 @@ body {
   color: var(--text-muted) !important;
 }
 
+/* Accent text: only for links and interactive elements */
 .light .text-sky-400,
 .light .text-sky-300 {
   color: var(--text-accent) !important;
@@ -252,7 +263,7 @@ body {
 .light .text-violet-400,
 .light .text-violet-300,
 .light .text-violet-300\/90 {
-  color: var(--text-accent-2) !important;
+  color: var(--text-accent) !important;
 }
 
 /* --- Borders --- */
@@ -284,21 +295,24 @@ body {
   border-color: var(--text-accent-2) !important;
 }
 
-/* --- Gradient buttons: softer in light mode --- */
+/* --- Gradient buttons: solid in light mode for elegance --- */
 .light .bg-gradient-to-r.from-violet-500.to-pink-500,
 .light .bg-gradient-to-r.from-violet-400.to-pink-400 {
   background: var(--gradient-accent) !important;
+  background-image: none !important;
 }
 
 .light .bg-gradient-to-r.from-sky-500.to-violet-500,
 .light .bg-gradient-to-r.from-sky-400.to-violet-400 {
   background: var(--gradient-primary) !important;
+  background-image: none !important;
 }
 
+/* Subtle shadows, not colored glows */
 .light .shadow-violet-500\/25,
 .light .shadow-violet-500\/20,
 .light .shadow-sky-500\/20 {
-  box-shadow: 0 10px 15px -3px rgba(107, 91, 153, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* --- Solid buttons --- */
@@ -317,37 +331,25 @@ body {
   background-color: var(--btn-accent-hover) !important;
 }
 
-/* --- Cards & panels with colored tints --- */
-.light .bg-sky-500\/10 {
-  background-color: rgba(46, 125, 125, 0.06) !important;
-}
-.light .bg-violet-500\/10 {
-  background-color: rgba(107, 91, 153, 0.06) !important;
-}
+/* --- Cards & panels: barely-there tints --- */
+.light .bg-sky-500\/10,
+.light .bg-violet-500\/10,
 .light .bg-green-500\/10,
-.light .bg-emerald-500\/10 {
-  background-color: rgba(45, 138, 78, 0.06) !important;
-}
+.light .bg-emerald-500\/10,
 .light .bg-amber-500\/10,
-.light .bg-amber-900\/30 {
-  background-color: rgba(184, 134, 11, 0.06) !important;
-}
+.light .bg-amber-900\/30,
 .light .bg-red-500\/10 {
-  background-color: rgba(192, 57, 43, 0.06) !important;
+  background-color: var(--bg-inset) !important;
 }
 
-/* Gradient panels */
-.light .from-violet-500\/10 {
-  --tw-gradient-from: rgba(107, 91, 153, 0.06) !important;
-}
-.light .to-pink-500\/10 {
-  --tw-gradient-to: rgba(176, 113, 138, 0.06) !important;
-}
+/* Gradient panels → flat subtle inset */
+.light .from-violet-500\/10,
 .light .from-green-500\/10 {
-  --tw-gradient-from: rgba(45, 138, 78, 0.06) !important;
+  --tw-gradient-from: var(--bg-inset) !important;
 }
+.light .to-pink-500\/10,
 .light .to-emerald-500\/10 {
-  --tw-gradient-to: rgba(45, 138, 78, 0.04) !important;
+  --tw-gradient-to: var(--bg-inset) !important;
 }
 
 /* --- Status colors --- */
@@ -390,50 +392,39 @@ body {
   color: inherit !important;
 }
 
-/* --- Accent backgrounds for badges/tags --- */
-.light .bg-sky-500\/20 {
-  background-color: rgba(46, 125, 125, 0.1) !important;
-}
-.light .bg-violet-500\/20 {
-  background-color: rgba(107, 91, 153, 0.1) !important;
-}
-.light .bg-green-500\/20 {
-  background-color: rgba(45, 138, 78, 0.1) !important;
-}
-.light .bg-amber-500\/20 {
-  background-color: rgba(184, 134, 11, 0.1) !important;
-}
-.light .bg-red-500\/20 {
-  background-color: rgba(192, 57, 43, 0.1) !important;
+/* --- Sliders & toggles --- */
+.light input[type="range"] {
+  accent-color: var(--text-accent) !important;
 }
 
-/* --- Hover states for cards --- */
-.light .hover\:border-sky-500\/50:hover {
-  border-color: var(--text-accent) !important;
+.light .bg-sky-500 {
+  background-color: var(--btn-primary-bg) !important;
 }
-.light .hover\:border-violet-500\/50:hover {
-  border-color: var(--text-accent-2) !important;
+
+/* --- Accent backgrounds for badges/tags --- */
+.light .bg-sky-500\/20,
+.light .bg-violet-500\/20,
+.light .bg-green-500\/20,
+.light .bg-amber-500\/20,
+.light .bg-red-500\/20 {
+  background-color: var(--bg-inset) !important;
 }
-.light .hover\:border-amber-500\/50:hover {
-  border-color: var(--color-warning) !important;
-}
+
+/* --- Hover states for cards: single consistent accent --- */
+.light .hover\:border-sky-500\/50:hover,
+.light .hover\:border-violet-500\/50:hover,
+.light .hover\:border-amber-500\/50:hover,
 .light .hover\:border-emerald-500\/50:hover {
-  border-color: var(--color-success) !important;
+  border-color: #c5c3be !important;
 }
 .light .hover\:border-slate-600:hover {
-  border-color: var(--border-color) !important;
+  border-color: #c5c3be !important;
 }
 
-/* Group hover text */
-.light .group-hover\:text-sky-300 {
-  color: var(--text-accent) !important;
-}
-.light .group-hover\:text-violet-300 {
-  color: var(--text-accent-2) !important;
-}
-.light .group-hover\:text-amber-300 {
-  color: var(--color-warning) !important;
-}
+/* Group hover text: don't colorize headings — just darken */
+.light .group-hover\:text-sky-300,
+.light .group-hover\:text-violet-300,
+.light .group-hover\:text-amber-300,
 .light .group-hover\:text-emerald-300 {
-  color: var(--color-success) !important;
+  color: var(--text-primary) !important;
 }
