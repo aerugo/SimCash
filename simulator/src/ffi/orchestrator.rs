@@ -2000,9 +2000,10 @@ impl PyOrchestrator {
                     .round() as i64;
 
                 tx_dict.set_item("estimated_delay_cost", delay_cost)?;
-                tx_dict.set_item("deadline_penalty_cost", cost_rates.deadline_penalty)?;
+                let resolved_penalty = cost_rates.deadline_penalty.resolve(tx.amount());
+                tx_dict.set_item("deadline_penalty_cost", resolved_penalty)?;
 
-                let total_cost = cost_rates.deadline_penalty + delay_cost;
+                let total_cost = resolved_penalty + delay_cost;
                 tx_dict.set_item("total_overdue_cost", total_cost)?;
             }
 
