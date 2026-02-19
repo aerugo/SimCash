@@ -1,10 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { GameScenario, GameSetupConfig } from '../types';
-import { getGameScenarios } from '../api';
+import type { GameSetupConfig } from '../types';
 import { HowItWorks } from '../components/HowItWorks';
-import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
-import type { GameSettings } from '../components/GameSettingsPanel';
 import { useGameContext } from '../GameContext';
 
 export function HomeView() {
@@ -14,19 +11,7 @@ export function HomeView() {
     const gid = await handleGameLaunch(config);
     if (gid) navigate(`/experiment/${gid}${tour ? '?tour=1' : ''}`);
   };
-  const [gameScenarios, setGameScenarios] = useState<GameScenario[]>([]);
   const [selectedScenario] = useState('2bank_12tick');
-  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
-
-  useEffect(() => {
-    getGameScenarios().then(setGameScenarios).catch(() => {});
-  }, []);
-
-  // Derive agent IDs from selected scenario
-  const selectedScenarioData = gameScenarios.find(s => s.id === selectedScenario);
-  const agentIds = selectedScenarioData
-    ? Array.from({ length: selectedScenarioData.num_agents }, (_, i) => `BANK_${String.fromCharCode(65 + i)}`)
-    : [];
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -108,24 +93,7 @@ export function HomeView() {
             <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
           </div>
 
-          {/* Game Settings */}
-          <GameSettingsPanel
-            agentIds={agentIds}
-            settings={gameSettings}
-            onChange={setGameSettings}
-          />
-
-          <button
-            onClick={() => {
-              onGameLaunch?.({
-                scenario_id: selectedScenario,
-                ...gameSettingsToConfig(gameSettings),
-              });
-            }}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-semibold text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/20"
-          >
-            {'Start Experiment'}
-          </button>
+          {/* Game settings removed — use Create page for custom experiments */}
         </div>
     </div>
   );
