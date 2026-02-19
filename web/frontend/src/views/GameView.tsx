@@ -703,81 +703,26 @@ export function GameView() {
 
           {/* Day-specific reasoning */}
           {gameState.reasoning_history && Object.keys(gameState.reasoning_history).length > 0 && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="reasoning">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
+            <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} data-tour="reasoning">
+              <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
                 🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
                   ? `Round ${selectedDay + 1} Reasoning`
                   : 'Latest Reasoning'}
               </h3>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {gameState.agent_ids.map((aid, i) => {
                   const history = gameState.reasoning_history[aid] ?? [];
                   const reasoningIndex = selectedDay ?? history.length - 1;
                   const latest = history[reasoningIndex];
                   if (!latest) return null;
-                  const bs = latest.bootstrap;
                   return (
-                    <div key={aid} className={`bg-slate-900/50 rounded-lg p-3 border-l-2 ${
-                      latest.accepted ? 'border-green-500' : 'border-red-500'
-                    }`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>
-                          {aid}
-                        </span>
-                        {latest.mock && <span className="text-[10px] text-slate-600 bg-slate-800 px-1 rounded" title={latest.fallback_reason ? `LLM failed: ${latest.fallback_reason}` : "Using mock reasoning (no API call)"}>{latest.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
-                        {latest.accepted
-                          ? <span className="text-green-400 text-[10px] font-medium">✓ ACCEPTED</span>
-                          : <span className="text-red-400 text-[10px] font-medium">✗ REJECTED</span>
-                        }
-                        {gameState.constraint_preset !== 'full' && latest.old_fraction != null && latest.new_fraction != null && (
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {latest.old_fraction.toFixed(3)} → {latest.new_fraction.toFixed(3)}
-                          </span>
-                        )}
-                        {gameState.constraint_preset === 'full' && latest.new_policy && (
-                          <PolicyChangeSummary oldPolicy={latest.old_policy} newPolicy={latest.new_policy} />
-                        )}
-                      </div>
-                      {bs && (
-                        <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
-                          <span>Δ={bs.delta_sum.toLocaleString()}<InfoTip text="Cost change from previous day (negative = improvement)" /></span>
-                          <span>CV={bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — measures consistency across bootstrap samples (lower = more reliable)" /></span>
-                          <span>CI=[{bs.ci_lower.toLocaleString()},{bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval — true cost likely falls in this range" /></span>
-                          <span>n={bs.num_samples}<InfoTip text="Number of bootstrap evaluation samples" /></span>
-                        </div>
-                      )}
-                      {!latest.accepted && latest.rejection_reason && (
-                        <div className="text-[10px] text-red-400/80 mb-1">
-                          {latest.rejection_reason}
-                        </div>
-                      )}
-                      <p className="text-xs text-slate-400 leading-relaxed">{latest.reasoning}</p>
-
-                      {/* Metadata bar: model, latency, tokens */}
-                      {(latest.latency_seconds || latest.usage || latest.model) && (
-                        <div className="flex flex-wrap gap-2 mt-1.5 text-[10px] text-slate-600 font-mono">
-                          {latest.model && <span>{latest.model.split(':').pop()}</span>}
-                          {latest.latency_seconds != null && <span>{latest.latency_seconds}s</span>}
-                          {latest.usage && (
-                            <>
-                              <span>{latest.usage.input_tokens.toLocaleString()}→{latest.usage.output_tokens.toLocaleString()} tok</span>
-                              {latest.usage.thinking_tokens > 0 && (
-                                <span>🧠 {latest.usage.thinking_tokens.toLocaleString()} thinking</span>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Expandable full AI response */}
-                      <ReasoningExplorer result={latest} />
-
-                      {gameState.constraint_preset === 'full' && latest.new_policy && latest.old_policy && (
-                        <div className="mt-2 pt-2 border-t border-slate-700/50">
-                          <PolicyDiffView oldPolicy={latest.old_policy} newPolicy={latest.new_policy} />
-                        </div>
-                      )}
-                    </div>
+                    <AgentReasoningCard
+                      key={aid}
+                      aid={aid}
+                      result={latest}
+                      colorIdx={i}
+                      constraintPreset={gameState.constraint_preset}
+                    />
                   );
                 })}
               </div>
@@ -957,6 +902,96 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
   );
 }
 
+// ── Shared reasoning card for a single agent result ─────────────────
+
+function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
+  aid: string;
+  result: GameOptimizationResult;
+  colorIdx: number;
+  constraintPreset?: string;
+}) {
+  const bs = result.bootstrap;
+  return (
+    <div className="rounded-lg p-4 border-l-3"
+      style={{
+        background: 'var(--bg-inset)',
+        borderLeft: `3px solid ${result.accepted ? 'var(--color-success)' : 'var(--color-danger)'}`,
+      }}>
+      {/* Header: agent name + status */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-mono text-sm font-semibold" style={{ color: AGENT_COLORS[colorIdx % AGENT_COLORS.length] }}>
+          {aid}
+        </span>
+        {result.mock && (
+          <span className="text-[11px] px-1.5 py-0.5 rounded"
+            style={{ background: 'var(--bg-well, var(--bg-surface))', color: 'var(--text-muted)' }}
+            title={result.fallback_reason ? `LLM failed: ${result.fallback_reason}` : 'Simulated AI'}>
+            {result.fallback_reason ? '⚠ fallback' : 'sim'}
+          </span>
+        )}
+        <span className="text-xs font-medium" style={{ color: result.accepted ? 'var(--color-success)' : 'var(--color-danger)' }}>
+          {result.accepted ? '✓ Accepted' : '✗ Rejected'}
+        </span>
+        {constraintPreset !== 'full' && result.old_fraction != null && result.new_fraction != null && (
+          <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+            {result.old_fraction.toFixed(3)} → {result.new_fraction.toFixed(3)}
+          </span>
+        )}
+        {constraintPreset === 'full' && result.new_policy && (
+          <PolicyChangeSummary oldPolicy={result.old_policy} newPolicy={result.new_policy} />
+        )}
+      </div>
+
+      {/* Summary text */}
+      <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-secondary)' }}>
+        {result.reasoning}
+      </p>
+
+      {/* Bootstrap stats — clean horizontal layout */}
+      {bs && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono mb-2" style={{ color: 'var(--text-muted)' }}>
+          <span>Δ {bs.delta_sum.toLocaleString()}<InfoTip text="Cost change (negative = improvement)" /></span>
+          <span>CV {bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — lower = more reliable" /></span>
+          <span>CI [{bs.ci_lower.toLocaleString()}, {bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval" /></span>
+          <span>n={bs.num_samples}<InfoTip text="Bootstrap samples" /></span>
+        </div>
+      )}
+
+      {!result.accepted && result.rejection_reason && (
+        <p className="text-xs mb-2" style={{ color: 'var(--color-danger)' }}>
+          {result.rejection_reason}
+        </p>
+      )}
+
+      {/* Metadata: model · latency · tokens */}
+      {(result.latency_seconds || result.usage || result.model) && (
+        <div className="flex flex-wrap gap-3 text-[11px] font-mono mb-2" style={{ color: 'var(--text-muted)' }}>
+          {result.model && <span>{result.model.split(':').pop()}</span>}
+          {result.latency_seconds != null && <span>{result.latency_seconds.toFixed(1)}s</span>}
+          {result.usage && (
+            <>
+              <span>{result.usage.input_tokens.toLocaleString()} in</span>
+              <span>{result.usage.output_tokens.toLocaleString()} out</span>
+              {result.usage.thinking_tokens > 0 && (
+                <span>{result.usage.thinking_tokens.toLocaleString()} thinking</span>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Expandable sections */}
+      <ReasoningExplorer result={result} />
+
+      {constraintPreset === 'full' && result.new_policy && result.old_policy && (
+        <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+          <PolicyDiffView oldPolicy={result.old_policy} newPolicy={result.new_policy} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, constraintPreset }: {
   agentIds: string[];
   reasoningHistory: Record<string, GameOptimizationResult[]>;
@@ -971,20 +1006,19 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
   const selected = selectedRound !== null ? history[selectedRound] : null;
 
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-slate-300">📊 Policy History</h3>
-        <div className="flex items-center gap-2">
+    <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>📊 Policy History</h3>
+        <div className="flex items-center gap-1">
           {agentIds.map((aid, i) => (
             <button
               key={aid}
               onClick={() => { setSelectedAgent(aid); setSelectedRound(null); }}
-              className={`px-2 py-0.5 rounded text-xs font-mono transition-all ${
-                selectedAgent === aid
-                  ? 'text-white'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-              style={selectedAgent === aid ? { backgroundColor: AGENT_COLORS[i % AGENT_COLORS.length] + '40', color: AGENT_COLORS[i % AGENT_COLORS.length] } : {}}
+              className="px-2.5 py-1 rounded-md text-xs font-mono transition-all"
+              style={selectedAgent === aid
+                ? { backgroundColor: AGENT_COLORS[i % AGENT_COLORS.length] + '20', color: AGENT_COLORS[i % AGENT_COLORS.length], border: `1px solid ${AGENT_COLORS[i % AGENT_COLORS.length]}40` }
+                : { color: 'var(--text-muted)', border: '1px solid transparent' }
+              }
             >
               {aid}
             </button>
@@ -992,48 +1026,45 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
         </div>
       </div>
 
-      {/* Round pills — clickable iteration selector */}
-      <div className="flex items-center gap-1 flex-wrap mb-2">
+      {/* Round pills */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-3">
         {history.map((r, i) => {
           const isSelected = selectedRound === i;
-          const fraction = constraintPreset !== 'full' && fractions[i + 1] != null
-            ? fractions[i + 1].toFixed(3) : null;
           return (
             <button
               key={i}
               onClick={() => setSelectedRound(isSelected ? null : i)}
-              className={`group flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono transition-all border ${
-                isSelected
-                  ? 'bg-slate-700 border-slate-500 text-white'
-                  : 'bg-slate-900/50 border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600'
-              }`}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all"
+              style={{
+                background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-inset)',
+                color: isSelected ? '#fff' : 'var(--text-muted)',
+                border: `1px solid ${isSelected ? 'var(--btn-primary-bg)' : 'var(--border-color)'}`,
+              }}
               title={r.reasoning}
             >
-              <span className="text-slate-600 group-hover:text-slate-400">R{i + 1}</span>
-              <span className={r.accepted ? 'text-green-400' : 'text-red-400'}>
+              <span>R{i + 1}</span>
+              <span style={{ color: isSelected ? '#fff' : r.accepted ? 'var(--color-success)' : 'var(--color-danger)' }}>
                 {r.accepted ? '✓' : '✗'}
               </span>
-              {fraction && <span className={isSelected ? 'text-slate-300' : 'text-slate-600'}>{fraction}</span>}
-              {r.mock && !r.fallback_reason && <span className="text-slate-700">sim</span>}
-              {r.fallback_reason && <span className="text-amber-600">⚠</span>}
             </button>
           );
         })}
       </div>
 
-      {/* Fraction trajectory (always visible, compact) */}
+      {/* Fraction trajectory */}
       {constraintPreset !== 'full' && fractions.length > 0 && (
-        <div className="flex items-center gap-1 flex-wrap text-[10px] font-mono text-slate-500 mb-2">
+        <div className="flex items-center gap-1.5 flex-wrap text-xs font-mono mb-3" style={{ color: 'var(--text-muted)' }}>
           {fractions.map((f, i) => (
-            <span key={i} className="flex items-center gap-0.5">
-              {i > 0 && <span className="text-slate-700">→</span>}
-              <span className={`${
-                selectedRound !== null && i === selectedRound + 1
-                  ? 'text-white font-bold'
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <span style={{ color: 'var(--border-color)' }}>→</span>}
+              <span style={{
+                color: selectedRound !== null && i === selectedRound + 1
+                  ? 'var(--text-primary)'
                   : i === fractions.length - 1
-                    ? 'text-slate-300'
-                    : 'text-slate-500'
-              }`}>
+                    ? 'var(--text-secondary)'
+                    : 'var(--text-muted)',
+                fontWeight: selectedRound !== null && i === selectedRound + 1 ? 600 : 400,
+              }}>
                 {f.toFixed(3)}
               </span>
             </span>
@@ -1043,61 +1074,17 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
 
       {/* Selected round detail */}
       {selected && (
-        <div className={`bg-slate-900/50 rounded-lg p-3 border-l-2 ${
-          selected.accepted ? 'border-green-500' : 'border-red-500'
-        }`}>
-          <div className="flex items-center gap-2 text-[10px] mb-1">
-            <span className="text-slate-400 font-medium">Round {selectedRound! + 1}</span>
-            <span className={selected.accepted ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
-              {selected.accepted ? '✓ ACCEPTED' : '✗ REJECTED'}
-            </span>
-            {constraintPreset !== 'full' && selected.old_fraction != null && (
-              <span className="font-mono text-slate-400">
-                {selected.old_fraction.toFixed(3)} → {selected.new_fraction?.toFixed(3) ?? selected.old_fraction.toFixed(3)}
-              </span>
-            )}
-            {constraintPreset === 'full' && (
-              <PolicyChangeSummary oldPolicy={selected.old_policy} newPolicy={selected.new_policy} />
-            )}
-            {selected.mock && <span className={`bg-slate-800 px-1 rounded ${selected.fallback_reason ? 'text-amber-500' : 'text-slate-600'}`}>{selected.fallback_reason ? '⚠ fallback' : 'sim'}</span>}
-          </div>
-
-          {selected.bootstrap && (
-            <div className="flex gap-3 text-[10px] text-slate-500 mb-1 font-mono">
-              <span>Δ={selected.bootstrap.delta_sum.toLocaleString()}</span>
-              <span>CV={selected.bootstrap.cv.toFixed(2)}</span>
-              <span>CI=[{selected.bootstrap.ci_lower.toLocaleString()},{selected.bootstrap.ci_upper.toLocaleString()}]</span>
-            </div>
-          )}
-
-          {selected.rejection_reason && (
-            <div className="text-[10px] text-red-400/80 mb-1">{selected.rejection_reason}</div>
-          )}
-
-          <p className="text-xs text-slate-400 leading-relaxed mb-1">{selected.reasoning}</p>
-
-          {/* Token stats */}
-          {(selected.latency_seconds || selected.usage) && (
-            <div className="flex flex-wrap gap-2 text-[10px] text-slate-600 font-mono mb-1">
-              {selected.latency_seconds != null && <span>⏱ {selected.latency_seconds.toFixed(1)}s</span>}
-              {selected.usage && (
-                <>
-                  <span>📥 {selected.usage.input_tokens.toLocaleString()}</span>
-                  <span>📤 {selected.usage.output_tokens.toLocaleString()}</span>
-                  {selected.usage.thinking_tokens > 0 && <span>🧠 {selected.usage.thinking_tokens.toLocaleString()}</span>}
-                </>
-              )}
-            </div>
-          )}
-
-          <ReasoningExplorer result={selected} compact />
-        </div>
+        <AgentReasoningCard
+          aid={selectedAgent}
+          result={selected}
+          colorIdx={agentIds.indexOf(selectedAgent)}
+          constraintPreset={constraintPreset}
+        />
       )}
 
-      {/* No round selected hint */}
       {!selected && history.length > 0 && (
-        <div className="text-[10px] text-slate-600 text-center py-2">
-          Click a round above to explore reasoning
+        <div className="text-xs text-center py-3" style={{ color: 'var(--text-muted)' }}>
+          Select a round to explore reasoning
         </div>
       )}
     </div>
