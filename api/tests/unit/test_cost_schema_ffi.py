@@ -123,7 +123,7 @@ class TestCostSchemaFFI:
             "liquidity_cost_per_tick_bps",
             "deadline_penalty",
             "split_friction_cost",
-            "eod_penalty_per_transaction",
+            "eod_penalty",
             "overdue_delay_multiplier",
             "priority_delay_multipliers",
         }

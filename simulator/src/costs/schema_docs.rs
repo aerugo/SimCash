@@ -203,21 +203,24 @@ impl CostSchemaDocumented for CostRates {
                 display_name: "Deadline Penalty".to_string(),
                 category: CostCategory::OneTime,
                 description: "One-time penalty charged when a transaction misses its deadline \
-                    and becomes overdue. Represents reputational and operational costs.".to_string(),
+                    and becomes overdue. Supports two modes: Fixed (constant amount) or \
+                    Rate (basis points applied to transaction amount). Rate mode ensures \
+                    the penalty scales with transaction value.".to_string(),
                 incurred_at: "Once, when transaction transitions from pending to overdue".to_string(),
-                formula: "deadline_penalty (fixed amount)".to_string(),
-                default_value: "50,000".to_string(),
-                unit: "cents".to_string(),
-                data_type: "i64".to_string(),
+                formula: "Fixed: deadline_penalty.amount | Rate: tx_amount × deadline_penalty.bps_per_event / 10,000".to_string(),
+                default_value: "Fixed { amount: 50,000 }".to_string(),
+                unit: "cents (resolved)".to_string(),
+                data_type: "PenaltyMode (Fixed { amount: i64 } | Rate { bps_per_event: f64 })".to_string(),
                 source_location: "simulator/src/costs/rates.rs".to_string(),
-                see_also: vec!["overdue_delay_multiplier".to_string(), "eod_penalty_per_transaction".to_string()],
+                see_also: vec!["overdue_delay_multiplier".to_string(), "eod_penalty".to_string()],
                 example: Some(CostExample {
-                    scenario: "Transaction misses deadline at tick 50".to_string(),
+                    scenario: "Transaction ($10,000) misses deadline — Rate mode at 100 bps".to_string(),
                     inputs: vec![
-                        ("deadline_penalty".to_string(), "50,000 cents".to_string()),
+                        ("deadline_penalty.bps_per_event".to_string(), "100 (1%)".to_string()),
+                        ("tx_amount".to_string(), "1,000,000 cents".to_string()),
                     ],
-                    calculation: "Fixed penalty applied once".to_string(),
-                    result: "$500 one-time charge".to_string(),
+                    calculation: "1,000,000 × 100 / 10,000 = 10,000 cents".to_string(),
+                    result: "$100 one-time charge (scales with tx value)".to_string(),
                 }),
                 added_in: Some("1.0".to_string()),
             },
@@ -247,26 +250,28 @@ impl CostSchemaDocumented for CostRates {
             },
             // Daily penalties
             CostElement {
-                name: "eod_penalty_per_transaction".to_string(),
+                name: "eod_penalty".to_string(),
                 display_name: "End-of-Day Penalty".to_string(),
                 category: CostCategory::Daily,
-                description: "Large penalty for transactions that remain unsettled at end of day. \
-                    Represents systemic risk and regulatory non-compliance costs.".to_string(),
-                incurred_at: "End of each day, for each unsettled transaction".to_string(),
-                formula: "count(unsettled_transactions) * eod_penalty_per_transaction".to_string(),
-                default_value: "10,000".to_string(),
-                unit: "cents per transaction".to_string(),
-                data_type: "i64".to_string(),
+                description: "Penalty for overdue transactions still unsettled at end of day. \
+                    Supports two modes: Fixed (constant amount per tx) or Rate (basis points \
+                    applied to remaining unsettled amount). Rate mode penalizes proportionally \
+                    to the unsettled value.".to_string(),
+                incurred_at: "End of each day, for each overdue unsettled transaction".to_string(),
+                formula: "Fixed: eod_penalty.amount per tx | Rate: remaining_amount × eod_penalty.bps_per_event / 10,000 per tx".to_string(),
+                default_value: "Fixed { amount: 10,000 }".to_string(),
+                unit: "cents (resolved per tx)".to_string(),
+                data_type: "PenaltyMode (Fixed { amount: i64 } | Rate { bps_per_event: f64 })".to_string(),
                 source_location: "simulator/src/costs/rates.rs".to_string(),
                 see_also: vec!["deadline_penalty".to_string()],
                 example: Some(CostExample {
-                    scenario: "3 transactions unsettled at EOD".to_string(),
+                    scenario: "$50,000 remaining unsettled at EOD — Rate mode at 200 bps".to_string(),
                     inputs: vec![
-                        ("unsettled_count".to_string(), "3".to_string()),
-                        ("eod_penalty_per_transaction".to_string(), "10,000 cents".to_string()),
+                        ("eod_penalty.bps_per_event".to_string(), "200 (2%)".to_string()),
+                        ("remaining_amount".to_string(), "5,000,000 cents".to_string()),
                     ],
-                    calculation: "3 * 10,000 = 30,000 cents".to_string(),
-                    result: "$300 EOD penalty".to_string(),
+                    calculation: "5,000,000 × 200 / 10,000 = 100,000 cents".to_string(),
+                    result: "$1,000 EOD penalty (proportional to unsettled value)".to_string(),
                 }),
                 added_in: Some("1.0".to_string()),
             },
@@ -434,7 +439,7 @@ mod tests {
         assert!(names.contains(&"split_friction_cost"), "Missing split_friction_cost");
 
         // Daily penalties
-        assert!(names.contains(&"eod_penalty_per_transaction"), "Missing eod_penalty_per_transaction");
+        assert!(names.contains(&"eod_penalty"), "Missing eod_penalty");
 
         // Modifiers
         assert!(names.contains(&"overdue_delay_multiplier"), "Missing overdue_delay_multiplier");
@@ -457,7 +462,7 @@ mod tests {
         assert_eq!(deadline.category, CostCategory::OneTime);
 
         // Daily penalties
-        let eod = docs.iter().find(|d| d.name == "eod_penalty_per_transaction").unwrap();
+        let eod = docs.iter().find(|d| d.name == "eod_penalty").unwrap();
         assert_eq!(eod.category, CostCategory::Daily);
 
         // Modifiers
@@ -500,10 +505,10 @@ mod tests {
         assert_eq!(overdraft.default_value, "0.001");
 
         let deadline = docs.iter().find(|d| d.name == "deadline_penalty").unwrap();
-        assert_eq!(deadline.default_value, "50,000");
+        assert_eq!(deadline.default_value, "Fixed { amount: 50,000 }");
 
-        let eod = docs.iter().find(|d| d.name == "eod_penalty_per_transaction").unwrap();
-        assert_eq!(eod.default_value, "10,000");
+        let eod = docs.iter().find(|d| d.name == "eod_penalty").unwrap();
+        assert_eq!(eod.default_value, "Fixed { amount: 10,000 }");
     }
 
     #[test]
@@ -600,7 +605,7 @@ mod tests {
     #[test]
     fn test_data_types_are_valid() {
         let docs = CostRates::schema_docs();
-        let valid_types = ["f64", "i64", "Option<PriorityDelayMultipliers>"];
+        let valid_types = ["f64", "i64", "Option<PriorityDelayMultipliers>", "PenaltyMode (Fixed { amount: i64 } | Rate { bps_per_event: f64 })"];
 
         for doc in &docs {
             assert!(

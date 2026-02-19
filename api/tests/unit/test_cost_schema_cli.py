@@ -129,7 +129,7 @@ class TestCostSchemaCommand:
             "overdraft_bps_per_tick",
             "delay_cost_per_tick_per_cent",
             "deadline_penalty",
-            "eod_penalty_per_transaction",
+            "eod_penalty",
         }
         assert expected <= names
 
