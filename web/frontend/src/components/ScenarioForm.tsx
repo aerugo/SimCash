@@ -176,7 +176,12 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
       <div className={sectionCls}>
         <h3 className={sectionTitle}>💰 Cost Rates</h3>
         <div className="grid grid-cols-2 gap-3">
-          <NumberField label="Liquidity Cost (bps/tick)" value={data.cost_rates.liquidity_cost_per_tick_bps} onChange={v => update(d => { d.cost_rates.liquidity_cost_per_tick_bps = v; })} tooltip="Basis points charged per tick on committed liquidity. Higher = more expensive to hold cash ready." />
+          <BpsField
+            bps={data.cost_rates.liquidity_cost_per_tick_bps}
+            ticksPerDay={data.simulation.ticks_per_day}
+            onBpsChange={v => update(d => { d.cost_rates.liquidity_cost_per_tick_bps = v; })}
+            tooltip="Basis points charged per tick on committed liquidity. Set either bps/tick or the equivalent daily cost — the other updates automatically."
+          />
           <NumberField label="Delay Cost (per ¢/tick)" value={data.cost_rates.delay_cost_per_tick_per_cent} onChange={v => update(d => { d.cost_rates.delay_cost_per_tick_per_cent = v; })} step={0.01} tooltip="Cost per cent of unsettled payment per tick. Penalizes slow settlement." />
           <NumberField label="Deadline Penalty" value={data.cost_rates.deadline_penalty} onChange={v => update(d => { d.cost_rates.deadline_penalty = v; })} tooltip="Flat fee charged when a payment misses its deadline (in cents)." />
           <NumberField label="EOD Penalty / Txn" value={data.cost_rates.eod_penalty_per_transaction} onChange={v => update(d => { d.cost_rates.eod_penalty_per_transaction = v; })} tooltip="Flat fee per payment still unsettled at end of day (in cents)." />
@@ -411,6 +416,49 @@ function NumberField({ label, value, onChange, step, tooltip }: {
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
         className={inputCls}
       />
+    </div>
+  );
+}
+
+function BpsField({ bps, ticksPerDay, onBpsChange, tooltip }: {
+  bps: number;
+  ticksPerDay: number;
+  onBpsChange: (v: number) => void;
+  tooltip?: string;
+}) {
+  // bps/tick × ticks/day ÷ 100 = daily %
+  const dailyPct = (bps * ticksPerDay) / 100;
+
+  return (
+    <div className="col-span-2">
+      <label className={labelCls}>Liquidity Cost{tooltip && <InfoTip text={tooltip} />}</label>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <span className="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wide">bps / tick</span>
+          <input
+            type="number"
+            step={1}
+            value={bps}
+            onChange={e => onBpsChange(parseFloat(e.target.value) || 0)}
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <span className="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wide">% / day</span>
+          <input
+            type="number"
+            step={0.01}
+            value={parseFloat(dailyPct.toFixed(4))}
+            onChange={e => {
+              const pct = parseFloat(e.target.value) || 0;
+              // reverse: bps = (pct × 100) ÷ ticksPerDay
+              const newBps = ticksPerDay > 0 ? (pct * 100) / ticksPerDay : 0;
+              onBpsChange(parseFloat(newBps.toFixed(4)));
+            }}
+            className={inputCls}
+          />
+        </div>
+      </div>
     </div>
   );
 }
