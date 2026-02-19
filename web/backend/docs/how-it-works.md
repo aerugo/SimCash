@@ -148,14 +148,14 @@ Events flow from the Rust engine through FFI to Python, where they can be displa
 
 ## Determinism
 
-SimCash is **fully deterministic**. Given the same seed and configuration, it produces byte-identical output across runs. This is achieved through:
+The SimCash simulation engine is **fully deterministic**. Given the same seed and configuration, it produces byte-identical output across runs. This is achieved through:
 
 - **Seeded RNG** — All randomness flows through a single xorshift64* generator
 - **Integer arithmetic** — All money is represented as `i64` cents, never floating point
 - **Ordered data structures** — `BTreeMap` (not `HashMap`) ensures iteration order is deterministic
 - **No external state** — No system time, no network calls, no OS-dependent behavior
 
-This property is essential for reproducible research, replay systems, and policy comparison.
+This property is essential for reproducible research, replay systems, and policy comparison. Note that when LLM-based policy optimization is used, the optimization step introduces non-determinism — LLM responses vary between runs even with identical inputs. The simulation itself remains deterministic: given the same policy and seed, results are identical.
 
 ---
 

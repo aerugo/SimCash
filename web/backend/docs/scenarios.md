@@ -212,5 +212,6 @@ A realistic multi-phase crisis scenario follows this pattern:
 5. **Recovery phase** (days 10+) — Gradually restore rates to 1.0×, measure recovery speed
 
 > ℹ️ All events are deterministic and tick-based — there's no conditional logic
-> ("if balance drops below X, inject liquidity"). This is by design: determinism ensures
-> perfect reproducibility. The same config + same seed always produces byte-identical results.
+> ("if balance drops below X, inject liquidity"). This is by design: the simulation engine is
+> fully deterministic. The same config + same seed always produces byte-identical results.
+> (LLM optimization between rounds introduces non-determinism, but the simulation itself is reproducible.)

@@ -26,8 +26,9 @@ random seeds lead to slightly different equilibria, all within the expected rang
 > ℹ️ **Same seed = same output, always.** The Rust simulation engine is fully
 > deterministic. All randomness flows through a seeded xorshift64* RNG, and all monetary
 > values are 64-bit integers (cents) — never floating point. Running a simulation and
-> replaying from checkpoint produce byte-identical output (replay identity). This has been
-> verified across platforms and compiler versions.
+> replaying from checkpoint produce byte-identical output (replay identity). When LLM
+> optimization is used between rounds, the optimization step is non-deterministic (LLM
+> outputs vary), but the simulation itself remains deterministic for any given policy.
 
 Determinism is foundational to reproducibility. Any result reported by SimCash can be
 independently verified by re-running the same configuration with the same seed. There
