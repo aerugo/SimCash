@@ -11,13 +11,13 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyAT_IULl1kAW804XTIhoLhASDXIlv21Kas',
-  authDomain: 'simcash-487714.firebaseapp.com',
-  projectId: 'simcash-487714',
-  storageBucket: 'simcash-487714.firebasestorage.app',
-  messagingSenderId: '997004209370',
-  appId: '1:997004209370:web:bc69475748ca89ceb289e3',
-  measurementId: 'G-FQ44MJ91Q3',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? 'simcash-487714.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? 'simcash-487714',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? 'simcash-487714.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '997004209370',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? '',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
 };
 
 const app = initializeApp(firebaseConfig);

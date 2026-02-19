@@ -29,6 +29,15 @@ COPY web/frontend/package.json web/frontend/package-lock.json ./
 RUN npm ci
 
 COPY web/frontend/ ./
+
+# Firebase config via build args (keeps keys out of source)
+ARG VITE_FIREBASE_API_KEY=""
+ARG VITE_FIREBASE_APP_ID=""
+ARG VITE_FIREBASE_MEASUREMENT_ID=""
+ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY
+ENV VITE_FIREBASE_APP_ID=$VITE_FIREBASE_APP_ID
+ENV VITE_FIREBASE_MEASUREMENT_ID=$VITE_FIREBASE_MEASUREMENT_ID
+
 RUN npm run build
 
 # ============================================================
