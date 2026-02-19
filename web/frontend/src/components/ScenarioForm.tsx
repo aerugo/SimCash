@@ -48,6 +48,13 @@ interface Props {
   onYamlChange: (yaml: string) => void;
 }
 
+const distributionHelp: Record<string, string> = {
+  LogNormal: 'Heavy-tailed: most payments are small, but occasional large ones occur. Realistic for interbank flows. Params: mean & std dev of the underlying log-normal.',
+  Normal: 'Bell curve centered on the mean. Symmetric — equal chance of above/below average. Can produce negative values if std dev is large relative to mean.',
+  Uniform: 'Flat — every amount between min and max is equally likely. No clustering. Good for stress-testing edge cases.',
+  Exponential: 'Many small payments, exponentially fewer large ones. Memoryless — the rate (λ) is 1/mean. More extreme skew than LogNormal.',
+};
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function parseYamlToForm(yamlStr: string): ScenarioFormData | null {
@@ -311,7 +318,7 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }:
             <div className="grid grid-cols-4 gap-3">
               <NumberField label="Rate/Tick" value={agent.arrival_config.rate_per_tick} onChange={v => onChange(a => { a.arrival_config.rate_per_tick = v; })} step={0.1} />
               <div>
-                <label className={labelCls}>Distribution</label>
+                <label className={labelCls}>Distribution <InfoTip text={distributionHelp[agent.arrival_config.amount_distribution.type] ?? ''} /></label>
                 <select value={agent.arrival_config.amount_distribution.type} onChange={e => onChange(a => {
                   const t = e.target.value;
                   if (t === 'Uniform') a.arrival_config.amount_distribution = { type: 'Uniform', min: 1000, max: 20000 };
