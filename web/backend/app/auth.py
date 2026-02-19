@@ -202,10 +202,11 @@ async def get_optional_user(request: Request) -> str:
     try:
         return await get_current_user(request)
     except HTTPException:
+        # Cookie already stores "guest-xxxx" from GuestCookieMiddleware
         guest_id = request.cookies.get("simcash_guest")
-        if not guest_id:
-            guest_id = f"guest-{uuid4().hex[:12]}"
-        return f"guest-{guest_id}" if not guest_id.startswith("guest-") else guest_id
+        if guest_id:
+            return guest_id
+        return f"guest-{uuid4().hex[:12]}"
 
 
 async def get_optional_ws_user(websocket: WebSocket) -> str:
@@ -214,9 +215,9 @@ async def get_optional_ws_user(websocket: WebSocket) -> str:
         return await get_ws_user(websocket)
     except (HTTPException, Exception):
         guest_id = websocket.cookies.get("simcash_guest")
-        if not guest_id:
-            guest_id = f"guest-{uuid4().hex[:12]}"
-        return f"guest-{guest_id}" if not guest_id.startswith("guest-") else guest_id
+        if guest_id:
+            return guest_id
+        return f"guest-{uuid4().hex[:12]}"
 
 
 class GuestCookieMiddleware(BaseHTTPMiddleware):

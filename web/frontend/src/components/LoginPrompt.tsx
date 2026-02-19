@@ -15,7 +15,8 @@ export function LoginPrompt({ reason = 'You need to sign in to access this featu
       <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{reason}</p>
       <button
         onClick={onSignIn}
-        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-slate-100 font-medium transition-colors flex items-center gap-3 mx-auto"
+        className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 mx-auto"
+        style={{ backgroundColor: 'var(--btn-primary-bg)', color: '#fff', border: '1px solid var(--border-color)' }}
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
