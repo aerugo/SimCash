@@ -155,3 +155,84 @@ class GameStorage:
         entries = self._read_index(uid)
         entries = [e for e in entries if e["game_id"] != game_id]
         self._write_index(uid, entries)
+
+    # ---- Checkpoint persistence ----
+
+    def _local_checkpoint_path(self, uid: str, game_id: str) -> Path:
+        return self._local_dir(uid) / f"{game_id}.json"
+
+    def _gcs_checkpoint_key(self, uid: str, game_id: str) -> str:
+        return f"users/{uid}/games/{game_id}.json"
+
+    def save_checkpoint(self, uid: str, game_id: str, data: dict):
+        """Save game checkpoint JSON locally (+ GCS if configured)."""
+        p = self._local_checkpoint_path(uid, game_id)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, default=str))
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            try:
+                blob = self._gcs_bucket.blob(self._gcs_checkpoint_key(uid, game_id))
+                blob.upload_from_string(json.dumps(data, default=str), content_type="application/json")
+            except Exception as e:
+                logger.warning("GCS checkpoint upload failed for %s: %s", game_id, e)
+
+    def load_checkpoint(self, uid: str, game_id: str) -> dict | None:
+        """Load game checkpoint. Tries local first, then GCS."""
+        p = self._local_checkpoint_path(uid, game_id)
+        if p.exists():
+            try:
+                return json.loads(p.read_text())
+            except (json.JSONDecodeError, ValueError):
+                return None
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            blob = self._gcs_bucket.blob(self._gcs_checkpoint_key(uid, game_id))
+            if blob.exists():
+                try:
+                    text = blob.download_as_text()
+                    data = json.loads(text)
+                    # Cache locally
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(text)
+                    return data
+                except Exception as e:
+                    logger.warning("GCS checkpoint load failed for %s: %s", game_id, e)
+        return None
+
+    def delete_checkpoint(self, uid: str, game_id: str):
+        """Delete checkpoint from local and GCS."""
+        p = self._local_checkpoint_path(uid, game_id)
+        if p.exists():
+            p.unlink()
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            blob = self._gcs_bucket.blob(self._gcs_checkpoint_key(uid, game_id))
+            try:
+                if blob.exists():
+                    blob.delete()
+            except Exception:
+                pass
+
+    def list_checkpoints(self, uid: str) -> list[dict]:
+        """List all checkpoints for a user (summary only: id, status, progress)."""
+        results = []
+        d = self._local_dir(uid)
+        if d.exists():
+            for p in sorted(d.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+                if p.name == "index.json":
+                    continue
+                try:
+                    data = json.loads(p.read_text())
+                    results.append({
+                        "game_id": data.get("game_id", p.stem),
+                        "scenario_id": data.get("scenario_id", ""),
+                        "status": data.get("status", "unknown"),
+                        "current_day": data.get("progress", {}).get("current_day", 0),
+                        "max_days": data.get("config", {}).get("max_days", 0),
+                        "use_llm": data.get("config", {}).get("use_llm", False),
+                        "simulated_ai": data.get("config", {}).get("simulated_ai", True),
+                        "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
+                        "created_at": data.get("created_at", ""),
+                        "updated_at": data.get("updated_at", ""),
+                    })
+                except (json.JSONDecodeError, ValueError):
+                    continue
+        return results

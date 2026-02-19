@@ -81,6 +81,49 @@ saved_scenarios: dict[str, SavedScenario] = {}
 saved_policies: dict[str, ManualPolicy] = {}
 
 
+def _save_game_checkpoint(game: Game):
+    """Save game checkpoint (non-blocking for async context)."""
+    uid = getattr(game, '_uid', 'dev-user')
+    scenario_id = getattr(game, '_scenario_id', '')
+    try:
+        checkpoint = game.to_checkpoint(scenario_id=scenario_id, uid=uid)
+        game_storage.save_checkpoint(uid, game.game_id, checkpoint)
+        # Also update index
+        game_storage.update_index(uid, {
+            "game_id": game.game_id,
+            "scenario_id": scenario_id,
+            "status": checkpoint["status"],
+            "days_completed": game.current_day,
+            "max_days": game.max_days,
+            "updated_at": checkpoint["updated_at"],
+            "use_llm": game.use_llm,
+            "num_agents": len(game.agent_ids),
+            "uid": uid,
+        })
+    except Exception as e:
+        logger.warning("Failed to save checkpoint for %s: %s", game.game_id, e)
+
+
+def _try_load_game(game_id: str, uid: str = "") -> Game | None:
+    """Try to load a game from checkpoint. Returns None if not found."""
+    # Try all known uids if uid not specified
+    uids_to_try = [uid] if uid else ["dev-user", "dev@localhost"]
+    for try_uid in uids_to_try:
+        data = game_storage.load_checkpoint(try_uid, game_id)
+        if data:
+            try:
+                game = Game.from_checkpoint(data)
+                game._uid = data.get("uid", try_uid)
+                game._scenario_id = data.get("scenario_id", "")
+                game_manager[game_id] = game
+                logger.info("Loaded game %s from checkpoint (uid=%s, day=%d/%d)",
+                            game_id, try_uid, game.current_day, game.max_days)
+                return game
+            except Exception as e:
+                logger.warning("Failed to restore game %s from checkpoint: %s", game_id, e)
+    return None
+
+
 # ---- Health ----
 
 @app.get("/api/health")
@@ -635,18 +678,21 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    game._scenario_id = config.scenario_id
+    game._uid = uid
+    from datetime import datetime, timezone
+    game._created_at = datetime.now(timezone.utc).isoformat()
     game_manager[game_id] = game
 
-    # Persist: create DuckDB + update index
-    from datetime import datetime, timezone
+    # Persist: create DuckDB + update index + save checkpoint
     game_storage.create_game_db(uid, game_id)
     scenario_entry = get_scenario_by_id(config.scenario_id) or {}
     game_storage.update_index(uid, {
         "game_id": game_id,
         "scenario_id": config.scenario_id,
         "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": game._created_at,
+        "updated_at": game._created_at,
         "days_completed": 0,
         "max_days": config.max_days,
         "status": "created",
@@ -655,26 +701,30 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
         "ticks_per_day": raw_yaml.get("simulation", {}).get("ticks_per_day", 0),
         "uid": uid,
     })
+    _save_game_checkpoint(game)
 
     return {"game_id": game_id, "game": game.get_state()}
 
 
 @app.get("/api/games")
 def list_games(uid: str = Depends(get_current_user)):
-    """List all games for the current user (persisted + in-memory)."""
-    persisted = game_storage.list_games(uid)
-    # Add any in-memory games not in the index
-    persisted_ids = {g["game_id"] for g in persisted}
+    """List all games for the current user (from checkpoints + in-memory)."""
+    # Prefer checkpoint listing (richer data)
+    checkpoints = game_storage.list_checkpoints(uid)
+    checkpoint_ids = {c["game_id"] for c in checkpoints}
+    # Add any in-memory games without checkpoints
     for gid, game in game_manager.items():
-        if gid not in persisted_ids:
-            persisted.append({
+        if gid not in checkpoint_ids:
+            checkpoints.append({
                 "game_id": gid,
-                "scenario_id": "unknown",
-                "days_completed": game.current_day,
+                "scenario_id": getattr(game, '_scenario_id', ''),
+                "status": "complete" if game.is_complete else "running",
+                "current_day": game.current_day,
                 "max_days": game.max_days,
-                "status": "complete" if game.is_complete else "in_progress",
+                "use_llm": game.use_llm,
+                "agent_count": len(game.agent_ids),
             })
-    return {"games": persisted}
+    return {"games": checkpoints}
 
 
 @app.get("/api/games/{game_id}")
@@ -682,13 +732,10 @@ def get_game(game_id: str, uid: str = Depends(get_current_user)):
     """Get game state. Checks memory first, then storage."""
     game = game_manager.get(game_id)
     if not game:
-        # Check if it exists in storage index
-        games = game_storage.list_games(uid)
-        meta = next((g for g in games if g["game_id"] == game_id), None)
-        if not meta:
-            raise HTTPException(status_code=404, detail="Game not found")
-        # Return index metadata (game not in memory, can't get full state)
-        return {"game_id": game_id, "persisted": True, **meta}
+        # Try loading from checkpoint
+        game = _try_load_game(game_id, uid)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
     return game.get_state()
 
 
@@ -748,10 +795,13 @@ async def step_game(game_id: str, uid: str = Depends(get_current_user)):
             meta["status"] = "complete" if game.is_complete else "in_progress"
             game_storage.update_index(uid, meta)
 
+    _save_game_checkpoint(game)
+
     reasoning = {}
     if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
         reasoning = await game.optimize_policies()
         day.optimized = True
+        _save_game_checkpoint(game)
 
     return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
 
@@ -793,6 +843,7 @@ def delete_game(game_id: str, uid: str = Depends(get_current_user)):
     if game_id in game_manager:
         del game_manager[game_id]
     game_storage.delete_game(uid, game_id)
+    game_storage.delete_checkpoint(uid, game_id)
     game_storage.remove_from_index(uid, game_id)
     return {"status": "deleted"}
 
@@ -822,6 +873,8 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
     game = game_manager.get(game_id)
     if not game:
+        game = _try_load_game(game_id, uid)
+    if not game:
         await websocket.send_json({"type": "error", "message": "Game not found"})
         await websocket.close()
         return
@@ -843,13 +896,12 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
         day = game.run_day()
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
+        _save_game_checkpoint(game)  # Save after each day
 
         if not game.is_complete and game.should_optimize(day.day_num):
-            # Use streaming optimization — sends optimization_start,
-            # optimization_chunk (text deltas), and optimization_complete
-            # directly via the websocket
             await game.optimize_policies_streaming(websocket.send_json)
             day.optimized = True
+            _save_game_checkpoint(game)  # Save after optimization
 
         await websocket.send_json({"type": "game_state", "data": game.get_state()})
 

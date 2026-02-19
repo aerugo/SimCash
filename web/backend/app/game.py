@@ -534,6 +534,102 @@ class Game:
             "reasoning_history": self.reasoning_history,
         }
 
+    # ── Checkpoint persistence ───────────────────────────────────────
+
+    def to_checkpoint(self, scenario_id: str = "", uid: str = "") -> dict[str, Any]:
+        """Serialize full game state to a checkpoint dict."""
+        from datetime import datetime, timezone
+        status = "complete" if self.is_complete else ("running" if self.days else "created")
+        return {
+            "version": 1,
+            "game_id": self.game_id,
+            "uid": uid,
+            "scenario_id": scenario_id,
+            "created_at": getattr(self, '_created_at', datetime.now(timezone.utc).isoformat()),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "status": status,
+            "config": {
+                "raw_yaml": self.raw_yaml,
+                "use_llm": self.use_llm,
+                "simulated_ai": self.simulated_ai,
+                "max_days": self.max_days,
+                "num_eval_samples": self.num_eval_samples,
+                "optimization_interval": self.optimization_interval,
+                "constraint_preset": self.constraint_preset,
+                "base_seed": self._base_seed,
+            },
+            "progress": {
+                "current_day": self.current_day,
+                "agent_ids": self.agent_ids,
+                "policies": copy.deepcopy(self.policies),
+                "reasoning_history": copy.deepcopy(self.reasoning_history),
+                "days": [self._day_to_checkpoint(d) for d in self.days],
+            },
+        }
+
+    @staticmethod
+    def _day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
+        """Serialize a GameDay for checkpoint (excludes tick_events for size)."""
+        return {
+            "day_num": day.day_num,
+            "seed": day.seed,
+            "policies": copy.deepcopy(day.policies),
+            "costs": day.costs,
+            "events_summary": {
+                "total": len(day.events),
+                "types": {},  # could add event type counts
+            },
+            "balance_history": day.balance_history,
+            "total_cost": day.total_cost,
+            "per_agent_costs": day.per_agent_costs,
+            "optimized": day.optimized,
+        }
+
+    @classmethod
+    def from_checkpoint(cls, data: dict) -> 'Game':
+        """Reconstruct a Game from a checkpoint dict."""
+        config = data["config"]
+        progress = data["progress"]
+
+        game = cls(
+            game_id=data["game_id"],
+            raw_yaml=config["raw_yaml"],
+            use_llm=config.get("use_llm", True),
+            simulated_ai=config.get("simulated_ai", False),
+            max_days=config.get("max_days", 10),
+            num_eval_samples=config.get("num_eval_samples", 1),
+            optimization_interval=config.get("optimization_interval", 1),
+            constraint_preset=config.get("constraint_preset", "simple"),
+        )
+        game._base_seed = config.get("base_seed", 42)
+        game._created_at = data.get("created_at", "")
+        game._scenario_id = data.get("scenario_id", "")
+        game._uid = data.get("uid", "")
+
+        # Restore policies
+        game.policies = copy.deepcopy(progress.get("policies", game.policies))
+
+        # Restore reasoning history
+        game.reasoning_history = copy.deepcopy(progress.get("reasoning_history", game.reasoning_history))
+
+        # Restore days (without tick_events — those live in DuckDB)
+        for day_data in progress.get("days", []):
+            day = GameDay(
+                day_num=day_data["day_num"],
+                seed=day_data["seed"],
+                policies=copy.deepcopy(day_data.get("policies", {})),
+                costs=day_data.get("costs", {}),
+                events=[],  # Not stored in checkpoint — use DuckDB for replay
+                balance_history=day_data.get("balance_history", {}),
+                total_cost=day_data.get("total_cost", 0),
+                per_agent_costs=day_data.get("per_agent_costs", {}),
+                tick_events=[],
+                optimized=day_data.get("optimized", False),
+            )
+            game.days.append(day)
+
+        return game
+
 
 def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
                    all_days: list[GameDay]) -> dict[str, Any]:
