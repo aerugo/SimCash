@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { GameSetupConfig } from '../types';
 import { HowItWorks } from '../components/HowItWorks';
@@ -11,7 +10,6 @@ export function HomeView() {
     const gid = await handleGameLaunch(config);
     if (gid) navigate(`/experiment/${gid}${tour ? '?tour=1' : ''}`);
   };
-  const [selectedScenario] = useState('2bank_12tick');
 
   return (
     <div className="max-w-4xl mx-auto">

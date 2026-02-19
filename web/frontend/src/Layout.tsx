@@ -11,24 +11,11 @@ const NAV_SECTIONS = [
   { to: '/docs', label: 'Docs', icon: '📖', match: '/docs' },
 ];
 
-function ThemeToggle({ theme, toggle }: { theme: string; toggle: () => void }) {
-  return (
-    <button
-      onClick={toggle}
-      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-      style={{ backgroundColor: 'var(--btn-muted-bg)', color: 'var(--text-secondary)' }}
-      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-    >
-      {theme === 'dark' ? '☀️' : '🌙'}
-    </button>
-  );
-}
-
 function LayoutInner() {
   const { simId, state, gameId } = useGameContext();
   const { isAdmin, userEmail, onSignOut } = useAuthInfo();
   const location = useLocation();
-  const { theme, toggle: toggleTheme } = useTheme();
+  useTheme(); // apply theme on mount
 
   const showExperiment = !!gameId;
   const showSimulation = !!simId;
