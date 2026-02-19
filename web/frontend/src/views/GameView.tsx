@@ -132,11 +132,11 @@ export function GameView() {
   const [notesOpen, setNotesOpen] = useState(false);
   const { notes, update: updateNotes } = useGameNotes(gameId);
 
-  const tour = useTour(gameState?.days?.length ?? 0, autoRunning);
-
   const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 
   const gameState = wsState ?? initialState;
+
+  const tour = useTour(gameState.days.length, autoRunning);
 
   // Sync state up to parent
   useEffect(() => {
@@ -687,7 +687,7 @@ export function GameView() {
 
           {/* Balance chart for selected day */}
           {day && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="balance-chart">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Round {day.day + 1} Balances</h3>
               <MiniBalanceChart balanceHistory={day.balance_history} agentIds={gameState.agent_ids} />
             </div>
@@ -731,7 +731,7 @@ export function GameView() {
 
           {/* Cost evolution chart */}
           {gameState.days.length > 0 && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="cost-evolution">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">Cost Evolution</h3>
               <EvolutionChart
                 data={gameState.cost_history}
@@ -753,7 +753,7 @@ export function GameView() {
 
           {/* Day-specific reasoning */}
           {gameState.reasoning_history && Object.keys(gameState.reasoning_history).length > 0 && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="reasoning">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
                 🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
                   ? `Round ${selectedDay + 1} Reasoning`
@@ -840,7 +840,7 @@ export function GameView() {
           )}
 
           {/* Policies for selected day */}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="policy-display">
             <h3 className="text-sm font-semibold text-slate-300 mb-3">
               📋 {selectedDay !== null && selectedDay < gameState.days.length - 1
                 ? `Round ${selectedDay + 1} Policies`
@@ -882,6 +882,7 @@ export function GameView() {
             className={`px-3 py-1.5 rounded-t-lg text-xs font-medium transition-all ${
               showPaymentTrace ? 'bg-slate-800 text-white border border-b-0 border-slate-700' : 'text-slate-500 hover:text-slate-300'
             }`}
+            data-tour="payment-trace"
           >
             📋 Payment Trace
           </button>
@@ -902,7 +903,7 @@ export function GameView() {
       )}
 
       {/* Notes panel */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700" data-tour="notes">
         <button
           onClick={() => setNotesOpen(!notesOpen)}
           className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
@@ -921,6 +922,22 @@ export function GameView() {
           </div>
         )}
       </div>
+
+      {/* Tour overlay */}
+      {tour.state.active && tour.currentStep && (
+        <TourOverlay
+          step={tour.state.step}
+          currentStep={tour.currentStep}
+          waitingForRound={tour.state.waitingForRound}
+          waitingForAuto={tour.state.waitingForAuto}
+          onNext={tour.next}
+          onBack={tour.back}
+          onSkip={tour.skip}
+        />
+      )}
+      {tour.state.showCompletion && (
+        <TourCompletionNote onDismiss={tour.dismissCompletion} />
+      )}
     </div>
   );
 }

@@ -10,9 +10,9 @@ import { useGameContext } from '../GameContext';
 export function HomeView() {
   const { handleGameLaunch } = useGameContext();
   const navigate = useNavigate();
-  const onGameLaunch = async (config: GameSetupConfig) => {
+  const onGameLaunch = async (config: GameSetupConfig, tour = false) => {
     const gid = await handleGameLaunch(config);
-    if (gid) navigate(`/experiment/${gid}`);
+    if (gid) navigate(`/experiment/${gid}${tour ? '?tour=1' : ''}`);
   };
   const [gameScenarios, setGameScenarios] = useState<GameScenario[]>([]);
   const [selectedScenario] = useState('2bank_12tick');
@@ -91,7 +91,7 @@ export function HomeView() {
             </p>
             <button
               onClick={() => {
-                onGameLaunch?.({
+                onGameLaunch({
                   scenario_id: '2bank_12tick',
                   use_llm: true,
                   mock_reasoning: true,
@@ -99,7 +99,7 @@ export function HomeView() {
                   num_eval_samples: 1,
                   optimization_interval: 1,
                   constraint_preset: 'full',
-                });
+                }, true);
               }}
               className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
             >
