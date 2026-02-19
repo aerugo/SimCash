@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { InfoTip } from './Tooltip';
+import { type PenaltyMode, parsePenaltyMode } from '../types';
 import * as jsYaml from 'js-yaml';
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -33,8 +34,8 @@ interface ScenarioFormData {
   cost_rates: {
     liquidity_cost_per_tick_bps: number;
     delay_cost_per_tick_per_cent: number;
-    deadline_penalty: number;
-    eod_penalty_per_transaction: number;
+    deadline_penalty: PenaltyMode;
+    eod_penalty: PenaltyMode;
   };
   lsm_config?: {
     enable_bilateral: boolean;
@@ -64,7 +65,7 @@ function parseYamlToForm(yamlStr: string): ScenarioFormData | null {
     const sim = (doc.simulation as Record<string, number>) ?? {};
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const agents = (doc.agents as any[]) ?? [];
-    const costs = (doc.cost_rates as Record<string, number>) ?? {};
+    const costs = (doc.cost_rates as Record<string, unknown>) ?? {};
     const lsm = doc.lsm_config as { enable_bilateral?: boolean; enable_cycles?: boolean } | undefined;
     const events = doc.scenario_events as unknown[] | undefined;
 
@@ -90,10 +91,10 @@ function parseYamlToForm(yamlStr: string): ScenarioFormData | null {
         },
       })),
       cost_rates: {
-        liquidity_cost_per_tick_bps: costs.liquidity_cost_per_tick_bps ?? 83,
-        delay_cost_per_tick_per_cent: costs.delay_cost_per_tick_per_cent ?? 0.2,
-        deadline_penalty: costs.deadline_penalty ?? 50000,
-        eod_penalty_per_transaction: costs.eod_penalty_per_transaction ?? 100000,
+        liquidity_cost_per_tick_bps: (costs.liquidity_cost_per_tick_bps as number) ?? 83,
+        delay_cost_per_tick_per_cent: (costs.delay_cost_per_tick_per_cent as number) ?? 0.2,
+        deadline_penalty: parsePenaltyMode(costs.deadline_penalty ?? 50000),
+        eod_penalty: parsePenaltyMode(costs.eod_penalty ?? costs.eod_penalty_per_transaction ?? 100000),
       },
       ...(lsm ? { lsm_config: { enable_bilateral: lsm.enable_bilateral ?? false, enable_cycles: lsm.enable_cycles ?? false } } : {}),
       ...(events ? { scenario_events: events } : {}),
@@ -183,8 +184,18 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
             tooltip="Basis points charged per tick on committed liquidity. Set either bps/tick or the equivalent daily cost — the other updates automatically."
           />
           <NumberField label="Delay Cost (per ¢/tick)" value={data.cost_rates.delay_cost_per_tick_per_cent} onChange={v => update(d => { d.cost_rates.delay_cost_per_tick_per_cent = v; })} step={0.01} tooltip="Cost per cent of unsettled payment per tick. Penalizes slow settlement." />
-          <NumberField label="Deadline Penalty" value={data.cost_rates.deadline_penalty} onChange={v => update(d => { d.cost_rates.deadline_penalty = v; })} tooltip="Flat fee charged when a payment misses its deadline (in cents)." />
-          <NumberField label="EOD Penalty / Txn" value={data.cost_rates.eod_penalty_per_transaction} onChange={v => update(d => { d.cost_rates.eod_penalty_per_transaction = v; })} tooltip="Flat fee per payment still unsettled at end of day (in cents)." />
+          <PenaltyModeField
+            label="Deadline Penalty"
+            value={data.cost_rates.deadline_penalty}
+            onChange={v => update(d => { d.cost_rates.deadline_penalty = v; })}
+            tooltip="Penalty when a payment misses its deadline. Fixed: flat amount in cents. Rate: basis points of the transaction amount — scales with payment value."
+          />
+          <PenaltyModeField
+            label="EOD Penalty"
+            value={data.cost_rates.eod_penalty}
+            onChange={v => update(d => { d.cost_rates.eod_penalty = v; })}
+            tooltip="Penalty per payment still unsettled at end of day. Rate mode uses the remaining unsettled amount as base."
+          />
         </div>
       </div>
 
@@ -458,6 +469,60 @@ function BpsField({ bps, ticksPerDay, onBpsChange, tooltip }: {
             className={inputCls}
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PenaltyModeField({ label, value, onChange, tooltip }: {
+  label: string;
+  value: PenaltyMode;
+  onChange: (v: PenaltyMode) => void;
+  tooltip?: string;
+}) {
+  const isRate = value.mode === 'rate';
+
+  return (
+    <div>
+      <label className={labelCls}>{label}{tooltip && <InfoTip text={tooltip} />}</label>
+      <div className="flex gap-2">
+        <select
+          value={value.mode}
+          onChange={e => {
+            if (e.target.value === 'rate') {
+              onChange({ mode: 'rate', bps_per_event: 50 });
+            } else {
+              onChange({ mode: 'fixed', amount: 50000 });
+            }
+          }}
+          className={inputCls + ' !w-24 shrink-0'}
+        >
+          <option value="fixed">Fixed</option>
+          <option value="rate">Rate</option>
+        </select>
+        {isRate ? (
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              step={0.1}
+              value={value.bps_per_event}
+              onChange={e => onChange({ mode: 'rate', bps_per_event: parseFloat(e.target.value) || 0 })}
+              className={inputCls}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-tertiary)]">bps</span>
+          </div>
+        ) : (
+          <div className="flex-1 relative">
+            <input
+              type="number"
+              step={1}
+              value={value.amount}
+              onChange={e => onChange({ mode: 'fixed', amount: Math.round(parseFloat(e.target.value) || 0) })}
+              className={inputCls}
+            />
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-tertiary)]">¢</span>
+          </div>
+        )}
       </div>
     </div>
   );

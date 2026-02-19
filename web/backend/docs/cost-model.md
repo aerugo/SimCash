@@ -26,30 +26,46 @@ settle a payment on time — client dissatisfaction, SLA penalties, reputational
 cost = unsettled_amount × rate per tick
 ```
 
-Castro baseline: r_d = 0.2 per cent per tick. More expensive than liquidity cost.
+More expensive than liquidity cost — banks should prefer committing funds upfront over letting payments sit.
 
 ## 3. Deadline Penalty
 
-A flat fee for each payment that misses its individual deadline (each payment has
-a specific tick by which it should settle). Represents regulatory penalties or failed obligations.
+Charged when a payment misses its individual deadline (each payment has a specific tick by which it should settle). Supports two modes:
 
+**Fixed mode** — a flat amount in cents, regardless of transaction size:
 ```
-cost = penalty_amount per unsettled payment at its deadline
+cost = amount per missed-deadline payment
 ```
 
-Default: $500 (50,000 cents) per payment.
+**Rate mode** — basis points of the transaction amount, so penalties scale with payment value:
+```
+cost = transaction_amount × (bps / 10,000) per missed-deadline payment
+```
+
+Rate mode is useful when transactions vary widely in size. A flat $500 penalty is negligible for a $10M payment but severe for a $100 one. Rate mode keeps the penalty proportional.
+
+Default: fixed, 50,000 cents ($500).
 
 ## 4. End-of-Day Penalty
 
-A separate large penalty for any payment still unsettled when the day ends.
-Default: $1,000 (100,000 cents). This creates a hard deadline for all payments.
+A separate penalty for any payment still unsettled when the day ends. Same two modes as deadline penalty:
+
+- **Fixed**: flat amount per unsettled payment
+- **Rate**: basis points of the **remaining unsettled amount** (not the original transaction amount — partially settled payments incur proportionally less)
+
+Default: fixed, 100,000 cents ($1,000). This creates a hard deadline for all payments.
 
 ## The Ordering Constraint
 
-> ⚠️ **r_c < r_d < r_b** — Castro et al. require
-> this ordering: liquidity cost < delay cost < borrowing/penalty cost. Banks should
-> always prefer committing liquidity (cheapest) over delaying payments (medium) over missing
-> deadlines entirely (most expensive). If this ordering is violated, the incentives break down.
+> ⚠️ **liquidity cost < delay cost < penalty cost** — this ordering is important for
+> well-behaved incentives. Banks should always prefer committing liquidity (cheapest)
+> over delaying payments (medium) over missing deadlines entirely (most expensive).
+> If this ordering is violated, the strategic dynamics break down — agents may find it
+> rational to ignore deadlines or hoard liquidity.
+>
+> Rate-based penalties help maintain this ordering across different transaction sizes,
+> which is their primary motivation. The engine includes a validation warning when
+> configured rates might violate this hierarchy for typical transaction amounts.
 
 ## Total Cost
 

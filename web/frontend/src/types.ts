@@ -1,3 +1,19 @@
+// Penalty can be a flat amount (cents) or a rate (bps of transaction amount)
+export type PenaltyMode =
+  | { mode: 'fixed'; amount: number }
+  | { mode: 'rate'; bps_per_event: number };
+
+// Parse raw penalty value from YAML/API: bare number → fixed, object → pass through
+export function parsePenaltyMode(v: unknown): PenaltyMode {
+  if (typeof v === 'number') return { mode: 'fixed', amount: v };
+  if (v && typeof v === 'object' && 'mode' in v) {
+    const obj = v as Record<string, unknown>;
+    if (obj.mode === 'rate') return { mode: 'rate', bps_per_event: Number(obj.bps_per_event) || 0 };
+    return { mode: 'fixed', amount: Number(obj.amount) || 0 };
+  }
+  return { mode: 'fixed', amount: 0 };
+}
+
 export interface AgentState {
   balance: number;
   available_liquidity: number;
@@ -262,9 +278,10 @@ export interface GameScenario {
   cost_rates: {
     liquidity_cost_per_tick_bps: number;
     delay_cost_per_tick_per_cent: number;
-    eod_penalty_per_transaction: number;
-    deadline_penalty: number;
-    [key: string]: number;
+    eod_penalty_per_transaction?: number;
+    eod_penalty?: unknown;
+    deadline_penalty: unknown;
+    [key: string]: unknown;
   };
 }
 
