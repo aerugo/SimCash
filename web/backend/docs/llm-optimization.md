@@ -59,17 +59,21 @@ Agent isolation is enforced at every level of the system:
 - **Independent seeds** — Each agent gets different RNG seeds per iteration via a SHA-256 seed matrix.
 - **Isolated evaluation** — Bootstrap samples and sandbox simulations are per-agent.
 
-This isolation is what enables Nash equilibrium finding. Each agent independently optimizes
+This isolation enables a best-response dynamic: each agent independently optimizes
 against the current state of the world (which includes other agents' fixed policies).
 If agents could see each other's strategies, they could game the optimization or coordinate
 in ways that don't reflect real RTGS incentives.
 
-## Nash Equilibrium and Convergence
+## Convergence and Stability
 
 In **deterministic-temporal** mode, convergence is detected when all agents'
 policies remain unchanged for a stability window (typically 5 iterations). Since deterministic
-evaluation gives identical costs for identical policies, stability means no agent can
-improve — which is precisely the definition of a Nash equilibrium.
+evaluation gives identical costs for identical policies, stability means no agent found
+an improving deviation *via the LLM search process*. This is a necessary but not sufficient
+condition for a Nash equilibrium — it demonstrates convergent behavior under the optimizer's
+search, but does not guarantee that no profitable deviation exists in the full strategy space.
+A true Nash equilibrium requires that *no* agent can unilaterally improve by deviating to
+*any* alternative strategy, which cannot be verified without exhaustive strategy enumeration.
 
 In **bootstrap** mode, convergence uses multiple signals:
 
@@ -77,10 +81,13 @@ In **bootstrap** mode, convergence uses multiple signals:
 - **Trend analysis** — Costs should be flat or declining, not oscillating
 - **Regret** — How far the current cost is from the best-ever cost
 
-> ⚠️ Convergence to a Nash equilibrium doesn't mean the outcome is *good*. In
+> ⚠️ Convergence to a stable strategy profile doesn't mean the outcome is *good*. In
 > Experiment 3, agents reliably converge to stable profiles where one agent free-rides —
-> a Nash equilibrium, but Pareto-dominated. Both agents would be better off at the
-> symmetric equilibrium, but neither has an individual incentive to move there.
+> a local optimum that is Pareto-dominated. Both agents would be better off at the
+> symmetric strategy profile, but neither has an individual incentive to move there
+> given the other's current policy. Whether these stable profiles constitute true Nash
+> equilibria in the game-theoretic sense remains an open question — they are better
+> described as approximate equilibria or stable fixed points of the best-response dynamic.
 
 ## Optimization Interval
 
@@ -99,7 +106,7 @@ data, and then proposes a single improvement.
 |------|----------------|----------|
 | `bootstrap` | Statistical significance (95% CI) + variance check | Stochastic scenarios — rigorous comparison |
 | `deterministic-pairwise` | new_cost < old_cost on same seed | Single-agent deterministic optimization |
-| `deterministic-temporal` | Always accept; converge on policy stability | Multi-agent Nash equilibrium finding |
+| `deterministic-temporal` | Always accept; converge on policy stability | Multi-agent stable strategy profiles |
 
 ## What the LLM Sees (and Doesn't)
 
