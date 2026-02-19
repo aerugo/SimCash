@@ -333,15 +333,15 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }:
                 </select>
               </div>
               {(agent.arrival_config.amount_distribution.type === 'LogNormal' || agent.arrival_config.amount_distribution.type === 'Normal') && <>
-                <NumberField label="Mean" value={agent.arrival_config.amount_distribution.mean} onChange={v => onChange(a => { a.arrival_config.amount_distribution.mean = v; })} />
-                <NumberField label="Std Dev" value={agent.arrival_config.amount_distribution.std_dev} onChange={v => onChange(a => { a.arrival_config.amount_distribution.std_dev = v; })} />
+                <NumberField label="Mean" value={agent.arrival_config.amount_distribution.mean ?? 10000} onChange={v => onChange(a => { a.arrival_config.amount_distribution.mean = v; })} />
+                <NumberField label="Std Dev" value={agent.arrival_config.amount_distribution.std_dev ?? 5000} onChange={v => onChange(a => { a.arrival_config.amount_distribution.std_dev = v; })} />
               </>}
               {agent.arrival_config.amount_distribution.type === 'Uniform' && <>
-                <NumberField label="Min" value={agent.arrival_config.amount_distribution.min} onChange={v => onChange(a => { a.arrival_config.amount_distribution.min = v; })} />
-                <NumberField label="Max" value={agent.arrival_config.amount_distribution.max} onChange={v => onChange(a => { a.arrival_config.amount_distribution.max = v; })} />
+                <NumberField label="Min" value={agent.arrival_config.amount_distribution.min ?? 1000} onChange={v => onChange(a => { a.arrival_config.amount_distribution.min = v; })} />
+                <NumberField label="Max" value={agent.arrival_config.amount_distribution.max ?? 20000} onChange={v => onChange(a => { a.arrival_config.amount_distribution.max = v; })} />
               </>}
               {agent.arrival_config.amount_distribution.type === 'Exponential' && <>
-                <NumberField label="Rate (λ)" value={agent.arrival_config.amount_distribution.rate} onChange={v => onChange(a => { a.arrival_config.amount_distribution.rate = v; })} step={0.0001} />
+                <NumberField label="Rate (λ)" value={agent.arrival_config.amount_distribution.rate ?? 0.0001} onChange={v => onChange(a => { a.arrival_config.amount_distribution.rate = v; })} step={0.0001} />
               </>}
             </div>
           </div>
