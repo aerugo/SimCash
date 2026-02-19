@@ -721,9 +721,10 @@ def list_games(uid: str = Depends(get_current_user)):
     # Prefer checkpoint listing (richer data)
     checkpoints = game_storage.list_checkpoints(uid)
     checkpoint_ids = {c["game_id"] for c in checkpoints}
-    # Add any in-memory games without checkpoints
+    # Add any in-memory games without checkpoints (only this user's games)
     for gid, game in game_manager.items():
-        if gid not in checkpoint_ids:
+        game_uid = getattr(game, '_uid', '')
+        if gid not in checkpoint_ids and game_uid == uid:
             checkpoints.append({
                 "game_id": gid,
                 "scenario_id": getattr(game, '_scenario_id', ''),

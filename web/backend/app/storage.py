@@ -211,9 +211,27 @@ class GameStorage:
             except Exception:
                 pass
 
+    def _parse_checkpoint_summary(self, data: dict, fallback_id: str = "") -> dict:
+        """Extract summary fields from a checkpoint dict."""
+        return {
+            "game_id": data.get("game_id", fallback_id),
+            "scenario_id": data.get("scenario_id", ""),
+            "status": data.get("status", "unknown"),
+            "current_day": data.get("progress", {}).get("current_day", 0),
+            "max_days": data.get("config", {}).get("max_days", 0),
+            "use_llm": data.get("config", {}).get("use_llm", False),
+            "simulated_ai": data.get("config", {}).get("simulated_ai", True),
+            "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
+            "created_at": data.get("created_at", ""),
+            "updated_at": data.get("updated_at", ""),
+        }
+
     def list_checkpoints(self, uid: str) -> list[dict]:
         """List all checkpoints for a user (summary only: id, status, progress)."""
         results = []
+        seen_ids: set[str] = set()
+
+        # Local filesystem
         d = self._local_dir(uid)
         if d.exists():
             for p in sorted(d.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
@@ -221,18 +239,28 @@ class GameStorage:
                     continue
                 try:
                     data = json.loads(p.read_text())
-                    results.append({
-                        "game_id": data.get("game_id", p.stem),
-                        "scenario_id": data.get("scenario_id", ""),
-                        "status": data.get("status", "unknown"),
-                        "current_day": data.get("progress", {}).get("current_day", 0),
-                        "max_days": data.get("config", {}).get("max_days", 0),
-                        "use_llm": data.get("config", {}).get("use_llm", False),
-                        "simulated_ai": data.get("config", {}).get("simulated_ai", True),
-                        "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
-                        "created_at": data.get("created_at", ""),
-                        "updated_at": data.get("updated_at", ""),
-                    })
+                    summary = self._parse_checkpoint_summary(data, p.stem)
+                    results.append(summary)
+                    seen_ids.add(summary["game_id"])
                 except (json.JSONDecodeError, ValueError):
                     continue
+
+        # GCS fallback — list blobs not already found locally
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            prefix = f"users/{uid}/games/"
+            try:
+                for blob in self._gcs_bucket.list_blobs(prefix=prefix):
+                    if not blob.name.endswith(".json") or blob.name.endswith("index.json"):
+                        continue
+                    game_id = blob.name.rsplit("/", 1)[-1].replace(".json", "")
+                    if game_id in seen_ids:
+                        continue
+                    try:
+                        data = json.loads(blob.download_as_text())
+                        results.append(self._parse_checkpoint_summary(data, game_id))
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.warning("GCS list_checkpoints failed for %s: %s", uid, e)
+
         return results
