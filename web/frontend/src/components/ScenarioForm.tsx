@@ -50,7 +50,7 @@ interface Props {
 
 const distributionHelp: Record<string, string> = {
   LogNormal: 'Heavy-tailed: most payments are small, but occasional large ones occur. Realistic for interbank flows. Params: mean & std dev of the underlying log-normal.',
-  Normal: 'Bell curve centered on the mean. Symmetric — equal chance of above/below average. Can produce negative values if std dev is large relative to mean.',
+  Normal: 'Bell curve centered on the mean. Symmetric — equal chance of above/below average.',
   Uniform: 'Flat — every amount between min and max is equally likely. No clustering. Good for stress-testing edge cases.',
   Exponential: 'Many small payments, exponentially fewer large ones. Memoryless — the rate (λ) is 1/mean. More extreme skew than LogNormal.',
 };
