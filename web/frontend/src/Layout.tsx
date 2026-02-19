@@ -6,6 +6,7 @@ import { useTheme } from './hooks/useTheme';
 
 const NAV_SECTIONS = [
   { to: '/', label: 'Run', icon: '🏠', exact: true },
+  { to: '/experiments', label: 'History', icon: '📋' },
   { to: '/library/scenarios', label: 'Library', icon: '📚', match: '/library' },
   { to: '/create', label: 'Create', icon: '✏️' },
   { to: '/docs', label: 'Docs', icon: '📖', match: '/docs' },

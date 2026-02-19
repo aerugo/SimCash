@@ -10,6 +10,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardView } from './views/DashboardView';
 import { EventsView } from './views/EventsView';
 import { AgentsView } from './views/AgentsView';
+import ExperimentsView from './views/ExperimentsView';
 import { ConfigView } from './views/ConfigView';
 import { ReplayView } from './views/ReplayView';
 import { AnalysisView } from './views/AnalysisView';
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       { path: 'library/policies', element: <PolicyLibraryView /> },
       { path: 'library/policies/:policyId', element: <PolicyLibraryView /> },
       { path: 'create', element: <CreateView /> },
+      { path: 'experiments', element: <ExperimentsView /> },
       { path: 'experiment/:gameId', element: <GameView /> },
       { path: 'docs', element: <DocsView /> },
       { path: 'docs/:slug', element: <DocsView /> },
