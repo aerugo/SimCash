@@ -100,6 +100,20 @@ export function HomeView() {
       )}
 
       <HowItWorks defaultOpen={true} />
+
+      {/* Credits */}
+      <div className="mt-12 mb-4 text-center" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Built by <strong>Hugi Aegisberg</strong> · Licensed under{' '}
+          <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>MIT</a>
+        </p>
+        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+          Methodology builds on the work of{' '}
+          <a href="https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>Castro et al. (2025)</a>
+          {' '}· Source code on{' '}
+          <a href="https://github.com/aerugo/SimCash" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>GitHub</a>
+        </p>
+      </div>
     </div>
   );
 }
