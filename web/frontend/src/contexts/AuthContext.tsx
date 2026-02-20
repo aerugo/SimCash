@@ -1,6 +1,6 @@
 import { createContext, useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, signInWithGoogle, signOut, getIdToken } from '../firebase';
+import { auth, signInWithGoogle, signOut, getIdToken, handleRedirectResult } from '../firebase';
 
 export interface AuthContextValue {
   user: User | null;
@@ -51,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         // Normal Firebase auth
+        // Handle redirect result (for mobile sign-in returning from Google)
+        handleRedirectResult().catch(() => {});
         const unsub = onAuthStateChanged(auth, (u) => {
           setUser(u);
           setLoading(false);
@@ -59,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         // Backend unreachable — fall through to Firebase
+        handleRedirectResult().catch(() => {});
         const unsub = onAuthStateChanged(auth, (u) => {
           setUser(u);
           setLoading(false);
