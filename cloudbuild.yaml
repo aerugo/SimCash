@@ -2,7 +2,6 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
-      - '--no-cache'
       - '-t'
       - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
       - '.'
