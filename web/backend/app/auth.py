@@ -6,7 +6,6 @@ from typing import Optional
 from uuid import uuid4
 
 from fastapi import Depends, HTTPException, Request, WebSocket, status
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 from . import config
@@ -220,15 +219,45 @@ async def get_optional_ws_user(websocket: WebSocket) -> str:
         return f"guest-{uuid4().hex[:12]}"
 
 
-class GuestCookieMiddleware(BaseHTTPMiddleware):
-    """Sets a stable guest cookie if not present."""
+class GuestCookieMiddleware:
+    """Sets a stable guest cookie if not present.
 
-    async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if not request.cookies.get("simcash_guest"):
-            guest_id = f"guest-{uuid4().hex[:12]}"
-            response.set_cookie(
-                "simcash_guest", guest_id,
-                max_age=86400, httponly=True, samesite="lax",
-            )
-        return response
+    Implemented as a pure ASGI middleware (not BaseHTTPMiddleware) to avoid
+    breaking WebSocket connections — BaseHTTPMiddleware is known to close
+    WebSockets prematurely in Starlette.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            # Pass WebSocket (and lifespan) through untouched
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        needs_cookie = not request.cookies.get("simcash_guest")
+        guest_id = f"guest-{uuid4().hex[:12]}" if needs_cookie else None
+
+        if not needs_cookie:
+            await self.app(scope, receive, send)
+            return
+
+        # Intercept the response start to inject the Set-Cookie header
+        async def send_with_cookie(message):
+            if message["type"] == "http.response.start" and guest_id:
+                from http.cookies import SimpleCookie
+                cookie: SimpleCookie = SimpleCookie()
+                cookie["simcash_guest"] = guest_id
+                cookie["simcash_guest"]["max-age"] = str(86400)
+                cookie["simcash_guest"]["httponly"] = True
+                cookie["simcash_guest"]["samesite"] = "Lax"
+                cookie["simcash_guest"]["path"] = "/"
+                header_value = cookie["simcash_guest"].OutputString()
+                headers = list(message.get("headers", []))
+                headers.append((b"set-cookie", header_value.encode()))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_cookie)
