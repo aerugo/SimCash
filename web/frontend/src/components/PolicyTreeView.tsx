@@ -165,8 +165,13 @@ function renderNode(node: LayoutNode, elements: React.JSX.Element[]) {
 
   const rx = isAction ? 6 : 12;
 
+  const tooltipText = node.sublabel
+    ? `${node.label}\n${node.sublabel}`
+    : node.label;
+
   elements.push(
-    <g key={node.id}>
+    <g key={node.id} style={{ cursor: 'default' }}>
+      <title>{tooltipText}</title>
       {/* Shadow */}
       <rect
         x={node.x - node.width / 2 + 2}
