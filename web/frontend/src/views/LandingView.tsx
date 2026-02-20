@@ -113,6 +113,10 @@ export function LandingView() {
             <a href="https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
               Castro et al. (2025)
             </a>
+            {' '}and{' '}
+            <a href="https://www.bis.org/publ/work1310.htm" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Desai &amp; Aldasoro (2025)
+            </a>
             {' '}· Source code on{' '}
             <a href="https://github.com/aerugo/SimCash" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
               GitHub
