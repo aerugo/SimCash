@@ -2,7 +2,9 @@ import type { CreateSimResponse, Preset, SimulationState, TickResult, SavedScena
 import type { GameState, ScenarioPackEntry, GameScenario, GameSetupConfig, LibraryScenario, LibraryScenarioDetail, LibraryPolicy, LibraryPolicyDetail, PolicyHistoryResponse, PolicyDiffResponse, PaymentTraceResponse } from './types';
 import { getIdToken } from './firebase';
 
-const BASE = '/api';
+/** API base URL — relative in same-origin deploy (Cloud Run), absolute for Firebase Hosting */
+export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || '';
+const BASE = `${API_ORIGIN}/api`;
 
 /** Authenticated fetch wrapper — auto-includes Bearer token for protected endpoints */
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {

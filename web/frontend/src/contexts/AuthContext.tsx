@@ -2,9 +2,14 @@ import { createContext, useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth, signInWithGoogle, signOut, getIdToken, handleRedirectResult } from '../firebase';
 
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || '';
+
+export type BackendStatus = 'connecting' | 'ready' | 'cold-start';
+
 export interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  backendStatus: BackendStatus;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string | null>;
@@ -13,6 +18,7 @@ export interface AuthContextValue {
 export const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
+  backendStatus: 'connecting',
   signIn: async () => {},
   signOut: async () => {},
   getToken: async () => null,
@@ -30,44 +36,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [devMode, setDevMode] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>('connecting');
 
   useEffect(() => {
-    // Check for dev_token in URL params
     const urlParams = new URLSearchParams(window.location.search);
     const devToken = urlParams.get('dev_token');
 
-    // Check if backend auth is disabled (dev mode) or dev_token provided
-    fetch('/api/auth-mode')
-      .then(r => r.json())
-      .then(data => {
-        if (data.auth_disabled || (data.dev_token_enabled && devToken)) {
-          // Store dev token for API calls
-          if (devToken) {
-            sessionStorage.setItem('simcash_dev_token', devToken);
+    let cancelled = false;
+    let attempt = 0;
+
+    const tryConnect = () => {
+      attempt++;
+      if (attempt > 1) setBackendStatus('cold-start');
+
+      fetch(`${API_ORIGIN}/api/auth-mode`)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(data => {
+          if (cancelled) return;
+          setBackendStatus('ready');
+          if (data.auth_disabled || (data.dev_token_enabled && devToken)) {
+            if (devToken) {
+              sessionStorage.setItem('simcash_dev_token', devToken);
+            }
+            setDevMode(true);
+            setUser(DEV_USER);
+            setLoading(false);
+            return;
           }
-          setDevMode(true);
-          setUser(DEV_USER);
-          setLoading(false);
-          return;
-        }
-        // Normal Firebase auth
-        // Handle redirect result (for mobile sign-in returning from Google)
-        handleRedirectResult().catch(() => {});
-        const unsub = onAuthStateChanged(auth, (u) => {
-          setUser(u);
-          setLoading(false);
+          handleRedirectResult().catch(() => {});
+          const unsub = onAuthStateChanged(auth, (u) => {
+            if (!cancelled) {
+              setUser(u);
+              setLoading(false);
+            }
+          });
+          return unsub;
+        })
+        .catch(() => {
+          if (cancelled) return;
+          // Backend not ready — retry with backoff (cold start takes ~20s)
+          if (attempt < 10) {
+            const delay = Math.min(2000 * attempt, 5000);
+            setTimeout(tryConnect, delay);
+          } else {
+            // Give up after ~30s, fall through to Firebase auth
+            setBackendStatus('ready');
+            handleRedirectResult().catch(() => {});
+            const unsub = onAuthStateChanged(auth, (u) => {
+              if (!cancelled) {
+                setUser(u);
+                setLoading(false);
+              }
+            });
+            return unsub;
+          }
         });
-        return unsub;
-      })
-      .catch(() => {
-        // Backend unreachable — fall through to Firebase
-        handleRedirectResult().catch(() => {});
-        const unsub = onAuthStateChanged(auth, (u) => {
-          setUser(u);
-          setLoading(false);
-        });
-        return unsub;
-      });
+    };
+
+    tryConnect();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSignIn = async () => {
@@ -83,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
+        backendStatus,
         signIn: handleSignIn,
         signOut: handleSignOut,
         getToken: devMode ? (async () => sessionStorage.getItem('simcash_dev_token') || 'dev-token') : getIdToken,

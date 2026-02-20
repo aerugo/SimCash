@@ -166,14 +166,23 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     if (!gameId || !initialStateRef.current) return;  // Don't connect without a game
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Determine WS host — use API_ORIGIN if set (Firebase Hosting), else same origin
+    const apiOrigin = (await import('../api')).API_ORIGIN;
+    let wsHost: string;
+    if (apiOrigin) {
+      // Convert https://foo.run.app to wss://foo.run.app
+      wsHost = apiOrigin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+    } else {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsHost = `${protocol}//${window.location.host}`;
+    }
     const devToken = sessionStorage.getItem('simcash_dev_token');
     const token = devToken ? null : await getIdToken();
     const params = new URLSearchParams();
     if (token) params.set('token', token);
     if (devToken) params.set('dev_token', devToken);
     const paramStr = params.toString() ? `?${params.toString()}` : '';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${paramStr}`);
+    const ws = new WebSocket(`${wsHost}/ws/games/${gameId}${paramStr}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
