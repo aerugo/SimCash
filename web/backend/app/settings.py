@@ -16,7 +16,7 @@ from . import config
 logger = logging.getLogger(__name__)
 
 # Default model if nothing configured
-DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:gemini-3-flash-preview")
+DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:glm-5-maas")
 
 # Built-in available models
 # Gemini 3.x = preview (latest features), Gemini 2.5 = stable/GA (production)
