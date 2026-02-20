@@ -73,6 +73,14 @@ app.include_router(docs_router)
 
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}
+game_locks: dict[str, asyncio.Lock] = {}
+
+
+def get_game_lock(game_id: str) -> asyncio.Lock:
+    """Get or create a per-game asyncio lock to prevent concurrent execution."""
+    if game_id not in game_locks:
+        game_locks[game_id] = asyncio.Lock()
+    return game_locks[game_id]
 game_storage = GameStorage(
     bucket_name=app_config.GCS_BUCKET,
     storage_mode=app_config.STORAGE_MODE if app_config.STORAGE_MODE != "memory" else "local",
@@ -788,32 +796,32 @@ async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
     if game.is_complete:
         raise HTTPException(status_code=400, detail="Game is complete")
 
-    day = game.run_day()
+    async with get_game_lock(game_id):
+        day = game.run_day()
 
-    # Persist day to DuckDB
-    from datetime import datetime, timezone
-    db_path = game_storage.get_db_path(uid, game_id)
-    if db_path.exists():
-        game.save_day_to_duckdb(db_path, day)
-        game_storage.save_game(uid, game_id)
-        # Update index
-        games = game_storage.list_games(uid)
-        meta = next((g for g in games if g["game_id"] == game_id), None)
-        if meta:
-            meta["days_completed"] = game.current_day
-            meta["updated_at"] = datetime.now(timezone.utc).isoformat()
-            meta["status"] = "complete" if game.is_complete else "in_progress"
-            game_storage.update_index(uid, meta)
+        # Persist day to DuckDB
+        from datetime import datetime, timezone
+        db_path = game_storage.get_db_path(uid, game_id)
+        if db_path.exists():
+            game.save_day_to_duckdb(db_path, day)
+            game_storage.save_game(uid, game_id)
+            games = game_storage.list_games(uid)
+            meta = next((g for g in games if g["game_id"] == game_id), None)
+            if meta:
+                meta["days_completed"] = game.current_day
+                meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+                meta["status"] = "complete" if game.is_complete else "in_progress"
+                game_storage.update_index(uid, meta)
 
-    _save_game_checkpoint(game)
-
-    reasoning = {}
-    if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
-        reasoning = await game.optimize_policies()
-        day.optimized = True
         _save_game_checkpoint(game)
 
-    return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
+        reasoning = {}
+        if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
+            reasoning = await game.optimize_policies()
+            day.optimized = True
+            _save_game_checkpoint(game)
+
+        return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
 
 
 @app.post("/api/games/{game_id}/auto")
@@ -823,18 +831,19 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    days = []
-    all_reasoning = []
-    while not game.is_complete:
-        day = game.run_day()
-        reasoning = {}
-        if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
-            reasoning = await game.optimize_policies()
-            day.optimized = True
-        days.append({"day": day.to_dict(), "reasoning": reasoning})
-        all_reasoning.append(reasoning)
+    async with get_game_lock(game_id):
+        days = []
+        all_reasoning = []
+        while not game.is_complete:
+            day = game.run_day()
+            reasoning = {}
+            if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
+                reasoning = await game.optimize_policies()
+                day.optimized = True
+            days.append({"day": day.to_dict(), "reasoning": reasoning})
+            all_reasoning.append(reasoning)
 
-    return {"days": days, "game": game.get_state()}
+        return {"days": days, "game": game.get_state()}
 
 
 @app.get("/api/games/{game_id}/download")
@@ -893,46 +902,62 @@ async def game_ws(websocket: WebSocket, game_id: str):
     speed_ms = 1000
 
     async def run_one_step():
-        """Run one day + optimization, emitting structured messages."""
-        if game.is_complete:
-            await websocket.send_json({"type": "game_complete", "data": game.get_state()})
-            return
+        """Run one day + optimization, emitting structured messages.
 
-        await websocket.send_json({
-            "type": "simulation_running",
-            "day": game.current_day,
-            "max_days": game.max_days,
-        })
+        Uses transactional day execution: simulate first, only commit
+        after successful WS delivery. Prevents skipped optimization
+        if the WS dies mid-step. Protected by per-game lock to prevent
+        concurrent execution from multiple connections.
+        """
+        async with get_game_lock(game_id):
+            if game.is_complete:
+                await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+                return
 
-        try:
-            day = game.run_day()
-        except Exception as sim_err:
-            logger.error("Simulation failed on day %d: %s — rolling back policies", game.current_day, sim_err)
-            # Roll back to previous day's policies if available
-            if game.days:
-                prev_policies = game.days[-1].policies
-                game.policies = copy.deepcopy(prev_policies)
-                logger.info("Rolled back to day %d policies, retrying", game.days[-1].day_num)
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Simulation error (rolling back policies): {sim_err}",
-                })
-                day = game.run_day()
-            else:
+            await websocket.send_json({
+                "type": "simulation_running",
+                "day": game.current_day,
+                "max_days": game.max_days,
+            })
+
+            try:
+                day = game.simulate_day()
+            except Exception as sim_err:
+                logger.error("Simulation failed on day %d: %s — rolling back policies", game.current_day, sim_err)
+                if game.days:
+                    prev_policies = game.days[-1].policies
+                    game.policies = copy.deepcopy(prev_policies)
+                    logger.info("Rolled back to day %d policies, retrying", game.days[-1].day_num)
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Simulation error (rolling back policies): {sim_err}",
+                    })
+                    day = game.simulate_day()
+                else:
+                    raise
+
+            # Deliver day result to client BEFORE committing to state.
+            # If WS send fails, the day is not committed and can be retried.
+            try:
+                await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
+            except Exception:
+                logger.warning("WS dead during day %d delivery — not committing", day.day_num)
                 raise
-        await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
-        _save_game_checkpoint(game)  # Save after each day
 
-        logger.info("Post-day check: is_complete=%s, should_optimize(%d)=%s, use_llm=%s",
-                    game.is_complete, day.day_num, game.should_optimize(day.day_num), game.use_llm)
-        if not game.is_complete and game.should_optimize(day.day_num):
-            logger.info("Starting LLM optimization for game %s day %d", game_id, day.day_num)
-            await game.optimize_policies_streaming(websocket.send_json)
-            day.optimized = True
-            logger.info("Optimization complete for game %s day %d", game_id, day.day_num)
-            _save_game_checkpoint(game)  # Save after optimization
+            # Commit only after successful delivery
+            game.commit_day(day)
+            _save_game_checkpoint(game)
 
-        await websocket.send_json({"type": "game_state", "data": game.get_state()})
+            logger.info("Post-day check: is_complete=%s, should_optimize(%d)=%s, use_llm=%s",
+                        game.is_complete, day.day_num, game.should_optimize(day.day_num), game.use_llm)
+            if not game.is_complete and game.should_optimize(day.day_num):
+                logger.info("Starting LLM optimization for game %s day %d", game_id, day.day_num)
+                await game.optimize_policies_streaming(websocket.send_json)
+                day.optimized = True
+                logger.info("Optimization complete for game %s day %d", game_id, day.day_num)
+                _save_game_checkpoint(game)
+
+            await websocket.send_json({"type": "game_state", "data": game.get_state()})
 
     async def auto_run():
         nonlocal running

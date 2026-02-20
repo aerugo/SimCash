@@ -253,6 +253,75 @@ class Game:
         self.days.append(day)
         return day
 
+    def simulate_day(self) -> GameDay:
+        """Run simulation without committing to game state.
+
+        Returns a GameDay that can be committed via commit_day().
+        Unlike run_day(), this does NOT append to self.days — the caller
+        must explicitly call commit_day() after confirming delivery.
+        """
+        day_num = self.current_day
+        seed = self._base_seed + day_num
+
+        all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
+
+        if self.num_eval_samples > 1:
+            all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
+            all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
+
+            extra_seeds = [seed + i * 1000 for i in range(1, self.num_eval_samples)]
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(extra_seeds), 8)) as pool:
+                futures = {s: pool.submit(self._run_cost_only, s) for s in extra_seeds}
+                extra_results = {s: futures[s].result() for s in extra_seeds}
+
+            for sample_seed in extra_seeds:
+                s_costs_json = extra_results[sample_seed]
+                for aid in self.agent_ids:
+                    agent_c = s_costs_json.get(aid, {})
+                    all_per_agent[aid].append(agent_c.get("total_cost", 0))
+                    all_costs[aid].append({
+                        "liquidity_cost": agent_c.get("liquidity_cost", 0),
+                        "delay_cost": agent_c.get("delay_cost", 0),
+                        "penalty_cost": agent_c.get("penalty_cost", 0),
+                    })
+
+            n = self.num_eval_samples
+            total_cost = 0
+            for aid in self.agent_ids:
+                avg_total = sum(all_per_agent[aid]) // n
+                avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
+                avg_penalty = sum(c["penalty_cost"] for c in all_costs[aid]) // n
+                avg_liq = sum(c["liquidity_cost"] for c in all_costs[aid]) // n
+                costs[aid] = {
+                    "liquidity_cost": avg_liq,
+                    "delay_cost": avg_delay,
+                    "penalty_cost": avg_penalty,
+                    "total": avg_total,
+                }
+                per_agent_costs[aid] = avg_total
+                total_cost += avg_total
+
+        return GameDay(
+            day_num=day_num,
+            seed=seed,
+            policies=copy.deepcopy(self.policies),
+            costs=costs,
+            events=all_events,
+            balance_history=balance_history,
+            total_cost=total_cost,
+            per_agent_costs=per_agent_costs,
+            tick_events=tick_events,
+        )
+
+    def commit_day(self, day: GameDay):
+        """Commit a previously simulated day to game state.
+
+        Only call after confirming the day was successfully delivered
+        to the client (e.g. WS send succeeded).
+        """
+        self.days.append(day)
+
     def save_day_to_duckdb(self, db_path: Path, day: GameDay):
         """Write a day's results to the DuckDB file."""
         con = duckdb.connect(str(db_path))
