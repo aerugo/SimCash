@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { GameOptimizationResult } from '../types';
+import type { GameOptimizationResult, GameState } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
 import { PolicyEvolutionPanel } from '../components/PolicyEvolutionPanel';
@@ -51,16 +51,37 @@ export function GameView() {
   const nav = useNavigate();
   const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
   const gameId = params.gameId ?? contextGameId ?? '';
-  const initialState = contextGameState;
+  const [fetchedState, setFetchedState] = useState<GameState | null>(null);
+  const [fetchError, setFetchError] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(false);
+  const initialState = contextGameState ?? fetchedState;
   const onReset = () => { handleReset(); nav('/'); };
+
+  // Fetch game from API if not in context (e.g. direct navigation or from experiments list)
+  useEffect(() => {
+    if (contextGameState || !gameId || fetchedState) return;
+    setFetchLoading(true);
+    import('../api').then(({ getGame }) => getGame(gameId))
+      .then(state => { setFetchedState(state); setFetchLoading(false); })
+      .catch(() => { setFetchError(true); setFetchLoading(false); });
+  }, [gameId, contextGameState, fetchedState]);
+
+  if (fetchLoading) {
+    return (
+      <div className="text-center py-20">
+        <div className="text-4xl mb-4 animate-spin">⏳</div>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading experiment {gameId}…</p>
+      </div>
+    );
+  }
 
   if (!initialState) {
     return (
       <div className="text-center py-20">
         <div className="text-4xl mb-4">🔍</div>
         <h2 className="text-xl font-semibold mb-2">Experiment Not Found</h2>
-        <p className="text-sm text-slate-400 mb-4">No active experiment for ID: {gameId}</p>
-        <button onClick={() => nav('/')} className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-medium">← Back to Home</button>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>No active experiment for ID: {gameId}</p>
+        <button onClick={() => nav('/')} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: 'var(--bg-accent)', color: 'white' }}>← Back to Home</button>
       </div>
     );
   }
