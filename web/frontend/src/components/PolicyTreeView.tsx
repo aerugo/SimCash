@@ -30,7 +30,9 @@ interface LayoutNode {
   width: number;
   height: number;
   label: string;
+  fullLabel?: string;
   sublabel?: string;
+  fullSublabel?: string;
   type: 'condition' | 'action';
   action?: string;
   children: { node: LayoutNode; label: string }[];
@@ -104,9 +106,8 @@ function layoutTree(
     };
   }
 
-  const condLabel = node.description
-    ? (node.description.length > 40 ? node.description.slice(0, 37) + '…' : node.description)
-    : formatCondition(node.condition);
+  const fullCondLabel = node.description || formatCondition(node.condition);
+  const condLabel = fullCondLabel.length > 40 ? fullCondLabel.slice(0, 37) + '…' : fullCondLabel;
 
   const leftW = treeWidth(node.on_true);
   const rightW = treeWidth(node.on_false);
@@ -129,7 +130,9 @@ function layoutTree(
     width: NODE_W,
     height: NODE_H,
     label: condLabel,
+    fullLabel: fullCondLabel,
     sublabel: formatCondition(node.condition),
+    fullSublabel: formatCondition(node.condition),
     type: 'condition',
     children: [
       { node: trueLayout, label: 'Yes' },
@@ -165,9 +168,9 @@ function renderNode(node: LayoutNode, elements: React.JSX.Element[]) {
 
   const rx = isAction ? 6 : 12;
 
-  const tooltipText = node.sublabel
-    ? `${node.label}\n${node.sublabel}`
-    : node.label;
+  const tooltipText = node.fullSublabel
+    ? `${node.fullLabel || node.label}\n${node.fullSublabel}`
+    : (node.fullLabel || node.label);
 
   elements.push(
     <g key={node.id} style={{ cursor: 'default' }} data-tooltip={tooltipText}>
