@@ -18,6 +18,8 @@ interface DocPage {
   category: string;
   order: number;
   date?: string;
+  paper?: string;
+  paper_title?: string;
 }
 
 interface DocContent extends DocPage {
@@ -31,7 +33,7 @@ interface NavGroup {
 
 const GROUPS: NavGroup[] = [
   { key: 'guide', label: 'Guides' },
-  { key: 'paper', label: 'Research Paper' },
+  { key: 'paper', label: 'Research Papers' },
   { key: 'advanced', label: 'Advanced Topics' },
   { key: 'blog', label: 'Blog Posts' },
   { key: 'reference', label: 'Reference' },
@@ -148,7 +150,8 @@ const markdownComponents: Components = {
 };
 
 export function DocsView() {
-  const { slug } = useParams<{ slug: string }>();
+  const params = useParams<{ '*': string }>();
+  const slug = params['*'] || undefined;
   const navigate = useNavigate();
   const [pages, setPages] = useState<DocPage[]>([]);
   const [activeId, setActiveId] = useState<string>(slug || 'overview');
@@ -235,27 +238,64 @@ export function DocsView() {
       {/* Sidebar */}
       <nav className="w-56 shrink-0 hidden md:block">
         <div className="sticky top-24 space-y-5">
-          {groupedPages.map(g => (
-            <div key={g.key}>
-              <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">{g.label}</h4>
-              <div className="space-y-0.5">
-                {g.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
-                    className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                      activeId === item.id
-                        ? 'bg-sky-500/10 text-sky-400'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    }`}
-                  >
-                    <span className="mr-2">{item.icon}</span>
-                    {item.title}
-                  </button>
-                ))}
+          {groupedPages.map(g => {
+            // For paper category, group by paper slug
+            if (g.key === 'paper' && g.items.length > 0) {
+              const paperGroups: Record<string, { title: string; items: DocPage[] }> = {};
+              for (const item of g.items) {
+                const key = item.paper || 'other';
+                if (!paperGroups[key]) paperGroups[key] = { title: item.paper_title || key, items: [] };
+                paperGroups[key].items.push(item);
+              }
+              return (
+                <div key={g.key}>
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">{g.label}</h4>
+                  {Object.entries(paperGroups).map(([pKey, pg]) => (
+                    <div key={pKey} className="mb-3">
+                      <h5 className="text-[11px] font-semibold text-slate-400 px-3 mb-1">{pg.title}</h5>
+                      <div className="space-y-0.5">
+                        {pg.items.map(item => (
+                          <button
+                            key={item.id}
+                            onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors pl-5 ${
+                              activeId === item.id
+                                ? 'bg-sky-500/10 text-sky-400'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                            }`}
+                          >
+                            <span className="mr-2">{item.icon}</span>
+                            {item.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
+            return (
+              <div key={g.key}>
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">{g.label}</h4>
+                <div className="space-y-0.5">
+                  {g.items.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        activeId === item.id
+                          ? 'bg-sky-500/10 text-sky-400'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <span className="mr-2">{item.icon}</span>
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </nav>
 

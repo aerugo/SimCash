@@ -20,11 +20,11 @@ DOC_PAGES: list[dict[str, Any]] = [
     {"id": "cost-model", "title": "The Cost Model", "icon": "💰", "category": "guide", "order": 2},
     {"id": "policy-optimization", "title": "AI Policy Optimization", "icon": "🤖", "category": "guide", "order": 3},
     {"id": "architecture", "title": "Technical Architecture", "icon": "🏗️", "category": "guide", "order": 4},
-    # Paper
-    {"id": "paper-introduction", "title": "Introduction & Methods", "icon": "📄", "category": "paper", "order": 0},
-    {"id": "paper-results", "title": "Results", "icon": "📊", "category": "paper", "order": 1},
-    {"id": "paper-discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "order": 2},
-    {"id": "paper-appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "order": 3},
+    # Papers — nested: papers/<paper-slug>/<section>
+    {"id": "papers/simcash/introduction", "title": "Introduction & Methods", "icon": "📄", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 0},
+    {"id": "papers/simcash/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 1},
+    {"id": "papers/simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 2},
+    {"id": "papers/simcash/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 3},
     # Advanced
     {"id": "scenarios", "title": "Scenario System", "icon": "🎬", "category": "advanced", "order": 0},
     {"id": "policies", "title": "Policy Decision Trees", "icon": "🌳", "category": "advanced", "order": 1},
@@ -62,16 +62,23 @@ def get_doc_image(path: str):
     return FileResponse(img_path, media_type=media_type)
 
 
-@router.get("/api/docs/{doc_id}")
+@router.get("/api/docs/{doc_id:path}")
 def get_doc(doc_id: str):
     """Return markdown content for a specific doc page."""
     meta = _PAGE_INDEX.get(doc_id)
     if not meta:
         raise HTTPException(status_code=404, detail=f"Doc page '{doc_id}' not found")
 
+    # Nested IDs like "papers/simcash/introduction" map to "papers/simcash/introduction.md"
     md_path = DOCS_DIR / f"{doc_id}.md"
     if not md_path.exists():
         raise HTTPException(status_code=404, detail=f"Markdown file for '{doc_id}' not found")
+
+    # Security: ensure path doesn't escape docs dir
+    try:
+        md_path.resolve().relative_to(DOCS_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
 
     content = md_path.read_text(encoding="utf-8")
     return {**meta, "content": content}

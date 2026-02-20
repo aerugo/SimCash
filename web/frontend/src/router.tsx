@@ -87,7 +87,7 @@ export const router = createBrowserRouter([
       { path: 'experiments', element: <RequireAuth><ExperimentsView /></RequireAuth> },
       { path: 'experiment/:gameId', element: <GameView /> },
       { path: 'docs', element: <DocsView /> },
-      { path: 'docs/:slug', element: <DocsView /> },
+      { path: 'docs/*', element: <DocsView /> },
       { path: 'admin', element: <RequireAuth><AdminRoute /></RequireAuth> },
       // Legacy simulation routes
       { path: 'simulation/dashboard', element: <SimDashboardRoute /> },
