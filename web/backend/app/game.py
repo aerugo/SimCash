@@ -66,6 +66,51 @@ class GameDay:
             "optimized": self.optimized,
         }
 
+    def to_summary_dict(self) -> dict[str, Any]:
+        """Lightweight dict for WS messages — omits large event arrays.
+
+        Computes event summary stats server-side so the frontend doesn't need
+        the raw event list (which can be >1MB for large scenarios).
+        """
+        # Compute event summary stats
+        event_summary: dict[str, dict[str, int]] = {}
+        total_arrivals = 0
+        total_settled = 0
+        for e in self.events:
+            etype = e.get("event_type", "")
+            if etype == "Arrival":
+                sender = e.get("sender_id", "")
+                if sender:
+                    event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
+                    event_summary[sender]["arrivals"] += 1
+                    total_arrivals += 1
+            elif etype == "Settlement":
+                sender = e.get("sender_id", "")
+                if sender:
+                    event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
+                    event_summary[sender]["settled"] += 1
+                    total_settled += 1
+
+        return {
+            "day": self.day_num,
+            "seed": self.seed,
+            "policies": {
+                aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
+                for aid, p in self.policies.items()
+            },
+            "costs": self.costs,
+            "events": [],  # Empty — use event_summary or replay API for details
+            "balance_history": self.balance_history,
+            "total_cost": self.total_cost,
+            "per_agent_costs": self.per_agent_costs,
+            "num_ticks": len(self.tick_events),
+            "optimized": self.optimized,
+            "event_count": len(self.events),
+            "event_summary": event_summary,
+            "total_arrivals": total_arrivals,
+            "total_settled": total_settled,
+        }
+
 
 class Game:
     """Multi-day policy optimization game."""
@@ -592,7 +637,7 @@ class Game:
             "current_policies": {
                 aid: p for aid, p in self.policies.items()
             },
-            "days": [d.to_dict() for d in self.days],
+            "days": [d.to_summary_dict() for d in self.days],
             "cost_history": {
                 aid: [d.per_agent_costs.get(aid, 0) for d in self.days]
                 for aid in self.agent_ids

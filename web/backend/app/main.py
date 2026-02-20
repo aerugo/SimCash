@@ -955,7 +955,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
             # Deliver day result to client BEFORE committing to state.
             # If WS send fails, the day is not committed and can be retried.
             try:
-                await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
+                await websocket.send_json({"type": "day_complete", "data": day.to_summary_dict()})
             except Exception:
                 logger.warning("WS dead during day %d delivery — not committing", day.day_num)
                 raise
