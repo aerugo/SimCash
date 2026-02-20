@@ -923,9 +923,13 @@ async def game_ws(websocket: WebSocket, game_id: str):
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
         _save_game_checkpoint(game)  # Save after each day
 
+        logger.info("Post-day check: is_complete=%s, should_optimize(%d)=%s, use_llm=%s",
+                    game.is_complete, day.day_num, game.should_optimize(day.day_num), game.use_llm)
         if not game.is_complete and game.should_optimize(day.day_num):
+            logger.info("Starting LLM optimization for game %s day %d", game_id, day.day_num)
             await game.optimize_policies_streaming(websocket.send_json)
             day.optimized = True
+            logger.info("Optimization complete for game %s day %d", game_id, day.day_num)
             _save_game_checkpoint(game)  # Save after optimization
 
         await websocket.send_json({"type": "game_state", "data": game.get_state()})
