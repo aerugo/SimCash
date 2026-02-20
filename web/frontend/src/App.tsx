@@ -7,9 +7,17 @@ import { AuthInfoContext } from './AuthInfoContext';
 import { checkAdmin } from './api';
 
 function AppContent() {
-  const { user, loading, backendStatus, signIn, signOut: handleAuthSignOut } = useAuth();
+  const { user, loading, signIn, signOut: handleAuthSignOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
+
+  // Only show the cold-start splash after 2s of waiting — avoids flash on warm reloads
+  useEffect(() => {
+    if (!loading && ready) return;
+    const timer = setTimeout(() => setShowSplash(true), 2000);
+    return () => clearTimeout(timer);
+  }, [loading, ready]);
 
   useEffect(() => {
     if (loading) return;
@@ -28,10 +36,8 @@ function AppContent() {
       .finally(() => setReady(true));
   }, [user, loading]);
 
-  // Only show loading screen on genuine cold starts (backend not yet responding).
-  // For warm starts, auth + admin check resolve within a frame — skip the splash.
   if (loading || !ready) {
-    if (backendStatus === 'cold-start') {
+    if (showSplash) {
       return (
         <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
           <div className="text-center space-y-6">
@@ -47,14 +53,14 @@ function AppContent() {
                 Starting simulation engine...
               </div>
             </div>
-            <div className="text-xs max-w-xs mx-auto" style={{ color: 'var(--text-tertiary, var(--text-secondary))' }}>
+            <div className="text-xs max-w-xs mx-auto" style={{ color: 'var(--text-muted)' }}>
               First load takes ~15 seconds while the Rust engine initialises
             </div>
           </div>
         </div>
       );
     }
-    // Warm start: render nothing for the brief moment while auth resolves
+    // Still loading but under 2s — show nothing (no flash)
     return null;
   }
 
