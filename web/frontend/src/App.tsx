@@ -7,17 +7,9 @@ import { AuthInfoContext } from './AuthInfoContext';
 import { checkAdmin } from './api';
 
 function AppContent() {
-  const { user, loading, signIn, signOut: handleAuthSignOut } = useAuth();
+  const { user, loading, backendStatus, signIn, signOut: handleAuthSignOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
-  const [showSplash, setShowSplash] = useState(false);
-
-  // Only show the cold-start splash after 2s of waiting — avoids flash on warm reloads
-  useEffect(() => {
-    if (!loading && ready) return;
-    const timer = setTimeout(() => setShowSplash(true), 2000);
-    return () => clearTimeout(timer);
-  }, [loading, ready]);
 
   useEffect(() => {
     if (loading) return;
@@ -37,7 +29,10 @@ function AppContent() {
   }, [user, loading]);
 
   if (loading || !ready) {
-    if (showSplash) {
+    // Only show the splash when the backend is genuinely unreachable (cold start).
+    // Once backend responds ('ready'), Firebase Auth may still be initializing —
+    // show nothing for that brief period instead of a misleading splash.
+    if (backendStatus === 'cold-start') {
       return (
         <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
           <div className="text-center space-y-6">
@@ -60,7 +55,7 @@ function AppContent() {
         </div>
       );
     }
-    // Still loading but under 2s — show nothing (no flash)
+    // Backend is reachable but auth still resolving — blank screen, no flash
     return null;
   }
 
