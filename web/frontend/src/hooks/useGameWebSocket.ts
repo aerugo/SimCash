@@ -10,6 +10,7 @@ export type WSMessageType =
   | 'optimization_chunk'
   | 'optimization_complete'
   | 'game_complete'
+  | 'auto_run_ended'
   | 'error';
 
 export interface WSMessage {
@@ -19,6 +20,7 @@ export interface WSMessage {
   agent_id?: string;
   message?: string;
   text?: string;
+  reason?: string;
 }
 
 export type GamePhase = 'idle' | 'simulating' | 'optimizing' | 'complete';
