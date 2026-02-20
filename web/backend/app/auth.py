@@ -209,14 +209,31 @@ async def get_optional_user(request: Request) -> str:
 
 
 async def get_optional_ws_user(websocket: WebSocket) -> str:
-    """WS variant: returns uid if authenticated, else guest id from cookie/query."""
-    try:
-        return await get_ws_user(websocket)
-    except (HTTPException, Exception):
-        guest_id = websocket.cookies.get("simcash_guest")
-        if guest_id:
-            return guest_id
-        return f"guest-{uuid4().hex[:12]}"
+    """WS variant: returns uid if authenticated, else guest id from cookie/query.
+
+    IMPORTANT: Must NOT call get_ws_user() because that function accepts+closes
+    the websocket on auth failure, which prevents the caller from accepting it.
+    Instead we duplicate the token check logic without touching the websocket.
+    """
+    if config.is_auth_disabled():
+        return "dev-user"
+
+    dev_token = config.DEV_TOKEN
+    if dev_token and websocket.query_params.get("dev_token") == dev_token:
+        return "dev-user"
+
+    token = websocket.query_params.get("token")
+    if token:
+        try:
+            decoded = _verify_token(token)
+            return decoded["uid"]
+        except Exception:
+            pass  # Fall through to guest
+
+    guest_id = websocket.cookies.get("simcash_guest")
+    if guest_id:
+        return guest_id
+    return f"guest-{uuid4().hex[:12]}"
 
 
 class GuestCookieMiddleware:
