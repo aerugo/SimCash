@@ -926,6 +926,17 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
     run_task: asyncio.Task | None = None
 
+    async def keepalive():
+        """Send periodic pings to prevent Cloud Run from dropping idle WS."""
+        try:
+            while True:
+                await asyncio.sleep(20)
+                await websocket.send_json({"type": "ping"})
+        except Exception:
+            pass  # WS closed, exit silently
+
+    keepalive_task = asyncio.create_task(keepalive())
+
     try:
         await websocket.send_json({"type": "game_state", "data": game.get_state()})
 
@@ -975,6 +986,8 @@ async def game_ws(websocket: WebSocket, game_id: str):
             await websocket.send_json({"type": "error", "message": str(e)})
         except Exception:
             pass
+    finally:
+        keepalive_task.cancel()
 
 
 # ---- Admin endpoints ----
