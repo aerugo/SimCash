@@ -937,7 +937,10 @@ async def game_ws(websocket: WebSocket, game_id: str):
             })
 
             try:
-                day = game.simulate_day()
+                # Run CPU-heavy simulation in a thread to avoid blocking the event loop
+                # (which would prevent keepalive pings and kill the WS connection)
+                loop = asyncio.get_event_loop()
+                day = await loop.run_in_executor(None, game.simulate_day)
             except Exception as sim_err:
                 logger.error("Simulation failed on day %d: %s — rolling back policies", game.current_day, sim_err)
                 if game.days:
@@ -948,7 +951,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
                         "type": "error",
                         "message": f"Simulation error (rolling back policies): {sim_err}",
                     })
-                    day = game.simulate_day()
+                    day = await loop.run_in_executor(None, game.simulate_day)
                 else:
                     raise
 
