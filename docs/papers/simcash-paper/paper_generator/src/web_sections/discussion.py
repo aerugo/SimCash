@@ -48,7 +48,7 @@ def generate_discussion(provider: DataProvider) -> str:
     exp3_best = format_money(min(s["total_cost"] for s in exp3_summaries))
     exp3_worst = format_money(max(s["total_cost"] for s in exp3_summaries))
 
-    return f"""# Discussion & Conclusion
+    return rf"""# Discussion & Conclusion
 
 ## How Do Results Compare to Theory?
 
@@ -61,7 +61,7 @@ def generate_discussion(provider: DataProvider) -> str:
 ### Experiment 1: Partial Match
 
 Theory predicts Bank A free-rides (A ≈ 0%, B ≈ 20%). Passes 1–2 confirmed this exactly,
-with total costs at an efficient $27–28. But Pass 3 flipped the roles — Bank B went to 0%,
+with total costs at an efficient \$27–28. But Pass 3 flipped the roles — Bank B went to 0%,
 Bank A held 1.8%, and total costs ballooned to {exp1_worst} vs {exp1_best}. The learning
 dynamics support multiple stable outcomes with very different efficiency. Bank A assumed
 the free-rider role in {exp1_freerider_a} of 3 passes.
@@ -82,7 +82,7 @@ due to payment timing exposure differences.
 ### Experiment 3: Systematic Coordination Failure
 
 Every pass produced coordination failure. Total costs ranged from {exp3_best} to {exp3_worst},
-all worse than the $100 baseline. Bank A was the free-rider in {exp3_freerider_a} of 3 passes.
+all worse than the \$100 baseline. Bank A was the free-rider in {exp3_freerider_a} of 3 passes.
 This isn't a failure of the LLM — it's what *any* greedy non-communicating optimizer would do.
 
 ---

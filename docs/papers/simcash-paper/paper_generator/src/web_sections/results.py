@@ -92,7 +92,7 @@ def generate_results(provider: DataProvider) -> str:
     exp3_iter_table = generate_iteration_table(exp3_results)
     exp3_summary_table = generate_pass_summary_table(exp3_summaries)
 
-    return f"""# Results
+    return rf"""# Results
 
 ## Convergence Summary
 
@@ -124,7 +124,7 @@ outgoing obligations.
 
 But **Pass 3 told a different story**: the free-rider identity flipped. Bank B adopted
 zero liquidity while Bank A maintained just 1.8%. Both agents ended up with high costs
-($31.78 and $70.00) — nearly 4× the efficient outcome. Same game, same agents, completely
+(\$31.78 and \$70.00) — nearly 4× the efficient outcome. Same game, same agents, completely
 different result driven by early exploration dynamics.
 
 <details>
@@ -171,8 +171,8 @@ consistent costs at {exp2_b_mean} (± {exp2_b_std}).
 {exp2_var_fig}
 
 The convergence chart reveals cases where dramatically better policies were *rejected*.
-For example, at iteration 22, Bank A's proposed policy achieved mean cost $324 vs the
-current $915 — but was rejected because its CV was 0.83 (above the 0.5 threshold).
+For example, at iteration 22, Bank A's proposed policy achieved mean cost \$324 vs the
+current \$915 — but was rejected because its CV was 0.83 (above the 0.5 threshold).
 Better average performance, but unacceptably volatile.
 
 This risk-adjusted acceptance biases optimization toward policies that improve cost
@@ -198,7 +198,7 @@ while maintaining stability — explaining the apparent paradox where rejected p
 ## Experiment 3: When Cooperation Fails
 
 This is the most revealing experiment. Both banks face **identical cost structures** and
-start with identical 50% liquidity (baseline cost ~$50 each). Theory predicts they should
+start with identical 50% liquidity (baseline cost ~\$50 each). Theory predicts they should
 converge to a symmetric ~20% allocation.
 
 **Every single pass produced coordination failure.** Both agents ended up worse off than

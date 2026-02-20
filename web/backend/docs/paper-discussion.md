@@ -11,8 +11,8 @@
 ### Experiment 1: Partial Match
 
 Theory predicts Bank A free-rides (A ≈ 0%, B ≈ 20%). Passes 1–2 confirmed this exactly,
-with total costs at an efficient $27–28. But Pass 3 flipped the roles — Bank B went to 0%,
-Bank A held 1.8%, and total costs ballooned to $101.78 vs $27.10. The learning
+with total costs at an efficient \$27–28. But Pass 3 flipped the roles — Bank B went to 0%,
+Bank A held 1.8%, and total costs ballooned to \$101.78 vs \$27.10. The learning
 dynamics support multiple stable outcomes with very different efficiency. Bank A assumed
 the free-rider role in 2 of 3 passes.
 
@@ -25,14 +25,14 @@ all 3 passes had liquidity ratios below 2×. This contrasts sharply with the
 10–30% range.
 
 Interestingly, while liquidity was symmetric, **costs were not**: Bank B paid about
-2.7× more than Bank A ($218.07 vs
-$79.37). Similar reserves, very different outcomes — likely
+2.7× more than Bank A (\$218.07 vs
+\$79.37). Similar reserves, very different outcomes — likely
 due to payment timing exposure differences.
 
 ### Experiment 3: Systematic Coordination Failure
 
-Every pass produced coordination failure. Total costs ranged from $190.96 to $410.92,
-all worse than the $100 baseline. Bank A was the free-rider in 2 of 3 passes.
+Every pass produced coordination failure. Total costs ranged from \$190.96 to \$410.92,
+all worse than the \$100 baseline. Bank A was the free-rider in 2 of 3 passes.
 This isn't a failure of the LLM — it's what *any* greedy non-communicating optimizer would do.
 
 ---

@@ -7,18 +7,20 @@ from __future__ import annotations
 
 
 def format_money(cents: int) -> str:
-    """Format cents as dollar string for markdown.
+    r"""Format cents as dollar string for markdown.
+
+    Uses \\$ to prevent remark-math from treating $ as math delimiter.
 
     Args:
         cents: Amount in cents
 
     Returns:
-        Dollar string (e.g., "$1,234")
+        Dollar string (e.g., "\\$1,234")
     """
     dollars = cents / 100
     if dollars == int(dollars):
-        return f"${int(dollars):,}"
-    return f"${dollars:,.2f}"
+        return f"\\${int(dollars):,}"
+    return f"\\${dollars:,.2f}"
 
 
 def format_percent(fraction: float) -> str:
