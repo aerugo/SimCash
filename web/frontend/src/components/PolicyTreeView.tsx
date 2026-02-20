@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback, useRef } from 'react';
 
 // ---- Types for policy tree nodes ----
 
@@ -170,8 +170,7 @@ function renderNode(node: LayoutNode, elements: React.JSX.Element[]) {
     : node.label;
 
   elements.push(
-    <g key={node.id} style={{ cursor: 'default' }}>
-      <title>{tooltipText}</title>
+    <g key={node.id} style={{ cursor: 'default' }} data-tooltip={tooltipText}>
       {/* Shadow */}
       <rect
         x={node.x - node.width / 2 + 2}
@@ -274,6 +273,20 @@ interface PolicyTreeViewProps {
 }
 
 export function PolicyTreeView({ tree, title, className = '' }: PolicyTreeViewProps) {
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseOver = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    const g = (e.target as Element).closest('g[data-tooltip]');
+    if (!g) { setTooltip(null); return; }
+    const text = g.getAttribute('data-tooltip') || '';
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip({ text, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }, []);
+
+  const handleMouseOut = useCallback(() => setTooltip(null), []);
+
   const { svg, viewBox } = useMemo(() => {
     if (!tree || !tree.type) return { svg: null, viewBox: '0 0 200 100' };
 
@@ -305,15 +318,41 @@ export function PolicyTreeView({ tree, title, className = '' }: PolicyTreeViewPr
       {title && (
         <h3 className="text-sm font-semibold text-slate-400 mb-2">{title}</h3>
       )}
-      <div className="bg-slate-900/50 rounded-lg border border-slate-700/50 overflow-auto">
+      <div ref={containerRef} className="bg-slate-900/50 rounded-lg border border-slate-700/50 overflow-auto relative">
         <svg
           viewBox={viewBox}
           className="w-full"
           style={{ minHeight: 200, maxHeight: 600 }}
           preserveAspectRatio="xMidYMin meet"
+          onMouseMove={handleMouseOver}
+          onMouseLeave={handleMouseOut}
         >
           {svg}
         </svg>
+        {tooltip && (
+          <div
+            style={{
+              position: 'absolute',
+              left: tooltip.x,
+              top: tooltip.y - 8,
+              transform: 'translate(-50%, -100%)',
+              pointerEvents: 'none',
+              zIndex: 50,
+            }}
+          >
+            <div
+              className="text-xs px-3 py-2 rounded-lg shadow-lg max-w-xs"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {tooltip.text}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
