@@ -55,6 +55,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const retryCountRef = useRef(0);
   const backoffMsRef = useRef(INITIAL_BACKOFF_MS);
   const pendingQueue = useRef<string[]>([]);
+  const autoRunState = useRef<{ active: boolean; speedMs: number }>({ active: false, speedMs: 1000 });
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -128,6 +129,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
         setOptimizingAgent(null);
         setOptimizingAgents(new Set());
         setPhase('complete');
+        autoRunState.current.active = false;
         break;
 
       case 'error':
@@ -162,6 +164,10 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
         while (pendingQueue.current.length > 0) {
           const msg = pendingQueue.current.shift()!;
           ws.send(msg);
+        }
+        // Re-send auto-run command on reconnect if it was active
+        if (autoRunState.current.active) {
+          ws.send(JSON.stringify({ action: 'auto', speed_ms: autoRunState.current.speedMs }));
         }
       }
     };
@@ -220,8 +226,14 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
 
   const step = useCallback(() => send('step'), [send]);
   const rerun = useCallback((day?: number) => send('rerun', day != null ? { day } : undefined), [send]);
-  const autoRun = useCallback((speedMs = 1000) => send('auto', { speed_ms: speedMs }), [send]);
-  const stop = useCallback(() => send('stop'), [send]);
+  const autoRun = useCallback((speedMs = 1000) => {
+    autoRunState.current = { active: true, speedMs };
+    send('auto', { speed_ms: speedMs });
+  }, [send]);
+  const stop = useCallback(() => {
+    autoRunState.current.active = false;
+    send('stop');
+  }, [send]);
 
   return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop };
 }
