@@ -74,6 +74,8 @@ app.include_router(docs_router)
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}
 game_locks: dict[str, asyncio.Lock] = {}
+# Track active auto-run tasks per game for dedup across WS connections
+game_auto_tasks: dict[str, asyncio.Task] = {}
 
 
 def get_game_lock(game_id: str) -> asyncio.Lock:
@@ -962,6 +964,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
     async def auto_run():
         nonlocal running
         logger.info("Auto-run started for game %s (speed_ms=%d)", game_id, speed_ms)
+        error_occurred = False
         try:
             while running and not game.is_complete:
                 logger.info("Auto-run: starting step for day %d/%d", game.current_day, game.max_days)
@@ -970,10 +973,36 @@ async def game_ws(websocket: WebSocket, game_id: str):
                 await asyncio.sleep(speed_ms / 1000.0)
             if game.is_complete:
                 await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+        except asyncio.CancelledError:
+            logger.info("Auto-run cancelled for game %s (dedup or stop)", game_id)
+            raise
         except Exception as e:
+            error_occurred = True
             logger.error("Auto-run error for game %s: %s", game_id, e, exc_info=True)
+            try:
+                await websocket.send_json({
+                    "type": "auto_run_ended",
+                    "reason": "error",
+                    "message": str(e),
+                    "day": game.current_day,
+                })
+            except Exception:
+                pass  # WS dead too
         finally:
             running = False
+            # Clean up global task registry
+            if game_auto_tasks.get(game_id) is asyncio.current_task():
+                del game_auto_tasks[game_id]
+            # Notify client that auto-run stopped (if not error — error already sent above)
+            if not error_occurred and not game.is_complete:
+                try:
+                    await websocket.send_json({
+                        "type": "auto_run_ended",
+                        "reason": "stopped",
+                        "day": game.current_day,
+                    })
+                except Exception:
+                    pass
             logger.info("Auto-run ended for game %s", game_id)
 
     run_task: asyncio.Task | None = None
@@ -1014,9 +1043,15 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
             elif action == "auto":
                 speed_ms = msg.get("speed_ms", 1000)
+                # Cancel any existing auto-run for this game (from other connections)
+                existing = game_auto_tasks.get(game_id)
+                if existing and not existing.done():
+                    logger.info("Cancelling existing auto-run task for game %s (dedup)", game_id)
+                    existing.cancel()
                 if not running and not game.is_complete:
                     running = True
                     run_task = asyncio.create_task(auto_run())
+                    game_auto_tasks[game_id] = run_task
 
             elif action == "stop":
                 running = False

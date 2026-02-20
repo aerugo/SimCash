@@ -132,6 +132,24 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
         autoRunState.current.active = false;
         break;
 
+      case 'auto_run_ended':
+        console.warn('Auto-run ended:', msg.reason, msg.message);
+        if (msg.reason === 'error' && autoRunState.current.active) {
+          // Server task died but user still wants auto-run — retry after brief delay
+          console.log('Auto-run error recovery: retrying in 2s...');
+          setTimeout(() => {
+            const ws = wsRef.current;
+            if (autoRunState.current.active && ws?.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ action: 'auto', speed_ms: autoRunState.current.speedMs }));
+            }
+          }, 2000);
+        } else if (msg.reason === 'stopped') {
+          // Explicit stop or unknown exit — clear auto state
+          autoRunState.current.active = false;
+          setPhase('idle');
+        }
+        break;
+
       case 'error':
         console.error('WS error:', msg.message);
         break;
