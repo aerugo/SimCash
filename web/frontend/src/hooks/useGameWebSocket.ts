@@ -219,6 +219,13 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     };
   }, [connect]);
 
+  // When initialState becomes available (async fetch), trigger connect
+  useEffect(() => {
+    if (initialState && !wsRef.current) {
+      connect();
+    }
+  }, [initialState, connect]);
+
   const send = useCallback((action: string, extra?: Record<string, unknown>) => {
     const msg = JSON.stringify({ action, ...extra });
     if (wsRef.current?.readyState === WebSocket.OPEN) {
