@@ -219,6 +219,7 @@ export async function createGame(config: GameSetupConfig): Promise<{ game_id: st
 
 export async function getGame(gameId: string): Promise<GameState> {
   const res = await authFetch(`${BASE}/games/${gameId}`);
+  if (!res.ok) throw new Error(`Game not found: ${res.status}`);
   return res.json();
 }
 
