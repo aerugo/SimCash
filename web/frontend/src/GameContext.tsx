@@ -159,7 +159,12 @@ export function GameProvider({ children, isAdmin, userEmail, onSignOut }: GamePr
       toast(`Game ${res.game_id} created`, 'success');
       return res.game_id;
     } catch (e) {
-      toast(`Failed to create game: ${e}`, 'error');
+      let msg = String(e);
+      try {
+        const parsed = JSON.parse(msg.replace(/^Error:\s*/, ''));
+        if (parsed.detail) msg = parsed.detail;
+      } catch { /* not JSON, use as-is */ }
+      toast(msg, 'error');
       return null;
     }
   }, []);

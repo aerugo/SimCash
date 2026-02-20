@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
 import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection } from '../api';
 import { useGameContext } from '../GameContext';
+import { useAuthInfo } from '../AuthInfoContext';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'Paper Experiments': '📄',
@@ -32,6 +33,7 @@ const TAG_COLORS: Record<string, string> = {
 export function ScenarioLibraryView() {
   const { handleGameLaunch } = useGameContext();
   const navigate = useNavigate();
+  const { isGuest } = useAuthInfo();
   const { scenarioId: urlScenarioId } = useParams<{ scenarioId: string }>();
   const onLaunchGame = async (config: GameSetupConfig) => {
     const gid = await handleGameLaunch(config);
@@ -110,13 +112,16 @@ export function ScenarioLibraryView() {
     }
   };
 
+  // If guest selects "real" somehow, force back to mock
+  const effectiveSimulatedAi = isGuest && !simulatedAi && useLlm ? true : simulatedAi;
+
   const handleLaunch = () => {
     if (!selectedScenario || !onLaunchGame) return;
     onLaunchGame({
       scenario_id: selectedScenario.id,
       inline_config: selectedScenario.raw_config,
       use_llm: useLlm,
-      simulated_ai: simulatedAi,
+      simulated_ai: effectiveSimulatedAi,
       max_days: maxDays,
       num_eval_samples: numEvalSamples,
       optimization_interval: optimizationInterval,
@@ -289,7 +294,7 @@ export function ScenarioLibraryView() {
                 >
                   <option value="off">Off (FIFO)</option>
                   <option value="mock">Simulated AI (no API cost)</option>
-                  <option value="real">Live AI (Vertex AI)</option>
+                  <option value="real" disabled={isGuest}>Live AI (Vertex AI){isGuest ? ' — sign in required' : ''}</option>
                 </select>
               </div>
             </div>
