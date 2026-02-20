@@ -103,9 +103,20 @@ export function LandingView() {
 
       {/* Footer */}
       <div className="max-w-3xl mx-auto px-6 pb-20 text-center">
-        <div className="pt-10" style={{ borderTop: '1px solid var(--border)' }}>
-          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-            Built on a deterministic simulation engine · Powered by Vertex AI
+        <div className="pt-10 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            Built by <strong>Hugi Aegisberg</strong> · Licensed under{' '}
+            <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>MIT</a>
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+            Methodology builds on the work of{' '}
+            <a href="https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Castro et al. (2025)
+            </a>
+            {' '}· Source code on{' '}
+            <a href="https://github.com/aerugo/SimCash" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              GitHub
+            </a>
           </p>
         </div>
       </div>
