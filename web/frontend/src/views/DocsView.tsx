@@ -4,7 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const API_BASE = '/api';
+import { API_ORIGIN } from '../api';
+const API_BASE = `${API_ORIGIN}/api`;
 
 interface DocPage {
   id: string;
