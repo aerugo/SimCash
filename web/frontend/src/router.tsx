@@ -83,7 +83,7 @@ export const router = createBrowserRouter([
       { path: 'library/scenarios/:scenarioId', element: <ScenarioLibraryView /> },
       { path: 'library/policies', element: <PolicyLibraryView /> },
       { path: 'library/policies/:policyId', element: <PolicyLibraryView /> },
-      { path: 'create', element: <CreateView /> },
+      { path: 'create', element: <RequireAuth><CreateView /></RequireAuth> },
       { path: 'experiments', element: <RequireAuth><ExperimentsView /></RequireAuth> },
       { path: 'experiment/:gameId', element: <GameView /> },
       { path: 'docs', element: <DocsView /> },
