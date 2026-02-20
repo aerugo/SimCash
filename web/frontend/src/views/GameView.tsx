@@ -537,11 +537,11 @@ export function GameView() {
               {(() => {
                 // Use server-provided event_summary when available (WS summary mode),
                 // fall back to client-side event iteration for full data
-                const serverSummary = (day as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
+                const serverSummary = (day as unknown as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
                 const agentArrivals: Record<string, number> = {};
                 const agentSettled: Record<string, number> = {};
-                let totalArrivals = (day as Record<string, unknown>).total_arrivals as number | undefined ?? 0;
-                let totalSettled = (day as Record<string, unknown>).total_settled as number | undefined ?? 0;
+                let totalArrivals = (day as unknown as Record<string, unknown>).total_arrivals as number | undefined ?? 0;
+                let totalSettled = (day as unknown as Record<string, unknown>).total_settled as number | undefined ?? 0;
                 if (serverSummary) {
                   for (const [aid, stats] of Object.entries(serverSummary)) {
                     agentArrivals[aid] = stats.arrivals;
@@ -615,7 +615,7 @@ export function GameView() {
                   const costs = day.costs[aid];
                   const fraction = day.policies[aid]?.initial_liquidity_fraction ?? 1;
                   // Per-agent settlement rate — prefer server summary
-                  const srvSum = (day as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
+                  const srvSum = (day as unknown as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
                   let agentArr = srvSum?.[aid]?.arrivals ?? 0;
                   let agentStl = srvSum?.[aid]?.settled ?? 0;
                   if (!srvSum && day.events?.length > 0) {
