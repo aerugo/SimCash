@@ -54,6 +54,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
   const backoffMsRef = useRef(INITIAL_BACKOFF_MS);
+  const pendingQueue = useRef<string[]>([]);
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -157,6 +158,11 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
         retryCountRef.current = 0;
         backoffMsRef.current = INITIAL_BACKOFF_MS;
         setReconnectAttempt(0);
+        // Flush any actions queued while connecting
+        while (pendingQueue.current.length > 0) {
+          const msg = pendingQueue.current.shift()!;
+          ws.send(msg);
+        }
       }
     };
 
@@ -203,8 +209,12 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
   }, [connect]);
 
   const send = useCallback((action: string, extra?: Record<string, unknown>) => {
+    const msg = JSON.stringify({ action, ...extra });
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ action, ...extra }));
+      wsRef.current.send(msg);
+    } else {
+      // Queue for delivery once connected
+      pendingQueue.current.push(msg);
     }
   }, []);
 
