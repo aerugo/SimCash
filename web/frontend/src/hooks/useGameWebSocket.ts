@@ -45,7 +45,7 @@ interface UseGameWebSocketReturn {
 }
 
 const MAX_RETRIES = 10;
-const INITIAL_BACKOFF_MS = 1000;
+const INITIAL_BACKOFF_MS = 2000;
 const MAX_BACKOFF_MS = 30000;
 
 export function useGameWebSocket(gameId: string, initialState: GameState | null): UseGameWebSocketReturn {
@@ -138,10 +138,13 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     }
   }, []);
 
+  const initialStateRef = useRef(initialState);
+  initialStateRef.current = initialState;
+
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
-    if (!gameId || !initialState) return;  // Don't connect without a game
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (!gameId || !initialStateRef.current) return;  // Don't connect without a game
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const devToken = sessionStorage.getItem('simcash_dev_token');
@@ -198,7 +201,8 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     };
 
     ws.onmessage = handleMessage;
-  }, [gameId, initialState, handleMessage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, handleMessage]);
 
   useEffect(() => {
     mountedRef.current = true;
