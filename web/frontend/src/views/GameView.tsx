@@ -535,40 +535,50 @@ export function GameView() {
               </h3>
               {/* Settlement Rate Banner */}
               {(() => {
+                // Use server-provided event_summary when available (WS summary mode),
+                // fall back to client-side event iteration for full data
+                const serverSummary = (day as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
                 const agentArrivals: Record<string, number> = {};
                 const agentSettled: Record<string, number> = {};
-                let totalArrivals = 0;
-                let totalSettled = 0;
-                for (const e of day.events) {
-                  const t = String(e.event_type ?? '');
-                  const rec = e as Record<string, unknown>;
-                  if (t === 'Arrival') {
-                    const sender = String(rec.sender_id ?? '');
-                    if (sender) {
-                      agentArrivals[sender] = (agentArrivals[sender] ?? 0) + 1;
-                    }
-                    totalArrivals++;
-                  } else if (t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') {
-                    // These events use "sender" not "sender_id"
-                    const sender = String(rec.sender ?? '');
-                    if (sender) {
-                      agentSettled[sender] = (agentSettled[sender] ?? 0) + 1;
-                    }
-                    totalSettled++;
-                  } else if (t === 'LsmBilateralOffset') {
-                    // Both agents settle — agent_a and agent_b
-                    for (const k of ['agent_a', 'agent_b']) {
-                      const a = String(rec[k] ?? '');
-                      if (a) agentSettled[a] = (agentSettled[a] ?? 0) + 1;
-                    }
-                    totalSettled += 2;
-                  } else if (t === 'LsmCycleSettlement') {
-                    const agents = rec.agents as string[] | undefined;
-                    if (agents) {
-                      for (const a of agents) {
-                        agentSettled[a] = (agentSettled[a] ?? 0) + 1;
+                let totalArrivals = (day as Record<string, unknown>).total_arrivals as number | undefined ?? 0;
+                let totalSettled = (day as Record<string, unknown>).total_settled as number | undefined ?? 0;
+                if (serverSummary) {
+                  for (const [aid, stats] of Object.entries(serverSummary)) {
+                    agentArrivals[aid] = stats.arrivals;
+                    agentSettled[aid] = stats.settled;
+                  }
+                } else if (day.events && day.events.length > 0) {
+                  totalArrivals = 0;
+                  totalSettled = 0;
+                  for (const e of day.events) {
+                    const t = String(e.event_type ?? '');
+                    const rec = e as Record<string, unknown>;
+                    if (t === 'Arrival') {
+                      const sender = String(rec.sender_id ?? '');
+                      if (sender) {
+                        agentArrivals[sender] = (agentArrivals[sender] ?? 0) + 1;
                       }
-                      totalSettled += agents.length;
+                      totalArrivals++;
+                    } else if (t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') {
+                      const sender = String(rec.sender ?? '');
+                      if (sender) {
+                        agentSettled[sender] = (agentSettled[sender] ?? 0) + 1;
+                      }
+                      totalSettled++;
+                    } else if (t === 'LsmBilateralOffset') {
+                      for (const k of ['agent_a', 'agent_b']) {
+                        const a = String(rec[k] ?? '');
+                        if (a) agentSettled[a] = (agentSettled[a] ?? 0) + 1;
+                      }
+                      totalSettled += 2;
+                    } else if (t === 'LsmCycleSettlement') {
+                      const agents = rec.agents as string[] | undefined;
+                      if (agents) {
+                        for (const a of agents) {
+                          agentSettled[a] = (agentSettled[a] ?? 0) + 1;
+                        }
+                        totalSettled += agents.length;
+                      }
                     }
                   }
                 }
@@ -604,16 +614,21 @@ export function GameView() {
                 {gameState.agent_ids.map((aid, i) => {
                   const costs = day.costs[aid];
                   const fraction = day.policies[aid]?.initial_liquidity_fraction ?? 1;
-                  // Per-agent settlement rate
-                  let agentArr = 0;
-                  let agentStl = 0;
-                  for (const e of day.events) {
-                    const rec = e as Record<string, unknown>;
-                    const t = String(rec.event_type ?? '');
-                    if (t === 'Arrival' && String(rec.sender_id ?? '') === aid) agentArr++;
-                    else if ((t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') && String(rec.sender ?? '') === aid) agentStl++;
-                    else if (t === 'LsmBilateralOffset' && (String(rec.agent_a ?? '') === aid || String(rec.agent_b ?? '') === aid)) agentStl++;
-                    else if (t === 'LsmCycleSettlement' && (rec.agents as string[] | undefined)?.includes(aid)) agentStl++;
+                  // Per-agent settlement rate — prefer server summary
+                  const srvSum = (day as Record<string, unknown>).event_summary as Record<string, { arrivals: number; settled: number }> | undefined;
+                  let agentArr = srvSum?.[aid]?.arrivals ?? 0;
+                  let agentStl = srvSum?.[aid]?.settled ?? 0;
+                  if (!srvSum && day.events?.length > 0) {
+                    agentArr = 0;
+                    agentStl = 0;
+                    for (const e of day.events) {
+                      const rec = e as Record<string, unknown>;
+                      const t = String(rec.event_type ?? '');
+                      if (t === 'Arrival' && String(rec.sender_id ?? '') === aid) agentArr++;
+                      else if ((t === 'RtgsImmediateSettlement' || t === 'Queue2LiquidityRelease') && String(rec.sender ?? '') === aid) agentStl++;
+                      else if (t === 'LsmBilateralOffset' && (String(rec.agent_a ?? '') === aid || String(rec.agent_b ?? '') === aid)) agentStl++;
+                      else if (t === 'LsmCycleSettlement' && (rec.agents as string[] | undefined)?.includes(aid)) agentStl++;
+                    }
                   }
                   const agentRate = agentArr > 0 ? (agentStl / agentArr * 100) : 0;
                   return (
@@ -812,8 +827,8 @@ export function GameView() {
         </div>
       )}
 
-      {day && !showPaymentTrace && day.events.length > 0 && (
-        <EventSummary day={day} />
+      {day && !showPaymentTrace && (
+        <EventSummary day={day} gameId={gameId} />
       )}
 
       {day && showPaymentTrace && (
@@ -878,12 +893,38 @@ const EVENT_TOOLTIPS: Record<string, string> = {
   CycleSettlement: 'Multilateral payment cycle detected and settled',
 };
 
-function EventSummary({ day }: { day: { day: number; events: Record<string, unknown>[] } }) {
+function EventSummary({ day, gameId }: { day: { day: number; events: Record<string, unknown>[] }; gameId: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [loadedEvents, setLoadedEvents] = useState<Record<string, unknown>[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Use loaded events if available, otherwise fall back to day.events
+  const events = (day.events && day.events.length > 0) ? day.events : loadedEvents ?? [];
+  const needsLazyLoad = !day.events || day.events.length === 0;
+
+  // Fetch events from replay API when expanded and events aren't available
+  const handleExpand = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && needsLazyLoad && !loadedEvents && !loading) {
+      setLoading(true);
+      setError(null);
+      try {
+        const replay = await getGameDayReplay(gameId, day.day);
+        const allEvents = replay.ticks.flatMap(t => t.events);
+        setLoadedEvents(allEvents);
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
 
   // Count events by type
   const counts: Record<string, number> = {};
-  for (const e of day.events) {
+  for (const e of events) {
     const t = String(e.event_type ?? 'unknown');
     counts[t] = (counts[t] ?? 0) + 1;
   }
@@ -896,23 +937,31 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-slate-300">
-          Round {day.day + 1} Events ({day.events.length})
+          Round {day.day + 1} Events {events.length > 0 ? `(${events.length})` : needsLazyLoad ? '(click to load)' : '(0)'}
         </h3>
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={handleExpand}
           className="text-xs text-slate-500 hover:text-slate-300"
         >
           {expanded ? '▲ Collapse' : '▼ Show details'}
         </button>
       </div>
-      <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
-        {summaryEntries.map(([type, count], i) => (
-          <span key={i}>{count} {type}{EVENT_TOOLTIPS[type] && <InfoTip text={EVENT_TOOLTIPS[type]} />}</span>
-        ))}
-      </div>
-      {expanded && (
+      {summaryEntries.length > 0 && (
+        <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+          {summaryEntries.map(([type, count], i) => (
+            <span key={i}>{count} {type}{EVENT_TOOLTIPS[type] && <InfoTip text={EVENT_TOOLTIPS[type]} />}</span>
+          ))}
+        </div>
+      )}
+      {expanded && loading && (
+        <div className="mt-3 text-xs text-slate-500 border-t border-slate-700 pt-3">Loading events...</div>
+      )}
+      {expanded && error && (
+        <div className="mt-3 text-xs text-red-400 border-t border-slate-700 pt-3">Failed to load events: {error}</div>
+      )}
+      {expanded && !loading && events.length > 0 && (
         <div className="mt-3 max-h-48 overflow-y-auto text-xs font-mono text-slate-400 space-y-0.5 border-t border-slate-700 pt-3">
-          {day.events.slice(0, 200).map((e, i) => (
+          {events.slice(0, 200).map((e, i) => (
             <div key={i} className="flex gap-2">
               <span className="text-slate-600 w-6">{String(e.tick)}</span>
               <span className="text-sky-400">{String(e.event_type)}</span>
@@ -921,10 +970,13 @@ function EventSummary({ day }: { day: { day: number; events: Record<string, unkn
               {'amount' in e && <span className="text-emerald-400">${(Number(e.amount)/100).toLocaleString()}</span>}
             </div>
           ))}
-          {day.events.length > 200 && (
-            <div className="text-slate-600">... and {day.events.length - 200} more</div>
+          {events.length > 200 && (
+            <div className="text-slate-600">... and {events.length - 200} more</div>
           )}
         </div>
+      )}
+      {expanded && !loading && events.length === 0 && !error && (
+        <div className="mt-3 text-xs text-slate-600 border-t border-slate-700 pt-3">No events available</div>
       )}
     </div>
   );
