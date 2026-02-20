@@ -917,12 +917,20 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
     async def auto_run():
         nonlocal running
-        while running and not game.is_complete:
-            await run_one_step()
-            await asyncio.sleep(speed_ms / 1000.0)
-        if game.is_complete:
-            await websocket.send_json({"type": "game_complete", "data": game.get_state()})
-        running = False
+        logger.info("Auto-run started for game %s (speed_ms=%d)", game_id, speed_ms)
+        try:
+            while running and not game.is_complete:
+                logger.info("Auto-run: starting step for day %d/%d", game.current_day, game.max_days)
+                await run_one_step()
+                logger.info("Auto-run: step complete, day now %d/%d", game.current_day, game.max_days)
+                await asyncio.sleep(speed_ms / 1000.0)
+            if game.is_complete:
+                await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+        except Exception as e:
+            logger.error("Auto-run error for game %s: %s", game_id, e, exc_info=True)
+        finally:
+            running = False
+            logger.info("Auto-run ended for game %s", game_id)
 
     run_task: asyncio.Task | None = None
 
