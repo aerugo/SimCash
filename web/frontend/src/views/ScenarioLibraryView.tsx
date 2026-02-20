@@ -112,16 +112,13 @@ export function ScenarioLibraryView() {
     }
   };
 
-  // If guest selects "real" somehow, force back to mock
-  const effectiveSimulatedAi = isGuest && !simulatedAi && useLlm ? true : simulatedAi;
-
   const handleLaunch = () => {
     if (!selectedScenario || !onLaunchGame) return;
     onLaunchGame({
       scenario_id: selectedScenario.id,
       inline_config: selectedScenario.raw_config,
       use_llm: useLlm,
-      simulated_ai: effectiveSimulatedAi,
+      simulated_ai: simulatedAi,
       max_days: maxDays,
       num_eval_samples: numEvalSamples,
       optimization_interval: optimizationInterval,
@@ -323,13 +320,19 @@ export function ScenarioLibraryView() {
                 </div>
               </div>
             )}
-            <button
-              onClick={handleLaunch}
-              disabled={!onLaunchGame}
-              className="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-semibold transition-colors"
-            >
-              🚀 Launch Simulation
-            </button>
+            {isGuest ? (
+              <div className="text-center py-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-inset)', border: '1px solid var(--border-color)' }}>
+                <p style={{ color: 'var(--text-secondary)' }}>Sign in to run experiments</p>
+              </div>
+            ) : (
+              <button
+                onClick={handleLaunch}
+                disabled={!onLaunchGame}
+                className="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-semibold transition-colors"
+              >
+                🚀 Launch Simulation
+              </button>
+            )}
           </div>
         </div>
       </div>
