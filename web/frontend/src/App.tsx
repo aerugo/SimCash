@@ -42,9 +42,17 @@ function AppContent() {
             <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Interactive Payment Simulator
             </div>
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--text-accent)' }} />
-              <div className="text-base" style={{ color: 'var(--text-secondary)' }}>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-48 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-color)' }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    backgroundColor: 'var(--text-accent)',
+                    animation: 'loading-bar 2s ease-in-out infinite',
+                  }}
+                />
+              </div>
+              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 Starting simulation engine...
               </div>
             </div>

@@ -769,3 +769,10 @@ body {
 .light .bg-slate-800\/40.rounded-lg {
   background-color: var(--bg-inset) !important;
 }
+
+/* Loading bar animation for cold-start splash */
+@keyframes loading-bar {
+  0% { width: 0%; margin-left: 0; }
+  50% { width: 60%; margin-left: 20%; }
+  100% { width: 0%; margin-left: 100%; }
+}
