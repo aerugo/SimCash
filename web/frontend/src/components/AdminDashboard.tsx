@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchUsers, inviteUser, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, type AdminUser, type ModelOption, type AdminLibrary, type Collection } from '../api';
 
 const PROVIDER_COLORS: Record<string, string> = {
-  'google-vertex': 'bg-blue-900/40 text-blue-400',
-  'openai': 'bg-green-900/40 text-green-400',
-  'anthropic': 'bg-amber-900/40 text-amber-400',
+  'google-vertex': 'bg-blue-100 text-blue-700',
+  'openai': 'bg-green-100 text-green-700',
+  'anthropic': 'bg-amber-100 text-amber-700',
 };
 
 export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
@@ -154,15 +154,15 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+      <div className="bg-surface border border-theme rounded-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
-          <h2 className="text-lg font-semibold text-slate-100">👑 Admin Dashboard</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-xl">✕</button>
+        <div className="flex items-center justify-between p-4 border-b border-theme">
+          <h2 className="text-lg font-semibold text-base-primary">👑 Admin Dashboard</h2>
+          <button onClick={onClose} className="text-base-secondary hover:text-base-primary text-xl">✕</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-slate-700">
+        <div className="flex border-b border-theme">
           {([
             { id: 'users' as const, label: '👥 Users' },
             { id: 'model' as const, label: '🧠 Model' },
@@ -173,8 +173,8 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
               onClick={() => setActiveTab(tab.id)}
               className={`px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab.id
-                  ? 'text-sky-400 border-b-2 border-sky-400'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-sky-600 border-b-2 border-sky-600'
+                  : 'text-base-secondary hover:text-base-primary'
               }`}
             >
               {tab.label}
@@ -193,9 +193,9 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
           {/* Model Tab */}
           {activeTab === 'model' && (
             <div className="p-4">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">🧠 Optimization Model</h3>
+              <h3 className="text-sm font-semibold text-base-secondary mb-3">🧠 Optimization Model</h3>
               {modelsLoading ? (
-                <p className="text-slate-500 text-xs">Loading models…</p>
+                <p className="text-base-muted text-xs">Loading models…</p>
               ) : (
                 <div className="space-y-2">
                   {models.map((m) => (
@@ -205,15 +205,15 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                       disabled={modelSaving || m.active}
                       className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-colors text-left ${
                         m.active
-                          ? 'border-sky-500 bg-sky-900/20'
-                          : 'border-slate-700 hover:border-slate-500 bg-slate-800/50'
+                          ? 'border-sky-500 bg-sky-50'
+                          : 'border-theme hover:border-theme bg-surface'
                       } ${modelSaving ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${PROVIDER_COLORS[m.provider] || 'bg-slate-700 text-slate-300'}`}>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-mono ${PROVIDER_COLORS[m.provider] || 'bg-gray-100 text-gray-600'}`}>
                           {m.provider}
                         </span>
-                        <span className={`text-sm ${m.active ? 'text-sky-300 font-medium' : 'text-slate-300'}`}>
+                        <span className={`text-sm ${m.active ? 'text-sky-700 font-medium' : 'text-base-secondary'}`}>
                           {m.label}
                         </span>
                       </div>
@@ -224,8 +224,8 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                     <p className="text-green-400 text-xs mt-1">✓ {modelSuccess}</p>
                   )}
                   {activeModel && (
-                    <p className="text-slate-500 text-xs mt-1">
-                      Next optimization will use <span className="text-slate-300">{activeModel.label}</span>
+                    <p className="text-base-muted text-xs mt-1">
+                      Next optimization will use <span className="text-base-secondary">{activeModel.label}</span>
                     </p>
                   )}
                 </div>
@@ -236,8 +236,8 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
           {/* Users Tab */}
           {activeTab === 'users' && (
             <>
-              <div className="p-4 border-b border-slate-700">
-                <h3 className="text-sm font-semibold text-slate-300 mb-3">👥 User Management</h3>
+              <div className="p-4 border-b border-theme">
+                <h3 className="text-sm font-semibold text-base-secondary mb-3">👥 User Management</h3>
                 <div className="flex gap-2">
                   <input
                     type="email"
@@ -245,7 +245,7 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500"
+                    className="flex-1 px-3 py-2 bg-surface border border-theme rounded-lg text-base-primary placeholder-gray-400 text-sm focus:outline-none focus:border-sky-500"
                   />
                   <button
                     onClick={handleInvite}
@@ -259,13 +259,13 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
 
               <div className="p-4">
                 {loading ? (
-                  <p className="text-slate-400 text-sm">Loading…</p>
+                  <p className="text-base-secondary text-sm">Loading…</p>
                 ) : users.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No users yet.</p>
+                  <p className="text-base-muted text-sm">No users yet.</p>
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                      <tr className="text-base-secondary text-xs uppercase border-b border-theme">
                         <th className="text-left py-2 px-2">Email</th>
                         <th className="text-left py-2 px-2">Status</th>
                         <th className="text-left py-2 px-2">Method</th>
@@ -276,8 +276,8 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                     </thead>
                     <tbody>
                       {users.map((u) => (
-                        <tr key={u.email} className="border-b border-slate-800 hover:bg-slate-800/50">
-                          <td className="py-2 px-2 text-slate-200 font-mono text-xs">{u.email}</td>
+                        <tr key={u.email} className="border-b border-theme hover:bg-surface">
+                          <td className="py-2 px-2 text-base-primary font-mono text-xs">{u.email}</td>
                           <td className="py-2 px-2">
                             <span className={`text-xs px-2 py-0.5 rounded-full ${
                               u.status === 'active' ? 'bg-green-900/40 text-green-400' : 'bg-yellow-900/40 text-yellow-400'
@@ -285,19 +285,19 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                               {u.status || 'unknown'}
                             </span>
                           </td>
-                          <td className="py-2 px-2 text-slate-400 text-xs">{u.sign_in_method || '—'}</td>
-                          <td className="py-2 px-2 text-slate-400 text-xs">
+                          <td className="py-2 px-2 text-base-secondary text-xs">{u.sign_in_method || '—'}</td>
+                          <td className="py-2 px-2 text-base-secondary text-xs">
                             {u.last_login ? new Date(u.last_login).toLocaleDateString() : '—'}
                           </td>
-                          <td className="py-2 px-2 text-slate-400 text-xs">{u.invited_by || '—'}</td>
+                          <td className="py-2 px-2 text-base-secondary text-xs">{u.invited_by || '—'}</td>
                           <td className="py-2 px-2 text-right">
                             {confirmRevoke === u.email ? (
                               <span className="space-x-2">
                                 <button onClick={() => handleRevoke(u.email)} className="text-red-400 hover:text-red-300 text-xs font-medium">Confirm</button>
-                                <button onClick={() => setConfirmRevoke(null)} className="text-slate-500 hover:text-slate-300 text-xs">Cancel</button>
+                                <button onClick={() => setConfirmRevoke(null)} className="text-base-muted hover:text-base-secondary text-xs">Cancel</button>
                               </span>
                             ) : (
-                              <button onClick={() => setConfirmRevoke(u.email)} className="text-slate-500 hover:text-red-400 text-xs">Revoke</button>
+                              <button onClick={() => setConfirmRevoke(u.email)} className="text-base-muted hover:text-red-400 text-xs">Revoke</button>
                             )}
                           </td>
                         </tr>
@@ -318,20 +318,20 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                   placeholder="Search scenarios and policies…"
                   value={librarySearch}
                   onChange={(e) => setLibrarySearch(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-500 text-sm focus:outline-none focus:border-sky-500"
+                  className="w-full px-3 py-2 bg-surface border border-theme rounded-lg text-base-primary placeholder-gray-400 text-sm focus:outline-none focus:border-sky-500"
                 />
               </div>
 
               {libraryLoading ? (
-                <p className="text-slate-500 text-xs">Loading library…</p>
+                <p className="text-base-muted text-xs">Loading library…</p>
               ) : !library ? (
-                <p className="text-slate-500 text-xs">Failed to load library data.</p>
+                <p className="text-base-muted text-xs">Failed to load library data.</p>
               ) : (
                 <>
                   {/* Collections */}
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-slate-300">🏷️ Collections</h3>
+                      <h3 className="text-sm font-semibold text-base-secondary">🏷️ Collections</h3>
                       <button
                         onClick={() => setShowNewCollection(!showNewCollection)}
                         className="text-xs text-sky-400 hover:text-sky-300"
@@ -341,25 +341,25 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                     </div>
 
                     {showNewCollection && (
-                      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 mb-3 space-y-2">
+                      <div className="bg-surface border border-theme rounded-lg p-3 mb-3 space-y-2">
                         <div className="flex gap-2">
                           <input
                             value={newCollIcon}
                             onChange={e => setNewCollIcon(e.target.value)}
-                            className="w-12 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-center"
+                            className="w-12 px-2 py-1 bg-surface border border-theme rounded text-sm text-center"
                             placeholder="📁"
                           />
                           <input
                             value={newCollName}
                             onChange={e => setNewCollName(e.target.value)}
-                            className="flex-1 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                            className="flex-1 px-2 py-1 bg-surface border border-theme rounded text-sm text-base-primary"
                             placeholder="Collection name"
                           />
                         </div>
                         <input
                           value={newCollDesc}
                           onChange={e => setNewCollDesc(e.target.value)}
-                          className="w-full px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                          className="w-full px-2 py-1 bg-surface border border-theme rounded text-sm text-base-primary"
                           placeholder="Description (optional)"
                         />
                         <button
@@ -385,11 +385,11 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
 
                     <div className="space-y-2">
                       {collections.map(coll => (
-                        <div key={coll.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                        <div key={coll.id} className="bg-surface border border-theme rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium text-slate-200">
+                            <span className="text-sm font-medium text-base-primary">
                               {coll.icon} {coll.name}
-                              <span className="text-xs text-slate-500 ml-2">
+                              <span className="text-xs text-base-muted ml-2">
                                 {coll.scenario_ids
                                   ? coll.scenario_ids.length
                                   : '?'} scenarios
@@ -423,7 +423,7 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                                 >Edit</button>
                               )}
                               {editingCollection === coll.id && (
-                                <button onClick={() => setEditingCollection(null)} className="text-xs text-slate-500 hover:text-slate-300">Cancel</button>
+                                <button onClick={() => setEditingCollection(null)} className="text-xs text-base-muted hover:text-base-secondary">Cancel</button>
                               )}
                             </div>
                           </div>
@@ -431,7 +431,7 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                           {editingCollection === coll.id && library && (
                             <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
                               {library.scenarios.map(s => (
-                                <label key={s.id} className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer hover:text-slate-100">
+                                <label key={s.id} className="flex items-center gap-2 text-xs text-base-secondary cursor-pointer hover:text-base-primary">
                                   <input
                                     type="checkbox"
                                     checked={editScenarioIds.includes(s.id)}
@@ -457,16 +457,16 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                   {/* Scenarios */}
                   <div className="mb-6">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-slate-300">📚 Scenarios</h3>
-                      <span className="text-xs text-slate-500">
+                      <h3 className="text-sm font-semibold text-base-secondary">📚 Scenarios</h3>
+                      <span className="text-xs text-base-muted">
                         {scenarioVisibleCount} visible / {scenarioArchivedCount} archived
                       </span>
                     </div>
                     <div className="space-y-1">
                       {filteredScenarios.map(s => (
-                        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
+                        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-theme">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-sm text-slate-200 truncate">{s.name}</span>
+                            <span className="text-sm text-base-primary truncate">{s.name}</span>
                             {s.collections && s.collections.map(col => (
                               <span key={col} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 whitespace-nowrap">
                                 {col}
@@ -477,7 +477,7 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                             onClick={() => handleToggleVisibility('scenario', s.id, s.visible)}
                             disabled={togglingId === s.id}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                              s.visible ? 'bg-green-600' : 'bg-slate-700'
+                              s.visible ? 'bg-green-600' : 'bg-gray-300'
                             } ${togglingId === s.id ? 'opacity-50' : ''}`}
                           >
                             <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
@@ -492,20 +492,20 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                   {/* Policies */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-slate-300">🧠 Policies</h3>
-                      <span className="text-xs text-slate-500">
+                      <h3 className="text-sm font-semibold text-base-secondary">🧠 Policies</h3>
+                      <span className="text-xs text-base-muted">
                         {policyVisibleCount} visible / {policyArchivedCount} archived
                       </span>
                     </div>
                     <div className="space-y-1">
                       {filteredPolicies.map(p => (
-                        <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
-                          <span className="text-sm text-slate-200 truncate">{p.name}</span>
+                        <div key={p.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface border border-theme">
+                          <span className="text-sm text-base-primary truncate">{p.name}</span>
                           <button
                             onClick={() => handleToggleVisibility('policy', p.id, p.visible)}
                             disabled={togglingId === p.id}
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${
-                              p.visible ? 'bg-green-600' : 'bg-slate-700'
+                              p.visible ? 'bg-green-600' : 'bg-gray-300'
                             } ${togglingId === p.id ? 'opacity-50' : ''}`}
                           >
                             <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
