@@ -67,7 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
           handleRedirectResult().catch(() => {});
+          // Timeout: if Firebase Auth doesn't resolve in 3s, assume no user
+          const authTimeout = setTimeout(() => {
+            if (!cancelled) {
+              setUser(null);
+              setLoading(false);
+            }
+          }, 3000);
           const unsub = onAuthStateChanged(auth, (u) => {
+            clearTimeout(authTimeout);
             if (!cancelled) {
               setUser(u);
               setLoading(false);
@@ -85,7 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Give up after ~30s, fall through to Firebase auth
             setBackendStatus('ready');
             handleRedirectResult().catch(() => {});
+            const authTimeout2 = setTimeout(() => {
+              if (!cancelled) { setUser(null); setLoading(false); }
+            }, 3000);
             const unsub = onAuthStateChanged(auth, (u) => {
+              clearTimeout(authTimeout2);
               if (!cancelled) {
                 setUser(u);
                 setLoading(false);

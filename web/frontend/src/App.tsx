@@ -9,32 +9,21 @@ import { checkAdmin } from './api';
 function AppContent() {
   const { user, loading, signIn, signOut: handleAuthSignOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
-    if (!user) {
+    if (loading || !user) {
       setIsAdmin(false);
-      setReady(true);
       return;
     }
     checkAdmin()
-      .then((res) => {
-        setIsAdmin(res.is_admin);
-      })
-      .catch(() => {
-        setIsAdmin(false);
-      })
-      .finally(() => setReady(true));
+      .then((res) => setIsAdmin(res.is_admin))
+      .catch(() => setIsAdmin(false));
   }, [user, loading]);
 
-  if (loading || !ready) {
-    // Never show a splash screen — just a blank page with matching background.
-    // The landing page / login page will appear once auth resolves (typically <1s warm, ~15s cold).
-    return <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }} />;
-  }
-
-  const isGuest = !user;
+  // Render immediately — don't gate on auth loading.
+  // Guest users see the landing page right away.
+  // Auth state updates reactively once Firebase resolves.
+  const isGuest = loading || !user;
 
   return (
     <AuthInfoContext.Provider value={{
