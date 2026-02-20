@@ -1,0 +1,16 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
+      - '.'
+    id: build
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
+    id: push
+images:
+  - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
+timeout: 1800s

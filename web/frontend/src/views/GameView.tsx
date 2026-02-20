@@ -52,7 +52,7 @@ export function GameView() {
   const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
   const gameId = params.gameId ?? contextGameId ?? '';
   const [fetchedState, setFetchedState] = useState<GameState | null>(null);
-  const [fetchError, setFetchError] = useState(false);
+  const [, setFetchError] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
   const initialState = contextGameState ?? fetchedState;
   const onReset = () => { handleReset(); nav('/'); };
