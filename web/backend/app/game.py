@@ -114,12 +114,8 @@ class Game:
         """Whether optimization should run after the given day number."""
         return (day_num + 1) % self.optimization_interval == 0
 
-    def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
-        """Run one simulation with current policies at given seed.
-        
-        Returns (events, balance_history, costs, per_agent_costs, total_cost, tick_events).
-        tick_events[i] = list of events for tick i (for replay).
-        """
+    def _build_ffi_config(self, seed: int) -> dict:
+        """Build FFI config dict from current policies at given seed."""
         scenario = copy.deepcopy(self.raw_yaml)
         for agent_cfg in scenario.get("agents", []):
             agent_id = agent_cfg.get("id")
@@ -128,11 +124,17 @@ class Game:
                 fraction = policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
                 agent_cfg["liquidity_allocation_fraction"] = fraction
                 agent_cfg["policy"] = {"type": "InlineJson", "json_string": json.dumps(policy)}
-
         scenario.setdefault("simulation", {})["rng_seed"] = seed
-
         sim_config = SimulationConfig.from_dict(scenario)
-        ffi_config = sim_config.to_ffi_dict()
+        return sim_config.to_ffi_dict()
+
+    def _run_single_sim(self, seed: int) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
+        """Run one simulation with current policies at given seed.
+        
+        Returns (events, balance_history, costs, per_agent_costs, total_cost, tick_events).
+        tick_events[i] = list of events for tick i (for replay).
+        """
+        ffi_config = self._build_ffi_config(seed)
         orch = Orchestrator.new(ffi_config)
 
         ticks = ffi_config["ticks_per_day"] * ffi_config["num_days"]
@@ -177,19 +179,7 @@ class Game:
 
         Returns parsed JSON: { "BANK_A": { "total_cost": ..., ... }, ... }
         """
-        scenario = copy.deepcopy(self.raw_yaml)
-        for agent_cfg in scenario.get("agents", []):
-            agent_id = agent_cfg.get("id")
-            if agent_id in self.policies:
-                policy = self.policies[agent_id]
-                fraction = policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
-                agent_cfg["liquidity_allocation_fraction"] = fraction
-                agent_cfg["policy"] = {"type": "InlineJson", "json_string": json.dumps(policy)}
-
-        scenario.setdefault("simulation", {})["rng_seed"] = seed
-
-        sim_config = SimulationConfig.from_dict(scenario)
-        ffi_config = sim_config.to_ffi_dict()
+        ffi_config = self._build_ffi_config(seed)
         orch = Orchestrator.new(ffi_config)
 
         ticks = ffi_config["ticks_per_day"] * ffi_config["num_days"]
@@ -446,9 +436,23 @@ class Game:
         return result
 
     def _apply_result(self, aid: str, result: dict) -> None:
-        """Apply an optimization result: update policy and record history."""
+        """Apply an optimization result: update policy and record history.
+        
+        Validates new policy by building a test config before applying.
+        If validation fails, keeps the old policy and marks the result.
+        """
         if result and result.get("new_policy"):
+            old_policy = self.policies[aid]
             self.policies[aid] = result["new_policy"]
+            try:
+                ffi_config = self._build_ffi_config(self._base_seed)
+                Orchestrator.new(ffi_config)
+            except Exception as e:
+                logger.warning("Policy validation failed for %s: %s — keeping old policy", aid, e)
+                self.policies[aid] = old_policy
+                result["rejected"] = True
+                result["rejection_reason"] = str(e)
+                result["new_policy"] = None
         if result:
             self.reasoning_history[aid].append(result)
 
