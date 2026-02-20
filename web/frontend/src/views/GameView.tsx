@@ -66,6 +66,24 @@ export function GameView() {
       .catch(() => { setFetchError(true); setFetchLoading(false); });
   }, [gameId, contextGameState, fetchedState]);
 
+  // ALL hooks must be called before any conditional returns (React rules of hooks)
+  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  void _optimizingAgent; // kept for API compat
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [replayData, setReplayData] = useState<{
+    dayNum: number;
+    ticks: { tick: number; events: Record<string, unknown>[]; balances: Record<string, number> }[];
+    currentTick: number;
+  } | null>(null);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [showPaymentTrace, setShowPaymentTrace] = useState(false);
+  const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
+  const [notesOpen, setNotesOpen] = useState(false);
+  const { notes, update: updateNotes } = useGameNotes(gameId);
+
+  // Conditional returns AFTER all hooks
   if (fetchLoading) {
     return (
       <div className="text-center py-20">
@@ -85,21 +103,6 @@ export function GameView() {
       </div>
     );
   }
-  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
-  void _optimizingAgent; // kept for API compat
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [autoRunning, setAutoRunning] = useState(false);
-  const [replayData, setReplayData] = useState<{
-    dayNum: number;
-    ticks: { tick: number; events: Record<string, unknown>[]; balances: Record<string, number> }[];
-    currentTick: number;
-  } | null>(null);
-  const [replayPlaying, setReplayPlaying] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [showPaymentTrace, setShowPaymentTrace] = useState(false);
-  const [speed, setSpeed] = useState<'fast' | 'normal' | 'slow'>('normal');
-  const [notesOpen, setNotesOpen] = useState(false);
-  const { notes, update: updateNotes } = useGameNotes(gameId);
 
   const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 

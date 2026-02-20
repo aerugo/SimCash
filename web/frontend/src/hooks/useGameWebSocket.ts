@@ -48,7 +48,7 @@ const MAX_RETRIES = 10;
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
-export function useGameWebSocket(gameId: string, initialState: GameState): UseGameWebSocketReturn {
+export function useGameWebSocket(gameId: string, initialState: GameState | null): UseGameWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
@@ -140,6 +140,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
 
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
+    if (!gameId || !initialState) return;  // Don't connect without a game
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -197,7 +198,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState): UseGa
     };
 
     ws.onmessage = handleMessage;
-  }, [gameId, handleMessage]);
+  }, [gameId, initialState, handleMessage]);
 
   useEffect(() => {
     mountedRef.current = true;
