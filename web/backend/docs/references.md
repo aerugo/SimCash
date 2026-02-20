@@ -4,9 +4,13 @@
 
 ## Primary References
 
-- **Castro et al. (2025)**. *"AI agents for cash management in payment systems."* BIS Working Paper No. 1310. [PDF ↗](https://www.bis.org/publ/work1310.pdf)
+- **Castro et al. (2025)**. *"AI agents for cash management in payment systems."* Bank of Canada Staff Working Paper 2025-35. [Paper ↗](https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/)
 
   The foundational paper. Tests whether gen AI can perform intraday liquidity management in a wholesale payment system. SimCash replicates and extends their experiments.
+
+- **Desai & Aldasoro (2025)**. *"AI agents for cash management in payment systems."* BIS Working Paper No. 1310. [Paper ↗](https://www.bis.org/publ/work1310.htm)
+
+  BIS working paper on AI agents for cash management in payment systems. Explores the application of generative AI to intraday liquidity management in wholesale payment systems.
 
 - **Korinek, A. (2025)**. *"AI Agents for Economic Research."* August 2025 update to *"Generative AI for Economic Research"* (JEL, 2023). [PDF ↗](https://www.aeaweb.org/content/file?id=23290)
 

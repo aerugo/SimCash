@@ -108,9 +108,7 @@ export function HomeView() {
           <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>MIT</a>
         </p>
         <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-          Methodology builds on the work of{' '}
-          <a href="https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>Castro et al. (2025)</a> and <a href="https://www.bis.org/publ/work1310.htm" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>Desai &amp; Aldasoro (2025)</a>
-          {' '}· Source code on{' '}
+          Source code on{' '}
           <a href="https://github.com/aerugo/SimCash" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>GitHub</a>
         </p>
       </div>
