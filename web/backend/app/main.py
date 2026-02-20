@@ -5,8 +5,16 @@ import asyncio
 import copy
 import json
 import logging
+import sys
 import uuid
 from typing import Any
+
+# Ensure application logs are visible in Cloud Run (stdout)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s %(name)s: %(message)s",
+    stream=sys.stdout,
+)
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -1030,6 +1038,8 @@ async def game_ws(websocket: WebSocket, game_id: str):
         while True:
             msg = await websocket.receive_json()
             action = msg.get("action")
+            logger.info("WS game %s received action: %s (running=%s, complete=%s)",
+                        game_id, action, running, game.is_complete)
 
             if action == "step":
                 await run_one_step()
