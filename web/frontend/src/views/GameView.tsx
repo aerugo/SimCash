@@ -83,32 +83,13 @@ export function GameView() {
   const [notesOpen, setNotesOpen] = useState(false);
   const { notes, update: updateNotes } = useGameNotes(gameId);
 
-  // Conditional returns AFTER all hooks
-  if (fetchLoading) {
-    return (
-      <div className="text-center py-20">
-        <div className="text-4xl mb-4 animate-spin">⏳</div>
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading experiment {gameId}…</p>
-      </div>
-    );
-  }
-
-  if (!initialState) {
-    return (
-      <div className="text-center py-20">
-        <div className="text-4xl mb-4">🔍</div>
-        <h2 className="text-xl font-semibold mb-2">Experiment Not Found</h2>
-        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>No active experiment for ID: {gameId}</p>
-        <button onClick={() => nav('/')} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: 'var(--bg-accent)', color: 'white' }}>← Back to Home</button>
-      </div>
-    );
-  }
+  // Old conditional returns removed — now handled after all hooks below
 
   const SPEED_MS: Record<typeof speed, number> = { fast: 0, normal: 3000, slow: 8000 };
 
   const gameState = wsState ?? initialState;
 
-  const tour = useTour(gameState.days.length, autoRunning);
+  const tour = useTour(gameState?.days?.length ?? 0, autoRunning);
 
   // Sync state up to parent — use ref to avoid dependency on onUpdate
   const onUpdateRef = useRef(onUpdate);
@@ -118,11 +99,12 @@ export function GameView() {
   }, [wsState]);
 
   // Auto-select latest day when new days arrive
+  const daysLength = gameState?.days?.length ?? 0;
   useEffect(() => {
-    if (gameState.days.length > 0) {
-      setSelectedDay(gameState.days.length - 1);
+    if (daysLength > 0) {
+      setSelectedDay(daysLength - 1);
     }
-  }, [gameState.days.length]);
+  }, [daysLength]);
 
   const handleReplay = useCallback(async (dayNum: number) => {
     try {
@@ -153,9 +135,31 @@ export function GameView() {
   };
 
   // Stop auto-run when game completes
+  const isComplete = gameState?.is_complete ?? false;
   useEffect(() => {
-    if (gameState.is_complete && autoRunning) setAutoRunning(false);
-  }, [gameState.is_complete, autoRunning]);
+    if (isComplete && autoRunning) setAutoRunning(false);
+  }, [isComplete, autoRunning]);
+
+  // Conditional returns AFTER all hooks
+  if (fetchLoading) {
+    return (
+      <div className="text-center py-20">
+        <div className="text-4xl mb-4 animate-spin">⏳</div>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading experiment {gameId}…</p>
+      </div>
+    );
+  }
+
+  if (!gameState) {
+    return (
+      <div className="text-center py-20">
+        <div className="text-4xl mb-4">🔍</div>
+        <h2 className="text-xl font-semibold mb-2">Experiment Not Found</h2>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>No active experiment for ID: {gameId}</p>
+        <button onClick={() => nav('/')} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ backgroundColor: 'var(--bg-accent)', color: 'white' }}>← Back to Home</button>
+      </div>
+    );
+  }
 
   const day = selectedDay !== null && selectedDay < gameState.days.length
     ? gameState.days[selectedDay] : gameState.days[gameState.days.length - 1] ?? null;
