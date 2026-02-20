@@ -3,6 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
+import 'katex/dist/katex.min.css';
 
 import { API_ORIGIN } from '../api';
 const API_BASE = `${API_ORIGIN}/api`;
@@ -27,6 +31,7 @@ interface NavGroup {
 
 const GROUPS: NavGroup[] = [
   { key: 'guide', label: 'Guides' },
+  { key: 'paper', label: 'Research Paper' },
   { key: 'advanced', label: 'Advanced Topics' },
   { key: 'blog', label: 'Blog Posts' },
   { key: 'reference', label: 'Reference' },
@@ -123,6 +128,22 @@ const markdownComponents: Components = {
   ),
   hr: () => (
     <hr className="border-slate-700 my-6" />
+  ),
+  img: ({ src, alt }) => {
+    const resolvedSrc = src?.startsWith('/api/') ? `${API_ORIGIN}${src}` : src;
+    return (
+      <img src={resolvedSrc} alt={alt || ''} className="max-w-full rounded-lg my-4 border border-slate-700" loading="lazy" />
+    );
+  },
+  details: ({ children }) => (
+    <details className="my-4 border border-slate-700 rounded-lg overflow-hidden">
+      {children}
+    </details>
+  ),
+  summary: ({ children }) => (
+    <summary className="cursor-pointer px-4 py-2 bg-slate-800 text-slate-300 hover:bg-slate-700 text-sm font-medium">
+      {children}
+    </summary>
   ),
 };
 
@@ -253,7 +274,7 @@ export function DocsView() {
               </div>
             )}
             <div className="prose prose-invert prose-sm max-w-none space-y-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
                 {content}
               </ReactMarkdown>
             </div>

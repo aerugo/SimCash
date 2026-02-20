@@ -19,6 +19,7 @@ from pathlib import Path
 
 from src.config import load_config
 from src.paper_builder import build_paper
+from src.web_builder import build_web
 
 
 def compile_pdf_tectonic(tex_path: Path) -> Path | None:
@@ -128,6 +129,16 @@ def compile_pdf(tex_path: Path) -> Path | None:
     return None
 
 
+def generate_web_command(args: argparse.Namespace) -> None:
+    """Generate web markdown files from experiment databases."""
+    config = load_config(args.config)
+    data_dir = args.config.parent / "data"
+
+    print("Generating web markdown files...")
+    paths = build_web(data_dir, args.output_dir, config=config)
+    print(f"\nGenerated {len(paths)} files in {args.output_dir}")
+
+
 def main() -> None:
     """Main entry point for paper generation CLI."""
     parser = argparse.ArgumentParser(
@@ -169,6 +180,12 @@ must be completed before paper generation.
         help="Skip PDF compilation (generate .tex only)",
     )
 
+    parser.add_argument(
+        "--generate-web",
+        action="store_true",
+        help="Generate web markdown files instead of LaTeX paper",
+    )
+
     args = parser.parse_args()
 
     # Load config (required)
@@ -176,6 +193,12 @@ must be completed before paper generation.
 
     # Data dir is relative to config file location
     data_dir = args.config.parent / "data"
+
+    if args.generate_web:
+        print("Generating web markdown files...")
+        paths = build_web(data_dir, args.output_dir, config=config)
+        print(f"\nGenerated {len(paths)} files in {args.output_dir}")
+        return
 
     # Generate paper (with or without charts)
     tex_path = build_paper(
