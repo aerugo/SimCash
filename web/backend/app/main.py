@@ -904,7 +904,22 @@ async def game_ws(websocket: WebSocket, game_id: str):
             "max_days": game.max_days,
         })
 
-        day = game.run_day()
+        try:
+            day = game.run_day()
+        except Exception as sim_err:
+            logger.error("Simulation failed on day %d: %s — rolling back policies", game.current_day, sim_err)
+            # Roll back to previous day's policies if available
+            if game.days:
+                prev_policies = game.days[-1].policies
+                game.policies = copy.deepcopy(prev_policies)
+                logger.info("Rolled back to day %d policies, retrying", game.days[-1].day_num)
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Simulation error (rolling back policies): {sim_err}",
+                })
+                day = game.run_day()
+            else:
+                raise
         await websocket.send_json({"type": "day_complete", "data": day.to_dict()})
         _save_game_checkpoint(game)  # Save after each day
 
