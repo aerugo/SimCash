@@ -4,6 +4,7 @@ import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '..
 import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario } from '../api';
 import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
+import yaml from 'js-yaml';
 
 const CATEGORY_ICONS: Record<string, string> = {
   'Paper Experiments': '📄',
@@ -92,7 +93,7 @@ export function ScenarioLibraryView() {
       const saved = await saveCustomScenario({
         name: `Copy of ${selectedScenario.name}`,
         description: selectedScenario.description,
-        yaml_string: selectedScenario.yaml_config,
+        yaml_string: yaml.dump(selectedScenario.raw_config),
       });
       navigate(`/create?edit=${saved.id}`);
     } catch (e) {
