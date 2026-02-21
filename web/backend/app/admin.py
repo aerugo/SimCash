@@ -17,6 +17,8 @@ def _get_db():
     global _db
     if _db is not None:
         return _db
+    from .auth import _get_firebase_app
+    _get_firebase_app()  # Ensure Firebase Admin SDK is initialized
     from firebase_admin import firestore  # type: ignore[import-untyped]
     db_id = config.FIRESTORE_DATABASE if hasattr(config, "FIRESTORE_DATABASE") else "(default)"
     _db = firestore.client(database_id=db_id)

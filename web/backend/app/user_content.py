@@ -18,6 +18,8 @@ def _get_fs_db():
     if _fs_db is not None:
         return _fs_db
     try:
+        from .auth import _get_firebase_app
+        _get_firebase_app()  # Ensure Firebase Admin SDK is initialized
         from firebase_admin import firestore  # type: ignore[import-untyped]
         db_id = config.FIRESTORE_DATABASE
         _fs_db = firestore.client(database_id=db_id)

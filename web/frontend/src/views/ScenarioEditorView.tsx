@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { GameSetupConfig, ScenarioEvent } from '../types';
-import { authFetch, getCustomScenario, updateCustomScenario, saveCustomScenario as saveCustomScenarioApi } from '../api';
+import { authFetch, API_ORIGIN, getCustomScenario, updateCustomScenario, saveCustomScenario as saveCustomScenarioApi } from '../api';
 import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
 import { ScenarioForm } from '../components/ScenarioForm';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
@@ -338,7 +338,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
     setWarnings([]);
     setSummary(null);
     try {
-      const res = await authFetch('/api/scenarios/validate', {
+      const res = await authFetch(`${API_ORIGIN}/api/scenarios/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ yaml_string: yaml }),
@@ -363,7 +363,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
     setSaving(true);
     try {
       // Save custom scenario
-      const saveRes = await authFetch('/api/scenarios/custom', {
+      const saveRes = await authFetch(`${API_ORIGIN}/api/scenarios/custom`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: scenarioName, description: scenarioDesc, yaml_string: yaml }),

@@ -120,7 +120,25 @@ class ExplicitCORSMiddleware:
                 message["headers"] = headers
             await send(message)
 
-        await self.app(scope, receive, send_with_cors)
+        try:
+            await self.app(scope, receive, send_with_cors)
+        except Exception:
+            # If app raises, send a 500 response WITH CORS headers so the
+            # browser can read the error instead of getting opaque CORS failure.
+            if origin in ALLOWED_ORIGINS:
+                from starlette.responses import JSONResponse
+                resp = JSONResponse(
+                    {"detail": "Internal Server Error"},
+                    status_code=500,
+                    headers={
+                        "access-control-allow-origin": origin,
+                        "access-control-allow-credentials": "true",
+                        "vary": "Origin",
+                    },
+                )
+                await resp(scope, receive, send)
+            else:
+                raise
 
 
 app.add_middleware(ExplicitCORSMiddleware)

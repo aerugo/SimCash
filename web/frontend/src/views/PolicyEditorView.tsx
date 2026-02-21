@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { authFetch, getCustomPolicy, updateCustomPolicy as updateCustomPolicyApi } from '../api';
+import { authFetch, API_ORIGIN, getCustomPolicy, updateCustomPolicy as updateCustomPolicyApi } from '../api';
 import type { GameSetupConfig } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
 
-const BASE = '/api';
+const BASE = `${API_ORIGIN}/api`;
 
 interface ValidationSummary {
   trees_present: string[];
