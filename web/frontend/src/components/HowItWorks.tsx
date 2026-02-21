@@ -79,10 +79,12 @@ export function HowItWorks({ defaultOpen = false }: Props) {
           <div>
             <h4 className="font-medium text-slate-300 mb-1">The Optimization Loop</h4>
             <p>
-              Each round: (1) The engine runs the policy for all ticks, (2) Costs
+              Each round: (1) The engine runs the policy deterministically for all ticks in a business day —
+              no AI involvement during execution, (2) At day's end, costs
               are tallied — liquidity held, delays incurred, deadlines missed, (3) An AI agent
-              analyzes results and proposes an improved policy for the next round —
+              analyzes the day's results and proposes an improved policy for the next round —
               potentially restructuring the entire decision tree, not just tuning a number.
+              All optimization happens <em>between</em> days, never during them.
               Over many rounds, strategies evolve toward equilibrium.
             </p>
           </div>

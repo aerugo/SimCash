@@ -91,6 +91,8 @@ In **bootstrap** mode, convergence uses multiple signals:
 
 ## Optimization Interval
 
+All optimization happens *between* simulated business days — never within a day. During a day, the policy tree executes deterministically tick by tick with no AI involvement. The AI only sees end-of-day results and proposes changes for the next day.
+
 By default, agents optimize after every simulated day. But you can configure the
 **optimization interval** — how many days pass between optimization rounds.
 With an interval of 5, the agent plays 5 days with its current policy, accumulates more

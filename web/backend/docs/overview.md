@@ -70,10 +70,12 @@ Policy conditions evaluate against a rich information set including balance stat
 
 SimCash connects the simulation engine to an LLM-powered optimization cycle:
 
-1. **Simulate** — run a business day with each agent's current policy trees
+1. **Simulate** — run a complete business day (all ticks) with each agent's current policy trees
 2. **Evaluate** — each agent independently analyzes its costs, settlement rates, delays, and liquidity usage
 3. **Optimize** — an LLM proposes an improved decision tree based on the agent's results and the full context field vocabulary
 4. **Repeat** — run the next day with updated policies
+
+All optimization happens *between* simulated business days — never during a day. Within a day, the policy tree executes deterministically tick by tick with no AI involvement. This separation is by design: the engine guarantees reproducible, auditable execution within each day, while the AI operates only at day boundaries where results can be fully evaluated.
 
 Over multiple rounds, independently-optimizing agents explore the strategy space. The central question: **do they converge to stable strategies, and are those strategies efficient?**
 
