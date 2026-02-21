@@ -113,7 +113,8 @@ interface PromptProfile {
 
 Some blocks have configurable options:
 
-- **`simulation_trace`**: `{ include_current: true, include_previous: false, max_traces: 1, verbosity: "full" | "summary" | "costs_only" }`
+- **`simulation_trace`**: `{ include_current: true, include_previous: false, max_traces: 1, verbosity: "full" | "decisions_only" | "summary" | "costs_only" }`
+  - `decisions_only`: Show only ticks where the policy made an active decision (Release/Hold/Split) plus any penalty events, dropping mechanical arrival/settlement ticks that are identical across rounds. Preserves temporal reasoning ("held at tick 3, penalty at tick 10") without redundant arrivals.
 - **`iteration_history`**: `{ format: "full" | "table_only" | "last_n", last_n: 5, include_policy_json: true }`
 - **`cost_analysis`**: `{ include_rates: true, include_guidance: true }`
 
@@ -312,8 +313,10 @@ class BlockOverride(BaseModel):
 |-------|--------|-------|----------|
 | Phase 1: Persistence | 2-3 days | High (enables everything else) | P0 |
 | Phase 2: Profile | 3-4 days | High (experiment control) | P1 |
-| Phase 3: Explorer | 2-3 days | High (debugging & understanding) | P1 |
-| Phase 4: Smart Defaults | 1-2 days | Medium (convenience) | P2 |
+| Phase 3: Explorer | 2-3 days | Medium (debugging & understanding) | P2 |
+| Phase 4: Smart Defaults | 1-2 days | Medium (convenience) | P3 |
+
+Phase 1 + Phase 2 deliver ~90% of the value. Phase 3 (explorer UI) is polish — useful for debugging but not blocking experiment work.
 
 ## Impact on Current Experiments
 
@@ -331,3 +334,13 @@ The three paper reproduction runs (`exp1`, `exp2`, `exp3`) currently in progress
 2. **Should profiles be global (saved across games) or per-game?** Both — save named profiles that can be selected when creating a new game, but each game records its specific profile at creation time.
 
 3. **How granular should block options be?** Start simple (enable/disable + a few options per block), expand based on usage. Over-engineering the options system before we know what matters is a trap.
+
+## Dennis's Feedback (2026-02-21)
+
+**On trace redundancy:** Confirmed that in deterministic scenarios, arrival events are byte-identical every round (INV-2). Only policy-driven events differ. Added `decisions_only` verbosity level as a middle ground — shows ticks where the policy made a decision + penalty events, drops mechanical arrivals/settlements.
+
+**On "costs_only" risk:** Dennis correctly noted that pure aggregate costs lose temporal reasoning. A deadline penalty at tick 80 vs tick 20 implies different policy failures. The `decisions_only` mode preserves this causal chain.
+
+**On storing prompts as engine events:** Considered and rejected. Engine events are per-tick simulation data; prompt blocks are per-round-per-agent orchestrator data. Different granularities. A separate `optimization_prompts` table with `(day_num, agent_id, block_id)` PK is cleaner — still co-located in the per-game DuckDB, joinable via `day_num`.
+
+**On Phase 3 priority:** Agreed — re-prioritized explorer UI to P2. Phase 1 (persistence) + Phase 2 (profiles) deliver 90% of value.
