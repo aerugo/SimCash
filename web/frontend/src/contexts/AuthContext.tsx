@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const devToken = urlParams.get('dev_token');
+    const devToken = urlParams.get('dev_token') || sessionStorage.getItem('simcash_dev_token');
 
     let cancelled = false;
     let attempt = 0;

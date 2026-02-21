@@ -76,6 +76,7 @@ class GameDay:
         event_summary: dict[str, dict[str, int]] = {}
         total_arrivals = 0
         total_settled = 0
+        _SETTLEMENT_TYPES = {"Settlement", "RtgsImmediateSettlement", "LsmBilateralOffset", "Queue2LiquidityRelease"}
         for e in self.events:
             etype = e.get("event_type", "")
             if etype == "Arrival":
@@ -84,8 +85,8 @@ class GameDay:
                     event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
                     event_summary[sender]["arrivals"] += 1
                     total_arrivals += 1
-            elif etype == "Settlement":
-                sender = e.get("sender_id", "")
+            elif etype in _SETTLEMENT_TYPES:
+                sender = e.get("sender_id", "") or e.get("sender", "")
                 if sender:
                     event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
                     event_summary[sender]["settled"] += 1
