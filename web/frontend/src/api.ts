@@ -517,3 +517,100 @@ export async function getGamePrompt(gameId: string, dayNum: number, agentId: str
   if (!res.ok) throw new Error('Failed to fetch prompt');
   return res.json();
 }
+
+// ---- Custom Scenarios CRUD ----
+
+export interface CustomScenario {
+  id: string;
+  name: string;
+  description: string;
+  yaml_string: string;
+  config?: Record<string, unknown>;
+  summary?: Record<string, unknown>;
+}
+
+export async function listCustomScenarios(): Promise<CustomScenario[]> {
+  const res = await authFetch(`${BASE}/scenarios/custom`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.scenarios;
+}
+
+export async function getCustomScenario(id: string): Promise<CustomScenario> {
+  const res = await authFetch(`${BASE}/scenarios/custom/${id}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function saveCustomScenario(body: { name: string; description: string; yaml_string: string }): Promise<CustomScenario> {
+  const res = await authFetch(`${BASE}/scenarios/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateCustomScenario(id: string, body: { name: string; description: string; yaml_string: string }): Promise<CustomScenario> {
+  const res = await authFetch(`${BASE}/scenarios/custom/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deleteCustomScenario(id: string): Promise<void> {
+  const res = await authFetch(`${BASE}/scenarios/custom/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+// ---- Custom Policies CRUD ----
+
+export interface CustomPolicy {
+  id: string;
+  name: string;
+  description: string;
+  json_string: string;
+  summary?: Record<string, unknown>;
+}
+
+export async function listCustomPolicies(): Promise<CustomPolicy[]> {
+  const res = await authFetch(`${BASE}/policies/custom`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.policies;
+}
+
+export async function getCustomPolicy(id: string): Promise<CustomPolicy> {
+  const res = await authFetch(`${BASE}/policies/custom/${id}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function saveCustomPolicyApi(body: { name: string; description: string; json_string: string }): Promise<CustomPolicy> {
+  const res = await authFetch(`${BASE}/policies/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateCustomPolicy(id: string, body: { name: string; description: string; json_string: string }): Promise<CustomPolicy> {
+  const res = await authFetch(`${BASE}/policies/custom/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deleteCustomPolicy(id: string): Promise<void> {
+  const res = await authFetch(`${BASE}/policies/custom/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(await res.text());
+}

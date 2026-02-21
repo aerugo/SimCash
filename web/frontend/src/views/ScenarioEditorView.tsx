@@ -1,6 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { GameSetupConfig, ScenarioEvent } from '../types';
-import { authFetch } from '../api';
+import { authFetch, getCustomScenario, updateCustomScenario, saveCustomScenario as saveCustomScenarioApi } from '../api';
 import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
 import { ScenarioForm } from '../components/ScenarioForm';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
@@ -242,6 +243,10 @@ interface Props {
 }
 
 export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }: Props) {
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  const [isEditing, setIsEditing] = useState(false);
+  const [saveToast, setSaveToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [yaml, setYamlRaw] = useState(initialState?.yaml ?? BLANK_TEMPLATE);
   const [validating, setValidating] = useState(false);
   const [valid, setValid] = useState<boolean | null>(null);
@@ -255,6 +260,21 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [modeSwitchError, setModeSwitchError] = useState<string | null>(null);
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [promptProfileConfig, setPromptProfileConfig] = useState<PromptProfileConfig | null>(null);
+
+  // Load scenario for editing
+  useEffect(() => {
+    if (editId) {
+      getCustomScenario(editId).then(s => {
+        setYamlRaw(s.yaml_string);
+        setScenarioNameRaw(s.name);
+        setScenarioDescRaw(s.description);
+        setIsEditing(true);
+      }).catch(() => {
+        setErrors(['Failed to load scenario for editing']);
+        setValid(false);
+      });
+    }
+  }, [editId]);
 
   const setYaml = useCallback((v: string) => {
     setYamlRaw(v);
@@ -371,6 +391,24 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
     }
   }, [yaml, scenarioName, scenarioDesc, onGameLaunch]);
 
+  const handleSaveOnly = useCallback(async () => {
+    setSaving(true);
+    try {
+      if (isEditing && editId) {
+        await updateCustomScenario(editId, { name: scenarioName, description: scenarioDesc, yaml_string: yaml });
+        setSaveToast({ message: '✅ Updated!', type: 'success' });
+      } else {
+        await saveCustomScenarioApi({ name: scenarioName, description: scenarioDesc, yaml_string: yaml });
+        setSaveToast({ message: '✅ Saved!', type: 'success' });
+      }
+    } catch (e) {
+      setSaveToast({ message: `❌ ${e}`, type: 'error' });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveToast(null), 3000);
+    }
+  }, [yaml, scenarioName, scenarioDesc, isEditing, editId]);
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
@@ -464,7 +502,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
           )}
 
           {/* Action buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap items-center">
             <button
               onClick={validate}
               disabled={validating}
@@ -473,12 +511,24 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
               {validating ? '⏳ Validating…' : '✅ Validate'}
             </button>
             <button
+              onClick={handleSaveOnly}
+              disabled={saving || valid !== true}
+              className="px-5 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium disabled:opacity-50 transition-colors"
+            >
+              {saving ? '⏳ Saving…' : isEditing ? '💾 Update' : '💾 Save'}
+            </button>
+            <button
               onClick={saveAndLaunch}
               disabled={saving || valid !== true}
               className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-400 hover:to-pink-400 text-sm font-medium disabled:opacity-50 transition-all"
             >
               {saving ? '⏳ Launching…' : '🚀 Save & Launch'}
             </button>
+            {saveToast && (
+              <span className={`px-3 py-2 rounded-lg text-sm font-medium ${saveToast.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                {saveToast.message}
+              </span>
+            )}
           </div>
 
           {/* Game Settings Panel */}

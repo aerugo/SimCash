@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
-import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection } from '../api';
+import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, type CustomScenario } from '../api';
 import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
 
@@ -49,6 +49,9 @@ export function ScenarioLibraryView() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
+  const [showMyScenarios, setShowMyScenarios] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
@@ -64,11 +67,22 @@ export function ScenarioLibraryView() {
     Promise.all([
       getScenarioLibrary(showArchived),
       fetchCollections().catch(() => [] as Collection[]),
+      isGuest ? Promise.resolve([]) : listCustomScenarios().catch(() => [] as CustomScenario[]),
     ])
-      .then(([s, c]) => { setScenarios(s); setCollections(c); })
+      .then(([s, c, cs]) => { setScenarios(s); setCollections(c); setCustomScenarios(cs); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [showArchived]);
+  }, [showArchived, isGuest]);
+
+  const handleDeleteCustom = async (id: string) => {
+    try {
+      await deleteCustomScenario(id);
+      setCustomScenarios(prev => prev.filter(s => s.id !== id));
+      setDeleteConfirm(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   // Auto-open scenario from URL param
   useEffect(() => {
@@ -365,8 +379,84 @@ export function ScenarioLibraryView() {
         </p>
       </div>
 
+      {/* My Scenarios tab */}
+      {!isGuest && customScenarios.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setShowMyScenarios(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              !showMyScenarios ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📚 Library
+          </button>
+          <button
+            onClick={() => setShowMyScenarios(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              showMyScenarios ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📝 My Scenarios ({customScenarios.length})
+          </button>
+        </div>
+      )}
+
+      {/* My Scenarios grid */}
+      {showMyScenarios && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {customScenarios.map(cs => (
+            <div
+              key={cs.id}
+              className="rounded-xl border p-5 text-left transition-colors group"
+              style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  📝 {cs.name}
+                </h3>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => navigate(`/create?edit=${cs.id}`)}
+                    className="p-1 rounded hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 transition-colors"
+                    title="Edit"
+                  >✏️</button>
+                  <button
+                    onClick={() => setDeleteConfirm(cs.id)}
+                    className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-300 transition-colors"
+                    title="Delete"
+                  >🗑️</button>
+                </div>
+              </div>
+              <p className="text-xs mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                {cs.description || 'No description'}
+              </p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-secondary)' }}>
+                Custom
+              </span>
+
+              {/* Delete confirmation */}
+              {deleteConfirm === cs.id && (
+                <div className="mt-3 p-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-inset)', borderColor: 'var(--border-color)' }}>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-primary)' }}>Delete this scenario?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDeleteCustom(cs.id)}
+                      className="px-2 py-1 rounded text-xs bg-red-600 hover:bg-red-500 text-white"
+                    >Delete</button>
+                    <button
+                      onClick={() => setDeleteConfirm(null)}
+                      className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-200"
+                    >Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Collections */}
-      {collections.length > 0 && (
+      {!showMyScenarios && collections.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-4">
           <button
             onClick={() => setSelectedCollection(null)}
@@ -395,7 +485,7 @@ export function ScenarioLibraryView() {
       )}
 
       {/* Search */}
-      <div className="mb-4">
+      {!showMyScenarios && <div className="mb-4">
         <input
           type="text"
           placeholder="Search scenarios by name, description, tags, or agent count…"
@@ -403,10 +493,10 @@ export function ScenarioLibraryView() {
           onChange={e => setSearchQuery(e.target.value)}
           className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
         />
-      </div>
+      </div>}
 
       {/* Category filter */}
-      <div className="flex flex-wrap gap-2 mb-6">
+      {!showMyScenarios && <div className="flex flex-wrap gap-2 mb-6">
         <button
           onClick={() => setSelectedCategory(null)}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -426,9 +516,10 @@ export function ScenarioLibraryView() {
             {CATEGORY_ICONS[cat] || '📁'} {cat} ({scenarios.filter(s => s.category === cat).length})
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Scenario cards */}
+      {!showMyScenarios &&
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(scenario => (
           <button
@@ -485,7 +576,7 @@ export function ScenarioLibraryView() {
             </div>
           </button>
         ))}
-      </div>
+      </div>}
 
       {/* Show archived toggle */}
       <div className="mt-6 flex items-center gap-3">

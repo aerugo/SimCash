@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { GameSetupConfig } from '../types';
 import { ScenarioEditorView } from './ScenarioEditorView';
 import { PolicyEditorView } from './PolicyEditorView';
@@ -12,7 +12,15 @@ export function CreateView() {
     const gid = await handleGameLaunch(config);
     if (gid) navigate(`/experiment/${gid}`);
   };
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<'scenario' | 'policy'>('scenario');
+
+  // Auto-switch to policy tab if editPolicy param is present
+  useEffect(() => {
+    if (searchParams.get('editPolicy')) {
+      setMode('policy');
+    }
+  }, [searchParams]);
 
   return (
     <div>

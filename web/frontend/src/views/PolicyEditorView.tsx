@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { authFetch } from '../api';
+import { useSearchParams } from 'react-router-dom';
+import { authFetch, getCustomPolicy, updateCustomPolicy as updateCustomPolicyApi } from '../api';
 import type { GameSetupConfig } from '../types';
 import { CodeEditor } from '../components/CodeEditor';
 
@@ -162,6 +163,11 @@ interface PolicyEditorProps {
 }
 
 export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChange }: PolicyEditorProps) {
+  const [searchParams] = useSearchParams();
+  const editPolicyId = searchParams.get('editPolicy');
+  const [isEditing, setIsEditing] = useState(false);
+  const [policyName, setPolicyName] = useState('');
+  const [policyDesc, setPolicyDesc] = useState('');
   const [jsonText, setJsonTextRaw] = useState(() => initialJsonText ?? JSON.stringify(TEMPLATES.release_all.json, null, 2));
 
   const setJsonText = useCallback((v: string) => {
@@ -178,6 +184,20 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
     fetchPolicyLibrary().then(setLibraryPolicies);
     fetchCustomPolicies().then(setSavedPolicies);
   }, []);
+
+  // Load policy for editing
+  useEffect(() => {
+    if (editPolicyId) {
+      getCustomPolicy(editPolicyId).then(p => {
+        setJsonTextRaw(p.json_string);
+        setPolicyName(p.name);
+        setPolicyDesc(p.description);
+        setIsEditing(true);
+      }).catch(() => {
+        setResult({ valid: false, errors: ['Failed to load policy for editing'], summary: null });
+      });
+    }
+  }, [editPolicyId]);
 
   const handleValidate = useCallback(async () => {
     setLoading(true);
@@ -210,21 +230,29 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
 
   const handleSave = useCallback(async () => {
     try {
-      const parsed = JSON.parse(jsonText);
-      const name = parsed.policy_id || `custom_${Date.now()}`;
-      const res = await saveCustomPolicy(jsonText, name);
-      if (res.ok) {
-        setSaveToast({ message: '✅ Saved!', type: 'success' });
-        // Refresh saved policies list
-        fetchCustomPolicies().then(setSavedPolicies);
+      if (isEditing && editPolicyId) {
+        const name = policyName || JSON.parse(jsonText).policy_id || `custom_${Date.now()}`;
+        await updateCustomPolicyApi(editPolicyId, { name, description: policyDesc, json_string: jsonText });
+        setSaveToast({ message: '✅ Updated!', type: 'success' });
       } else {
-        setSaveToast({ message: `❌ ${res.error}`, type: 'error' });
+        const parsed = JSON.parse(jsonText);
+        const name = policyName || parsed.policy_id || `custom_${Date.now()}`;
+        const res = await saveCustomPolicy(jsonText, name, policyDesc);
+        if (res.ok) {
+          setSaveToast({ message: '✅ Saved!', type: 'success' });
+          fetchCustomPolicies().then(setSavedPolicies);
+        } else {
+          setSaveToast({ message: `❌ ${res.error}`, type: 'error' });
+          setTimeout(() => setSaveToast(null), 3000);
+          return;
+        }
       }
+      fetchCustomPolicies().then(setSavedPolicies);
     } catch {
       setSaveToast({ message: '❌ Invalid JSON', type: 'error' });
     }
     setTimeout(() => setSaveToast(null), 3000);
-  }, [jsonText]);
+  }, [jsonText, isEditing, editPolicyId, policyName, policyDesc]);
 
   const handleTestPolicy = useCallback(() => {
     if (!onGameLaunch) return;
@@ -323,7 +351,7 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
               onClick={handleSave}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              💾 Save
+              {isEditing ? '💾 Update' : '💾 Save'}
             </button>
             {saveToast && (
               <span className={`px-3 py-2 rounded-lg text-sm font-medium ${saveToast.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>

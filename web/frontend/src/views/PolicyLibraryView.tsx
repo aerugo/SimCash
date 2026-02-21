@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryPolicy, LibraryPolicyDetail } from '../types';
-import { getPolicyLibrary, getPolicyLibraryDetail } from '../api';
+import { getPolicyLibrary, getPolicyLibraryDetail, listCustomPolicies, deleteCustomPolicy, type CustomPolicy } from '../api';
 import { PolicyVisualization } from '../components/PolicyVisualization';
 
 const COMPLEXITY_COLORS: Record<string, string> = {
@@ -25,6 +25,9 @@ interface Props {
 export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
   const { policyId: urlPolicyId } = useParams<{ policyId: string }>();
   const navigate = useNavigate();
+  const [customPolicies, setCustomPolicies] = useState<CustomPolicy[]>([]);
+  const [showMyPolicies, setShowMyPolicies] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [policies, setPolicies] = useState<LibraryPolicy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,11 +42,24 @@ export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
 
   useEffect(() => {
     setLoading(true);
-    getPolicyLibrary(showArchived)
-      .then(setPolicies)
+    Promise.all([
+      getPolicyLibrary(showArchived),
+      listCustomPolicies().catch(() => [] as CustomPolicy[]),
+    ])
+      .then(([p, cp]) => { setPolicies(p); setCustomPolicies(cp); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [showArchived]);
+
+  const handleDeleteCustom = async (id: string) => {
+    try {
+      await deleteCustomPolicy(id);
+      setCustomPolicies(prev => prev.filter(p => p.id !== id));
+      setDeleteConfirm(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   // Auto-open policy from URL param
   useEffect(() => {
@@ -300,6 +316,82 @@ export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
         </p>
       </div>
 
+      {/* My Policies tab */}
+      {customPolicies.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setShowMyPolicies(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              !showMyPolicies ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            🧠 Library
+          </button>
+          <button
+            onClick={() => setShowMyPolicies(true)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              showMyPolicies ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📝 My Policies ({customPolicies.length})
+          </button>
+        </div>
+      )}
+
+      {/* My Policies grid */}
+      {showMyPolicies && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {customPolicies.map(cp => (
+            <div
+              key={cp.id}
+              className="rounded-xl border p-5 text-left transition-colors group"
+              style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                  📝 {cp.name}
+                </h3>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => navigate(`/create?editPolicy=${cp.id}`)}
+                    className="p-1 rounded hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 transition-colors"
+                    title="Edit"
+                  >✏️</button>
+                  <button
+                    onClick={() => setDeleteConfirm(cp.id)}
+                    className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-300 transition-colors"
+                    title="Delete"
+                  >🗑️</button>
+                </div>
+              </div>
+              <p className="text-xs mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
+                {cp.description || 'No description'}
+              </p>
+              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-secondary)' }}>
+                Custom
+              </span>
+
+              {deleteConfirm === cp.id && (
+                <div className="mt-3 p-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-inset)', borderColor: 'var(--border-color)' }}>
+                  <p className="text-xs mb-2" style={{ color: 'var(--text-primary)' }}>Delete this policy?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDeleteCustom(cp.id)}
+                      className="px-2 py-1 rounded text-xs bg-red-600 hover:bg-red-500 text-white"
+                    >Delete</button>
+                    <button
+                      onClick={() => setDeleteConfirm(null)}
+                      className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-200"
+                    >Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!showMyPolicies && <>
       {/* Compare mode toggle + status */}
       <div className="flex items-center gap-3 mb-4">
         <button
@@ -433,6 +525,7 @@ export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
         </button>
         <span className="text-xs text-slate-400">Show archived policies</span>
       </div>
+      </>}
     </div>
   );
 }
