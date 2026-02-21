@@ -155,6 +155,9 @@ game_storage = GameStorage(
 saved_scenarios: dict[str, SavedScenario] = {}
 saved_policies: dict[str, ManualPolicy] = {}
 
+from .prompt_blocks import PromptProfile
+saved_prompt_profiles: dict[str, PromptProfile] = {}
+
 
 def _save_game_checkpoint(game: Game):
     """Save game checkpoint (non-blocking for async context). Skips guests."""
@@ -743,6 +746,13 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
         raw_yaml = copy.deepcopy(raw_yaml)
 
+    # Resolve prompt profile: inline overrides or load saved profile by ID
+    prompt_profile = config.prompt_profile
+    if config.prompt_profile_id and not prompt_profile:
+        saved = saved_prompt_profiles.get(config.prompt_profile_id)
+        if saved:
+            prompt_profile = saved.blocks
+
     logger.info("Creating game %s: use_llm=%s simulated_ai=%s constraint_preset=%s",
                 game_id, config.use_llm, config.simulated_ai, config.constraint_preset)
     try:
@@ -757,6 +767,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             constraint_preset=config.constraint_preset,
             starting_policies=config.starting_policies,
             optimization_schedule=config.optimization_schedule,
+            prompt_profile=prompt_profile,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1520,6 +1531,99 @@ def list_prompts(
                     "llm_response_tokens": prompt_data.get("llm_response_tokens", 0),
                 })
     return {"prompts": prompts}
+
+
+# ---- Prompt Profiles CRUD ----
+
+# Default block registry: describes all available blocks with defaults
+BLOCK_REGISTRY = [
+    {"id": "sys_full", "name": "System Prompt", "category": "system", "source": "static",
+     "description": "Complete system prompt with expert intro, domain explanation, schemas, and instructions.",
+     "token_estimate": 3000, "enabled": True, "options": {}},
+    {"id": "usr_header", "name": "Header", "category": "user", "source": "dynamic",
+     "description": "Agent ID and iteration number.", "token_estimate": 150, "enabled": True, "options": {}},
+    {"id": "usr_current_state", "name": "Current State", "category": "user", "source": "dynamic",
+     "description": "Current metrics and policy parameters.", "token_estimate": 250, "enabled": True, "options": {}},
+    {"id": "usr_cost_analysis", "name": "Cost Analysis", "category": "user", "source": "dynamic",
+     "description": "Cost breakdown with rates.", "token_estimate": 500, "enabled": True, "options": {}},
+    {"id": "usr_optimization_guidance", "name": "Optimization Guidance", "category": "user", "source": "dynamic",
+     "description": "Heuristic guidance based on cost structure.", "token_estimate": 200, "enabled": True, "options": {}},
+    {"id": "usr_simulation_trace", "name": "Simulation Trace", "category": "user", "source": "dynamic",
+     "description": "Tick-by-tick simulation events. Dominates token count (5k-150k tokens).",
+     "token_estimate": 20000, "enabled": True,
+     "options": {"verbosity": "full"},
+     "available_options": {"verbosity": {"type": "enum", "values": ["full", "decisions_only", "summary", "costs_only"], "default": "full"}}},
+    {"id": "usr_iteration_history", "name": "Iteration History", "category": "user", "source": "dynamic",
+     "description": "History of all previous optimization iterations.",
+     "token_estimate": 2000, "enabled": True,
+     "options": {"format": "full"},
+     "available_options": {"format": {"type": "enum", "values": ["full", "table_only", "last_n"], "default": "full"},
+                           "last_n": {"type": "int", "default": 10, "description": "Number of recent iterations (when format=last_n)"}}},
+    {"id": "usr_parameter_trajectories", "name": "Parameter Trajectories", "category": "user", "source": "dynamic",
+     "description": "Parameter values over time.", "token_estimate": 200, "enabled": True, "options": {}},
+    {"id": "usr_final_instructions", "name": "Final Instructions", "category": "user", "source": "static",
+     "description": "Output format instructions and constraints.", "token_estimate": 500, "enabled": True, "options": {}},
+    {"id": "usr_policy_section", "name": "Current Policy", "category": "user", "source": "dynamic",
+     "description": "Current policy JSON for reference.", "token_estimate": 300, "enabled": True, "options": {}},
+]
+
+
+@app.get("/api/prompt-blocks")
+def list_prompt_blocks():
+    """List all available prompt blocks with defaults and descriptions."""
+    return {"blocks": BLOCK_REGISTRY}
+
+
+class CreatePromptProfileRequest(PydanticBaseModel):
+    name: str
+    description: str = ""
+    blocks: dict[str, dict] = {}  # block_id → {enabled, options}
+
+
+@app.get("/api/prompt-profiles")
+def list_prompt_profiles():
+    """List all saved prompt profiles."""
+    return {"profiles": [
+        {"id": p.id, "name": p.name, "description": p.description,
+         "blocks": p.blocks, "created_at": p.created_at}
+        for p in saved_prompt_profiles.values()
+    ]}
+
+
+@app.post("/api/prompt-profiles")
+def create_prompt_profile(req: CreatePromptProfileRequest):
+    """Create a new prompt profile."""
+    from datetime import datetime, timezone
+    profile_id = str(uuid.uuid4())[:8]
+    profile = PromptProfile(
+        id=profile_id,
+        name=req.name,
+        description=req.description,
+        blocks=req.blocks,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    saved_prompt_profiles[profile_id] = profile
+    return {"id": profile_id, "name": profile.name, "description": profile.description,
+            "blocks": profile.blocks, "created_at": profile.created_at}
+
+
+@app.get("/api/prompt-profiles/{profile_id}")
+def get_prompt_profile(profile_id: str):
+    """Get a saved prompt profile."""
+    profile = saved_prompt_profiles.get(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return {"id": profile.id, "name": profile.name, "description": profile.description,
+            "blocks": profile.blocks, "created_at": profile.created_at}
+
+
+@app.delete("/api/prompt-profiles/{profile_id}")
+def delete_prompt_profile(profile_id: str):
+    """Delete a saved prompt profile."""
+    if profile_id not in saved_prompt_profiles:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    del saved_prompt_profiles[profile_id]
+    return {"status": "deleted"}
 
 
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----

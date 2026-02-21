@@ -422,3 +422,54 @@ export async function connectGameWebSocket(gameId: string): Promise<WebSocket> {
   const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
   return new WebSocket(`${protocol}//${window.location.host}/ws/games/${gameId}${tokenParam}`);
 }
+
+// ---- Prompt Blocks & Profiles ----
+
+export interface PromptBlockInfo {
+  id: string;
+  name: string;
+  category: 'system' | 'user';
+  source: 'static' | 'dynamic';
+  description: string;
+  token_estimate: number;
+  enabled: boolean;
+  options: Record<string, unknown>;
+  available_options?: Record<string, { type: string; values?: string[]; default?: unknown; description?: string }>;
+}
+
+export interface PromptProfileSummary {
+  id: string;
+  name: string;
+  description: string;
+  blocks: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
+  created_at: string;
+}
+
+export async function getPromptBlocks(): Promise<PromptBlockInfo[]> {
+  const res = await authFetch(`${BASE}/prompt-blocks`);
+  if (!res.ok) throw new Error('Failed to fetch prompt blocks');
+  const data = await res.json();
+  return data.blocks;
+}
+
+export async function getPromptProfiles(): Promise<PromptProfileSummary[]> {
+  const res = await authFetch(`${BASE}/prompt-profiles`);
+  if (!res.ok) throw new Error('Failed to fetch prompt profiles');
+  const data = await res.json();
+  return data.profiles;
+}
+
+export async function createPromptProfile(name: string, description: string, blocks: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>): Promise<PromptProfileSummary> {
+  const res = await authFetch(`${BASE}/prompt-profiles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, description, blocks }),
+  });
+  if (!res.ok) throw new Error('Failed to create profile');
+  return res.json();
+}
+
+export async function deletePromptProfile(profileId: string): Promise<void> {
+  const res = await authFetch(`${BASE}/prompt-profiles/${profileId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete profile');
+}

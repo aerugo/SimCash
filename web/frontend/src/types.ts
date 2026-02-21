@@ -298,6 +298,8 @@ export interface GameSetupConfig {
   constraint_preset?: 'simple' | 'full';
   starting_policies?: Record<string, string>;  // agent_id → policy JSON string
   optimization_schedule?: 'every_round' | 'every_scenario_day';
+  prompt_profile_id?: string;
+  prompt_profile?: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
 }
 
 export interface ConstraintPresetInfo {

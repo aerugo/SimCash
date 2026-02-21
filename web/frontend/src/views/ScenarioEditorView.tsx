@@ -5,6 +5,8 @@ import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/
 import { ScenarioForm } from '../components/ScenarioForm';
 import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
 import type { GameSettings } from '../components/GameSettingsPanel';
+import { PromptAnatomyPanel } from '../components/PromptAnatomyPanel';
+import type { PromptProfileConfig } from '../components/PromptAnatomyPanel';
 import { CodeEditor } from '../components/CodeEditor';
 import * as jsYaml from 'js-yaml';
 
@@ -252,6 +254,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [editorMode, setEditorMode] = useState<'form' | 'yaml'>('form');
   const [modeSwitchError, setModeSwitchError] = useState<string | null>(null);
   const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
+  const [promptProfileConfig, setPromptProfileConfig] = useState<PromptProfileConfig | null>(null);
 
   const setYaml = useCallback((v: string) => {
     setYamlRaw(v);
@@ -358,6 +361,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
         onGameLaunch({
           inline_config: saved.config,
           ...gameSettingsToConfig(gameSettings),
+          ...(promptProfileConfig ? { prompt_profile: promptProfileConfig.blocks } : {}),
         });
       }
     } catch (e) {
@@ -482,6 +486,13 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
             agentIds={parsedYaml?.agentIds ?? []}
             settings={gameSettings}
             onChange={setGameSettings}
+            collapsible
+            defaultOpen={false}
+          />
+
+          {/* Prompt Configuration Panel */}
+          <PromptAnatomyPanel
+            onChange={setPromptProfileConfig}
             collapsible
             defaultOpen={false}
           />

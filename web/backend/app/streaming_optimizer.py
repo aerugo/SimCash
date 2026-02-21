@@ -87,6 +87,7 @@ def _build_optimization_prompt(
     all_days: list[Any],
     raw_yaml: dict[str, Any],
     constraint_preset: str = "simple",
+    prompt_profile: dict[str, dict] | None = None,
 ) -> tuple[str, str, dict[str, Any]]:
     """Build system prompt and user prompt for optimization.
 
@@ -235,7 +236,65 @@ Output ONLY the JSON policy, no explanation."""
         token_estimate=len(policy_section) // 4,
     ))
 
-    total_tokens = sum(b.token_estimate for b in blocks)
+    # Apply prompt profile: enable/disable blocks and apply options
+    if prompt_profile:
+        for block in blocks:
+            override = prompt_profile.get(block.id)
+            if override:
+                block.enabled = override.get("enabled", block.enabled)
+                block.options = override.get("options", block.options)
+
+        # Apply block options: simulation_trace verbosity
+        for block in blocks:
+            if block.id == "usr_simulation_trace" and block.enabled and block.options.get("verbosity"):
+                verbosity = block.options["verbosity"]
+                if verbosity == "decisions_only":
+                    # Keep only decision-related lines
+                    lines = block.content.split("\n")
+                    filtered = [l for l in lines if any(kw in l.lower() for kw in ("decision", "release", "hold", "queue", "policy"))]
+                    block.content = "\n".join(filtered) if filtered else block.content
+                    block.token_estimate = len(block.content) // 4
+                elif verbosity == "summary":
+                    # Truncate to first 2000 chars as summary
+                    block.content = block.content[:2000] + ("\n... [truncated to summary]" if len(block.content) > 2000 else "")
+                    block.token_estimate = len(block.content) // 4
+                elif verbosity == "costs_only":
+                    lines = block.content.split("\n")
+                    filtered = [l for l in lines if any(kw in l.lower() for kw in ("cost", "penalty", "delay", "liquidity", "total"))]
+                    block.content = "\n".join(filtered) if filtered else block.content
+                    block.token_estimate = len(block.content) // 4
+
+            if block.id == "usr_iteration_history" and block.enabled and block.options.get("format"):
+                fmt = block.options["format"]
+                if fmt == "table_only":
+                    # Keep only table-like lines (with | or numeric data)
+                    lines = block.content.split("\n")
+                    filtered = [l for l in lines if "|" in l or l.strip().startswith("Iteration")]
+                    block.content = "\n".join(filtered) if filtered else block.content
+                    block.token_estimate = len(block.content) // 4
+                elif fmt == "last_n":
+                    last_n = block.options.get("last_n", 10)
+                    # Split by iteration markers and keep last N
+                    parts = block.content.split("### Iteration")
+                    if len(parts) > last_n + 1:
+                        block.content = parts[0] + "### Iteration".join(parts[-(last_n):])
+                        block.token_estimate = len(block.content) // 4
+
+    # Rebuild prompts from enabled blocks only
+    enabled_system_blocks = [b for b in blocks if b.category == "system" and b.enabled]
+    enabled_user_blocks = [b for b in blocks if b.category == "user" and b.enabled]
+
+    if enabled_system_blocks:
+        system_prompt = "\n\n".join(b.content for b in enabled_system_blocks)
+    # If system prompt block was disabled, keep original (safety — always need system prompt)
+
+    if enabled_user_blocks:
+        user_prompt_parts = [b.content for b in enabled_user_blocks]
+        user_prompt_parts.append(f"\nCurrent policy:\n{json.dumps(current_policy, indent=2)}")
+        user_prompt_parts.append("\nGenerate an improved policy that reduces total cost.\nOutput ONLY the JSON policy, no explanation.")
+        user_prompt = "\n\n".join(user_prompt_parts)
+
+    total_tokens = sum(b.token_estimate for b in blocks if b.enabled)
     profile_hash = StructuredPrompt.compute_profile_hash(blocks)
     structured_prompt = StructuredPrompt(
         blocks=blocks,
@@ -261,6 +320,7 @@ async def stream_optimize(
     all_days: list[Any],
     raw_yaml: dict[str, Any],
     constraint_preset: str = "simple",
+    prompt_profile: dict[str, dict] | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream LLM optimization with retry on transient errors.
 
@@ -284,6 +344,7 @@ async def stream_optimize(
     # Build prompts (done once, not retried)
     system_prompt, user_prompt, ctx = _build_optimization_prompt(
         agent_id, current_policy, last_day, all_days, raw_yaml, constraint_preset,
+        prompt_profile=prompt_profile,
     )
     current_fraction = ctx["current_fraction"]
     agent_cost = ctx["agent_cost"]

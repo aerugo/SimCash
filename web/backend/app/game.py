@@ -135,7 +135,8 @@ class Game:
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
                  starting_policies: dict[str, str] | None = None,
-                 optimization_schedule: str = "every_round"):
+                 optimization_schedule: str = "every_round",
+                 prompt_profile: dict[str, dict] | None = None):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
@@ -145,6 +146,7 @@ class Game:
         self.optimization_interval = max(1, optimization_interval)
         self.constraint_preset = constraint_preset
         self.optimization_schedule = optimization_schedule  # "every_round" or "every_scenario_day"
+        self.prompt_profile: dict[str, dict] = prompt_profile or {}  # block_id → {enabled, options}
         self.days: list[GameDay] = []
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
@@ -632,6 +634,7 @@ class Game:
                     async for event in stream_optimize(
                         aid, self.policies[aid], last_day, self.days, self.raw_yaml,
                         constraint_preset=self.constraint_preset,
+                        prompt_profile=self.prompt_profile,
                     ):
                         if event["type"] == "chunk":
                             await send_fn({
@@ -903,6 +906,7 @@ class Game:
                 "constraint_preset": self.constraint_preset,
                 "optimization_schedule": self.optimization_schedule,
                 "base_seed": self._base_seed,
+                "prompt_profile": self.prompt_profile,
             },
             "progress": {
                 "current_day": self.current_day,
@@ -954,6 +958,7 @@ class Game:
             optimization_interval=config.get("optimization_interval", 1),
             constraint_preset=config.get("constraint_preset", "simple"),
             optimization_schedule=config.get("optimization_schedule", "every_round"),
+            prompt_profile=config.get("prompt_profile"),
         )
         game._base_seed = config.get("base_seed", 42)
         game._created_at = data.get("created_at", "")
