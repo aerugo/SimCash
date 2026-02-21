@@ -4,7 +4,26 @@ import type { PolicyHistoryResponse, PolicyDiffResponse } from '../types';
 import { getPolicyHistory, getPolicyDiff } from '../api';
 import { PolicyVisualization } from './PolicyVisualization';
 
-const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15'];
+/** Theme-aware agent color array — reads from CSS vars */
+function getAgentColorArray(): string[] {
+  const s = getComputedStyle(document.documentElement);
+  return [
+    s.getPropertyValue('--agent-1').trim() || '#4A6FA5',
+    s.getPropertyValue('--agent-2').trim() || '#7A6B98',
+    s.getPropertyValue('--agent-3').trim() || '#3D7A55',
+    s.getPropertyValue('--agent-4').trim() || '#B8854A',
+    s.getPropertyValue('--agent-5').trim() || '#A06070',
+    s.getPropertyValue('--agent-1').trim() || '#4A6FA5',
+  ];
+}
+const AGENT_COLORS = new Proxy([] as string[], {
+  get(_target, prop) {
+    if (prop === 'length') return 6;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) return getAgentColorArray()[Number(prop) % 6];
+    if (prop === Symbol.iterator) return function* () { const a = getAgentColorArray(); for (const c of a) yield c; };
+    return ([] as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 interface Props {
   gameId: string;
@@ -73,12 +92,12 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
         <h3 className="text-sm font-semibold text-slate-300 mb-3">📊 Policy Parameter Evolution</h3>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 11 }} label={{ value: 'Day', position: 'insideBottom', offset: -5, fill: '#64748b', fontSize: 11 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 11 }} domain={[0, 1]} label={{ value: 'Fraction', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 11 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+            <XAxis dataKey="day" stroke="var(--text-muted)" tick={{ fontSize: 11 }} label={{ value: 'Day', position: 'insideBottom', offset: -5, fill: 'var(--text-muted)', fontSize: 11 }} />
+            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} domain={[0, 1]} label={{ value: 'Fraction', angle: -90, position: 'insideLeft', fill: 'var(--text-muted)', fontSize: 11 }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: 12 }}
-              labelStyle={{ color: '#94a3b8' }}
+              contentStyle={{ backgroundColor: 'var(--tooltip-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', fontSize: 12 }}
+              labelStyle={{ color: 'var(--text-secondary)' }}
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {agentIds.map((aid, i) => (
@@ -100,7 +119,7 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
                       cx={cx}
                       cy={cy}
                       r={4}
-                      fill={accepted ? '#22c55e' : '#ef4444'}
+                      fill={accepted ? 'var(--color-success)' : 'var(--color-danger)'}
                       stroke={AGENT_COLORS[i % AGENT_COLORS.length]}
                       strokeWidth={1.5}
                     />

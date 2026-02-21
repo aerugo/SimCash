@@ -26,12 +26,16 @@ export interface ActivityEvent {
   active?: boolean;
 }
 
-const SEVERITY_COLORS: Record<ActivitySeverity, string> = {
-  info: '#94a3b8',
-  success: '#4ade80',
-  warning: '#fbbf24',
-  error: '#f87171',
-};
+/** Read severity colors from CSS vars for theme compat */
+function getSeverityColor(severity: ActivitySeverity): string {
+  const s = getComputedStyle(document.documentElement);
+  switch (severity) {
+    case 'success': return s.getPropertyValue('--color-success').trim() || '#3D7A55';
+    case 'warning': return s.getPropertyValue('--color-warning').trim() || '#9A7B2D';
+    case 'error': return s.getPropertyValue('--color-danger').trim() || '#B04A3A';
+    default: return s.getPropertyValue('--text-muted').trim() || '#958E85';
+  }
+}
 
 const ICONS: Record<ActivityEventType, string> = {
   round_started: '🚀',
@@ -92,8 +96,8 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
 
   const styles = {
     container: {
-      background: 'rgba(30, 41, 59, 0.5)',
-      border: '1px solid rgba(71, 85, 105, 0.5)',
+      background: 'var(--bg-inset)',
+      border: '1px solid var(--border-color)',
       borderRadius: '12px',
       overflow: 'hidden',
       fontSize: '13px',
@@ -103,12 +107,12 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       alignItems: 'center',
       justifyContent: 'space-between',
       padding: '8px 12px',
-      background: 'rgba(30, 41, 59, 0.8)',
+      background: 'var(--bg-well, var(--bg-inset))',
       cursor: 'pointer',
       userSelect: 'none' as const,
     } as React.CSSProperties,
     headerTitle: {
-      color: '#94a3b8',
+      color: 'var(--text-secondary)',
       fontSize: '12px',
       fontWeight: 600,
       display: 'flex',
@@ -116,7 +120,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       gap: '6px',
     } as React.CSSProperties,
     toggle: {
-      color: '#64748b',
+      color: 'var(--text-muted)',
       fontSize: '11px',
       background: 'none',
       border: 'none',
@@ -135,7 +139,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       gap: '8px',
       padding: '3px 12px',
       lineHeight: '22px',
-      color: active ? '#e2e8f0' : SEVERITY_COLORS[severity],
+      color: active ? 'var(--text-primary)' : getSeverityColor(severity),
       opacity: active ? 1 : 0.85,
     } as React.CSSProperties),
     icon: {
@@ -147,7 +151,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
     time: {
       flexShrink: 0,
       fontSize: '10px',
-      color: '#475569',
+      color: 'var(--text-muted)',
       minWidth: '60px',
       textAlign: 'right' as const,
       paddingTop: '2px',
@@ -162,7 +166,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       width: '6px',
       height: '6px',
       borderRadius: '50%',
-      background: '#818cf8',
+      background: 'var(--text-accent)',
       marginLeft: '6px',
       animation: 'actfeed-pulse 1.2s ease-in-out infinite',
     } as React.CSSProperties,
@@ -182,7 +186,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       <div style={styles.header} onClick={() => setExpanded(!expanded)}>
         <div style={styles.headerTitle}>
           <span>📋 Activity</span>
-          <span style={{ color: '#475569', fontWeight: 400 }}>({events.length})</span>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({events.length})</span>
           {events.some(e => e.active) && <span style={styles.pulse} />}
         </div>
         <button style={styles.toggle}>
@@ -191,7 +195,7 @@ export function ActivityFeed({ events, maxCollapsed = 4 }: ActivityFeedProps) {
       </div>
       <div ref={containerRef} style={styles.list}>
         {!expanded && events.length > maxCollapsed && (
-          <div style={{ textAlign: 'center', padding: '2px 0', fontSize: '10px', color: '#475569' }}>
+          <div style={{ textAlign: 'center', padding: '2px 0', fontSize: '10px', color: 'var(--text-muted)' }}>
             … {events.length - maxCollapsed} earlier events
           </div>
         )}

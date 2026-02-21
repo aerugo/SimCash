@@ -9,16 +9,52 @@ export function fmtCost(v: number): string {
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export const AGENT_COLORS: Record<string, string> = {
-  BANK_A: '#38bdf8',
-  BANK_B: '#a78bfa',
-  BANK_C: '#4ade80',
-  BANK_D: '#fbbf24',
-  BANK_E: '#f87171',
-  BANK_F: '#fb923c',
-  BANK_G: '#2dd4bf',
-  BANK_H: '#e879f9',
-};
+/** Read a CSS custom property value from the document root */
+function getCssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Agent colors that respect the current theme (read from CSS vars at runtime) */
+function getThemedAgentColors(): Record<string, string> {
+  const a1 = getCssVar('--agent-1') || '#4A6FA5';
+  const a2 = getCssVar('--agent-2') || '#7A6B98';
+  const a3 = getCssVar('--agent-3') || '#3D7A55';
+  const a4 = getCssVar('--agent-4') || '#B8854A';
+  const a5 = getCssVar('--agent-5') || '#A06070';
+  return {
+    BANK_A: a1,
+    BANK_B: a2,
+    BANK_C: a3,
+    BANK_D: a4,
+    BANK_E: a5,
+    BANK_F: a1,
+    BANK_G: a2,
+    BANK_H: a3,
+  };
+}
+
+/** Lazy-initialized agent colors (re-reads on first access per page load) */
+let _cachedAgentColors: Record<string, string> | null = null;
+export function getAgentColors(): Record<string, string> {
+  if (!_cachedAgentColors) _cachedAgentColors = getThemedAgentColors();
+  return _cachedAgentColors;
+}
+/** Invalidate cache (call after theme switch) */
+export function invalidateAgentColors() { _cachedAgentColors = null; }
+
+export const AGENT_COLORS: Record<string, string> = new Proxy({} as Record<string, string>, {
+  get(_target, prop: string) {
+    return getAgentColors()[prop];
+  },
+  ownKeys() {
+    return Object.keys(getAgentColors());
+  },
+  getOwnPropertyDescriptor(_target, prop: string) {
+    const colors = getAgentColors();
+    if (prop in colors) return { configurable: true, enumerable: true, value: colors[prop] };
+    return undefined;
+  },
+});
 
 export const AGENT_TW_COLORS: Record<string, string> = {
   BANK_A: 'sky',
@@ -32,5 +68,6 @@ export const AGENT_TW_COLORS: Record<string, string> = {
 };
 
 export function getAgentColor(id: string, idx: number = 0): string {
-  return AGENT_COLORS[id] || Object.values(AGENT_COLORS)[idx % Object.values(AGENT_COLORS).length];
+  const colors = getAgentColors();
+  return colors[id] || Object.values(colors)[idx % Object.values(colors).length];
 }

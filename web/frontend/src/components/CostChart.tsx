@@ -10,8 +10,8 @@ export function CostChart({ history }: { history: Record<string, CostBreakdown[]
   if (agents.length === 0) return null;
 
   const tooltipStyle = {
-    contentStyle: { background: '#1e293b', border: '1px solid #334155', borderRadius: '8px' },
-    labelStyle: { color: '#94a3b8' },
+    contentStyle: { background: 'var(--tooltip-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-primary)' },
+    labelStyle: { color: 'var(--text-secondary)' },
   };
 
   if (view === 'bar') {
@@ -33,14 +33,14 @@ export function CostChart({ history }: { history: Record<string, CostBreakdown[]
         </div>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="agent" stroke="#64748b" tick={{ fontSize: 12 }} />
-            <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+            <XAxis dataKey="agent" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+            <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
             <Tooltip {...tooltipStyle} />
             <Legend />
-            <Bar dataKey="Liquidity" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Delay" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="Penalties" fill="#f87171" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Liquidity" fill="var(--agent-1, #4A6FA5)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Delay" fill="var(--color-warning, #9A7B2D)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Penalties" fill="var(--color-danger, #B04A3A)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -64,9 +64,9 @@ export function CostChart({ history }: { history: Record<string, CostBreakdown[]
       </div>
       <ResponsiveContainer width="100%" height={250}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-          <XAxis dataKey="tick" stroke="#64748b" tick={{ fontSize: 12 }} />
-          <YAxis stroke="#64748b" tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
+          <XAxis dataKey="tick" stroke="var(--text-muted)" tick={{ fontSize: 12 }} />
+          <YAxis stroke="var(--text-muted)" tick={{ fontSize: 12 }} tickFormatter={(v: number) => `$${v.toFixed(0)}`} />
           <Tooltip {...tooltipStyle} labelFormatter={(l) => `Tick ${l}`} // eslint-disable-next-line @typescript-eslint/no-explicit-any
           formatter={((v: any, n: any) => [`$${Number(v ?? 0).toFixed(2)}`, n ?? '']) as any} />
           <Legend />

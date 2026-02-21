@@ -14,7 +14,30 @@ import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
 import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
 import type { WSMessage } from '../hooks/useGameWebSocket';
 
-const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
+import { getAgentColor as _getAgentColorUtil } from '../utils';
+
+/** Theme-aware agent color array — reads from CSS vars */
+function getAgentColorArray(): string[] {
+  const s = getComputedStyle(document.documentElement);
+  return [
+    s.getPropertyValue('--agent-1').trim() || '#4A6FA5',
+    s.getPropertyValue('--agent-2').trim() || '#7A6B98',
+    s.getPropertyValue('--agent-3').trim() || '#3D7A55',
+    s.getPropertyValue('--agent-4').trim() || '#B8854A',
+    s.getPropertyValue('--agent-5').trim() || '#A06070',
+    s.getPropertyValue('--agent-1').trim() || '#4A6FA5',
+    s.getPropertyValue('--agent-2').trim() || '#7A6B98',
+    s.getPropertyValue('--agent-3').trim() || '#3D7A55',
+  ];
+}
+const AGENT_COLORS = new Proxy([] as string[], {
+  get(_target, prop) {
+    if (prop === 'length') return 8;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) return getAgentColorArray()[Number(prop) % 8];
+    if (prop === Symbol.iterator) return function* () { const a = getAgentColorArray(); for (const c of a) yield c; };
+    return ([] as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 function extractTreeActions(tree: Record<string, unknown>): string[] {
   if (!tree) return [];
@@ -1282,8 +1305,8 @@ function ChartTooltip({ tooltip }: { tooltip: { x: number; y: number; content: R
   if (!tooltip) return null;
   return (
     <div
-      className="absolute pointer-events-none z-50 px-2.5 py-1.5 rounded-lg bg-slate-800 border border-slate-600 text-white text-xs shadow-xl whitespace-nowrap"
-      style={{ left: tooltip.x, top: tooltip.y, transform: 'translateY(-100%)' }}
+      className="absolute pointer-events-none z-50 px-2.5 py-1.5 rounded-lg text-xs shadow-xl whitespace-nowrap"
+      style={{ background: 'var(--tooltip-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', left: tooltip.x, top: tooltip.y, transform: 'translateY(-100%)' }}
     >
       {tooltip.content}
     </div>
@@ -1454,9 +1477,9 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
       <ChartTooltip tooltip={tooltip} />
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full" preserveAspectRatio="xMidYMid meet">
         {/* Grid lines */}
-        <line x1={pad.l} y1={pad.t} x2={pad.l + plotW} y2={pad.t} stroke="#334155" strokeWidth={0.5} />
-        <line x1={pad.l} y1={toY(midVal)} x2={pad.l + plotW} y2={toY(midVal)} stroke="#334155" strokeWidth={0.5} strokeDasharray="4,4" />
-        <line x1={pad.l} y1={pad.t + plotH} x2={pad.l + plotW} y2={pad.t + plotH} stroke="#334155" strokeWidth={0.5} />
+        <line x1={pad.l} y1={pad.t} x2={pad.l + plotW} y2={pad.t} stroke="var(--border-color)" strokeWidth={0.5} />
+        <line x1={pad.l} y1={toY(midVal)} x2={pad.l + plotW} y2={toY(midVal)} stroke="var(--border-color)" strokeWidth={0.5} strokeDasharray="4,4" />
+        <line x1={pad.l} y1={pad.t + plotH} x2={pad.l + plotW} y2={pad.t + plotH} stroke="var(--border-color)" strokeWidth={0.5} />
         {/* Y axis labels */}
         <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(maxVal)}</text>
         <text x={pad.l - 4} y={toY(midVal) + 3} textAnchor="end" className="fill-slate-500 text-[7px]">{fmtDollar(midVal)}</text>
@@ -1467,7 +1490,7 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
         ))}
         {/* Hover vertical line */}
         {hoverInfo && (
-          <line x1={hoverInfo.svgX} y1={pad.t} x2={hoverInfo.svgX} y2={pad.t + plotH} stroke="#64748b" strokeWidth={0.5} strokeDasharray="3,3" />
+          <line x1={hoverInfo.svgX} y1={pad.t} x2={hoverInfo.svgX} y2={pad.t + plotH} stroke="var(--text-muted)" strokeWidth={0.5} strokeDasharray="3,3" />
         )}
         {/* Lines */}
         {agentIds.map((aid, ci) => {
@@ -1482,7 +1505,7 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
           const val = vals[hoverInfo.tickIdx];
           if (val === undefined) return null;
           return (
-            <circle key={aid} cx={hoverInfo.svgX} cy={toY(val)} r={3} fill={AGENT_COLORS[ci % AGENT_COLORS.length]} stroke="#1e293b" strokeWidth={1} />
+            <circle key={aid} cx={hoverInfo.svgX} cy={toY(val)} r={3} fill={AGENT_COLORS[ci % AGENT_COLORS.length]} stroke="var(--bg-surface)" strokeWidth={1} />
           );
         })}
         {/* Invisible hover rect over entire plot area */}
