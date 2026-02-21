@@ -119,15 +119,32 @@ def _build_optimization_prompt(
     for i, day in enumerate(all_days):
         day_agent_cost = day.per_agent_costs.get(agent_id, 0)
         day_policy = day.policies.get(agent_id, current_policy)
+        day_cost_std = getattr(day, "per_agent_cost_std", {}).get(agent_id, 0)
+
+        # Determine acceptance status from reasoning history
+        # The previous round's optimization result tells us if THIS day's policy was accepted
+        was_accepted = True  # First iteration is always "accepted" (starting policy)
+        if i > 0:
+            # Check if there was an optimization after the PREVIOUS day that was rejected
+            # If rejected, this day's policy == previous day's policy (rollback)
+            prev_day = all_days[i - 1]
+            prev_policy = prev_day.policies.get(agent_id, {})
+            curr_policy = day_policy
+            # If policies are identical to previous, the optimization was rejected
+            prev_frac = prev_policy.get("parameters", {}).get("initial_liquidity_fraction")
+            curr_frac = curr_policy.get("parameters", {}).get("initial_liquidity_fraction")
+            if prev_frac is not None and curr_frac is not None and prev_frac == curr_frac:
+                was_accepted = False  # Policy didn't change — previous optimization was rejected
+
         is_best = day_agent_cost < best_cost
-        if is_best:
+        if is_best and was_accepted:
             best_cost = day_agent_cost
         iteration_history.append(SingleAgentIterationRecord(
             iteration=i + 1,
-            metrics={"total_cost_mean": day_agent_cost},
+            metrics={"total_cost_mean": day_agent_cost, "total_cost_std": day_cost_std},
             policy=day_policy,
-            was_accepted=True,
-            is_best_so_far=is_best,
+            was_accepted=was_accepted,
+            is_best_so_far=is_best and was_accepted,
         ))
 
     filtered_events = filter_events_for_agent(agent_id, last_day.events)
@@ -142,6 +159,8 @@ def _build_optimization_prompt(
         "iteration": len(all_days),
     }
 
+    last_day_cost_std = getattr(last_day, "per_agent_cost_std", {}).get(agent_id, 0)
+
     prompt = build_single_agent_context(
         current_iteration=len(all_days),
         current_policy=current_policy,
@@ -151,7 +170,7 @@ def _build_optimization_prompt(
         sample_seed=last_day.seed,
         sample_cost=agent_cost,
         mean_cost=agent_cost,
-        cost_std=0,
+        cost_std=last_day_cost_std,
         cost_breakdown=cost_breakdown,
         cost_rates=cost_rates,
         agent_id=agent_id,

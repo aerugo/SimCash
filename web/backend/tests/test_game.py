@@ -31,7 +31,7 @@ def test_create_game_with_starting_policy(scenario):
     assert game.policies["BANK_A"]["policy_id"] == "test_hold_policy"
     assert game.policies["BANK_A"]["parameters"]["initial_liquidity_fraction"] == 0.5
     # BANK_B should still be default
-    assert game.policies["BANK_B"]["parameters"]["initial_liquidity_fraction"] == 1.0
+    assert game.policies["BANK_B"]["parameters"]["initial_liquidity_fraction"] == 0.5
 
     # Run a day — should not crash
     day = game.run_day()
@@ -39,10 +39,10 @@ def test_create_game_with_starting_policy(scenario):
 
 
 def test_create_game_default_policy(scenario):
-    """Game without starting_policies uses fraction=1.0."""
+    """Game without starting_policies uses fraction=0.5."""
     game = Game(game_id="sp-2", raw_yaml=scenario, max_days=3)
     for aid in game.agent_ids:
-        assert game.policies[aid]["parameters"]["initial_liquidity_fraction"] == 1.0
+        assert game.policies[aid]["parameters"]["initial_liquidity_fraction"] == 0.5
 
     day = game.run_day()
     assert day.total_cost >= 0
@@ -55,7 +55,7 @@ def test_create_game_partial_starting_policies(scenario):
                 starting_policies=starting_policies)
 
     assert game.policies["BANK_A"]["parameters"]["initial_liquidity_fraction"] == 0.5
-    assert game.policies["BANK_B"]["parameters"]["initial_liquidity_fraction"] == 1.0
+    assert game.policies["BANK_B"]["parameters"]["initial_liquidity_fraction"] == 0.5
 
 
 def test_create_game_invalid_starting_policy_rejected(scenario):
@@ -74,7 +74,7 @@ def test_create_game_unknown_agent_rejected(scenario):
 
 def test_starting_policy_affects_costs(scenario):
     """Day 1 with Hold policy produces different costs than default FIFO."""
-    # Game with default (FIFO, fraction=1.0)
+    # Game with default (FIFO, fraction=0.5)
     game_default = Game(game_id="sp-6a", raw_yaml=copy.deepcopy(scenario), max_days=1)
     day_default = game_default.run_day()
 

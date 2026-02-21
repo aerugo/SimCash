@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_POLICY: dict[str, Any] = {
     "version": "2.0",
     "policy_id": "default_fifo",
-    "parameters": {"initial_liquidity_fraction": 1.0},
+    "parameters": {"initial_liquidity_fraction": 0.5},
     "bank_tree": {"type": "action", "node_id": "bank_root", "action": "NoAction"},
     "payment_tree": {"type": "action", "node_id": "pay_root", "action": "Release"},
 }
@@ -40,7 +40,8 @@ class GameDay:
                  optimized: bool = False,
                  event_summary: dict[str, dict[str, int]] | None = None,
                  total_arrivals: int | None = None,
-                 total_settled: int | None = None):
+                 total_settled: int | None = None,
+                 per_agent_cost_std: dict[str, int] | None = None):
         self.day_num = day_num
         self.seed = seed
         self.policies = policies
@@ -49,6 +50,7 @@ class GameDay:
         self.balance_history = balance_history
         self.total_cost = total_cost
         self.per_agent_costs = per_agent_costs
+        self.per_agent_cost_std = per_agent_cost_std or {}  # std dev from multi-seed eval
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
 
@@ -402,9 +404,11 @@ class Game:
                         "penalty_cost": agent_c.get("penalty_cost", 0),
                     })
             
-            # Average costs across samples
+            # Average costs across samples + compute std dev
+            import math
             n = self.num_eval_samples
             total_cost = 0
+            cost_std_per_agent: dict[str, int] = {}
             for aid in self.agent_ids:
                 avg_total = sum(all_per_agent[aid]) // n
                 avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
@@ -418,6 +422,15 @@ class Game:
                 }
                 per_agent_costs[aid] = avg_total
                 total_cost += avg_total
+                # Std dev of total cost across samples
+                if n > 1:
+                    mean = sum(all_per_agent[aid]) / n
+                    variance = sum((x - mean) ** 2 for x in all_per_agent[aid]) / (n - 1)
+                    cost_std_per_agent[aid] = int(math.sqrt(variance))
+                else:
+                    cost_std_per_agent[aid] = 0
+        else:
+            cost_std_per_agent = {aid: 0 for aid in self.agent_ids}
 
         day = GameDay(
             day_num=day_num,
@@ -429,6 +442,7 @@ class Game:
             total_cost=total_cost,
             per_agent_costs=per_agent_costs,
             tick_events=tick_events,
+            per_agent_cost_std=cost_std_per_agent,
         )
         self.days.append(day)
         return day
@@ -473,8 +487,10 @@ class Game:
                         "penalty_cost": agent_c.get("penalty_cost", 0),
                     })
 
+            import math
             n = self.num_eval_samples
             total_cost = 0
+            cost_std_per_agent: dict[str, int] = {}
             for aid in self.agent_ids:
                 avg_total = sum(all_per_agent[aid]) // n
                 avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
@@ -488,6 +504,14 @@ class Game:
                 }
                 per_agent_costs[aid] = avg_total
                 total_cost += avg_total
+                if n > 1:
+                    mean = sum(all_per_agent[aid]) / n
+                    variance = sum((x - mean) ** 2 for x in all_per_agent[aid]) / (n - 1)
+                    cost_std_per_agent[aid] = int(math.sqrt(variance))
+                else:
+                    cost_std_per_agent[aid] = 0
+        else:
+            cost_std_per_agent = {aid: 0 for aid in self.agent_ids}
 
         return GameDay(
             day_num=day_num,
@@ -498,6 +522,7 @@ class Game:
             balance_history=balance_history,
             total_cost=total_cost,
             per_agent_costs=per_agent_costs,
+            per_agent_cost_std=cost_std_per_agent,
             tick_events=tick_events,
             # In intra-scenario mode, use cumulative settlement stats across the round
             # (transactions can arrive on Day N and settle on Day N+k)
@@ -898,6 +923,7 @@ class Game:
             "balance_history": day.balance_history,
             "total_cost": day.total_cost,
             "per_agent_costs": day.per_agent_costs,
+            "per_agent_cost_std": day.per_agent_cost_std,
             "optimized": day.optimized,
         }
 
@@ -945,6 +971,7 @@ class Game:
                 event_summary=day_data.get("settlement_stats", {}).get("event_summary"),
                 total_arrivals=day_data.get("settlement_stats", {}).get("total_arrivals"),
                 total_settled=day_data.get("settlement_stats", {}).get("total_settled"),
+                per_agent_cost_std=day_data.get("per_agent_cost_std", {}),
             )
             game.days.append(day)
 
