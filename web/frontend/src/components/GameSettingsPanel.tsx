@@ -78,13 +78,14 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
     <div className="space-y-4">
       <div>
         <label className="text-xs text-slate-500 flex justify-between mb-1">
-          <span>Max Repetitions</span>
+          <span>Rounds</span>
           <span className="font-mono text-slate-300">{s.maxDays}</span>
         </label>
         <input
           type="range" value={s.maxDays} onChange={e => update({ maxDays: Number(e.target.value) })}
           min={1} max={50} className="w-full accent-violet-400"
         />
+        <p className="text-[10px] text-slate-600 mt-1">How many times to run the scenario with AI optimization</p>
       </div>
       <div>
         <label className="text-xs text-slate-500 flex justify-between mb-1">
@@ -101,9 +102,9 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
       </div>
       <div>
         <label className="text-xs text-slate-500 flex justify-between mb-1">
-          <span>Optimization Interval</span>
+          <span>Optimize Every</span>
           <span className="font-mono text-slate-300">
-            {s.optimizationInterval === 1 ? 'Every day' : `Every ${s.optimizationInterval} days`}
+            {s.optimizationInterval === 1 ? 'Every round' : `Every ${s.optimizationInterval} rounds`}
           </span>
         </label>
         <select
@@ -111,11 +112,11 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           onChange={e => update({ optimizationInterval: Number(e.target.value) })}
           className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm text-slate-200"
         >
-          <option value={1}>Every day (1)</option>
-          <option value={2}>Every 2 days</option>
-          <option value={3}>Every 3 days</option>
-          <option value={5}>Every 5 days</option>
-          <option value={10}>Every 10 days</option>
+          <option value={1}>Every round</option>
+          <option value={2}>Every 2 rounds</option>
+          <option value={3}>Every 3 rounds</option>
+          <option value={5}>Every 5 rounds</option>
+          <option value={10}>Every 10 rounds</option>
         </select>
         <p className="text-[10px] text-slate-600 mt-1">
           How many rounds to run before the AI re-evaluates its policy. At interval 1, the AI optimizes after every round. At interval 5, it collects 5 rounds of data before proposing a change — more evidence per decision, but slower adaptation.

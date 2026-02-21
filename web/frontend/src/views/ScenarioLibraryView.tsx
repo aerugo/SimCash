@@ -175,26 +175,27 @@ export function ScenarioLibraryView() {
       <div>
         <button
           onClick={() => { setSelectedScenario(null); navigate('/library/scenarios'); }}
-          className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-1"
+          className="mb-4 text-sm flex items-center gap-1"
+          style={{ color: 'var(--text-secondary)' }}
         >
           ← Back to Library
         </button>
 
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-6">
+        <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-2xl">{CATEGORY_ICONS[selectedScenario.category] || '🎯'}</span>
-                <h2 className="text-xl font-bold text-slate-100">{selectedScenario.name}</h2>
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{selectedScenario.name}</h2>
               </div>
               <span className={`text-xs px-2 py-0.5 rounded border ${DIFFICULTY_COLORS[selectedScenario.difficulty]}`}>
                 {selectedScenario.difficulty}
               </span>
             </div>
-            <span className="text-xs text-slate-500 font-mono">{selectedScenario.id}</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{selectedScenario.id}</span>
           </div>
 
-          <p className="text-sm text-slate-300 mb-4 leading-relaxed">{selectedScenario.description}</p>
+          <p className="text-sm mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{selectedScenario.description}</p>
 
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5 mb-4">
@@ -207,31 +208,31 @@ export function ScenarioLibraryView() {
 
           {/* Stats grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
               <div className="text-lg font-bold text-sky-400">{selectedScenario.num_agents}</div>
-              <div className="text-xs text-slate-500">Banks</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Banks</div>
             </div>
-            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
               <div className="text-lg font-bold text-sky-400">{selectedScenario.ticks_per_day}</div>
-              <div className="text-xs text-slate-500">Ticks/Day</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Ticks/Day</div>
             </div>
-            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
               <div className="text-lg font-bold text-sky-400">{selectedScenario.num_days}</div>
-              <div className="text-xs text-slate-500">Days</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Days</div>
             </div>
-            <div className="bg-slate-900/50 rounded-lg p-3 text-center">
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
               <div className="text-lg font-bold text-sky-400">{selectedScenario.features_used.length}</div>
-              <div className="text-xs text-slate-500">Features</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Features</div>
             </div>
           </div>
 
           {/* Features */}
           {selectedScenario.features_used.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-slate-400 mb-2">Engine Features</h3>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Engine Features</h3>
               <div className="flex flex-wrap gap-1.5">
                 {selectedScenario.features_used.map(f => (
-                  <span key={f} className="text-xs px-2 py-1 rounded bg-slate-700/50 text-slate-300 border border-slate-600">
+                  <span key={f} className="text-xs px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-inset)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}>
                     {f.replace(/_/g, ' ')}
                   </span>
                 ))}
@@ -242,12 +243,12 @@ export function ScenarioLibraryView() {
           {/* Cost Config */}
           {Object.keys(selectedScenario.cost_config).length > 0 && (
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-slate-400 mb-2">Cost Parameters</h3>
-              <div className="bg-slate-900/50 rounded-lg p-3 grid grid-cols-2 gap-2 text-xs">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>Cost Parameters</h3>
+              <div className="rounded-lg p-3 grid grid-cols-2 gap-2 text-xs" style={{ backgroundColor: 'var(--bg-inset)' }}>
                 {Object.entries(selectedScenario.cost_config).map(([k, v]) => (
                   <div key={k} className="flex justify-between">
-                    <span className="text-slate-500">{k.replace(/_/g, ' ')}</span>
-                    <span className="text-slate-300 font-mono">{typeof v === 'number' ? v.toLocaleString() : String(v)}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{k.replace(/_/g, ' ')}</span>
+                    <span className="font-mono" style={{ color: 'var(--text-secondary)' }}>{typeof v === 'number' ? v.toLocaleString() : String(v)}</span>
                   </div>
                 ))}
               </div>
@@ -255,61 +256,66 @@ export function ScenarioLibraryView() {
           )}
 
           {/* Launch Configuration */}
-          <div className="border-t border-slate-700 pt-4 mt-4">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3">🚀 Launch Configuration</h3>
+          <div className="pt-4 mt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>🚀 Launch Configuration</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Max Days</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Rounds</label>
                 <input
                   type="number"
                   min={1}
                   max={50}
                   value={maxDays}
                   onChange={e => setMaxDays(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Eval Samples</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Eval Samples</label>
                 <input
                   type="number"
                   min={1}
                   max={100}
                   value={numEvalSamples}
                   onChange={e => setNumEvalSamples(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Optimization Interval</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimize Every</label>
                 <select
                   value={optimizationInterval}
                   onChange={e => setOptimizationInterval(Number(e.target.value))}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 >
                   <option value={1}>Every round</option>
                   <option value={2}>Every 2 rounds</option>
                   <option value={3}>Every 3 rounds</option>
                   <option value={5}>Every 5 rounds</option>
+                  <option value={10}>Every 10 rounds</option>
                 </select>
-                <p className="text-[10px] text-slate-600 mt-1">Rounds between AI policy updates</p>
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Rounds between AI policy updates</p>
               </div>
               {selectedScenario.num_days > 1 && (
               <div>
-                <label className="text-xs text-slate-500 block mb-1">Optimization Schedule</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimization Schedule</label>
                 <select
                   value={optimizationSchedule}
                   onChange={e => setOptimizationSchedule(e.target.value as 'every_round' | 'every_scenario_day')}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 >
                   <option value="every_round">Every round</option>
                   <option value="every_scenario_day">Every scenario day</option>
                 </select>
-                <p className="text-[10px] text-slate-600 mt-1">Optimize between scenario days (continuous sim)</p>
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Optimize between scenario days (continuous sim)</p>
               </div>
               )}
               <div>
-                <label className="text-xs text-slate-500 block mb-1">AI Reasoning</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>AI Reasoning</label>
                 <select
                   value={useLlm ? (simulatedAi ? 'mock' : 'real') : 'off'}
                   onChange={e => {
@@ -317,7 +323,8 @@ export function ScenarioLibraryView() {
                     setUseLlm(v !== 'off');
                     setSimulatedAi(v === 'mock');
                   }}
-                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 >
                   <option value="off">Off (FIFO)</option>
                   <option value="mock">Simulated AI (no API cost)</option>
@@ -328,7 +335,7 @@ export function ScenarioLibraryView() {
             {/* Advanced: Constraint Preset */}
             {useLlm && (
               <div className="mb-4">
-                <label className="text-xs text-slate-500 block mb-1">LLM Strategy Depth</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>LLM Strategy Depth</label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { id: 'simple' as const, label: 'Simple', desc: 'initial_liquidity_fraction only' },
@@ -340,11 +347,12 @@ export function ScenarioLibraryView() {
                       className={`p-2 rounded-lg text-left border transition-colors ${
                         constraintPreset === p.id
                           ? 'border-sky-500 bg-sky-500/10'
-                          : 'border-slate-700 bg-slate-900 hover:border-slate-600'
+                          : 'hover:border-sky-500/30'
                       }`}
+                      style={constraintPreset !== p.id ? { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-inset)' } : undefined}
                     >
-                      <div className="text-xs font-medium text-slate-200">{p.label}</div>
-                      <div className="text-[10px] text-slate-500">{p.desc}</div>
+                      <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{p.label}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{p.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -373,8 +381,8 @@ export function ScenarioLibraryView() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-xl font-bold text-slate-100 mb-1">📚 Scenario Library</h2>
-        <p className="text-sm text-slate-400">
+        <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>📚 Scenario Library</h2>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           Explore {scenarios.length} scenarios — from paper experiments to crisis stress tests.
         </p>
       </div>
@@ -491,7 +499,8 @@ export function ScenarioLibraryView() {
           placeholder="Search scenarios by name, description, tags, or agent count…"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+          className="w-full px-4 py-2.5 rounded-lg text-sm focus:outline-none focus:border-sky-500 transition-colors"
+          style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
         />
       </div>}
 
@@ -525,14 +534,15 @@ export function ScenarioLibraryView() {
           <button
             key={scenario.id}
             onClick={() => handleSelectScenario(scenario.id)}
-            className={`bg-slate-800/50 rounded-xl border border-slate-700 p-5 text-left hover:border-sky-500/50 transition-colors group ${
+            className={`rounded-xl p-5 text-left hover:border-sky-500/50 transition-colors group ${
               scenario.visible === false ? 'opacity-50' : ''
             }`}
+            style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)' }}
           >
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
                 <span className="text-lg">{CATEGORY_ICONS[scenario.category] || '🎯'}</span>
-                <h3 className="font-semibold text-slate-100 group-hover:text-sky-300 transition-colors text-sm">
+                <h3 className="font-semibold group-hover:text-sky-300 transition-colors text-sm" style={{ color: 'var(--text-primary)' }}>
                   {scenario.name}
                 </h3>
               </div>
@@ -548,7 +558,7 @@ export function ScenarioLibraryView() {
               </div>
             </div>
 
-            <p className="text-xs text-slate-400 mb-3 line-clamp-2">{scenario.description}</p>
+            <p className="text-xs mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{scenario.description}</p>
 
             {/* Tags */}
             <div className="flex flex-wrap gap-1 mb-3">
@@ -563,7 +573,7 @@ export function ScenarioLibraryView() {
             </div>
 
             {/* Stats row */}
-            <div className="flex gap-3 text-[10px] text-slate-500">
+            <div className="flex gap-3 text-[10px]" style={{ color: 'var(--text-muted)' }}>
               <span>{scenario.num_agents} banks</span>
               <span>·</span>
               <span>{scenario.ticks_per_day} ticks/day</span>
@@ -590,7 +600,7 @@ export function ScenarioLibraryView() {
             showArchived ? 'translate-x-4.5' : 'translate-x-0.5'
           }`} />
         </button>
-        <span className="text-xs text-slate-400">Show archived scenarios</span>
+        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Show archived scenarios</span>
       </div>
     </div>
   );

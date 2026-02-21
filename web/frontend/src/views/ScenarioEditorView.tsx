@@ -1,11 +1,9 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import type { GameSetupConfig, ScenarioEvent } from '../types';
+import { useSearchParams, Link } from 'react-router-dom';
+import type { ScenarioEvent } from '../types';
 import { authFetch, API_ORIGIN, getCustomScenario, updateCustomScenario, saveCustomScenario as saveCustomScenarioApi } from '../api';
 import { EventTimelineBuilder, eventsToYaml, yamlToEvents } from '../components/EventTimelineBuilder';
 import { ScenarioForm } from '../components/ScenarioForm';
-import { GameSettingsPanel, gameSettingsToConfig, DEFAULT_GAME_SETTINGS } from '../components/GameSettingsPanel';
-import type { GameSettings } from '../components/GameSettingsPanel';
 import { PromptAnatomyPanel } from '../components/PromptAnatomyPanel';
 import type { PromptProfileConfig } from '../components/PromptAnatomyPanel';
 import { CodeEditor } from '../components/CodeEditor';
@@ -237,12 +235,11 @@ export interface ScenarioEditorState {
 }
 
 interface Props {
-  onGameLaunch?: (config: GameSetupConfig) => void;
   initialState?: ScenarioEditorState;
   onStateChange?: (state: ScenarioEditorState) => void;
 }
 
-export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }: Props) {
+export function ScenarioEditorView({ initialState, onStateChange }: Props) {
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const [isEditing, setIsEditing] = useState(false);
@@ -258,8 +255,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
   const [scenarioDesc, setScenarioDescRaw] = useState(initialState?.description ?? '');
   const [editorMode, setEditorMode] = useState<'form' | 'yaml'>('form');
   const [modeSwitchError, setModeSwitchError] = useState<string | null>(null);
-  const [gameSettings, setGameSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
-  const [promptProfileConfig, setPromptProfileConfig] = useState<PromptProfileConfig | null>(null);
+  const [, setPromptProfileConfig] = useState<PromptProfileConfig | null>(null);
 
   // Load scenario for editing
   useEffect(() => {
@@ -359,38 +355,6 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
     }
   }, [yaml]);
 
-  const saveAndLaunch = useCallback(async () => {
-    setSaving(true);
-    try {
-      // Save custom scenario
-      const saveRes = await authFetch(`${API_ORIGIN}/api/scenarios/custom`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: scenarioName, description: scenarioDesc, yaml_string: yaml }),
-      });
-      if (!saveRes.ok) {
-        const err = await saveRes.json();
-        setErrors([err.detail || 'Save failed']);
-        setValid(false);
-        return;
-      }
-      const saved = await saveRes.json();
-
-      // Launch game with inline config + game settings
-      if (onGameLaunch) {
-        onGameLaunch({
-          inline_config: saved.config,
-          ...gameSettingsToConfig(gameSettings),
-          ...(promptProfileConfig ? { prompt_profile: promptProfileConfig.blocks } : {}),
-        });
-      }
-    } catch (e) {
-      setErrors([String(e)]);
-    } finally {
-      setSaving(false);
-    }
-  }, [yaml, scenarioName, scenarioDesc, onGameLaunch]);
-
   const handleSaveOnly = useCallback(async () => {
     setSaving(true);
     try {
@@ -399,7 +363,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
         setSaveToast({ message: '✅ Updated!', type: 'success' });
       } else {
         await saveCustomScenarioApi({ name: scenarioName, description: scenarioDesc, yaml_string: yaml });
-        setSaveToast({ message: '✅ Saved!', type: 'success' });
+        setSaveToast({ message: '✅ Scenario saved!', type: 'success' });
       }
     } catch (e) {
       setSaveToast({ message: `❌ ${e}`, type: 'error' });
@@ -517,28 +481,17 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
             >
               {saving ? '⏳ Saving…' : isEditing ? '💾 Update' : '💾 Save'}
             </button>
-            <button
-              onClick={saveAndLaunch}
-              disabled={saving || valid !== true}
-              className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-400 hover:to-pink-400 text-sm font-medium disabled:opacity-50 transition-all"
-            >
-              {saving ? '⏳ Launching…' : '🚀 Save & Launch'}
-            </button>
             {saveToast && (
               <span className={`px-3 py-2 rounded-lg text-sm font-medium ${saveToast.type === 'success' ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
                 {saveToast.message}
+                {saveToast.type === 'success' && (
+                  <Link to="/library/scenarios" className="ml-2 underline text-sky-300 hover:text-sky-200">
+                    View in Library →
+                  </Link>
+                )}
               </span>
             )}
           </div>
-
-          {/* Game Settings Panel */}
-          <GameSettingsPanel
-            agentIds={parsedYaml?.agentIds ?? []}
-            settings={gameSettings}
-            onChange={setGameSettings}
-            collapsible
-            defaultOpen={false}
-          />
 
           {/* Prompt Configuration Panel */}
           <PromptAnatomyPanel

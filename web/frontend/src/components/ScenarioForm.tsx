@@ -168,7 +168,10 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
         <h3 className={sectionTitle}>⚙️ Simulation</h3>
         <div className="grid grid-cols-3 gap-3">
           <NumberField label="Ticks per Day" value={data.simulation.ticks_per_day} onChange={v => update(d => { d.simulation.ticks_per_day = v; })} />
-          <NumberField label="Number of Days" value={data.simulation.num_days} onChange={v => update(d => { d.simulation.num_days = v; })} />
+          <div>
+            <NumberField label="Number of Days" value={data.simulation.num_days} onChange={v => update(d => { d.simulation.num_days = v; })} />
+            <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted, #94a3b8)' }}>Simulated business days per round</p>
+          </div>
           <NumberField label="RNG Seed" value={data.simulation.rng_seed} onChange={v => update(d => { d.simulation.rng_seed = v; })} />
         </div>
       </div>

@@ -46,7 +46,7 @@ export function CreateView() {
         </div>
       </div>
 
-      {mode === 'scenario' && <ScenarioEditorView onGameLaunch={onGameLaunch} initialState={scenarioEditorState} onStateChange={onScenarioEditorStateChange} />}
+      {mode === 'scenario' && <ScenarioEditorView initialState={scenarioEditorState} onStateChange={onScenarioEditorStateChange} />}
       {mode === 'policy' && <PolicyEditorView onGameLaunch={onGameLaunch} initialJsonText={policyEditorJsonText} onJsonTextChange={onPolicyEditorJsonTextChange} />}
     </div>
   );
