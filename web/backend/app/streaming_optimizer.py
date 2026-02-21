@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 # Timeout for a single LLM optimization call (seconds).
-LLM_CALL_TIMEOUT_SECONDS = 180
+LLM_CALL_TIMEOUT_SECONDS = 600
 
 # If no chunk arrives for this long, assume the connection is dead.
 LLM_CHUNK_STALL_SECONDS = 90
@@ -35,9 +35,12 @@ logger = logging.getLogger(__name__)
 
 def _is_retryable(error: Exception) -> bool:
     """Check if an error is transient and worth retrying."""
+    # Timeouts are always retryable
+    if isinstance(error, (asyncio.TimeoutError, TimeoutError)):
+        return True
     msg = str(error).lower()
-    # 429 RESOURCE_EXHAUSTED, 503 UNAVAILABLE, connection resets
-    return any(code in msg for code in ("429", "resource_exhausted", "503", "unavailable", "deadline_exceeded", "connection reset"))
+    # 429 RESOURCE_EXHAUSTED, 503 UNAVAILABLE, connection resets, timeouts, cancel scope bugs
+    return any(code in msg for code in ("429", "resource_exhausted", "503", "unavailable", "deadline_exceeded", "connection reset", "timeout", "cancel scope"))
 
 
 def _create_agent(llm_config: Any, system_prompt: str) -> Any:
