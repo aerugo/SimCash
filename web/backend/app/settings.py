@@ -16,7 +16,7 @@ from . import config
 logger = logging.getLogger(__name__)
 
 # Default model if nothing configured
-DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:glm-5-maas")
+DEFAULT_MODEL = os.environ.get("SIMCASH_DEFAULT_MODEL", "google-vertex:glm-4.7-maas")
 
 # Built-in available models
 # Gemini 3.x = preview (latest features), Gemini 2.5 = stable/GA (production)
@@ -44,6 +44,11 @@ AVAILABLE_MODELS: list[dict[str, str]] = [
     {
         "id": "google-vertex:gemini-2.5-flash-lite",
         "label": "Gemini 2.5 Flash Lite (Budget)",
+        "provider": "google-vertex",
+    },
+    {
+        "id": "google-vertex:glm-4.7-maas",
+        "label": "GLM-4.7 (Vertex AI MaaS)",
         "provider": "google-vertex",
     },
     {
@@ -80,6 +85,10 @@ PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
 
 # Models that need special provider config (non-default publisher or global region)
 MAAS_MODEL_CONFIG: dict[str, dict[str, Any]] = {
+    "glm-4.7-maas": {
+        "publisher": "zai-org",
+        "region": "global",
+    },
     "glm-5-maas": {
         "publisher": "zai-org",
         "region": "global",
