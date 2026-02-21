@@ -88,10 +88,7 @@ class GameDay:
         return {
             "day": self.day_num,
             "seed": self.seed,
-            "policies": {
-                aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
-                for aid, p in self.policies.items()
-            },
+            "policies": {aid: p for aid, p in self.policies.items()},
             "costs": self.costs,
             "events": self.events,
             "balance_history": self.balance_history,
@@ -110,10 +107,7 @@ class GameDay:
         return {
             "day": self.day_num,
             "seed": self.seed,
-            "policies": {
-                aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
-                for aid, p in self.policies.items()
-            },
+            "policies": {aid: p for aid, p in self.policies.items()},
             "costs": self.costs,
             "events": [],  # Empty — use event_summary or replay API for details
             "balance_history": self.balance_history,
@@ -530,7 +524,7 @@ class Game:
                 day.day_num,
                 day.seed,
                 day.total_cost,
-                json.dumps({aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)} for aid, p in day.policies.items()}),
+                json.dumps({aid: p for aid, p in day.policies.items()}),
                 json.dumps(day.costs),
                 json.dumps(day.per_agent_costs),
                 json.dumps(day.balance_history),
