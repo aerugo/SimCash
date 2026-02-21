@@ -52,6 +52,16 @@ export async function inviteUser(email: string): Promise<void> {
   if (!res.ok) throw new Error(await res.text());
 }
 
+export async function createUserWithPassphrase(email: string): Promise<{ email: string; passphrase: string }> {
+  const res = await authFetch(`${BASE}/admin/create-user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function revokeUser(email: string): Promise<void> {
   const res = await authFetch(`${BASE}/admin/users/${encodeURIComponent(email)}`, {
     method: 'DELETE',

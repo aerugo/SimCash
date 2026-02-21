@@ -4,11 +4,12 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  signInWithEmailAndPassword as fbSignInWithEmailAndPassword,
+  updatePassword as fbUpdatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   GoogleAuthProvider,
   signOut as fbSignOut,
-  sendSignInLinkToEmail as fbSendSignInLinkToEmail,
-  isSignInWithEmailLink as fbIsSignInWithEmailLink,
-  signInWithEmailLink as fbSignInWithEmailLink,
   type User,
 } from 'firebase/auth';
 
@@ -58,30 +59,17 @@ export async function getIdToken(): Promise<string | null> {
   return user.getIdToken();
 }
 
-// ---- Magic Link (Email Link) sign-in ----
+// ---- Email + Password sign-in ----
 
-const EMAIL_STORAGE_KEY = 'simcash_signin_email';
-
-export async function sendMagicLink(email: string): Promise<void> {
-  const actionCodeSettings = {
-    url: window.location.origin,
-    handleCodeInApp: true,
-  };
-  await fbSendSignInLinkToEmail(auth, email, actionCodeSettings);
-  window.localStorage.setItem(EMAIL_STORAGE_KEY, email);
-}
-
-export function isEmailSignInLink(url: string): boolean {
-  return fbIsSignInWithEmailLink(auth, url);
-}
-
-export async function completeMagicLinkSignIn(url: string): Promise<User> {
-  let email = window.localStorage.getItem(EMAIL_STORAGE_KEY);
-  if (!email) {
-    email = window.prompt('Please enter your email to complete sign-in:');
-    if (!email) throw new Error('Email is required to complete sign-in.');
-  }
-  const result = await fbSignInWithEmailLink(auth, email, url);
-  window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+export async function signInWithPassword(email: string, password: string): Promise<User> {
+  const result = await fbSignInWithEmailAndPassword(auth, email, password);
   return result.user;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || !user.email) throw new Error('No authenticated user.');
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await fbUpdatePassword(user, newPassword);
 }

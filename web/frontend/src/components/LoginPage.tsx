@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { sendMagicLink, isEmailSignInLink, completeMagicLinkSignIn } from '../firebase';
+import { signInWithPassword } from '../firebase';
 
 const page = "min-h-screen flex items-center justify-center";
 const pageStyle: React.CSSProperties = { backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' };
@@ -8,46 +8,31 @@ const pageStyle: React.CSSProperties = { backgroundColor: 'var(--bg-base)', colo
 export function LoginPage({ accessDenied }: { accessDenied?: boolean }) {
   const { signIn, loading } = useAuth();
   const [email, setEmail] = useState('');
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
-  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [error, setError] = useState('');
-  const [completingSignIn, setCompletingSignIn] = useState(false);
 
-  const handleSendMagicLink = async () => {
-    if (!email.trim()) return;
-    setMagicLinkLoading(true);
+  const handlePasswordLogin = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setPasswordLoading(true);
     setError('');
     try {
-      await sendMagicLink(email.trim());
-      setMagicLinkSent(true);
+      await signInWithPassword(email.trim(), password);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send magic link.');
+      const code = (err as { code?: string }).code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('Incorrect email or password.');
+      } else if (code === 'auth/user-not-found') {
+        setError('No account found with this email.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Try again later.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Sign-in failed.');
+      }
     } finally {
-      setMagicLinkLoading(false);
+      setPasswordLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (isEmailSignInLink(window.location.href)) {
-      setCompletingSignIn(true);
-      completeMagicLinkSignIn(window.location.href)
-        .then(() => {
-          window.history.replaceState(null, '', window.location.pathname);
-        })
-        .catch((err) => {
-          setError(err.message || 'Failed to complete sign-in.');
-        })
-        .finally(() => setCompletingSignIn(false));
-    }
-  }, []);
-
-  if (completingSignIn) {
-    return (
-      <div className={page} style={pageStyle}>
-        <div style={{ color: 'var(--text-secondary)' }} className="text-lg">Completing sign-in…</div>
-      </div>
-    );
-  }
 
   if (accessDenied) {
     return (
@@ -84,6 +69,47 @@ export function LoginPage({ accessDenied }: { accessDenied?: boolean }) {
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Interactive Payment Simulator</p>
         </div>
 
+        {/* Email + Password form */}
+        <div className="space-y-3">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && document.getElementById('pw-input')?.focus()}
+            className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-colors"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+          />
+          <input
+            id="pw-input"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handlePasswordLogin()}
+            className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-colors"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+          />
+          <button
+            onClick={handlePasswordLogin}
+            disabled={passwordLoading || !email.trim() || !password.trim()}
+            className="w-full px-4 py-3 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--text-accent)' }}
+          >
+            {passwordLoading ? 'Signing in…' : 'Sign In'}
+          </button>
+        </div>
+
+        {error && (
+          <p className="text-xs" style={{ color: 'var(--color-danger, #ef4444)' }}>{error}</p>
+        )}
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1" style={{ borderTop: '1px solid var(--border-color)' }} />
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
+          <div className="flex-1" style={{ borderTop: '1px solid var(--border-color)' }} />
+        </div>
+
         <button
           onClick={signIn}
           disabled={loading}
@@ -98,45 +124,6 @@ export function LoginPage({ accessDenied }: { accessDenied?: boolean }) {
           </svg>
           Sign in with Google
         </button>
-
-        <div className="flex items-center gap-3">
-          <div className="flex-1" style={{ borderTop: '1px solid var(--border-color)' }} />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>or</span>
-          <div className="flex-1" style={{ borderTop: '1px solid var(--border-color)' }} />
-        </div>
-
-        {magicLinkSent ? (
-          <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-success, #22c55e)' }}>Check your email</p>
-            <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-              We sent a sign-in link to <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSendMagicLink()}
-              className="w-full px-4 py-3 rounded-lg text-sm focus:outline-none transition-colors"
-              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-            />
-            <button
-              onClick={handleSendMagicLink}
-              disabled={magicLinkLoading || !email.trim()}
-              className="w-full px-4 py-3 rounded-lg text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: 'var(--text-accent)' }}
-            >
-              {magicLinkLoading ? 'Sending…' : 'Send magic link'}
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <p className="text-xs" style={{ color: 'var(--color-danger, #ef4444)' }}>{error}</p>
-        )}
 
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Access restricted to authorized users</p>
       </div>

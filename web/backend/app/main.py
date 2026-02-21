@@ -1123,6 +1123,13 @@ async def admin_invite_user(req: InviteRequest, email: str = Depends(get_admin_u
     return {"status": "invited", "email": req.email}
 
 
+@app.post("/api/admin/create-user")
+async def admin_create_user(req: InviteRequest, email: str = Depends(get_admin_user)):
+    """Create a Firebase Auth user with a generated passphrase (admin only)."""
+    passphrase = user_manager.create_user_with_passphrase(req.email, invited_by=email)
+    return {"status": "created", "email": req.email, "passphrase": passphrase}
+
+
 @app.delete("/api/admin/users/{user_email:path}")
 async def admin_revoke_user(user_email: str, email: str = Depends(get_admin_user)):
     """Revoke a user's access (admin only)."""

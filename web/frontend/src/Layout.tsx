@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useGameContext, GameProvider } from './GameContext';
 import { useAuthInfo } from './AuthInfoContext';
 import { ToastContainer } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 
 const NAV_SECTIONS = [
   { to: '/', label: 'Run', icon: '🏠', exact: true },
@@ -15,6 +17,7 @@ const NAV_SECTIONS = [
 function LayoutInner() {
   const { simId, state, gameId } = useGameContext();
   const { isAdmin, userEmail, isGuest, onSignOut, onSignIn } = useAuthInfo();
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const location = useLocation();
   useTheme(); // apply theme on mount
 
@@ -69,6 +72,7 @@ function LayoutInner() {
             ) : (
               <>
                 <span className="text-xs hidden md:inline" style={{ color: 'var(--text-muted)' }}>{userEmail}</span>
+                <button onClick={() => setShowChangePassword(true)} className="text-xs transition-colors hidden md:inline" style={{ color: 'var(--text-muted)' }}>🔒</button>
                 <button onClick={onSignOut} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>Sign out</button>
               </>
             )}
@@ -171,6 +175,7 @@ function LayoutInner() {
       )}
 
       <ToastContainer />
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
     </div>
   );
 }

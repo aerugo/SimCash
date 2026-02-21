@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, inviteUser, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, type AdminUser, type ModelOption, type AdminLibrary, type Collection } from '../api';
+import { fetchUsers, createUserWithPassphrase, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, type AdminUser, type ModelOption, type AdminLibrary, type Collection } from '../api';
 
 const PROVIDER_COLORS: Record<string, string> = {
   'google-vertex': 'bg-blue-100 text-blue-700',
@@ -14,6 +14,8 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; passphrase: string } | null>(null);
+  const [copiedPassphrase, setCopiedPassphrase] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'users' | 'model' | 'library'>('users');
 
@@ -91,18 +93,30 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
     }
   }, [activeTab, library, loadLibrary, loadCollections]);
 
-  const handleInvite = async () => {
+  const handleCreateUser = async () => {
     if (!inviteEmail.trim()) return;
     setInviting(true);
+    setCreatedCredentials(null);
+    setCopiedPassphrase(false);
     try {
-      await inviteUser(inviteEmail.trim());
+      const result = await createUserWithPassphrase(inviteEmail.trim());
+      setCreatedCredentials(result);
       setInviteEmail('');
       await loadUsers();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to invite user');
+      setError(err instanceof Error ? err.message : 'Failed to create user');
     } finally {
       setInviting(false);
     }
+  };
+
+  const handleCopyPassphrase = () => {
+    if (!createdCredentials) return;
+    navigator.clipboard.writeText(
+      `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.passphrase}`
+    );
+    setCopiedPassphrase(true);
+    setTimeout(() => setCopiedPassphrase(false), 2000);
   };
 
   const handleRevoke = async (email: string) => {
@@ -237,24 +251,54 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
           {activeTab === 'users' && (
             <>
               <div className="p-4 border-b border-theme">
-                <h3 className="text-sm font-semibold text-base-secondary mb-3">👥 User Management</h3>
+                <h3 className="text-sm font-semibold text-base-secondary mb-3">👥 Create User</h3>
                 <div className="flex gap-2">
                   <input
                     type="email"
-                    placeholder="Email to invite"
+                    placeholder="Email for new user"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreateUser()}
                     className="flex-1 px-3 py-2 bg-surface border border-theme rounded-lg text-base-primary placeholder-gray-400 text-sm focus:outline-none focus:border-sky-500"
                   />
                   <button
-                    onClick={handleInvite}
+                    onClick={handleCreateUser}
                     disabled={inviting || !inviteEmail.trim()}
                     className="px-4 py-2 bg-sky-600 hover:bg-sky-500 rounded-lg text-white text-sm font-medium disabled:opacity-50"
                   >
-                    {inviting ? 'Inviting…' : 'Invite'}
+                    {inviting ? 'Creating…' : 'Create User'}
                   </button>
                 </div>
+
+                {/* Generated credentials display */}
+                {createdCredentials && (
+                  <div className="mt-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--bg-inset, #f0fdf4)', border: '1px solid var(--color-success, #22c55e)' }}>
+                    <p className="text-sm font-medium mb-2" style={{ color: 'var(--color-success, #22c55e)' }}>✅ User created!</p>
+                    <div className="text-xs space-y-1 font-mono" style={{ color: 'var(--text-primary)' }}>
+                      <div>Email: <strong>{createdCredentials.email}</strong></div>
+                      <div>Password: <strong>{createdCredentials.passphrase}</strong></div>
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleCopyPassphrase}
+                        className="px-3 py-1 rounded text-xs font-medium transition-colors"
+                        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                      >
+                        {copiedPassphrase ? '✅ Copied!' : '📋 Copy credentials'}
+                      </button>
+                      <button
+                        onClick={() => setCreatedCredentials(null)}
+                        className="px-3 py-1 rounded text-xs"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <p className="text-[10px] mt-2" style={{ color: 'var(--text-muted)' }}>
+                      Send these credentials to the user. They can change their password after login.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="p-4">

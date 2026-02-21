@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from . import config
+from .wordlist import generate_passphrase
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,37 @@ class UserManager:
             },
             merge=True,
         )
+
+    # ----- password auth -----
+
+    def create_user_with_passphrase(self, email: str, invited_by: str) -> str:
+        """Create a Firebase Auth user with a generated passphrase.
+
+        Returns the passphrase (shown once to admin, never stored in plaintext).
+        Also adds the user to allowed_users.
+        """
+        from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
+
+        passphrase = generate_passphrase(4)
+
+        # Create Firebase Auth user (or update if exists)
+        try:
+            user_record = fb_auth.create_user(
+                email=email,
+                password=passphrase,
+                email_verified=True,
+            )
+            logger.info("Created Firebase Auth user: %s (uid=%s)", email, user_record.uid)
+        except fb_auth.EmailAlreadyExistsError:
+            # User exists — update their password
+            user_record = fb_auth.get_user_by_email(email)
+            fb_auth.update_user(user_record.uid, password=passphrase)
+            logger.info("Reset password for existing user: %s (uid=%s)", email, user_record.uid)
+
+        # Add to allowed_users
+        self.invite_user(email, invited_by)
+
+        return passphrase
 
     # ----- seeding -----
 
