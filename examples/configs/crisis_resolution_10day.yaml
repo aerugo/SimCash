@@ -461,16 +461,35 @@ lsm_config:
 # ============================================================================
 
 cost_rates:
-  # Liquidity opportunity cost: committing full $50K pool costs ~$5,000/day
-  # Creates genuine tradeoff: save on liquidity vs risk unsettled payments
-  # At fraction=0.5: ~$2,500/day (equivalent to 1 deadline penalty)
-  liquidity_cost_per_tick_bps: 10            # ~$50/tick per $50K committed
+  # === RATE STRUCTURE (Castro et al. ordering: r_c > r_d, with rate-based penalties) ===
+  #
+  # r_c (liquidity opportunity cost): 5 bps/tick on committed pool
+  #   Full $50K pool × 100 ticks = $2,500/day. At fraction=0.5: $1,250/day.
+  #   This is deliberately expensive — holding liquidity in settlement has
+  #   real opportunity cost. Agents should seek the minimum fraction that
+  #   still achieves acceptable settlement rates.
+  liquidity_cost_per_tick_bps: 5
 
-  delay_cost_per_tick_per_cent: 0.002        # $0.02 per $100 per tick (~$50 for $500 tx over 50 ticks)
+  # r_d (delay cost): 0.005 per cent per tick
+  #   $400 tx delayed 50 ticks = $100. Moderate — delay is uncomfortable
+  #   but not catastrophic. Accumulated over 20 txs: $400-2000/day.
+  delay_cost_per_tick_per_cent: 0.005
+
+  # r_b (EOD penalty): rate-based, 40% of unsettled transaction amount
+  #   $400 tx unsettled at EOD = $160. Proportional to exposure, not flat.
+  #   5 unsettled txs = $800. This is the sharp penalty for failure.
+  eod_penalty:
+    mode: rate
+    bps_per_event: 4000
+
+  # Deadline penalty: rate-based, 20% of overdue transaction amount
+  #   $400 tx overdue = $80. Applied when tx passes its deadline tick.
+  deadline_penalty:
+    mode: rate
+    bps_per_event: 2000
+
   overdraft_bps_per_tick: 0.8                # ~145% annualized
   collateral_cost_per_tick_bps: 0.0005       # ~9% annualized
-  eod_penalty_per_transaction: 500000        # $5,000 per unsettled tx
-  deadline_penalty: 250000                   # $2,500 per overdue tx
   overdue_delay_multiplier: 5.0              # 5x delay cost when overdue
   split_friction_cost: 7500                  # $75 per split
 
