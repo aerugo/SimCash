@@ -69,7 +69,8 @@ SCENARIO_PACK: list[dict[str, Any]] = [
         "description": "Can AI agents find a Nash equilibrium in the simplest possible setting? With only 2 periods and 2 banks, this minimal scenario isolates the core strategic tension between paying early (costly liquidity) and paying late (deadline risk).",
         "num_agents": 2,
         "ticks_per_day": 2,
-        "scenario": generate_scenario(num_agents=2, ticks_per_day=2, deadline_range=[1, 2]),
+        "scenario": generate_scenario(num_agents=2, ticks_per_day=2, deadline_range=[1, 2],
+                                      liquidity_bps=500),  # r_c=0.1 over 2 ticks
     },
     {
         "id": "2bank_12tick",
@@ -85,7 +86,8 @@ SCENARIO_PACK: list[dict[str, Any]] = [
         "description": "When do agents learn to split liquidity across periods versus concentrating payments? This compact 3-tick scenario creates a tight decision space where the optimal strategy requires balancing immediate release against holding reserves for later, higher-urgency payments.",
         "num_agents": 2,
         "ticks_per_day": 3,
-        "scenario": generate_scenario(num_agents=2, ticks_per_day=3, deadline_range=[1, 3]),
+        "scenario": generate_scenario(num_agents=2, ticks_per_day=3, deadline_range=[1, 3],
+                                      liquidity_bps=333),  # r_c=0.1 over 3 ticks
     },
     {
         "id": "3bank_6tick",
