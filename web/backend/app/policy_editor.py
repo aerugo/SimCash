@@ -5,10 +5,15 @@ import json
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from .auth import get_current_user
+from .user_content import UserContentStore
+
 router = APIRouter(prefix="/api/policies", tags=["policy-editor"])
+
+_store = UserContentStore("custom_policies")
 
 VALID_ACTIONS = frozenset({
     "Release", "Hold", "Split", "Delay", "NoAction",
@@ -20,9 +25,6 @@ COMPOUND_OPS = frozenset({"and", "or", "not"})
 VALID_OPS = COMPARISON_OPS | COMPOUND_OPS
 
 REQUIRED_TOP_LEVEL = {"version", "policy_id", "parameters", "payment_tree"}
-
-# In-memory store for custom policies
-_custom_policies: dict[str, dict[str, Any]] = {}
 
 
 class ValidateRequest(BaseModel):
@@ -68,9 +70,7 @@ def _validate_condition(cond: dict, path: str, errors: list[str], fields: set[st
     """Validate a condition expression (comparison or compound)."""
     op = cond.get("op")
     if op is None:
-        # Provide helpful error suggesting correct format
         keys = sorted(cond.keys())
-        # Check if any key looks like an operator
         possible_ops = [k for k in keys if k in COMPARISON_OPS or k in COMPOUND_OPS]
         if possible_ops:
             suggestion = possible_ops[0]
@@ -155,7 +155,6 @@ def _validate_tree(node: Any, path: str, errors: list[str], actions: set[str], f
 
 def validate_policy_json(json_string: str) -> ValidationResult:
     """Parse and validate a policy JSON string."""
-    # Parse JSON
     try:
         data = json.loads(json_string)
     except json.JSONDecodeError as e:
@@ -166,7 +165,6 @@ def validate_policy_json(json_string: str) -> ValidationResult:
 
     errors: list[str] = []
 
-    # Check required fields
     for field in REQUIRED_TOP_LEVEL:
         if field not in data:
             errors.append(f"Missing required field: '{field}'")
@@ -174,7 +172,6 @@ def validate_policy_json(json_string: str) -> ValidationResult:
     if errors:
         return ValidationResult(valid=False, errors=errors)
 
-    # Validate trees
     actions: set[str] = set()
     fields: set[str] = set()
     trees_present: list[str] = []
@@ -208,7 +205,7 @@ def validate_policy_endpoint(req: ValidateRequest):
 
 
 @router.post("/custom")
-def save_custom_policy(req: SavePolicyRequest):
+def save_custom_policy(req: SavePolicyRequest, uid: str = Depends(get_current_user)):
     """Save a custom policy. Validates first."""
     result = validate_policy_json(req.json_string)
     if not result.valid:
@@ -222,19 +219,49 @@ def save_custom_policy(req: SavePolicyRequest):
         "json_string": req.json_string,
         "summary": result.summary,
     }
-    _custom_policies[policy_id] = entry
-    return entry
+    return _store.save(uid, policy_id, entry)
 
 
 @router.get("/custom")
-def list_custom_policies():
+def list_custom_policies(uid: str = Depends(get_current_user)):
     """List all saved custom policies."""
-    return {"policies": list(_custom_policies.values())}
+    return {"policies": _store.list(uid)}
 
 
 @router.get("/custom/{policy_id}")
-def get_custom_policy(policy_id: str):
+def get_custom_policy(policy_id: str, uid: str = Depends(get_current_user)):
     """Get a specific custom policy by ID."""
-    if policy_id not in _custom_policies:
+    item = _store.get(uid, policy_id)
+    if item is None:
         raise HTTPException(404, detail="Not found")
-    return _custom_policies[policy_id]
+    return item
+
+
+@router.put("/custom/{policy_id}")
+def update_custom_policy(policy_id: str, req: SavePolicyRequest, uid: str = Depends(get_current_user)):
+    """Update an existing custom policy."""
+    existing = _store.get(uid, policy_id)
+    if existing is None:
+        raise HTTPException(404, detail="Not found")
+
+    result = validate_policy_json(req.json_string)
+    if not result.valid:
+        raise HTTPException(400, detail=f"Invalid policy: {'; '.join(result.errors)}")
+
+    data = json.loads(req.json_string)
+    entry = {
+        "id": policy_id,
+        "name": req.name or policy_id,
+        "description": req.description,
+        "json_string": req.json_string,
+        "summary": result.summary,
+    }
+    return _store.save(uid, policy_id, entry)
+
+
+@router.delete("/custom/{policy_id}")
+def delete_custom_policy(policy_id: str, uid: str = Depends(get_current_user)):
+    """Delete a custom policy."""
+    if not _store.delete(uid, policy_id):
+        raise HTTPException(404, detail="Not found")
+    return {"status": "deleted"}

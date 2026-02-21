@@ -2,7 +2,7 @@
 import json
 import pytest
 from fastapi.testclient import TestClient
-from app.policy_editor import validate_policy_json, _custom_policies
+from app.policy_editor import validate_policy_json, _store as _policy_store
 from app.main import app
 
 # ---- Templates (must all pass) ----
@@ -268,9 +268,9 @@ class TestCompoundExpressions:
 class TestCustomPolicyEndpoints:
     @pytest.fixture(autouse=True)
     def _clear_store(self):
-        _custom_policies.clear()
+        _policy_store._memory.clear()
         yield
-        _custom_policies.clear()
+        _policy_store._memory.clear()
 
     @pytest.fixture
     def client(self):

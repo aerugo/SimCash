@@ -26,10 +26,7 @@ from .models import (
     CreateGameRequest,
     CreateSimResponse,
     HumanDecision,
-    ManualPolicy,
-    PolicyRule,
     PresetScenario,
-    SavedScenario,
     ScenarioConfig,
 )
 from .simulation import SimulationManager
@@ -150,10 +147,6 @@ game_storage = GameStorage(
     bucket_name=app_config.GCS_BUCKET,
     storage_mode=app_config.STORAGE_MODE if app_config.STORAGE_MODE != "memory" else "local",
 )
-
-# In-memory stores
-saved_scenarios: dict[str, SavedScenario] = {}
-saved_policies: dict[str, ManualPolicy] = {}
 
 from .prompt_blocks import PromptProfile
 saved_prompt_profiles: dict[str, PromptProfile] = {}
@@ -467,93 +460,6 @@ def get_scenario_library_item(scenario_id: str):
     if not detail:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return detail
-
-
-# ---- Scenario Library CRUD ----
-
-@app.get("/api/scenarios")
-def list_scenarios():
-    return {"scenarios": list(saved_scenarios.values())}
-
-
-@app.post("/api/scenarios")
-def create_scenario(scenario: SavedScenario):
-    scenario.id = str(uuid.uuid4())[:8]
-    saved_scenarios[scenario.id] = scenario
-    return scenario
-
-
-@app.get("/api/scenarios/{scenario_id}")
-def get_scenario(scenario_id: str):
-    if scenario_id not in saved_scenarios:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    return saved_scenarios[scenario_id]
-
-
-@app.put("/api/scenarios/{scenario_id}")
-def update_scenario(scenario_id: str, scenario: SavedScenario):
-    if scenario_id not in saved_scenarios:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    scenario.id = scenario_id
-    saved_scenarios[scenario_id] = scenario
-    return scenario
-
-
-@app.delete("/api/scenarios/{scenario_id}")
-def delete_scenario(scenario_id: str):
-    if scenario_id not in saved_scenarios:
-        raise HTTPException(status_code=404, detail="Scenario not found")
-    del saved_scenarios[scenario_id]
-    return {"status": "deleted"}
-
-
-# ---- Policy Management ----
-
-@app.get("/api/policies")
-def list_policies():
-    return {"policies": list(saved_policies.values())}
-
-
-@app.post("/api/policies")
-def create_policy(policy: ManualPolicy):
-    policy.id = str(uuid.uuid4())[:8]
-    saved_policies[policy.id] = policy
-    return policy
-
-
-@app.post("/api/policies/validate")
-def validate_policy(policy: ManualPolicy):
-    """Validate policy rules syntax."""
-    errors = []
-    valid_operators = ["<", ">", "<=", ">=", "==", "!="]
-    valid_fields = ["balance", "tick", "queue_size", "available_liquidity", "amount"]
-    for i, rule in enumerate(policy.rules):
-        # Simple validation: condition should be "field op value"
-        parts = rule.condition.strip().split()
-        if len(parts) != 3:
-            errors.append(f"Rule {i}: Expected 'field operator value', got '{rule.condition}'")
-            continue
-        field, op, val = parts
-        if field not in valid_fields:
-            errors.append(f"Rule {i}: Unknown field '{field}'. Valid: {valid_fields}")
-        if op not in valid_operators:
-            errors.append(f"Rule {i}: Unknown operator '{op}'. Valid: {valid_operators}")
-        try:
-            float(val)
-        except ValueError:
-            errors.append(f"Rule {i}: Value '{val}' is not a number")
-    return {
-        "valid": len(errors) == 0,
-        "errors": errors,
-    }
-
-
-@app.delete("/api/policies/{policy_id}")
-def delete_policy(policy_id: str):
-    if policy_id not in saved_policies:
-        raise HTTPException(status_code=404, detail="Policy not found")
-    del saved_policies[policy_id]
-    return {"status": "deleted"}
 
 
 # ---- Policy Optimization ----

@@ -5,15 +5,17 @@ import uuid
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from payment_simulator.config.schemas import SimulationConfig  # type: ignore[import-untyped]
 
+from .auth import get_current_user
+from .user_content import UserContentStore
+
 router = APIRouter(prefix="/api/scenarios", tags=["scenario-editor"])
 
-# In-memory store for custom scenarios
-_custom_scenarios: dict[str, dict[str, Any]] = {}
+_store = UserContentStore("custom_scenarios")
 
 
 class ValidateRequest(BaseModel):
@@ -56,11 +58,29 @@ def _extract_summary(config_dict: dict[str, Any], sim_config: SimulationConfig) 
         "features": features,
         "cost_config": {
             "delay_cost_per_tick_per_cent": cost.delay_cost_per_tick_per_cent,
-            "eod_penalty_per_transaction": cost.eod_penalty_per_transaction,
-            "deadline_penalty": cost.deadline_penalty,
+            "eod_penalty": str(cost.eod_penalty),
+            "deadline_penalty": str(cost.deadline_penalty),
             "liquidity_cost_per_tick_bps": cost.liquidity_cost_per_tick_bps,
         },
     }
+
+
+def _validate_yaml(yaml_string: str) -> tuple[dict[str, Any], SimulationConfig]:
+    """Parse and validate YAML, returning (config_dict, SimulationConfig). Raises HTTPException on failure."""
+    try:
+        config_dict = yaml.safe_load(yaml_string)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+
+    if not isinstance(config_dict, dict):
+        raise HTTPException(status_code=400, detail="YAML must be a mapping")
+
+    try:
+        sim_config = SimulationConfig.from_dict(config_dict)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Validation failed: {e}")
+
+    return config_dict, sim_config
 
 
 @router.post("/validate")
@@ -79,11 +99,9 @@ def validate_scenario(req: ValidateRequest):
     try:
         sim_config = SimulationConfig.from_dict(config_dict)
     except Exception as e:
-        # Extract readable error messages from pydantic validation
         errors = []
         err_str = str(e)
         if "validation error" in err_str.lower():
-            # Pydantic v2 errors — extract individual messages
             for line in err_str.split("\n"):
                 line = line.strip()
                 if line and not line.startswith("For further") and line != str(type(e).__name__):
@@ -112,22 +130,9 @@ def validate_scenario(req: ValidateRequest):
 
 
 @router.post("/custom")
-def save_custom_scenario(req: CustomScenarioRequest):
-    """Save a custom scenario to in-memory store."""
-    # Validate first
-    try:
-        config_dict = yaml.safe_load(req.yaml_string)
-    except yaml.YAMLError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
-
-    if not isinstance(config_dict, dict):
-        raise HTTPException(status_code=400, detail="YAML must be a mapping")
-
-    try:
-        sim_config = SimulationConfig.from_dict(config_dict)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Validation failed: {e}")
-
+def save_custom_scenario(req: CustomScenarioRequest, uid: str = Depends(get_current_user)):
+    """Save a new custom scenario."""
+    config_dict, sim_config = _validate_yaml(req.yaml_string)
     scenario_id = str(uuid.uuid4())[:8]
     summary = _extract_summary(config_dict, sim_config)
 
@@ -139,19 +144,48 @@ def save_custom_scenario(req: CustomScenarioRequest):
         "config": config_dict,
         "summary": summary,
     }
-    _custom_scenarios[scenario_id] = entry
-    return entry
+    return _store.save(uid, scenario_id, entry)
 
 
 @router.get("/custom")
-def list_custom_scenarios():
-    """List all saved custom scenarios."""
-    return {"scenarios": list(_custom_scenarios.values())}
+def list_custom_scenarios(uid: str = Depends(get_current_user)):
+    """List all custom scenarios for the current user."""
+    return {"scenarios": _store.list(uid)}
 
 
 @router.get("/custom/{scenario_id}")
-def get_custom_scenario(scenario_id: str):
+def get_custom_scenario(scenario_id: str, uid: str = Depends(get_current_user)):
     """Get a specific custom scenario."""
-    if scenario_id not in _custom_scenarios:
+    item = _store.get(uid, scenario_id)
+    if item is None:
         raise HTTPException(status_code=404, detail="Custom scenario not found")
-    return _custom_scenarios[scenario_id]
+    return item
+
+
+@router.put("/custom/{scenario_id}")
+def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: str = Depends(get_current_user)):
+    """Update an existing custom scenario."""
+    existing = _store.get(uid, scenario_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Custom scenario not found")
+
+    config_dict, sim_config = _validate_yaml(req.yaml_string)
+    summary = _extract_summary(config_dict, sim_config)
+
+    entry = {
+        "id": scenario_id,
+        "name": req.name,
+        "description": req.description,
+        "yaml_string": req.yaml_string,
+        "config": config_dict,
+        "summary": summary,
+    }
+    return _store.save(uid, scenario_id, entry)
+
+
+@router.delete("/custom/{scenario_id}")
+def delete_custom_scenario(scenario_id: str, uid: str = Depends(get_current_user)):
+    """Delete a custom scenario."""
+    if not _store.delete(uid, scenario_id):
+        raise HTTPException(status_code=404, detail="Custom scenario not found")
+    return {"status": "deleted"}
