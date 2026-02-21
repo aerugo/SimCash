@@ -316,53 +316,168 @@ async def stream_optimize(
         yield {"type": "error", "message": error_msg}
         return
 
-    # Parse the accumulated response into a policy
-    try:
-        new_policy = _parse_policy_response(full_text)
-        new_fraction = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+    # Parse and validate the policy, retrying with feedback on validation errors
+    MAX_VALIDATION_RETRIES = 5
+    validation_attempt = 0
+    validation_user_prompt = user_prompt  # may get error feedback appended
 
-        reasoning_text = (
-            f"LLM proposed: fraction {current_fraction:.3f} → {new_fraction:.3f}. "
-            f"Cost was {agent_cost:,}. "
-            f"Breakdown: delay={cost_breakdown['delay_cost']:,}, "
-            f"penalty={cost_breakdown['deadline_penalty']:,}, "
-            f"opportunity={max(0, agent_cost - cost_breakdown['delay_cost'] - cost_breakdown['deadline_penalty']):,}."
+    while True:
+        validation_attempt += 1
+
+        # Parse
+        try:
+            new_policy = _parse_policy_response(full_text)
+        except Exception as e:
+            logger.warning("Failed to parse streamed response for %s: %s", agent_id, e)
+            if validation_attempt < MAX_VALIDATION_RETRIES:
+                # Retry with parse error feedback
+                error_feedback = (
+                    f"\n\n--- VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
+                    f"Your previous response could not be parsed: {e}\n"
+                    f"Please try again with a valid JSON policy block."
+                )
+                validation_user_prompt = user_prompt + error_feedback
+                yield {"type": "chunk", "text": f"\n\n[Parse error, retrying {validation_attempt + 1}/{MAX_VALIDATION_RETRIES}]\n"}
+                logger.warning("Parse error for %s (attempt %d/%d): %s — retrying", agent_id, validation_attempt, MAX_VALIDATION_RETRIES, e)
+
+                # Re-run LLM with feedback
+                full_text, thinking_text, usage_info, _llm_elapsed = await _rerun_llm(
+                    agent, validation_user_prompt, model_settings, agent_id,
+                )
+                continue
+
+            yield {
+                "type": "result",
+                "data": {
+                    "new_policy": None,
+                    "reasoning": f"LLM response could not be parsed for {agent_id}: {e}. Keeping fraction at {current_fraction:.3f}.",
+                    "old_fraction": current_fraction,
+                    "new_fraction": None,
+                    "accepted": False,
+                    "mock": False,
+                    "raw_response": full_text,
+                    "thinking": thinking_text,
+                    "usage": usage_info,
+                    "latency_seconds": round(_llm_elapsed, 1),
+                    "model": llm_config.model,
+                },
+            }
+            return
+
+        # Validate against scenario constraints
+        from .constraint_presets import build_constraints
+        from payment_simulator.ai_cash_mgmt.constraints import ConstraintValidator
+        constraints = build_constraints(constraint_preset, raw_yaml)
+        validator = ConstraintValidator(constraints)
+        validation_result = validator.validate(new_policy)
+
+        if validation_result.is_valid:
+            # Success — emit result
+            new_fraction = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+            reasoning_text = (
+                f"LLM proposed: fraction {current_fraction:.3f} → {new_fraction:.3f}. "
+                f"Cost was {agent_cost:,}. "
+                f"Breakdown: delay={cost_breakdown['delay_cost']:,}, "
+                f"penalty={cost_breakdown['deadline_penalty']:,}, "
+                f"opportunity={max(0, agent_cost - cost_breakdown['delay_cost'] - cost_breakdown['deadline_penalty']):,}."
+            )
+            if validation_attempt > 1:
+                reasoning_text += f" (validated after {validation_attempt} attempts)"
+
+            yield {
+                "type": "result",
+                "data": {
+                    "new_policy": new_policy,
+                    "reasoning": reasoning_text,
+                    "old_fraction": current_fraction,
+                    "new_fraction": new_fraction,
+                    "accepted": True,
+                    "mock": False,
+                    "raw_response": full_text,
+                    "thinking": thinking_text,
+                    "usage": usage_info,
+                    "latency_seconds": round(_llm_elapsed, 1),
+                    "model": llm_config.model,
+                    "validation_attempts": validation_attempt,
+                },
+            }
+            return
+
+        # Validation failed
+        errors_str = "; ".join(validation_result.errors)
+        logger.warning(
+            "Policy validation failed for %s (attempt %d/%d): %s",
+            agent_id, validation_attempt, MAX_VALIDATION_RETRIES, errors_str,
         )
 
-        yield {
-            "type": "result",
-            "data": {
-                "new_policy": new_policy,
-                "reasoning": reasoning_text,
-                "old_fraction": current_fraction,
-                "new_fraction": new_fraction,
-                "accepted": True,
-                "mock": False,
-                "raw_response": full_text,
-                "thinking": thinking_text,
-                "usage": usage_info,
-                "latency_seconds": round(_llm_elapsed, 1),
-                "model": llm_config.model,
-            },
-        }
+        if validation_attempt >= MAX_VALIDATION_RETRIES:
+            # Give up — keep old policy
+            yield {
+                "type": "result",
+                "data": {
+                    "new_policy": None,
+                    "reasoning": f"Policy validation failed after {MAX_VALIDATION_RETRIES} attempts for {agent_id}: {errors_str}. Keeping fraction at {current_fraction:.3f}.",
+                    "old_fraction": current_fraction,
+                    "new_fraction": None,
+                    "accepted": False,
+                    "mock": False,
+                    "raw_response": full_text,
+                    "thinking": thinking_text,
+                    "usage": usage_info,
+                    "latency_seconds": round(_llm_elapsed, 1),
+                    "model": llm_config.model,
+                    "validation_attempts": validation_attempt,
+                },
+            }
+            return
+
+        # Retry with validation error feedback
+        error_feedback = (
+            f"\n\n--- VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
+            f"Your previous policy was invalid. Errors:\n{errors_str}\n\n"
+            f"Please fix these issues and provide a corrected policy."
+        )
+        validation_user_prompt = user_prompt + error_feedback
+        yield {"type": "chunk", "text": f"\n\n[Validation error: {errors_str} — retrying {validation_attempt + 1}/{MAX_VALIDATION_RETRIES}]\n"}
+
+        # Re-run LLM with feedback
+        full_text, thinking_text, usage_info, _llm_elapsed = await _rerun_llm(
+            agent, validation_user_prompt, model_settings, agent_id,
+        )
+
+
+async def _rerun_llm(
+    agent: Any,
+    user_prompt: str,
+    model_settings: dict,
+    agent_id: str,
+) -> tuple[str, str, dict, float]:
+    """Re-run LLM call (non-streaming) for validation retries.
+
+    Returns (full_text, thinking_text, usage_info, elapsed_seconds).
+    """
+    _start = _time.monotonic()
+    try:
+        async with asyncio.timeout(LLM_CALL_TIMEOUT_SECONDS):
+            result = await agent.run(user_prompt, model_settings=model_settings)
+        elapsed = _time.monotonic() - _start
+        full_text = result.output if hasattr(result, 'output') else str(result.data)
+        # Extract usage
+        usage_info = {}
+        if hasattr(result, 'usage') and result.usage:
+            usage_info = {
+                "input_tokens": getattr(result.usage, 'request_tokens', 0) or getattr(result.usage, 'requests', 0),
+                "output_tokens": getattr(result.usage, 'response_tokens', 0) or getattr(result.usage, 'responses', 0),
+            }
+        logger.warning(
+            "Validation retry LLM call for %s: %.1fs, %d chars",
+            agent_id, elapsed, len(full_text),
+        )
+        return full_text, "", usage_info, elapsed
     except Exception as e:
-        logger.warning("Failed to parse streamed response for %s: %s", agent_id, e)
-        yield {
-            "type": "result",
-            "data": {
-                "new_policy": None,
-                "reasoning": f"LLM response could not be parsed for {agent_id}: {e}. Keeping fraction at {current_fraction:.3f}.",
-                "old_fraction": current_fraction,
-                "new_fraction": None,
-                "accepted": False,
-                "mock": False,
-                "raw_response": full_text,
-                "thinking": thinking_text,
-                "usage": usage_info,
-                "latency_seconds": round(_llm_elapsed, 1),
-                "model": llm_config.model,
-            },
-        }
+        elapsed = _time.monotonic() - _start
+        logger.warning("Validation retry LLM call failed for %s: %s", agent_id, e)
+        raise
 
 
 def _format_error_for_user(error: Exception | None, attempts: int) -> str:
