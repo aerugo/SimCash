@@ -58,6 +58,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
   const backoffMsRef = useRef(INITIAL_BACKOFF_MS);
   const pendingQueue = useRef<string[]>([]);
   const autoRunState = useRef<{ active: boolean; speedMs: number }>({ active: false, speedMs: 1000 });
+  const gameCompleteRef = useRef(initialState?.is_complete ?? false);
   const [gameState, setGameState] = useState<GameState | null>(initialState);
   const [connected, setConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -73,12 +74,22 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     const msg: WSMessage = JSON.parse(event.data);
 
     switch (msg.type) {
-      case 'game_state':
-        setGameState(msg.data as GameState);
+      case 'game_state': {
+        const state = msg.data as GameState;
+        setGameState(state);
         setOptimizingAgent(null);
         setOptimizingAgents(new Set());
-        setPhase('idle');
+        // If game is already complete, mark phase and stop reconnecting
+        if (state.is_complete) {
+          setPhase('complete');
+          gameCompleteRef.current = true;
+          // Close WS cleanly — no need to stay connected for a finished game
+          wsRef.current?.close();
+        } else {
+          setPhase('idle');
+        }
         break;
+      }
 
       case 'simulation_running':
         setPhase('simulating');
@@ -132,6 +143,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
         setOptimizingAgents(new Set());
         setPhase('complete');
         autoRunState.current.active = false;
+        gameCompleteRef.current = true;
         break;
 
       case 'auto_run_ended':
@@ -208,6 +220,12 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     ws.onclose = () => {
       if (mountedRef.current) {
         setConnected(false);
+
+        // Don't reconnect completed games — nothing left to do
+        if (gameCompleteRef.current) {
+          setConnectionStatus('disconnected');
+          return;
+        }
 
         if (retryCountRef.current >= MAX_RETRIES) {
           setConnectionStatus('disconnected');

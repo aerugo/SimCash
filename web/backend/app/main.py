@@ -813,7 +813,9 @@ async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
         raise HTTPException(status_code=400, detail="Game is complete")
 
     async with get_game_lock(game_id):
-        day = game.run_day()
+        # Run CPU-heavy simulation in a thread to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        day = await loop.run_in_executor(None, game.run_day)
 
         # Persist day to DuckDB
         from datetime import datetime, timezone
@@ -837,7 +839,7 @@ async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
             day.optimized = True
             _save_game_checkpoint(game)
 
-        return {"day": day.to_dict(), "reasoning": reasoning, "game": game.get_state()}
+        return {"day": day.to_summary_dict(), "reasoning": reasoning, "game": game.get_state()}
 
 
 @app.post("/api/games/{game_id}/auto")
@@ -848,15 +850,17 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
         raise HTTPException(status_code=404, detail="Game not found")
 
     async with get_game_lock(game_id):
+        loop = asyncio.get_event_loop()
         days = []
         all_reasoning = []
         while not game.is_complete:
-            day = game.run_day()
+            # Run CPU-heavy simulation in a thread to avoid blocking the event loop
+            day = await loop.run_in_executor(None, game.run_day)
             reasoning = {}
             if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
                 reasoning = await game.optimize_policies()
                 day.optimized = True
-            days.append({"day": day.to_dict(), "reasoning": reasoning})
+            days.append({"day": day.to_summary_dict(), "reasoning": reasoning})
             all_reasoning.append(reasoning)
 
         return {"days": days, "game": game.get_state()}
@@ -1067,7 +1071,9 @@ async def game_ws(websocket: WebSocket, game_id: str):
                 if existing and not existing.done():
                     logger.info("Cancelling existing auto-run task for game %s (dedup)", game_id)
                     existing.cancel()
-                if not running and not game.is_complete:
+                if game.is_complete:
+                    await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+                elif not running:
                     running = True
                     run_task = asyncio.create_task(auto_run())
                     game_auto_tasks[game_id] = run_task
