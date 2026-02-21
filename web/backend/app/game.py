@@ -484,27 +484,38 @@ class Game:
                         elif event["type"] == "result":
                             result = event["data"]
                         elif event["type"] == "error":
-                            result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
-                            result["fallback_reason"] = event["message"]
+                            error_msg = event["message"]
+                            logger.error("LLM optimization failed permanently for %s: %s", aid, error_msg)
                             await send_fn({
-                                "type": "agent_fallback",
+                                "type": "agent_error",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
-                                "message": f"LLM error, using simulated AI: {event['message'][:100]}",
+                                "message": error_msg,
+                                "fatal": True,
                             })
+                            raise RuntimeError(f"LLM optimization failed for {aid}: {error_msg}")
+                except RuntimeError:
+                    raise  # Re-raise LLM failures — do NOT fall back to mock
                 except Exception as e:
                     logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
-                    result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
-                    result["fallback_reason"] = str(e)
                     await send_fn({
-                        "type": "agent_fallback",
+                        "type": "agent_error",
                         "day": last_day.day_num,
                         "agent_id": aid,
-                        "message": f"LLM timeout, using simulated AI",
+                        "message": str(e)[:200],
+                        "fatal": True,
                     })
+                    raise RuntimeError(f"LLM optimization failed for {aid}: {e}")
 
                 if result is None:
-                    result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                    await send_fn({
+                        "type": "agent_error",
+                        "day": last_day.day_num,
+                        "agent_id": aid,
+                        "message": "No result from LLM after all retries",
+                        "fatal": True,
+                    })
+                    raise RuntimeError(f"LLM optimization produced no result for {aid}")
 
                 # Bootstrap evaluation gate
                 if evaluator and result.get("new_policy"):
@@ -521,12 +532,27 @@ class Game:
         # Fire all agent tasks concurrently
         _par_start = _time.monotonic()
         tasks = [asyncio.create_task(optimize_one_agent(aid)) for aid in self.agent_ids]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
         _par_elapsed = _time.monotonic() - _par_start
         logger.warning(
             "Parallel optimization for %d agents completed in %.1fs",
             len(self.agent_ids), _par_elapsed,
         )
+
+        # Check for fatal LLM failures — abort experiment if any agent failed
+        for i, r in enumerate(gather_results):
+            if isinstance(r, Exception):
+                aid = self.agent_ids[i]
+                error_msg = str(r)
+                logger.error("Agent %s optimization failed fatally: %s", aid, error_msg)
+                await send_fn({
+                    "type": "experiment_error",
+                    "message": f"Experiment stopped: LLM optimization failed for {aid} after all retries. {error_msg}",
+                    "fatal": True,
+                })
+                # Mark game as stopped so auto-run doesn't continue
+                self.auto_run = False
+                return  # Do NOT apply any results — abort this round
 
         # Apply results (order doesn't matter — agents are isolated)
         for aid in self.agent_ids:
@@ -616,13 +642,10 @@ class Game:
             if self.simulated_ai:
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
             else:
-                try:
-                    result = await _real_optimize(aid, self.policies[aid], last_day,
-                                                  self.days, self.raw_yaml,
-                                                  constraint_preset=self.constraint_preset)
-                except Exception as e:
-                    logger.warning("Real LLM optimization failed for %s, falling back to mock: %s", aid, e)
-                    result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
+                # Real LLM mode — never fall back to mock. Fail hard.
+                result = await _real_optimize(aid, self.policies[aid], last_day,
+                                              self.days, self.raw_yaml,
+                                              constraint_preset=self.constraint_preset)
 
             if evaluator and result.get("new_policy"):
                 result = self._run_bootstrap(evaluator, aid, result)

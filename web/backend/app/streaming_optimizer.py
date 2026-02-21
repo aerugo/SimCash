@@ -23,9 +23,9 @@ LLM_CALL_TIMEOUT_SECONDS = 180
 LLM_CHUNK_STALL_SECONDS = 90
 
 # Retry settings for transient errors (429 RESOURCE_EXHAUSTED, 503, etc.)
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 INITIAL_BACKOFF_SECONDS = 2.0
-MAX_BACKOFF_SECONDS = 30.0
+MAX_BACKOFF_SECONDS = 60.0
 
 API_DIR = Path(__file__).resolve().parents[3] / "api"
 sys.path.insert(0, str(API_DIR))

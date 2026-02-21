@@ -12,6 +12,8 @@ export type WSMessageType =
   | 'optimization_complete'
   | 'agent_retry'
   | 'agent_fallback'
+  | 'agent_error'
+  | 'experiment_error'
   | 'game_complete'
   | 'auto_run_ended'
   | 'error';

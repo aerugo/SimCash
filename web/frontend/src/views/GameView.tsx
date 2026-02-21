@@ -156,7 +156,14 @@ export function GameView() {
           actLog.push('agent_retry', `${msg.agent_id}: retrying (${msg.reason ?? 'rate limit'})...`, 'warning');
           break;
         case 'agent_fallback':
-          actLog.push('agent_fallback', `${msg.agent_id}: ${msg.message ?? 'using simulated AI'}`, 'error');
+          actLog.push('agent_fallback', `${msg.agent_id}: ${msg.message ?? 'LLM failed'}`, 'error');
+          break;
+        case 'agent_error':
+          actLog.push('error', `❌ ${msg.agent_id}: ${msg.message ?? 'LLM optimization failed'}`, 'error');
+          break;
+        case 'experiment_error':
+          actLog.push('error', `🛑 ${msg.message ?? 'Experiment stopped due to LLM failure'}`, 'error');
+          setExperimentError(msg.message ?? 'Experiment stopped due to LLM failure');
           break;
         case 'game_complete':
           actLog.push('experiment_complete', `All rounds complete!`, 'success');
@@ -170,6 +177,7 @@ export function GameView() {
   }, [onRawMessage]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [experimentError, setExperimentError] = useState<string | null>(null);
   const [replayData, setReplayData] = useState<{
     dayNum: number;
     ticks: { tick: number; events: Record<string, unknown>[]; balances: Record<string, number> }[];
@@ -229,6 +237,7 @@ export function GameView() {
   }, [replayPlaying, replayData]);
 
   const handleAutoRun = () => {
+    setExperimentError(null);
     setAutoRunning(true);
     autoRun(SPEED_MS[speed]);
   };
@@ -290,7 +299,7 @@ export function GameView() {
         {/* Action buttons — wrap on mobile */}
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={step}
+            onClick={() => { setExperimentError(null); step(); }}
             disabled={!connected || autoRunning || gameState.is_complete}
             className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm font-medium text-white"
             data-tour="next-btn"
@@ -388,19 +397,16 @@ export function GameView() {
       {/* Activity Feed */}
       <ActivityFeed events={actLog.events} />
 
-      {/* LLM error banner */}
-      {(() => {
-        const allResults = Object.values(gameState.reasoning_history ?? {}).flat();
-        const fallbacks = allResults.filter(r => r.fallback_reason);
-        if (fallbacks.length === 0) return null;
-        const reason = fallbacks[0].fallback_reason || '';
-        const short = reason.length > 120 ? reason.slice(0, 120) + '…' : reason;
-        return (
-          <div className="bg-amber-900/30 border border-amber-700 rounded-lg px-4 py-2 text-sm text-amber-300">
-            ⚠️ <strong>LLM calls are failing</strong> — falling back to simulated AI. {short}
+      {/* Fatal experiment error banner */}
+      {experimentError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-sm" style={{ color: 'var(--color-danger)' }}>
+          🛑 <strong>Experiment stopped</strong> — {experimentError}
+          <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+            The experiment was halted because the AI model could not respond after all retries.
+            You can try restarting with ▶ Next or ⏩ Auto.
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="w-full bg-slate-800 rounded-full h-2" data-tour="progress-bar">
