@@ -918,6 +918,13 @@ async def game_ws(websocket: WebSocket, game_id: str):
         await websocket.close()
         return
 
+    # Short-circuit completed games — send state and close immediately.
+    # Prevents reconnection storms from old browser tabs.
+    if game.is_complete:
+        await websocket.send_json({"type": "game_complete", "data": game.get_state()})
+        await websocket.close()
+        return
+
     running = False
     speed_ms = 1000
 

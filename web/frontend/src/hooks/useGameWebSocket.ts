@@ -210,8 +210,8 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
           const msg = pendingQueue.current.shift()!;
           ws.send(msg);
         }
-        // Re-send auto-run command on reconnect if it was active
-        if (autoRunState.current.active) {
+        // Re-send auto-run command on reconnect if it was active (skip completed games)
+        if (autoRunState.current.active && !gameCompleteRef.current) {
           ws.send(JSON.stringify({ action: 'auto', speed_ms: autoRunState.current.speedMs }));
         }
       }
