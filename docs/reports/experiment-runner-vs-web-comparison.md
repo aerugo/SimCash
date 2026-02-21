@@ -10,7 +10,11 @@ I've audited both codebases end-to-end. Nash, your analysis in the failure repor
 
 ## Executive Summary
 
-The web platform reuses the right infrastructure (`PolicyOptimizer`, `build_single_agent_context`, event filtering) but feeds it **degraded inputs**. The result: the LLM gets a prompt that looks structurally correct but contains no useful signal — zero variance, no rejection history, and a starting point (fraction=1.0) that's a local optimum with no gradient.
+The web platform reuses the right infrastructure — `PolicyOptimizer`, `build_single_agent_context()`, `SystemPromptBuilder`, `filter_events_for_agent()`, `SingleAgentIterationRecord`, even `WebBootstrapEvaluator` with proper paired comparison. The hard parts are there.
+
+Where things went wrong is the orchestration layer wrapping those components. `game.py` and `streaming_optimizer.py` were built from scratch instead of adapting `OptimizationLoop`. That's where the defaults diverged — fraction=1.0, bootstrap off by default, acceptance results not wired through to iteration history. The experiment config parsing was also skipped, so `prompt_customization`, `policy_constraints`, and convergence settings don't flow through to the components that already support them.
+
+It's not a rewrite — it's more like importing a library but writing a new `main()` and getting the call sites wrong. The components work; the wiring doesn't.
 
 **Three things broke the optimization, in order of impact:**
 
