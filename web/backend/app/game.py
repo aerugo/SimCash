@@ -1135,6 +1135,12 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
             raw = str(result.output)
             # Parse the raw response into a policy dict — same as original generate_policy
             parsed = client.parse_policy(raw)
+            if not isinstance(parsed, dict):
+                raise TypeError(
+                    f"_maas_generate_policy must return dict, got {type(parsed).__name__}. "
+                    f"This breaks PolicyOptimizer.optimize() which passes the return value "
+                    f"to ConstraintValidator.validate()."
+                )
             return parsed
 
         client.generate_policy = _maas_generate_policy
