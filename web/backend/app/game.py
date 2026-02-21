@@ -466,22 +466,42 @@ class Game:
                                 "text": event["text"],
                             })
                         elif event["type"] == "retry":
-                            # Notify frontend of retry
+                            # Notify frontend of retry (both as chunk for streaming display and as dedicated event)
                             await send_fn({
                                 "type": "optimization_chunk",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
                                 "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n",
                             })
+                            await send_fn({
+                                "type": "agent_retry",
+                                "day": last_day.day_num,
+                                "agent_id": aid,
+                                "reason": event["reason"][:120],
+                                "attempt": event["attempt"],
+                                "max_retries": event["max_retries"],
+                            })
                         elif event["type"] == "result":
                             result = event["data"]
                         elif event["type"] == "error":
                             result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                             result["fallback_reason"] = event["message"]
+                            await send_fn({
+                                "type": "agent_fallback",
+                                "day": last_day.day_num,
+                                "agent_id": aid,
+                                "message": f"LLM error, using simulated AI: {event['message'][:100]}",
+                            })
                 except Exception as e:
                     logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                     result["fallback_reason"] = str(e)
+                    await send_fn({
+                        "type": "agent_fallback",
+                        "day": last_day.day_num,
+                        "agent_id": aid,
+                        "message": f"LLM timeout, using simulated AI",
+                    })
 
                 if result is None:
                     result = _mock_optimize(aid, self.policies[aid], last_day, self.days)

@@ -11,6 +11,8 @@ import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
 import { useTour } from '../hooks/useTour';
 import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
+import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
+import type { WSMessage } from '../hooks/useGameWebSocket';
 
 const AGENT_COLORS = ['#38bdf8', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#facc15', '#94a3b8', '#e879f9'];
 
@@ -67,8 +69,82 @@ export function GameView() {
   }, [gameId, contextGameState, fetchedState]);
 
   // ALL hooks must be called before any conditional returns (React rules of hooks)
-  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop, onRawMessage } = useGameWebSocket(gameId, initialState);
   void _optimizingAgent; // kept for API compat
+
+  // Activity feed
+  const actLog = useActivityLog();
+  const simStartTimeRef = useRef<number>(0);
+  const simEventIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return onRawMessage((msg: WSMessage) => {
+      const d = msg.data as Record<string, unknown> | undefined;
+      switch (msg.type) {
+        case 'simulation_running':
+          simStartTimeRef.current = Date.now();
+          simEventIdRef.current = actLog.push(
+            'simulation_running',
+            `Simulating round ${((msg.day as number) ?? 0) + 1}...`,
+            'info',
+            true,
+          );
+          break;
+        case 'simulation_progress':
+          // Update the active simulation event with elapsed time
+          break;
+        case 'day_complete': {
+          if (simEventIdRef.current) actLog.deactivate(simEventIdRef.current);
+          const elapsed = Math.round((Date.now() - simStartTimeRef.current) / 1000);
+          const totalCost = d?.total_cost as number | undefined;
+          actLog.push(
+            'simulation_complete',
+            `Round complete in ${elapsed}s` + (totalCost != null ? ` — total cost: ${Math.round(totalCost).toLocaleString()}` : ''),
+            'success',
+          );
+          break;
+        }
+        case 'optimization_start':
+          actLog.push('agent_thinking', `${msg.agent_id}: analyzing results...`, 'info', true);
+          break;
+        case 'optimization_complete': {
+          const result = d as Record<string, unknown> | undefined;
+          const accepted = result?.accepted;
+          const oldFrac = result?.old_fraction as number | undefined;
+          const newFrac = result?.new_fraction as number | undefined;
+          const fallback = result?.fallback_reason as string | undefined;
+          let detail = '';
+          if (fallback) {
+            detail = ` (fallback: ${fallback.slice(0, 60)})`;
+          } else if (accepted && oldFrac != null && newFrac != null) {
+            detail = ` (fraction ${oldFrac.toFixed(3)} → ${newFrac.toFixed(3)})`;
+          } else if (!accepted) {
+            const reason = result?.rejection_reason as string | undefined;
+            detail = reason ? ` (rejected: ${reason.slice(0, 60)})` : ' (rejected)';
+          }
+          actLog.push(
+            'agent_done',
+            `${msg.agent_id}: policy ${accepted ? 'updated' : 'rejected'}${detail}`,
+            fallback ? 'warning' : accepted ? 'success' : 'info',
+          );
+          break;
+        }
+        case 'agent_retry':
+          actLog.push('agent_retry', `${msg.agent_id}: retrying (${msg.reason ?? 'rate limit'})...`, 'warning');
+          break;
+        case 'agent_fallback':
+          actLog.push('agent_fallback', `${msg.agent_id}: ${msg.message ?? 'using simulated AI'}`, 'error');
+          break;
+        case 'game_complete':
+          actLog.push('experiment_complete', `All rounds complete!`, 'success');
+          break;
+        case 'error':
+          actLog.push('error', msg.message ?? 'Unknown error', 'error');
+          break;
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRawMessage]);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [replayData, setReplayData] = useState<{
@@ -286,6 +362,9 @@ export function GameView() {
         </div>
       </div>
 
+      {/* Activity Feed */}
+      <ActivityFeed events={actLog.events} />
+
       {/* LLM error banner */}
       {(() => {
         const allResults = Object.values(gameState.reasoning_history ?? {}).flat();
@@ -317,9 +396,7 @@ export function GameView() {
       )}
 
       {phase === 'simulating' && (
-        <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
-          <span className="text-sm">⚙️ {'Simulating Round'} {(simulatingDay ?? 0) + 1}...</span>
-        </div>
+        <SimulatingBanner day={(simulatingDay ?? 0) + 1} />
       )}
       {phase === 'optimizing' && optimizingAgents.size > 0 && (
         <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 space-y-3">
@@ -876,6 +953,20 @@ export function GameView() {
       {tour.state.showCompletion && (
         <TourCompletionNote onDismiss={tour.dismissCompletion} />
       )}
+    </div>
+  );
+}
+
+function SimulatingBanner({ day }: { day: number }) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    setElapsed(0);
+    const t = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [day]);
+  return (
+    <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
+      <span className="text-sm">⚙️ Simulating Round {day}… ({elapsed}s elapsed)</span>
     </div>
   );
 }

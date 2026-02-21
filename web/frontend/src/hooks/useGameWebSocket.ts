@@ -5,10 +5,13 @@ import { getIdToken } from '../firebase';
 export type WSMessageType =
   | 'game_state'
   | 'simulation_running'
+  | 'simulation_progress'
   | 'day_complete'
   | 'optimization_start'
   | 'optimization_chunk'
   | 'optimization_complete'
+  | 'agent_retry'
+  | 'agent_fallback'
   | 'game_complete'
   | 'auto_run_ended'
   | 'error';
@@ -44,6 +47,8 @@ interface UseGameWebSocketReturn {
   rerun: (day?: number) => void;
   autoRun: (speedMs?: number) => void;
   stop: () => void;
+  /** Register a callback to receive every raw WS message (for activity feed). */
+  onRawMessage: (cb: (msg: WSMessage) => void) => () => void;
 }
 
 const MAX_RETRIES = 10;
@@ -70,8 +75,16 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
   const [lastDay, setLastDay] = useState<DayResult | null>(null);
   const [streamingText, setStreamingText] = useState<Record<string, string>>({});
 
+  const rawListeners = useRef<Set<(msg: WSMessage) => void>>(new Set());
+  const onRawMessage = useCallback((cb: (msg: WSMessage) => void) => {
+    rawListeners.current.add(cb);
+    return () => { rawListeners.current.delete(cb); };
+  }, []);
+
   const handleMessage = useCallback((event: MessageEvent) => {
     const msg: WSMessage = JSON.parse(event.data);
+    // Notify raw listeners
+    for (const cb of rawListeners.current) { try { cb(msg); } catch {} }
 
     switch (msg.type) {
       case 'game_state': {
@@ -294,5 +307,5 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     send('stop');
   }, [send]);
 
-  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop };
+  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop, onRawMessage };
 }
