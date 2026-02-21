@@ -64,6 +64,56 @@ class SingleAgentContextBuilder:
         """
         self.context = context
 
+    def build_blocks(self) -> list:
+        """Build individual prompt blocks instead of a single string.
+
+        Returns a list of PromptBlock instances (imported from web backend).
+        Each block corresponds to one section of the user prompt.
+        """
+        # Import PromptBlock — works when called from web backend context
+        # (streaming_optimizer adds the web backend to sys.path)
+        try:
+            from app.prompt_blocks import PromptBlock
+        except ImportError:
+            # Fallback: construct a simple dataclass-like namedtuple
+            from dataclasses import dataclass, field
+            from typing import Any
+
+            @dataclass
+            class PromptBlock:  # type: ignore[no-redef]
+                id: str
+                name: str
+                category: str
+                source: str
+                content: str
+                token_estimate: int
+                enabled: bool = True
+                options: dict = field(default_factory=dict)
+
+        section_map = [
+            ("usr_header", "Header", "dynamic", self._build_header),
+            ("usr_current_state", "Current State", "dynamic", self._build_current_state_summary),
+            ("usr_cost_analysis", "Cost Analysis", "dynamic", self._build_cost_analysis),
+            ("usr_optimization_guidance", "Optimization Guidance", "dynamic", self._build_optimization_guidance),
+            ("usr_simulation_trace", "Simulation Trace", "dynamic", self._build_bootstrap_samples_section),
+            ("usr_iteration_history", "Iteration History", "dynamic", self._build_iteration_history_section),
+            ("usr_parameter_trajectories", "Parameter Trajectories", "dynamic", self._build_parameter_trajectory_section),
+            ("usr_final_instructions", "Final Instructions", "static", self._build_final_instructions),
+        ]
+        blocks = []
+        for block_id, name, source, builder_fn in section_map:
+            content = builder_fn()
+            if content:
+                blocks.append(PromptBlock(
+                    id=block_id,
+                    name=name,
+                    category="user",
+                    source=source,
+                    content=content,
+                    token_estimate=len(content) // 4,
+                ))
+        return blocks
+
     def build(self) -> str:
         """Build the complete single-agent context prompt.
 

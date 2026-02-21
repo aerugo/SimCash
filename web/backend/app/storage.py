@@ -67,6 +67,21 @@ class GameStorage:
                 created_at TIMESTAMP DEFAULT current_timestamp
             )
         """)
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS optimization_prompts (
+                day_num INTEGER,
+                agent_id TEXT,
+                block_id TEXT,
+                block_name TEXT,
+                category TEXT,
+                source TEXT,
+                content TEXT,
+                token_estimate INTEGER,
+                enabled BOOLEAN,
+                options TEXT,
+                PRIMARY KEY (day_num, agent_id, block_id)
+            )
+        """)
         con.close()
         return p
 

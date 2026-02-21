@@ -43,6 +43,13 @@ def _is_retryable(error: Exception) -> bool:
     return any(code in msg for code in ("429", "resource_exhausted", "503", "unavailable", "deadline_exceeded", "connection reset", "timeout", "cancel scope"))
 
 
+def _attach_llm_response(structured_prompt, full_text: str) -> None:
+    """Attach LLM response text to a StructuredPrompt (mutates in place)."""
+    if structured_prompt and full_text:
+        structured_prompt.llm_response = full_text
+        structured_prompt.llm_response_tokens = len(full_text) // 4
+
+
 def _create_agent(llm_config: Any, system_prompt: str) -> Any:
     """Create a pydantic-ai Agent, handling MaaS models (GLM-5 etc) with custom publisher/region."""
     from pydantic_ai import Agent
@@ -84,7 +91,8 @@ def _build_optimization_prompt(
     """Build system prompt and user prompt for optimization.
 
     Returns (system_prompt, user_prompt, context) where context holds
-    current_fraction, agent_cost, cost_breakdown for result formatting.
+    current_fraction, agent_cost, cost_breakdown, and structured_prompt
+    for result formatting and prompt persistence.
     """
     from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
     from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
@@ -95,8 +103,10 @@ def _build_optimization_prompt(
         SingleAgentIterationRecord,
     )
     from payment_simulator.ai_cash_mgmt.prompts.user_prompt_builder import UserPromptBuilder
-    from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import build_single_agent_context
+    from payment_simulator.ai_cash_mgmt.prompts.single_agent_context import build_single_agent_context, SingleAgentContextBuilder
+    from payment_simulator.ai_cash_mgmt.prompts.context_types import SingleAgentContext
     from .constraint_presets import build_constraints
+    from .prompt_blocks import PromptBlock, StructuredPrompt
 
     constraints = build_constraints(constraint_preset, raw_yaml)
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
@@ -188,10 +198,58 @@ Current policy:
 Generate an improved policy that reduces total cost.
 Output ONLY the JSON policy, no explanation."""
 
+    # Build structured prompt with named blocks
+    blocks: list[PromptBlock] = []
+
+    # System prompt as a single block (Phase 2 will decompose further)
+    blocks.append(PromptBlock(
+        id="sys_full", name="System Prompt", category="system",
+        source="static", content=system_prompt,
+        token_estimate=len(system_prompt) // 4,
+    ))
+
+    # User prompt blocks from the context builder
+    sa_context = SingleAgentContext(
+        agent_id=agent_id,
+        current_iteration=len(all_days),
+        current_policy=current_policy,
+        current_metrics=current_metrics,
+        iteration_history=iteration_history,
+        simulation_trace=simulation_trace,
+        sample_seed=last_day.seed,
+        sample_cost=agent_cost,
+        mean_cost=agent_cost,
+        cost_std=last_day_cost_std,
+        cost_breakdown=cost_breakdown,
+        cost_rates=cost_rates,
+    )
+    builder = SingleAgentContextBuilder(sa_context)
+    user_blocks = builder.build_blocks()
+    blocks.extend(user_blocks)
+
+    # Policy section block
+    blocks.append(PromptBlock(
+        id="usr_policy_section", name="Current Policy",
+        category="user", source="dynamic",
+        content=policy_section,
+        token_estimate=len(policy_section) // 4,
+    ))
+
+    total_tokens = sum(b.token_estimate for b in blocks)
+    profile_hash = StructuredPrompt.compute_profile_hash(blocks)
+    structured_prompt = StructuredPrompt(
+        blocks=blocks,
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        total_tokens=total_tokens,
+        profile_hash=profile_hash,
+    )
+
     context = {
         "current_fraction": current_fraction,
         "agent_cost": agent_cost,
         "cost_breakdown": cost_breakdown,
+        "structured_prompt": structured_prompt,
     }
     return system_prompt, user_prompt, context
 
@@ -230,6 +288,7 @@ async def stream_optimize(
     current_fraction = ctx["current_fraction"]
     agent_cost = ctx["agent_cost"]
     cost_breakdown = ctx["cost_breakdown"]
+    structured_prompt = ctx.get("structured_prompt")  # StructuredPrompt instance
 
     # Get LLM config
     from .settings import settings_manager
@@ -365,6 +424,7 @@ async def stream_optimize(
                 )
                 continue
 
+            _attach_llm_response(structured_prompt, full_text)
             yield {
                 "type": "result",
                 "data": {
@@ -379,6 +439,7 @@ async def stream_optimize(
                     "usage": usage_info,
                     "latency_seconds": round(_llm_elapsed, 1),
                     "model": llm_config.model,
+                    "structured_prompt": structured_prompt.to_dict() if structured_prompt else None,
                 },
             }
             return
@@ -403,6 +464,7 @@ async def stream_optimize(
             if validation_attempt > 1:
                 reasoning_text += f" (validated after {validation_attempt} attempts)"
 
+            _attach_llm_response(structured_prompt, full_text)
             yield {
                 "type": "result",
                 "data": {
@@ -418,6 +480,7 @@ async def stream_optimize(
                     "latency_seconds": round(_llm_elapsed, 1),
                     "model": llm_config.model,
                     "validation_attempts": validation_attempt,
+                    "structured_prompt": structured_prompt.to_dict() if structured_prompt else None,
                 },
             }
             return
@@ -431,6 +494,7 @@ async def stream_optimize(
 
         if validation_attempt >= MAX_VALIDATION_RETRIES:
             # Give up — keep old policy
+            _attach_llm_response(structured_prompt, full_text)
             yield {
                 "type": "result",
                 "data": {
@@ -446,6 +510,7 @@ async def stream_optimize(
                     "latency_seconds": round(_llm_elapsed, 1),
                     "model": llm_config.model,
                     "validation_attempts": validation_attempt,
+                    "structured_prompt": structured_prompt.to_dict() if structured_prompt else None,
                 },
             }
             return

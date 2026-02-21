@@ -1474,6 +1474,54 @@ def get_policy_diff(
     }
 
 
+# ---- Prompt Anatomy API ----
+
+@app.get("/api/games/{game_id}/prompts/{day_num}/{agent_id}")
+def get_prompt(
+    game_id: str,
+    day_num: int,
+    agent_id: str,
+    uid: str = Depends(get_optional_user),
+):
+    """Get the structured prompt for a specific optimization round/agent."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if day_num < 0 or day_num >= len(game.days):
+        raise HTTPException(status_code=400, detail=f"day_num={day_num} out of range")
+    day = game.days[day_num]
+    if agent_id not in game.agent_ids:
+        raise HTTPException(status_code=400, detail=f"Unknown agent: {agent_id}")
+    prompt_data = day.optimization_prompts.get(agent_id)
+    if not prompt_data:
+        raise HTTPException(status_code=404, detail="No prompt data for this round/agent")
+    return prompt_data
+
+
+@app.get("/api/games/{game_id}/prompts")
+def list_prompts(
+    game_id: str,
+    uid: str = Depends(get_optional_user),
+):
+    """List all optimization prompts with metadata (no full content)."""
+    game = game_manager.get(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    prompts = []
+    for d in game.days:
+        if d.optimization_prompts:
+            for agent_id, prompt_data in d.optimization_prompts.items():
+                prompts.append({
+                    "day": d.day_num,
+                    "agent_id": agent_id,
+                    "total_tokens": prompt_data.get("total_tokens", 0),
+                    "profile_hash": prompt_data.get("profile_hash", ""),
+                    "num_blocks": len(prompt_data.get("blocks", [])),
+                    "llm_response_tokens": prompt_data.get("llm_response_tokens", 0),
+                })
+    return {"prompts": prompts}
+
+
 # ---- Static Frontend Serving (must be LAST — catch-all mount) ----
 
 from fastapi.staticfiles import StaticFiles

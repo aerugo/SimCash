@@ -53,6 +53,7 @@ class GameDay:
         self.per_agent_cost_std = per_agent_cost_std or {}  # std dev from multi-seed eval
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
+        self.optimization_prompts: dict[str, dict] = {}  # agent_id → StructuredPrompt.to_dict()
 
         # Cache settlement stats — computed once from events, persisted in checkpoints
         if event_summary is not None:
@@ -121,6 +122,8 @@ class GameDay:
             "event_summary": self._event_summary,
             "total_arrivals": self._total_arrivals,
             "total_settled": self._total_settled,
+            "has_prompts": bool(self.optimization_prompts),
+            "prompt_agents": list(self.optimization_prompts.keys()),
         }
 
 
@@ -729,6 +732,7 @@ class Game:
         # Apply results (order doesn't matter — agents are isolated)
         for aid in self.agent_ids:
             if aid in results:
+                self._store_prompt(last_day, aid, results[aid])
                 self._apply_result(aid, results[aid])
 
     def _run_bootstrap(self, evaluator, aid: str, result: dict) -> dict:
@@ -766,6 +770,12 @@ class Game:
             result["new_policy"] = None
             result["new_fraction"] = None
         return result
+
+    def _store_prompt(self, day: 'GameDay', aid: str, result: dict) -> None:
+        """Store structured prompt data from optimization result on the day."""
+        sp = result.get("structured_prompt")
+        if sp:
+            day.optimization_prompts[aid] = sp
 
     def _apply_result(self, aid: str, result: dict) -> None:
         """Apply an optimization result: update policy and record history.
@@ -925,6 +935,7 @@ class Game:
             "per_agent_costs": day.per_agent_costs,
             "per_agent_cost_std": day.per_agent_cost_std,
             "optimized": day.optimized,
+            "optimization_prompts": day.optimization_prompts,
         }
 
     @classmethod
@@ -973,6 +984,7 @@ class Game:
                 total_settled=day_data.get("settlement_stats", {}).get("total_settled"),
                 per_agent_cost_std=day_data.get("per_agent_cost_std", {}),
             )
+            day.optimization_prompts = day_data.get("optimization_prompts", {})
             game.days.append(day)
 
         return game
