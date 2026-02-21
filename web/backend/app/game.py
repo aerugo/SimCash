@@ -847,6 +847,8 @@ class Game:
                 continue
             aid, result = item
             self._apply_result(aid, result)
+            if last_day:
+                self._store_prompt(last_day, aid, result)
             reasoning[aid] = result
 
         return reasoning
