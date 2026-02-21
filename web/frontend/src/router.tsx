@@ -18,6 +18,7 @@ import { LibraryView } from './views/LibraryView';
 import { useGameContext } from './GameContext';
 import { useAuthInfo } from './AuthInfoContext';
 import { LoginPrompt } from './components/LoginPrompt';
+import { LoginPage } from './components/LoginPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { isGuest } = useAuthInfo();
@@ -97,6 +98,7 @@ export const router = createBrowserRouter([
       { path: 'simulation/replay', element: <SimReplayRoute /> },
       { path: 'simulation/analysis', element: <SimAnalysisRoute /> },
       { path: 'simulation/library', element: <SimLibraryRoute /> },
+      { path: 'login', element: <LoginPage /> },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

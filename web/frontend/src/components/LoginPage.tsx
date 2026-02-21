@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { signInWithPassword } from '../firebase';
 
@@ -6,11 +7,17 @@ const page = "min-h-screen flex items-center justify-center";
 const pageStyle: React.CSSProperties = { backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' };
 
 export function LoginPage({ accessDenied }: { accessDenied?: boolean }) {
-  const { signIn, loading } = useAuth();
+  const { user, signIn, loading } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (user && !loading) navigate('/', { replace: true });
+  }, [user, loading, navigate]);
 
   const handlePasswordLogin = async () => {
     if (!email.trim() || !password.trim()) return;

@@ -7,7 +7,7 @@ import { AuthInfoContext } from './AuthInfoContext';
 import { checkAdmin } from './api';
 
 function AppContent() {
-  const { user, loading, signIn, signOut: handleAuthSignOut } = useAuth();
+  const { user, loading, signOut: handleAuthSignOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -25,13 +25,18 @@ function AppContent() {
   // Auth state updates reactively once Firebase resolves.
   const isGuest = loading || !user;
 
+  const handleSignIn = async () => {
+    // Navigate to login page — handled by router
+    window.location.href = '/login';
+  };
+
   return (
     <AuthInfoContext.Provider value={{
       isAdmin,
       userEmail: user?.email ?? '',
       isGuest,
       onSignOut: handleAuthSignOut,
-      onSignIn: signIn,
+      onSignIn: handleSignIn,
     }}>
       <RouterProvider router={router} />
     </AuthInfoContext.Provider>
