@@ -312,11 +312,11 @@ class BlockOverride(BaseModel):
 | Phase | Effort | Value | Priority |
 |-------|--------|-------|----------|
 | Phase 1: Persistence | 2-3 days | High (enables everything else) | P0 |
-| Phase 2: Profile | 3-4 days | High (experiment control) | P1 |
-| Phase 3: Explorer | 2-3 days | Medium (debugging & understanding) | P2 |
-| Phase 4: Smart Defaults | 1-2 days | Medium (convenience) | P3 |
+| Phase 2: Profile | 3-4 days | High (experiment control) | P0 |
+| Phase 3: Explorer | 2-3 days | High (debugging & understanding) | P0 |
+| Phase 4: Smart Defaults | 1-2 days | High (convenience) | P0 |
 
-Phase 1 + Phase 2 deliver ~90% of the value. Phase 3 (explorer UI) is polish — useful for debugging but not blocking experiment work.
+All phases are equally important. Persistence enables the rest, but the explorer UI and profiles are not polish — they're core to the research workflow. You can't iterate on prompt composition without seeing what you're sending, and you can't reproduce results without saved profiles.
 
 ## Impact on Current Experiments
 
@@ -343,4 +343,4 @@ The three paper reproduction runs (`exp1`, `exp2`, `exp3`) currently in progress
 
 **On storing prompts as engine events:** Considered and rejected. Engine events are per-tick simulation data; prompt blocks are per-round-per-agent orchestrator data. Different granularities. A separate `optimization_prompts` table with `(day_num, agent_id, block_id)` PK is cleaner — still co-located in the per-game DuckDB, joinable via `day_num`.
 
-**On Phase 3 priority:** Agreed — re-prioritized explorer UI to P2. Phase 1 (persistence) + Phase 2 (profiles) deliver 90% of value.
+**On Phase 3 priority:** Hugi overruled — all phases are equally important. The explorer UI is core to the research workflow, not polish.
