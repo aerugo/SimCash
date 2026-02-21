@@ -280,19 +280,17 @@ Output ONLY the JSON policy, no explanation."""
                         block.content = parts[0] + "### Iteration".join(parts[-(last_n):])
                         block.token_estimate = len(block.content) // 4
 
-    # Rebuild prompts from enabled blocks only
-    enabled_system_blocks = [b for b in blocks if b.category == "system" and b.enabled]
-    enabled_user_blocks = [b for b in blocks if b.category == "user" and b.enabled]
+    # Rebuild prompts from enabled blocks only when a profile is active
+    if prompt_profile:
+        enabled_system_blocks = [b for b in blocks if b.category == "system" and b.enabled]
+        enabled_user_blocks = [b for b in blocks if b.category == "user" and b.enabled]
 
-    if enabled_system_blocks:
-        system_prompt = "\n\n".join(b.content for b in enabled_system_blocks)
-    # If system prompt block was disabled, keep original (safety — always need system prompt)
+        if enabled_system_blocks:
+            system_prompt = "\n\n".join(b.content for b in enabled_system_blocks)
+        # If system prompt block was disabled, keep original (safety — always need system prompt)
 
-    if enabled_user_blocks:
-        user_prompt_parts = [b.content for b in enabled_user_blocks]
-        user_prompt_parts.append(f"\nCurrent policy:\n{json.dumps(current_policy, indent=2)}")
-        user_prompt_parts.append("\nGenerate an improved policy that reduces total cost.\nOutput ONLY the JSON policy, no explanation.")
-        user_prompt = "\n\n".join(user_prompt_parts)
+        if enabled_user_blocks:
+            user_prompt = "\n\n".join(b.content for b in enabled_user_blocks)
 
     total_tokens = sum(b.token_estimate for b in blocks if b.enabled)
     profile_hash = StructuredPrompt.compute_profile_hash(blocks)
