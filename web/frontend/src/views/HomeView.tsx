@@ -169,7 +169,7 @@ export function HomeView() {
       {/* Credits */}
       <div className="mt-12 mb-4 text-center" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Built by <strong>Hugi Aegisberg</strong> · Licensed under{' '}
+          Built by <a href="https://www.linkedin.com/in/hugi/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}><strong>Hugi Aegisberg</strong></a> · Licensed under{' '}
           <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>MIT</a>
         </p>
         <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
