@@ -90,6 +90,25 @@ export function HomeView() {
             the kind of multi-step analytical workflow Korinek argues LLM agents are uniquely suited for.
           </p>
         </div>
+
+        <div>
+          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Open-weight models for regulated environments</h4>
+          <p>
+            SimCash currently runs on{' '}
+            <a href="https://bigmodel.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              GLM-4.7
+            </a>, an open-weight model served via Google Vertex AI. This is a deliberate choice.
+            In any realistic future where AI agents operate within payment systems, those agents will almost
+            certainly run on-premise — inside tightly regulated institutions that cannot route sensitive
+            transaction data through third-party APIs. By demonstrating that an open-weight model already
+            achieves strong results on this coordination task, SimCash provides evidence that the capability
+            threshold for agentic cash management is within reach of models that banks and central banks
+            can deploy on their own infrastructure, under their own governance frameworks. The reasoning
+            capabilities needed to analyse payment flows, identify cost drivers, and propose structural
+            policy improvements do not require the largest proprietary frontier models — they require a
+            model that is good enough, auditable, and deployable where the data lives.
+          </p>
+        </div>
       </div>
 
       {/* Quick Navigation Cards */}
