@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
+# CORSMiddleware replaced by ExplicitCORSMiddleware below
 
 from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email, get_optional_user, get_optional_ws_user, GuestCookieMiddleware
 
@@ -64,20 +64,69 @@ def _seed_admin():
         except Exception as e:
             logger.warning("Failed to seed admin: %s", e)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://simcash-487714.web.app",
-        "https://simcash-487714.firebaseapp.com",
-        "https://simcash-997004209370.europe-north1.run.app",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+ALLOWED_ORIGINS = {
+    "https://simcash-487714.web.app",
+    "https://simcash-487714.firebaseapp.com",
+    "https://simcash-997004209370.europe-north1.run.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+}
 
+
+class ExplicitCORSMiddleware:
+    """Custom CORS middleware that explicitly sets headers.
+
+    Works around Starlette CORSMiddleware returning '*' in some environments.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        from starlette.requests import Request as _Req
+        req = _Req(scope)
+        origin = req.headers.get("origin", "")
+
+        # Handle preflight
+        if req.method == "OPTIONS" and origin:
+            from starlette.responses import Response
+            headers = {}
+            if origin in ALLOWED_ORIGINS:
+                headers["access-control-allow-origin"] = origin
+                headers["access-control-allow-credentials"] = "true"
+                headers["access-control-allow-methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+                headers["access-control-allow-headers"] = req.headers.get(
+                    "access-control-request-headers", "*"
+                )
+                headers["access-control-max-age"] = "600"
+                headers["vary"] = "Origin"
+            resp = Response(status_code=200, headers=headers)
+            await resp(scope, receive, send)
+            return
+
+        # For normal requests, inject CORS headers into response
+        async def send_with_cors(message):
+            if message["type"] == "http.response.start" and origin in ALLOWED_ORIGINS:
+                headers = list(message.get("headers", []))
+                # Remove any existing CORS headers
+                headers = [
+                    (k, v) for k, v in headers
+                    if k.lower() not in (b"access-control-allow-origin", b"access-control-allow-credentials")
+                ]
+                headers.append((b"access-control-allow-origin", origin.encode()))
+                headers.append((b"access-control-allow-credentials", b"true"))
+                headers.append((b"vary", b"Origin"))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_cors)
+
+
+app.add_middleware(ExplicitCORSMiddleware)
 app.add_middleware(GuestCookieMiddleware)
 
 app.include_router(scenario_editor_router)

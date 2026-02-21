@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "SimCash Interactive Web Sandbox"
 requires-python = ">=3.11"
 dependencies = [
-    "fastapi>=0.115.0",
+    "fastapi>=0.115.0,<0.130.0",
     "uvicorn[standard]>=0.34.0",
     "websockets>=14.0",
     "pydantic>=2.0",
