@@ -1120,7 +1120,11 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
         _orig_generate = client.generate_policy
 
         async def _maas_generate_policy(prompt, current_policy=None, context=None):
-            """Override that uses _create_agent for MaaS/global-region model support."""
+            """Override that uses _create_agent for MaaS/global-region model support.
+            
+            Must return a parsed dict (like the original generate_policy),
+            NOT an LLMResponse. PolicyOptimizer.optimize() expects a dict.
+            """
             user_prompt = client._build_user_prompt(prompt, current_policy, context)
             system_prompt = client.system_prompt or ""
             agent = _create_agent(llm_config, system_prompt)
@@ -1129,9 +1133,9 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
             result = await agent.run(user_prompt, model_settings=llm_config.to_model_settings())
             latency = time.time() - start
             raw = str(result.output)
-            from payment_simulator.experiments.runner.llm_client import LLMResponse
-            return LLMResponse(raw_response=raw, parsed_policy=None, latency=latency,
-                             model=llm_config.model, prompt_tokens=0, completion_tokens=0)
+            # Parse the raw response into a policy dict — same as original generate_policy
+            parsed = client.parse_policy(raw)
+            return parsed
 
         client.generate_policy = _maas_generate_policy
 
@@ -1231,4 +1235,5 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
         "accepted": result.was_accepted,
         "mock": False,
         "reasoning_summary": result.reasoning_summary if hasattr(result, 'reasoning_summary') else None,
+        "validation_errors": result.validation_errors if hasattr(result, 'validation_errors') else [],
     }
