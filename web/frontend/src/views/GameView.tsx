@@ -428,25 +428,36 @@ export function GameView() {
         <SimulatingBanner day={(simulatingDay ?? 0) + 1} />
       )}
       {phase === 'optimizing' && optimizingAgents.size > 0 && (
-        <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4 space-y-3">
-          {[...optimizingAgents].map(aid => (
-            <div key={aid}>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-medium">🧠 Optimizing {aid}</span>
-                <span className="inline-block w-2 h-2 rounded-full bg-violet-400 animate-pulse" />
-              </div>
-              {streamingText[aid] ? (
-                <div className="max-h-32 overflow-y-auto">
-                  <pre className="text-xs text-slate-400 whitespace-pre-wrap font-mono leading-relaxed">
-                    {streamingText[aid]}
-                    <span className="inline-block w-1.5 h-3.5 bg-violet-400 animate-pulse ml-0.5 align-text-bottom" />
-                  </pre>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>🔒 Independent Optimization</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>— each agent sees only its own costs and events, never other agents' strategies</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[...optimizingAgents].map((aid) => (
+              <div key={aid} className="rounded-xl p-3" style={{
+                background: 'var(--bg-card)',
+                border: `1px solid ${AGENT_COLORS[gameState.agent_ids.indexOf(aid) % AGENT_COLORS.length]}33`,
+              }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: AGENT_COLORS[gameState.agent_ids.indexOf(aid) % AGENT_COLORS.length] }} />
+                  <span className="text-sm font-medium" style={{ color: AGENT_COLORS[gameState.agent_ids.indexOf(aid) % AGENT_COLORS.length] }}>{aid}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>🔒 isolated</span>
+                  <span className="inline-block w-2 h-2 rounded-full bg-violet-400 animate-pulse ml-auto" />
                 </div>
-              ) : (
-                <div className="text-xs text-slate-500 animate-pulse">Waiting for response...</div>
-              )}
-            </div>
-          ))}
+                {streamingText[aid] ? (
+                  <div className="max-h-28 overflow-y-auto">
+                    <pre className="text-xs whitespace-pre-wrap font-mono leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                      {streamingText[aid]}
+                      <span className="inline-block w-1.5 h-3.5 bg-violet-400 animate-pulse ml-0.5 align-text-bottom" />
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>Waiting for response...</div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -853,11 +864,14 @@ export function GameView() {
           {/* Day-specific reasoning */}
           {gameState.reasoning_history && Object.keys(gameState.reasoning_history).length > 0 && (
             <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} data-tour="reasoning">
-              <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
-                🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
-                  ? `Round ${selectedDay + 1} Reasoning`
-                  : 'Latest Reasoning'}
-              </h3>
+              <div className="flex items-center gap-3 mb-4">
+                <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
+                    ? `Round ${selectedDay + 1} Reasoning`
+                    : 'Latest Reasoning'}
+                </h3>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} title="Each agent optimizes independently using only its own performance data — no visibility into other agents' policies, costs, or strategies. This mirrors real-world banking where institutions make decisions with private information only.">🔒 information-isolated</span>
+              </div>
               <div className="space-y-4">
                 {gameState.agent_ids.map((aid, i) => {
                   const history = gameState.reasoning_history[aid] ?? [];

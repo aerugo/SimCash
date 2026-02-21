@@ -37,7 +37,10 @@ class GameDay:
                  balance_history: dict[str, list], total_cost: int,
                  per_agent_costs: dict[str, int],
                  tick_events: list[list[dict]] | None = None,
-                 optimized: bool = False):
+                 optimized: bool = False,
+                 event_summary: dict[str, dict[str, int]] | None = None,
+                 total_arrivals: int | None = None,
+                 total_settled: int | None = None):
         self.day_num = day_num
         self.seed = seed
         self.policies = policies
@@ -48,6 +51,38 @@ class GameDay:
         self.per_agent_costs = per_agent_costs
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
+
+        # Cache settlement stats — computed once from events, persisted in checkpoints
+        if event_summary is not None:
+            self._event_summary = event_summary
+            self._total_arrivals = total_arrivals or 0
+            self._total_settled = total_settled or 0
+        else:
+            self._compute_event_summary()
+
+    def _compute_event_summary(self) -> None:
+        """Compute settlement stats from raw events and cache them."""
+        _SETTLEMENT_TYPES = {"Settlement", "RtgsImmediateSettlement", "LsmBilateralOffset", "Queue2LiquidityRelease"}
+        summary: dict[str, dict[str, int]] = {}
+        arrivals = 0
+        settled = 0
+        for e in self.events:
+            etype = e.get("event_type", "")
+            if etype == "Arrival":
+                sender = e.get("sender_id", "")
+                if sender:
+                    summary.setdefault(sender, {"arrivals": 0, "settled": 0})
+                    summary[sender]["arrivals"] += 1
+                    arrivals += 1
+            elif etype in _SETTLEMENT_TYPES:
+                sender = e.get("sender_id", "") or e.get("sender", "")
+                if sender:
+                    summary.setdefault(sender, {"arrivals": 0, "settled": 0})
+                    summary[sender]["settled"] += 1
+                    settled += 1
+        self._event_summary = summary
+        self._total_arrivals = arrivals
+        self._total_settled = settled
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,29 +104,9 @@ class GameDay:
     def to_summary_dict(self) -> dict[str, Any]:
         """Lightweight dict for WS messages — omits large event arrays.
 
-        Computes event summary stats server-side so the frontend doesn't need
-        the raw event list (which can be >1MB for large scenarios).
+        Uses cached event summary stats so settlement rates survive checkpoint
+        round-trips (where raw events are not persisted).
         """
-        # Compute event summary stats
-        event_summary: dict[str, dict[str, int]] = {}
-        total_arrivals = 0
-        total_settled = 0
-        _SETTLEMENT_TYPES = {"Settlement", "RtgsImmediateSettlement", "LsmBilateralOffset", "Queue2LiquidityRelease"}
-        for e in self.events:
-            etype = e.get("event_type", "")
-            if etype == "Arrival":
-                sender = e.get("sender_id", "")
-                if sender:
-                    event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
-                    event_summary[sender]["arrivals"] += 1
-                    total_arrivals += 1
-            elif etype in _SETTLEMENT_TYPES:
-                sender = e.get("sender_id", "") or e.get("sender", "")
-                if sender:
-                    event_summary.setdefault(sender, {"arrivals": 0, "settled": 0})
-                    event_summary[sender]["settled"] += 1
-                    total_settled += 1
-
         return {
             "day": self.day_num,
             "seed": self.seed,
@@ -106,10 +121,10 @@ class GameDay:
             "per_agent_costs": self.per_agent_costs,
             "num_ticks": len(self.tick_events),
             "optimized": self.optimized,
-            "event_count": len(self.events),
-            "event_summary": event_summary,
-            "total_arrivals": total_arrivals,
-            "total_settled": total_settled,
+            "event_count": len(self.events) or (self._total_arrivals + self._total_settled),
+            "event_summary": self._event_summary,
+            "total_arrivals": self._total_arrivals,
+            "total_settled": self._total_settled,
         }
 
 
@@ -738,8 +753,13 @@ class Game:
             "policies": copy.deepcopy(day.policies),
             "costs": day.costs,
             "events_summary": {
-                "total": len(day.events),
+                "total": len(day.events) or (day._total_arrivals + day._total_settled),
                 "types": {},  # could add event type counts
+            },
+            "settlement_stats": {
+                "event_summary": day._event_summary,
+                "total_arrivals": day._total_arrivals,
+                "total_settled": day._total_settled,
             },
             "balance_history": day.balance_history,
             "total_cost": day.total_cost,
@@ -787,6 +807,9 @@ class Game:
                 per_agent_costs=day_data.get("per_agent_costs", {}),
                 tick_events=[],
                 optimized=day_data.get("optimized", False),
+                event_summary=day_data.get("settlement_stats", {}).get("event_summary"),
+                total_arrivals=day_data.get("settlement_stats", {}).get("total_arrivals"),
+                total_settled=day_data.get("settlement_stats", {}).get("total_settled"),
             )
             game.days.append(day)
 
