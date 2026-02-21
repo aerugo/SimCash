@@ -461,7 +461,12 @@ lsm_config:
 # ============================================================================
 
 cost_rates:
-  delay_cost_per_tick_per_cent: 0.0002       # $0.002 per $100 per tick
+  # Liquidity opportunity cost: committing full $50K pool costs ~$5,000/day
+  # Creates genuine tradeoff: save on liquidity vs risk unsettled payments
+  # At fraction=0.5: ~$2,500/day (equivalent to 1 deadline penalty)
+  liquidity_cost_per_tick_bps: 10            # ~$50/tick per $50K committed
+
+  delay_cost_per_tick_per_cent: 0.002        # $0.02 per $100 per tick (~$50 for $500 tx over 50 ticks)
   overdraft_bps_per_tick: 0.8                # ~145% annualized
   collateral_cost_per_tick_bps: 0.0005       # ~9% annualized
   eod_penalty_per_transaction: 500000        # $5,000 per unsettled tx
