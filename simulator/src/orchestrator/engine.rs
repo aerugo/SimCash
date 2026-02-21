@@ -2566,6 +2566,58 @@ impl Orchestrator {
     ///     println!("{}: {:?}", agent_id, policy_config);
     /// }
     /// ```
+    /// Update an agent's decision policy mid-simulation.
+    ///
+    /// The new policy takes effect starting from the next tick.
+    /// Uses the same `create_policy()` path as initialization (INV-9).
+    /// Updates both the live policy executor and the stored config so that
+    /// `get_agent_policies()` and `save_state()` remain consistent.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SimulationError::InvalidConfig` if `agent_id` is unknown
+    /// or `policy_json` cannot be parsed into a valid policy tree.
+    pub fn update_agent_policy(
+        &mut self,
+        agent_id: &str,
+        policy_json: &str,
+    ) -> Result<(), SimulationError> {
+        // 1. Verify agent exists
+        if !self.policies.contains_key(agent_id) {
+            return Err(SimulationError::InvalidConfig(format!(
+                "Unknown agent: {}",
+                agent_id
+            )));
+        }
+
+        // 2. Create new policy via standard factory path (INV-9)
+        let policy_config = PolicyConfig::FromJson {
+            json: policy_json.to_string(),
+        };
+        let new_policy = crate::policy::tree::create_policy(&policy_config).map_err(|e| {
+            SimulationError::InvalidConfig(format!(
+                "Invalid policy JSON for {}: {}",
+                agent_id, e
+            ))
+        })?;
+
+        // 3. Swap live executor
+        self.policies
+            .insert(agent_id.to_string(), Box::new(new_policy));
+
+        // 4. Update config for consistency (save_state, get_agent_policies)
+        if let Some(ac) = self
+            .config
+            .agent_configs
+            .iter_mut()
+            .find(|ac| ac.id == agent_id)
+        {
+            ac.policy = policy_config;
+        }
+
+        Ok(())
+    }
+
     pub fn get_agent_policies(&self) -> Vec<(String, PolicyConfig)> {
         self.config
             .agent_configs

@@ -1445,6 +1445,24 @@ impl PyOrchestrator {
     ///         "created_by": "init"
     ///     })
     /// ```
+    /// Update an agent's decision policy mid-simulation.
+    ///
+    /// The new policy takes effect starting from the next tick.
+    /// Uses the same policy creation path as initialization (INV-9).
+    ///
+    /// Args:
+    ///     agent_id: The agent whose policy to update.
+    ///     policy_json: Full policy tree JSON string.
+    ///
+    /// Raises:
+    ///     ValueError: If agent_id is unknown or policy_json is invalid.
+    #[pyo3(text_signature = "(agent_id, policy_json)")]
+    fn update_agent_policy(&mut self, agent_id: &str, policy_json: &str) -> PyResult<()> {
+        self.inner
+            .update_agent_policy(agent_id, policy_json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn get_agent_policies(&self, py: Python) -> PyResult<Py<PyList>> {
         // Get policies from Rust orchestrator
         let policies = self.inner.get_agent_policies();
