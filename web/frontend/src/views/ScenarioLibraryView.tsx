@@ -56,7 +56,7 @@ export function ScenarioLibraryView() {
   const [copying, setCopying] = useState(false);
 
   // Game launch config
-  const [maxDays, setMaxDays] = useState(10);
+  const [maxDays, setMaxDays] = useState(1);
   const [useLlm, setUseLlm] = useState(true);
   const [simulatedAi, setSimulatedAi] = useState(false);
   const [numEvalSamples, setNumEvalSamples] = useState(50);

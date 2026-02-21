@@ -131,7 +131,7 @@ class Game:
     """Multi-day policy optimization game."""
 
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
-                 simulated_ai: bool = True, max_days: int = 10,
+                 simulated_ai: bool = True, max_days: int = 1,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
                  starting_policies: dict[str, str] | None = None,
@@ -955,7 +955,7 @@ class Game:
             raw_yaml=config["raw_yaml"],
             use_llm=config.get("use_llm", True),
             simulated_ai=config.get("simulated_ai", False),
-            max_days=config.get("max_days", 10),
+            max_days=config.get("max_days", 1),
             num_eval_samples=config.get("num_eval_samples", 1),
             optimization_interval=config.get("optimization_interval", 1),
             constraint_preset=config.get("constraint_preset", "simple"),
