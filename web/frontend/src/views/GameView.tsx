@@ -280,7 +280,14 @@ export function GameView() {
           <h2 className="text-xl sm:text-2xl font-bold">{'Policy Experiment'}</h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
             {gameState.optimization_schedule === 'every_scenario_day' && gameState.scenario_num_days
-              ? `Day ${(gameState.current_day % gameState.scenario_num_days) + 1}/${gameState.scenario_num_days} · Round ${Math.floor(gameState.current_day / gameState.scenario_num_days) + 1}`
+              ? (() => {
+                  const displayDay = gameState.is_complete
+                    ? gameState.current_day  // show last completed day
+                    : gameState.current_day + 1;  // show next day to simulate
+                  const scenDay = ((displayDay - 1) % gameState.scenario_num_days) + 1;
+                  const round = Math.floor((displayDay - 1) / gameState.scenario_num_days) + 1;
+                  return `Day ${scenDay}/${gameState.scenario_num_days} · Round ${round}`;
+                })()
               : `Round ${gameState.current_day}/${gameState.max_days}`
             }
           </span>
