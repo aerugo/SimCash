@@ -27,6 +27,71 @@ export function HomeView() {
         </p>
       </div>
 
+      {/* Why SimCash — Research Motivations */}
+      <div className="mb-8 space-y-4 max-w-3xl mx-auto text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <h3 className="text-lg font-semibold text-center" style={{ color: 'var(--text-primary)' }}>Why SimCash?</h3>
+
+        <div>
+          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Auditable agentic systems</h4>
+          <p>
+            As AI agents take on increasingly consequential decision-making roles — from portfolio management
+            to infrastructure operations — a central challenge emerges: how do you audit a system whose
+            reasoning is a neural network forward pass? SimCash explores what agentic systems can look like
+            when auditability is a first-class design constraint. Rather than letting an LLM make
+            transaction-level decisions directly, agents optimise a structured decision tree — a JSON policy
+            with explicit conditions, thresholds, and actions that the simulation engine executes
+            deterministically. Every decision the system makes can be traced to a specific node in the tree,
+            and every change the AI proposes is captured as a versioned diff between policy documents.
+            This architecture demonstrates how the generative power of hard-to-audit foundation models can
+            be channelled into producing explainable decisions that follow a consistent, systematic framework —
+            separating the <em>creativity</em> of policy design (where LLMs excel) from the <em>execution</em> of
+            policy logic (where determinism and traceability matter).
+          </p>
+        </div>
+
+        <div>
+          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Statistical guardrails for AI governance</h4>
+          <p>
+            When an AI system proposes a change — a new trading strategy, a revised operating procedure, an
+            updated decision policy — how do you decide whether to accept it? Naive before/after comparisons
+            are confounded by stochastic variation: a policy might look better simply because it was tested on
+            a favourable random draw. SimCash addresses this with bootstrap paired evaluation: each candidate
+            policy is run alongside the incumbent on the <em>same</em> set of stochastic samples, and
+            acceptance requires statistically demonstrated improvement. The AI proposes; the statistical
+            framework disposes. This provides a concrete, working example of how quantitative guardrails can
+            govern AI-driven decisions in any domain — not by constraining what the AI can suggest, but by
+            rigorously validating whether its suggestions actually improve outcomes.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Building on recent research</h4>
+          <p>
+            SimCash sits at the intersection of two active research frontiers: AI in payment systems and
+            AI agents in economic research. It builds directly on{' '}
+            <a href="https://www.bankofcanada.ca/2025/11/staff-working-paper-2025-35/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Castro et al. (2025)
+            </a>, who demonstrated that reinforcement learning agents can learn near-optimal liquidity
+            management strategies in RTGS environments, replicating their experimental scenarios while
+            replacing neural network policy gradients with LLM-based natural language reasoning. It extends
+            the work of{' '}
+            <a href="https://www.bis.org/publ/work1310.htm" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Desai &amp; Aldasoro (2025, BIS Working Paper No. 1310)
+            </a>, who explored how generative AI could be applied to intraday cash management in wholesale
+            payment systems — a question SimCash makes interactive and experimentally reproducible.
+            It also draws on the framework proposed by{' '}
+            <a href="https://www.aeaweb.org/content/file?id=23290" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Korinek (2025)
+            </a>{' '}
+            for deploying AI agents in economic research — using LLMs not as black-box oracles but as
+            autonomous optimisers with structured reasoning, tool use, and iterative refinement. SimCash
+            operationalises this vision: each agent is an autonomous reasoner that analyses simulation
+            results, formulates hypotheses about cost drivers, and proposes structural policy changes —
+            the kind of multi-step analytical workflow Korinek argues LLM agents are uniquely suited for.
+          </p>
+        </div>
+      </div>
+
       {/* Quick Navigation Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link
