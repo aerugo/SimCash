@@ -303,36 +303,39 @@ export function ScenarioLibraryView() {
                 />
               </div>
               <div>
-                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimize Every</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {selectedScenario.num_days > 1 ? 'Optimize When' : 'Optimize Every'}
+                </label>
                 <select
-                  value={optimizationInterval}
-                  onChange={e => setOptimizationInterval(Number(e.target.value))}
+                  value={selectedScenario.num_days > 1 && optimizationSchedule === 'every_scenario_day' ? 'every_scenario_day' : String(optimizationInterval)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === 'every_scenario_day') {
+                      setOptimizationSchedule('every_scenario_day');
+                      setOptimizationInterval(1);
+                    } else {
+                      setOptimizationSchedule('every_round');
+                      setOptimizationInterval(Number(v));
+                    }
+                  }}
                   className="w-full px-3 py-1.5 rounded text-sm"
                   style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 >
-                  <option value={1}>Every round</option>
+                  {selectedScenario.num_days > 1 && (
+                    <option value="every_scenario_day">Between each day ({selectedScenario.num_days}× per round)</option>
+                  )}
+                  <option value={1}>After every round{selectedScenario.num_days > 1 ? ` (all ${selectedScenario.num_days} days)` : ''}</option>
                   <option value={2}>Every 2 rounds</option>
                   <option value={3}>Every 3 rounds</option>
                   <option value={5}>Every 5 rounds</option>
                   <option value={10}>Every 10 rounds</option>
                 </select>
-                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Rounds between AI policy updates</p>
+                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                  {selectedScenario.num_days > 1 && optimizationSchedule === 'every_scenario_day'
+                    ? `AI optimizes policy between each of the ${selectedScenario.num_days} simulated days`
+                    : 'Rounds between AI policy updates'}
+                </p>
               </div>
-              {selectedScenario.num_days > 1 && (
-              <div>
-                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimization Schedule</label>
-                <select
-                  value={optimizationSchedule}
-                  onChange={e => setOptimizationSchedule(e.target.value as 'every_round' | 'every_scenario_day')}
-                  className="w-full px-3 py-1.5 rounded text-sm"
-                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
-                >
-                  <option value="every_round">Every round</option>
-                  <option value="every_scenario_day">Every scenario day</option>
-                </select>
-                <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>Optimize between scenario days (continuous sim)</p>
-              </div>
-              )}
               <div>
                 <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>AI Reasoning</label>
                 <select
