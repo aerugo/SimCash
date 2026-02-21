@@ -279,7 +279,10 @@ export function GameView() {
         <div className="flex flex-wrap items-center gap-2" data-tour="top-bar">
           <h2 className="text-xl sm:text-2xl font-bold">{'Policy Experiment'}</h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
-            {'Round'} {gameState.current_day}/{gameState.max_days}
+            {gameState.optimization_schedule === 'every_scenario_day' && gameState.scenario_num_days
+              ? `Day ${(gameState.current_day % gameState.scenario_num_days) + 1}/${gameState.scenario_num_days} · Round ${Math.floor(gameState.current_day / gameState.scenario_num_days) + 1}`
+              : `Round ${gameState.current_day}/${gameState.max_days}`
+            }
           </span>
           {gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>

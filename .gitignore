@@ -76,3 +76,4 @@ integration_test_results/
 
 # Web backend local storage
 web/backend/data/
+web/frontend/.vite/

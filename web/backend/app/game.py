@@ -135,7 +135,8 @@ class Game:
                  simulated_ai: bool = True, max_days: int = 10,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
-                 starting_policies: dict[str, str] | None = None):
+                 starting_policies: dict[str, str] | None = None,
+                 optimization_schedule: str = "every_round"):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
@@ -144,11 +145,28 @@ class Game:
         self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
         self.optimization_interval = max(1, optimization_interval)
         self.constraint_preset = constraint_preset
+        self.optimization_schedule = optimization_schedule  # "every_round" or "every_scenario_day"
         self.days: list[GameDay] = []
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
         self.reasoning_history: dict[str, list[dict]] = {aid: [] for aid in self.agent_ids}
         self._base_seed = raw_yaml.get("simulation", {}).get("rng_seed", 42)
+
+        # Intra-scenario state
+        sim_cfg = raw_yaml.get("simulation", {})
+        self._scenario_num_days: int = sim_cfg.get("num_days", 1)
+        self._ticks_per_day: int = sim_cfg.get("ticks_per_day", 12)
+        self._live_orch: Any = None  # Persistent Orchestrator for intra-scenario mode
+        self._day_tick_offset: int = 0
+        self._prev_cumulative_costs: dict[str, int] = {}
+
+        # For single-day scenarios, intra-scenario is identical to every_round
+        if self._scenario_num_days <= 1 and self.optimization_schedule == "every_scenario_day":
+            self.optimization_schedule = "every_round"
+
+        # Intra-scenario mode forces single eval sample (can't re-run mid-scenario)
+        if self.optimization_schedule == "every_scenario_day":
+            self.num_eval_samples = 1
 
         # Apply starting policies (agent_id → policy JSON string)
         if starting_policies:
@@ -247,6 +265,89 @@ class Game:
         result_json = orch.run_and_get_all_costs(ticks)
         return json.loads(result_json)
 
+    def _run_scenario_day(self) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
+        """Run one scenario day (ticks_per_day ticks) on the persistent Orchestrator.
+
+        For intra-scenario mode: keeps the Orchestrator alive between days,
+        tracks delta costs per day, and destroys the Orchestrator at the end
+        of the last scenario day in a round.
+        """
+        if self._live_orch is None:
+            # Start of a new round — create Orchestrator
+            round_num = self.current_day // self._scenario_num_days
+            seed = self._base_seed + round_num
+            ffi_config = self._build_ffi_config(seed)
+            self._live_orch = Orchestrator.new(ffi_config)
+            self._day_tick_offset = 0
+            self._prev_cumulative_costs = {}
+
+        all_events: list[dict] = []
+        tick_events: list[list[dict]] = []
+        balance_history: dict[str, list] = {aid: [] for aid in self.agent_ids}
+
+        for t in range(self._ticks_per_day):
+            tick = self._day_tick_offset + t
+            self._live_orch.tick()
+            events = self._live_orch.get_tick_events(tick)
+            tick_event_list = [dict(e) for e in events]
+            all_events.extend(tick_event_list)
+            tick_events.append(tick_event_list)
+            for aid in self.agent_ids:
+                balance_history[aid].append(self._live_orch.get_agent_balance(aid) or 0)
+
+        self._day_tick_offset += self._ticks_per_day
+
+        # Compute delta costs for this day
+        costs: dict[str, dict] = {}
+        per_agent_costs: dict[str, int] = {}
+        total_cost = 0
+        for aid in self.agent_ids:
+            ac = self._live_orch.get_agent_accumulated_costs(aid)
+            cum_total = int(ac.get("total_cost", 0))
+            cum_delay = int(ac.get("delay_cost", 0))
+            cum_penalty = int(ac.get("deadline_penalty", 0))
+            cum_overdraft = int(ac.get("liquidity_cost", 0))
+            cum_collateral = int(ac.get("collateral_cost", 0))
+            cum_split = int(ac.get("split_friction_cost", 0))
+
+            prev = self._prev_cumulative_costs.get(aid, 0)
+            delta_total = cum_total - prev
+
+            # For cost breakdown, we approximate by using cumulative ratios
+            # (individual cost components aren't tracked cumulatively in prev)
+            cum_opportunity = max(0, cum_total - cum_delay - cum_penalty - cum_overdraft - cum_collateral - cum_split)
+            if cum_total > 0:
+                ratio = delta_total / cum_total if cum_total != 0 else 0
+            else:
+                ratio = 0
+            costs[aid] = {
+                "liquidity_cost": int(cum_opportunity * ratio) if cum_total > 0 else 0,
+                "delay_cost": int(cum_delay * ratio) if cum_total > 0 else 0,
+                "penalty_cost": int(cum_penalty * ratio) if cum_total > 0 else 0,
+                "total": delta_total,
+            }
+            per_agent_costs[aid] = delta_total
+            total_cost += delta_total
+            self._prev_cumulative_costs[aid] = cum_total
+
+        # Check if this is the last scenario day in the current round
+        scenario_day_index = self.current_day % self._scenario_num_days
+        if scenario_day_index == self._scenario_num_days - 1:
+            # End of round — destroy Orchestrator
+            self._live_orch = None
+            self._day_tick_offset = 0
+            self._prev_cumulative_costs = {}
+
+        return all_events, balance_history, costs, per_agent_costs, total_cost, tick_events
+
+    def _inject_policies_into_orch(self):
+        """Update all agent policies in the live Orchestrator after optimization."""
+        if self._live_orch is None:
+            return
+        for aid in self.agent_ids:
+            policy_json = json.dumps(self.policies[aid])
+            self._live_orch.update_agent_policy(aid, policy_json)
+
     def run_day(self) -> GameDay:
         """Run one day of simulation with current policies.
         
@@ -322,9 +423,13 @@ class Game:
         must explicitly call commit_day() after confirming delivery.
         """
         day_num = self.current_day
-        seed = self._base_seed + day_num
 
-        all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
+        if self.optimization_schedule == "every_scenario_day":
+            all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_scenario_day()
+            seed = self._base_seed + (day_num // self._scenario_num_days)
+        else:
+            seed = self._base_seed + day_num
+            all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
 
         if self.num_eval_samples > 1:
             all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
@@ -692,6 +797,8 @@ class Game:
             "num_eval_samples": self.num_eval_samples,
             "optimization_interval": self.optimization_interval,
             "constraint_preset": self.constraint_preset,
+            "optimization_schedule": self.optimization_schedule,
+            "scenario_num_days": self._scenario_num_days,
             "agent_ids": self.agent_ids,
             "current_policies": {
                 aid: p for aid, p in self.policies.items()
@@ -733,6 +840,7 @@ class Game:
                 "num_eval_samples": self.num_eval_samples,
                 "optimization_interval": self.optimization_interval,
                 "constraint_preset": self.constraint_preset,
+                "optimization_schedule": self.optimization_schedule,
                 "base_seed": self._base_seed,
             },
             "progress": {
@@ -782,6 +890,7 @@ class Game:
             num_eval_samples=config.get("num_eval_samples", 1),
             optimization_interval=config.get("optimization_interval", 1),
             constraint_preset=config.get("constraint_preset", "simple"),
+            optimization_schedule=config.get("optimization_schedule", "every_round"),
         )
         game._base_seed = config.get("base_seed", 42)
         game._created_at = data.get("created_at", "")

@@ -756,6 +756,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             optimization_interval=config.optimization_interval,
             constraint_preset=config.constraint_preset,
             starting_policies=config.starting_policies,
+            optimization_schedule=config.optimization_schedule,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1033,6 +1034,9 @@ async def game_ws(websocket: WebSocket, game_id: str):
                 logger.info("Starting LLM optimization for game %s day %d", game_id, day.day_num)
                 await game.optimize_policies_streaming(websocket.send_json)
                 day.optimized = True
+                # In intra-scenario mode, inject updated policies into the live Orchestrator
+                if game.optimization_schedule == "every_scenario_day":
+                    game._inject_policies_into_orch()
                 logger.info("Optimization complete for game %s day %d", game_id, day.day_num)
                 _save_game_checkpoint(game)
 

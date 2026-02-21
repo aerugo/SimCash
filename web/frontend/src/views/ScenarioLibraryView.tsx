@@ -57,6 +57,7 @@ export function ScenarioLibraryView() {
   const [numEvalSamples, setNumEvalSamples] = useState(50);
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
+  const [optimizationSchedule, setOptimizationSchedule] = useState<'every_round' | 'every_scenario_day'>('every_round');
 
   useEffect(() => {
     setLoading(true);
@@ -123,6 +124,7 @@ export function ScenarioLibraryView() {
       num_eval_samples: numEvalSamples,
       optimization_interval: optimizationInterval,
       constraint_preset: constraintPreset,
+      optimization_schedule: selectedScenario.num_days > 1 ? optimizationSchedule : undefined,
     });
   };
 
@@ -278,6 +280,20 @@ export function ScenarioLibraryView() {
                 </select>
                 <p className="text-[10px] text-slate-600 mt-1">Rounds between AI policy updates</p>
               </div>
+              {selectedScenario.num_days > 1 && (
+              <div>
+                <label className="text-xs text-slate-500 block mb-1">Optimization Schedule</label>
+                <select
+                  value={optimizationSchedule}
+                  onChange={e => setOptimizationSchedule(e.target.value as 'every_round' | 'every_scenario_day')}
+                  className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200"
+                >
+                  <option value="every_round">Every round</option>
+                  <option value="every_scenario_day">Every scenario day</option>
+                </select>
+                <p className="text-[10px] text-slate-600 mt-1">Optimize between scenario days (continuous sim)</p>
+              </div>
+              )}
               <div>
                 <label className="text-xs text-slate-500 block mb-1">AI Reasoning</label>
                 <select

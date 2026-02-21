@@ -200,6 +200,8 @@ export interface GameState {
   is_complete: boolean;
   use_llm: boolean;
   constraint_preset?: string;
+  optimization_schedule?: string;
+  scenario_num_days?: number;
   agent_ids: string[];
   current_policies: Record<string, PolicyJson>;
   days: DayResult[];
@@ -295,6 +297,7 @@ export interface GameSetupConfig {
   optimization_interval?: number;
   constraint_preset?: 'simple' | 'full';
   starting_policies?: Record<string, string>;  // agent_id → policy JSON string
+  optimization_schedule?: 'every_round' | 'every_scenario_day';
 }
 
 export interface ConstraintPresetInfo {
