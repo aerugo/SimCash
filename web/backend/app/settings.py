@@ -194,7 +194,10 @@ class SettingsManager:
 
         current = self.get_settings()
 
-        # Apply updates
+        # Apply updates (available_models first so model validation uses new list)
+        if "available_models" in updates:
+            current.available_models = updates["available_models"]
+
         if "optimization_model" in updates:
             model_id = updates["optimization_model"]
             valid_ids = {m["id"] for m in current.available_models}
