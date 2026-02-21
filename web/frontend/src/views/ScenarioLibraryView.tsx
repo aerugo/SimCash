@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
-import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, type CustomScenario } from '../api';
+import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario } from '../api';
 import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
 
@@ -52,6 +52,7 @@ export function ScenarioLibraryView() {
   const [customScenarios, setCustomScenarios] = useState<CustomScenario[]>([]);
   const [showMyScenarios, setShowMyScenarios] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [copying, setCopying] = useState(false);
 
   // Game launch config
   const [maxDays, setMaxDays] = useState(10);
@@ -81,6 +82,23 @@ export function ScenarioLibraryView() {
       setDeleteConfirm(null);
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const handleCopyScenario = async () => {
+    if (!selectedScenario) return;
+    setCopying(true);
+    try {
+      const saved = await saveCustomScenario({
+        name: `Copy of ${selectedScenario.name}`,
+        description: selectedScenario.description,
+        yaml_string: selectedScenario.yaml_config,
+      });
+      navigate(`/create?edit=${saved.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -363,13 +381,25 @@ export function ScenarioLibraryView() {
                 <p style={{ color: 'var(--text-secondary)' }}>Sign in to run experiments</p>
               </div>
             ) : (
-              <button
-                onClick={handleLaunch}
-                disabled={!onLaunchGame}
-                className="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-semibold transition-colors"
-              >
-                🚀 Launch Simulation
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleLaunch}
+                  disabled={!onLaunchGame}
+                  className="flex-1 py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-semibold transition-colors"
+                >
+                  🚀 Launch Simulation
+                </button>
+                <button
+                  onClick={handleCopyScenario}
+                  disabled={copying}
+                  className="px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  style={{ border: '1px solid var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-inset)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgb(14 165 233 / 0.5)'; e.currentTarget.style.color = 'rgb(56 189 248)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                >
+                  {copying ? '📋 Copying…' : '📋 Copy & Edit'}
+                </button>
+              </div>
             )}
           </div>
         </div>

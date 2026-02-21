@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryPolicy, LibraryPolicyDetail } from '../types';
-import { getPolicyLibrary, getPolicyLibraryDetail, listCustomPolicies, deleteCustomPolicy, type CustomPolicy } from '../api';
+import { getPolicyLibrary, getPolicyLibraryDetail, listCustomPolicies, deleteCustomPolicy, saveCustomPolicyApi, type CustomPolicy } from '../api';
+import { useAuthInfo } from '../AuthInfoContext';
 import { PolicyVisualization } from '../components/PolicyVisualization';
 
 const COMPLEXITY_COLORS: Record<string, string> = {
@@ -25,6 +26,8 @@ interface Props {
 export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
   const { policyId: urlPolicyId } = useParams<{ policyId: string }>();
   const navigate = useNavigate();
+  const { isGuest } = useAuthInfo();
+  const [copying, setCopying] = useState(false);
   const [customPolicies, setCustomPolicies] = useState<CustomPolicy[]>([]);
   const [showMyPolicies, setShowMyPolicies] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -58,6 +61,23 @@ export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
       setDeleteConfirm(null);
     } catch (e) {
       setError((e as Error).message);
+    }
+  };
+
+  const handleCopyPolicy = async () => {
+    if (!selectedPolicy) return;
+    setCopying(true);
+    try {
+      const saved = await saveCustomPolicyApi({
+        name: `Copy of ${selectedPolicy.name}`,
+        description: selectedPolicy.description,
+        json_string: JSON.stringify(selectedPolicy.raw),
+      });
+      navigate(`/create?editPolicy=${saved.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -292,15 +312,29 @@ export function PolicyLibraryView({ onSelectPolicy }: Props = {}) {
             </pre>
           </details>
 
-          {/* Select button */}
-          {onSelectPolicy && (
-            <button
-              onClick={() => onSelectPolicy(selectedPolicy.id, selectedPolicy.raw)}
-              className="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-semibold transition-colors"
-            >
-              ✅ Use This Policy
-            </button>
-          )}
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            {onSelectPolicy && (
+              <button
+                onClick={() => onSelectPolicy(selectedPolicy.id, selectedPolicy.raw)}
+                className="flex-1 py-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-semibold transition-colors"
+              >
+                ✅ Use This Policy
+              </button>
+            )}
+            {!isGuest && (
+              <button
+                onClick={handleCopyPolicy}
+                disabled={copying}
+                className={`${onSelectPolicy ? '' : 'flex-1 '}px-4 py-3 rounded-lg text-sm font-medium transition-colors disabled:opacity-50`}
+                style={{ border: '1px solid var(--border-color)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-inset)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgb(14 165 233 / 0.5)'; e.currentTarget.style.color = 'rgb(56 189 248)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+              >
+                {copying ? '📋 Copying…' : '📋 Copy & Edit'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
