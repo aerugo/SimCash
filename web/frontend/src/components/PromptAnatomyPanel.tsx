@@ -1,10 +1,104 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getPromptBlocks, getPromptProfiles, createPromptProfile, deletePromptProfile } from '../api';
 import type { PromptBlockInfo, PromptProfileSummary } from '../api';
+import * as jsYaml from 'js-yaml';
 
 export interface PromptProfileConfig {
   /** block_id → {enabled, options} overrides. Empty = all defaults. */
   blocks: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
+}
+
+/* ── Smart Default Suggestions ── */
+
+interface Suggestion {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  severity: 'info' | 'warning';
+  /** When user clicks Apply, these overrides are merged in */
+  applyOverrides: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
+}
+
+function analyzeScenario(yaml: string | undefined, blocks: PromptBlockInfo[], currentOverrides: Record<string, { enabled: boolean; options: Record<string, unknown> }>): Suggestion[] {
+  if (!yaml) return [];
+  let doc: Record<string, unknown>;
+  try {
+    doc = jsYaml.load(yaml) as Record<string, unknown>;
+    if (!doc) return [];
+  } catch {
+    return [];
+  }
+
+  const suggestions: Suggestion[] = [];
+  const sim = doc.simulation as Record<string, number> | undefined;
+  const agents = doc.agents as Array<Record<string, unknown>> | undefined;
+  const ticksPerDay = sim?.ticks_per_day ?? 12;
+  const numDays = sim?.num_days ?? 1;
+
+  // Current effective verbosity
+  const traceVerbosity = currentOverrides['usr_simulation_trace']?.options?.verbosity;
+
+  // 1. Deterministic scenario (no arrival_config on any agent)
+  const isDeterministic = agents?.length
+    ? agents.every(a => !a.arrival_config)
+    : false;
+  if (isDeterministic && traceVerbosity !== 'decisions_only') {
+    suggestions.push({
+      id: 'deterministic',
+      icon: '🎯',
+      title: 'Deterministic scenario detected',
+      description: 'No arrival randomness — simulation traces are structurally identical across rounds. "decisions_only" verbosity saves tokens without losing information.',
+      severity: 'info',
+      applyOverrides: { usr_simulation_trace: { enabled: true, options: { verbosity: 'decisions_only' } } },
+    });
+  }
+
+  // 2. Large tick count (>50 ticks/day)
+  if (ticksPerDay > 50 && traceVerbosity !== 'decisions_only') {
+    suggestions.push({
+      id: 'large_ticks',
+      icon: '📊',
+      title: `High tick density (${ticksPerDay}/day)`,
+      description: 'Simulation traces grow linearly with tick count. Consider "decisions_only" verbosity to keep prompts manageable.',
+      severity: 'warning',
+      applyOverrides: { usr_simulation_trace: { enabled: true, options: { verbosity: 'decisions_only' } } },
+    });
+  }
+
+  // 3. Many rounds (max_days > 15)
+  const maxDays = numDays;
+  const historyFormat = currentOverrides['usr_iteration_history']?.options?.format;
+  if (maxDays > 15 && historyFormat !== 'last_n') {
+    suggestions.push({
+      id: 'many_rounds',
+      icon: '📚',
+      title: `Long experiment (${maxDays} days)`,
+      description: 'Full iteration history grows linearly and can dominate the prompt. Showing only the last 10 rounds is usually sufficient.',
+      severity: 'info',
+      applyOverrides: { usr_iteration_history: { enabled: true, options: { format: 'last_n', last_n: 10 } } },
+    });
+  }
+
+  // 4. Total token estimate > 100k
+  const totalTokens = blocks
+    .filter(b => {
+      const override = currentOverrides[b.id];
+      return override ? override.enabled : b.enabled;
+    })
+    .reduce((sum, b) => sum + b.token_estimate, 0);
+  if (totalTokens > 100000) {
+    suggestions.push({
+      id: 'token_warning',
+      icon: '⚠️',
+      title: `High token estimate (~${(totalTokens / 1000).toFixed(0)}k)`,
+      description: 'Total prompt size exceeds 100k tokens. Consider disabling non-essential blocks or reducing trace verbosity.',
+      severity: 'warning',
+      applyOverrides: {},
+    });
+  }
+
+  return suggestions;
 }
 
 interface Props {
@@ -12,9 +106,11 @@ interface Props {
   /** If true, wrap in a collapsible section */
   collapsible?: boolean;
   defaultOpen?: boolean;
+  /** Raw scenario YAML for smart default analysis */
+  scenarioYaml?: string;
 }
 
-export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen = false }: Props) {
+export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen = false, scenarioYaml }: Props) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [blocks, setBlocks] = useState<PromptBlockInfo[]>([]);
   const [profiles, setProfiles] = useState<PromptProfileSummary[]>([]);
@@ -24,6 +120,7 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLoading(true);
@@ -118,6 +215,30 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
     .filter(b => getBlockEnabled(b))
     .reduce((sum, b) => sum + b.token_estimate, 0);
 
+  const suggestions = useMemo(
+    () => analyzeScenario(scenarioYaml, blocks, overrides),
+    [scenarioYaml, blocks, overrides]
+  );
+
+  const visibleSuggestions = suggestions.filter(s => !dismissedSuggestions.has(s.id));
+
+  const applySuggestion = (suggestion: Suggestion) => {
+    const next = { ...overrides };
+    for (const [blockId, cfg] of Object.entries(suggestion.applyOverrides)) {
+      const existing = next[blockId] || { enabled: true, options: {} };
+      if (cfg.enabled !== undefined) existing.enabled = cfg.enabled;
+      if (cfg.options) existing.options = { ...existing.options, ...cfg.options };
+      next[blockId] = existing;
+    }
+    setOverrides(next);
+    emitChanges(next);
+    setDismissedSuggestions(prev => new Set([...prev, suggestion.id]));
+  };
+
+  const dismissSuggestion = (id: string) => {
+    setDismissedSuggestions(prev => new Set([...prev, id]));
+  };
+
   const systemBlocks = blocks.filter(b => b.category === 'system');
   const userBlocks = blocks.filter(b => b.category === 'user');
 
@@ -171,6 +292,56 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
               />
               <button onClick={handleSaveProfile} className="px-3 py-1.5 rounded text-xs font-medium bg-[var(--accent-primary)] text-white">Save</button>
               <button onClick={() => setSaveDialogOpen(false)} className="px-2 py-1.5 rounded text-xs text-[var(--text-muted)]">Cancel</button>
+            </div>
+          )}
+
+          {/* Smart suggestions */}
+          {visibleSuggestions.length > 0 && (
+            <div className="space-y-2">
+              {visibleSuggestions.map(s => (
+                <div
+                  key={s.id}
+                  className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
+                    s.severity === 'warning'
+                      ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700/50'
+                      : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700/50'
+                  }`}
+                >
+                  <span className="text-lg flex-shrink-0">{s.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className={`font-medium text-xs ${
+                      s.severity === 'warning'
+                        ? 'text-amber-800 dark:text-amber-200'
+                        : 'text-blue-800 dark:text-blue-200'
+                    }`}>{s.title}</div>
+                    <div className={`text-[11px] mt-0.5 ${
+                      s.severity === 'warning'
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-blue-700 dark:text-blue-300'
+                    }`}>{s.description}</div>
+                  </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {Object.keys(s.applyOverrides).length > 0 && (
+                      <button
+                        onClick={() => applySuggestion(s)}
+                        className={`px-2 py-1 rounded text-[10px] font-medium ${
+                          s.severity === 'warning'
+                            ? 'bg-amber-200 text-amber-800 hover:bg-amber-300 dark:bg-amber-700 dark:text-amber-100 dark:hover:bg-amber-600'
+                            : 'bg-blue-200 text-blue-800 hover:bg-blue-300 dark:bg-blue-700 dark:text-blue-100 dark:hover:bg-blue-600'
+                        } transition-colors`}
+                      >
+                        Apply
+                      </button>
+                    )}
+                    <button
+                      onClick={() => dismissSuggestion(s.id)}
+                      className="px-2 py-1 rounded text-[10px] text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

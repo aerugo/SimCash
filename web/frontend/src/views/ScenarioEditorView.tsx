@@ -495,6 +495,7 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
             onChange={setPromptProfileConfig}
             collapsible
             defaultOpen={false}
+            scenarioYaml={yaml}
           />
 
           {/* Event Timeline Builder */}
