@@ -625,8 +625,8 @@ export function ScenarioEditorView({ onGameLaunch, initialState, onStateChange }
                 <div className="space-y-2 text-xs">
                   <CostRow label="Liquidity (bps/tick)" value={summary.cost_config.liquidity_cost_per_tick_bps} />
                   <CostRow label="Delay (per ¢/tick)" value={summary.cost_config.delay_cost_per_tick_per_cent} />
-                  <CostRow label="EOD Penalty" value={`$${(summary.cost_config.eod_penalty_per_transaction / 100).toLocaleString()}`} />
-                  <CostRow label="Deadline Penalty" value={`$${(summary.cost_config.deadline_penalty / 100).toLocaleString()}`} />
+                  <CostRow label="EOD Penalty" value={`$${((summary.cost_config.eod_penalty ?? summary.cost_config.eod_penalty_per_transaction ?? 0) / 100).toLocaleString()}`} />
+                  <CostRow label="Deadline Penalty" value={`$${((summary.cost_config.deadline_penalty ?? 0) / 100).toLocaleString()}`} />
                 </div>
               </div>
             </>

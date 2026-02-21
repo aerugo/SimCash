@@ -58,8 +58,10 @@ def _extract_summary(config_dict: dict[str, Any], sim_config: SimulationConfig) 
         "features": features,
         "cost_config": {
             "delay_cost_per_tick_per_cent": cost.delay_cost_per_tick_per_cent,
-            "eod_penalty": str(cost.eod_penalty),
-            "deadline_penalty": str(cost.deadline_penalty),
+            "eod_penalty": cost.eod_penalty.amount if hasattr(cost.eod_penalty, 'amount') else str(cost.eod_penalty),
+            "eod_penalty_mode": cost.eod_penalty.mode if hasattr(cost.eod_penalty, 'mode') else "unknown",
+            "deadline_penalty": cost.deadline_penalty.amount if hasattr(cost.deadline_penalty, 'amount') else str(cost.deadline_penalty),
+            "deadline_penalty_mode": cost.deadline_penalty.mode if hasattr(cost.deadline_penalty, 'mode') else "unknown",
             "liquidity_cost_per_tick_bps": cost.liquidity_cost_per_tick_bps,
         },
     }
