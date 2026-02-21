@@ -473,3 +473,47 @@ export async function deletePromptProfile(profileId: string): Promise<void> {
   const res = await authFetch(`${BASE}/prompt-profiles/${profileId}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete profile');
 }
+
+// ---- Prompt Explorer API ----
+
+export interface PromptListEntry {
+  day: number;
+  agent_id: string;
+  total_tokens: number;
+  profile_hash: string;
+  num_blocks: number;
+  llm_response_tokens: number;
+}
+
+export interface PromptBlockDetail {
+  id: string;
+  name: string;
+  category: string;
+  source: string;
+  content: string;
+  token_estimate: number;
+  enabled: boolean;
+  truncated?: boolean;
+  content_length?: number;
+}
+
+export interface PromptDetail {
+  blocks: PromptBlockDetail[];
+  total_tokens: number;
+  profile_hash: string;
+  llm_response: string | null;
+  llm_response_tokens: number;
+}
+
+export async function listGamePrompts(gameId: string): Promise<PromptListEntry[]> {
+  const res = await authFetch(`${BASE}/games/${gameId}/prompts`);
+  if (!res.ok) throw new Error('Failed to list prompts');
+  const data = await res.json();
+  return data.prompts;
+}
+
+export async function getGamePrompt(gameId: string, dayNum: number, agentId: string): Promise<PromptDetail> {
+  const res = await authFetch(`${BASE}/games/${gameId}/prompts/${dayNum}/${agentId}`);
+  if (!res.ok) throw new Error('Failed to fetch prompt');
+  return res.json();
+}

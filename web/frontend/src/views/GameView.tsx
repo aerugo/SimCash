@@ -12,6 +12,7 @@ import { useGameContext } from '../GameContext';
 import { useTour } from '../hooks/useTour';
 import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
 import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
+import { PromptExplorer } from '../components/PromptExplorer';
 import type { WSMessage } from '../hooks/useGameWebSocket';
 
 import { getAgentColor as _getAgentColorUtil } from '../utils';
@@ -970,6 +971,11 @@ export function GameView() {
         </div>
       )}
 
+      {/* Prompt Explorer */}
+      {gameState.use_llm && gameState.days.length > 0 && (
+        <PromptExplorerSection gameId={gameId} agentIds={gameState.agent_ids} />
+      )}
+
       {/* Notes panel */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700" data-tour="notes">
         <button
@@ -1556,6 +1562,26 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PromptExplorerSection({ gameId, agentIds }: { gameId: string; agentIds: string[] }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
+      >
+        <span>🔍 Prompt Explorer</span>
+        <span className="text-slate-500">{isOpen ? '▲' : '▼'}</span>
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4">
+          <PromptExplorer gameId={gameId} agentIds={agentIds} />
+        </div>
+      )}
     </div>
   );
 }
