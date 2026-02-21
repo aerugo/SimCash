@@ -216,9 +216,9 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
   const setParam = (key: string, value: unknown) => setFormParams(p => ({ ...p, [key]: value }));
 
   return (
-    <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 space-y-4">
+    <div className="rounded-xl p-4 space-y-4" style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-300">⚡ Scenario Events</h3>
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>⚡ Scenario Events</h3>
         <button
           onClick={handleAdd}
           className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-medium transition-colors"
@@ -228,13 +228,13 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
       </div>
 
       {/* ── Timeline ─────────────────────────────────────── */}
-      <div className="relative h-16 bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
+      <div className="relative h-16 rounded-lg overflow-hidden" style={{ background: 'var(--surface-bg, var(--card-bg))', border: '1px solid var(--border-color)' }}>
         {/* tick labels */}
         {totalTicks > 0 && [0, 0.25, 0.5, 0.75, 1].map(frac => {
           const tick = Math.round(frac * totalTicks);
           return (
-            <span key={frac} className="absolute bottom-1 text-[10px] text-slate-500 transform -translate-x-1/2"
-              style={{ left: `${frac * 100}%` }}>{tick}</span>
+            <span key={frac} className="absolute bottom-1 text-[10px] transform -translate-x-1/2"
+              style={{ left: `${frac * 100}%`, color: 'var(--text-muted)' }}>{tick}</span>
           );
         })}
         {/* markers */}
@@ -253,14 +253,14 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
                 if (ev) handleEdit(ev);
               }}
             >
-              <div className="hidden group-hover:block absolute bottom-5 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-600 rounded px-2 py-1 text-[10px] text-slate-200 whitespace-nowrap z-50 shadow-lg">
+              <div className="hidden group-hover:block absolute bottom-5 left-1/2 -translate-x-1/2 rounded px-2 py-1 text-[10px] whitespace-nowrap z-50 shadow-lg" style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}>
                 {m.label}
               </div>
             </div>
           );
         })}
         {events.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-xs">No events — click "Add Event" to begin</div>
+          <div className="absolute inset-0 flex items-center justify-center text-xs" style={{ color: 'var(--text-muted)' }}>No events — click "Add Event" to begin</div>
         )}
       </div>
 
@@ -268,7 +268,7 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
       {events.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {Array.from(new Set(events.map(e => e.type))).map(t => (
-            <span key={t} className="flex items-center gap-1 text-[10px] text-slate-400">
+            <span key={t} className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--text-secondary)' }}>
               <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: EVENT_COLORS[t] }} />
               {EVENT_LABELS[t]}
             </span>
@@ -281,15 +281,19 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
         <div className="space-y-1 max-h-48 overflow-y-auto">
           {events.map(ev => (
             <div key={ev.id}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs cursor-pointer hover:bg-slate-700/50 transition-colors ${editingId === ev.id ? 'bg-slate-700/70 ring-1 ring-sky-500' : 'bg-slate-800/60'}`}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors"
+              style={{
+                background: editingId === ev.id ? 'var(--surface-bg, rgba(0,0,0,0.1))' : 'var(--card-bg)',
+                border: editingId === ev.id ? '1px solid var(--text-accent)' : '1px solid transparent',
+              }}
               onClick={() => handleEdit(ev)}
             >
               <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EVENT_COLORS[ev.type] }} />
-              <span className="text-slate-300 font-medium w-28 truncate">{EVENT_LABELS[ev.type]}</span>
-              <span className="text-slate-500 w-24">
+              <span className="font-medium w-28 truncate" style={{ color: 'var(--text-primary)' }}>{EVENT_LABELS[ev.type]}</span>
+              <span className="w-24" style={{ color: 'var(--text-muted)' }}>
                 {ev.trigger.type === 'OneTime' ? `tick ${ev.trigger.tick}` : `every ${ev.trigger.interval} from ${ev.trigger.start_tick}`}
               </span>
-              <span className="text-slate-500 flex-1 truncate">{formatParams(ev)}</span>
+              <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{formatParams(ev)}</span>
               <button
                 onClick={e => { e.stopPropagation(); handleDelete(ev.id); }}
                 className="text-red-400/60 hover:text-red-400 transition-colors px-1"
@@ -302,30 +306,30 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
 
       {/* ── Add / Edit form ──────────────────────────────── */}
       {showForm && (
-        <div className="bg-slate-900 border border-slate-600 rounded-xl p-4 space-y-3">
-          <h4 className="text-xs font-semibold text-slate-400">{editingId ? 'Edit Event' : 'New Event'}</h4>
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
+          <h4 className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{editingId ? 'Edit Event' : 'New Event'}</h4>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {/* Event type */}
             <div>
-              <label className="text-[10px] text-slate-500 block mb-1">Type</label>
+              <label className="text-[10px] block mb-1" style={{ color: "var(--text-muted)" }}>Type</label>
               <select value={formType}
                 onChange={e => {
                   const t = e.target.value as EventType;
                   setFormType(t);
                   setFormParams(defaultParams(t, agentIds));
                 }}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200">
+                className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}>
                 {EVENT_TYPES.map(t => <option key={t} value={t}>{EVENT_LABELS[t]}</option>)}
               </select>
             </div>
 
             {/* Trigger type */}
             <div>
-              <label className="text-[10px] text-slate-500 block mb-1">Trigger</label>
+              <label className="text-[10px] block mb-1" style={{ color: "var(--text-muted)" }}>Trigger</label>
               <select value={formTriggerType}
                 onChange={e => setFormTriggerType(e.target.value as 'OneTime' | 'Repeating')}
-                className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200">
+                className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}>
                 <option value="OneTime">One-Time</option>
                 <option value="Repeating">Repeating</option>
               </select>
@@ -334,24 +338,24 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
             {/* Trigger params */}
             {formTriggerType === 'OneTime' ? (
               <div>
-                <label className="text-[10px] text-slate-500 block mb-1">Tick</label>
+                <label className="text-[10px] block mb-1" style={{ color: "var(--text-muted)" }}>Tick</label>
                 <input type="number" min={0} max={totalTicks} value={formTick}
                   onChange={e => setFormTick(Number(e.target.value))}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200" />
+                  className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }} />
               </div>
             ) : (
               <>
                 <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">Start Tick</label>
+                  <label className="text-[10px] block mb-1" style={{ color: "var(--text-muted)" }}>Start Tick</label>
                   <input type="number" min={0} max={totalTicks} value={formStartTick}
                     onChange={e => setFormStartTick(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200" />
+                    className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">Interval</label>
+                  <label className="text-[10px] block mb-1" style={{ color: "var(--text-muted)" }}>Interval</label>
                   <input type="number" min={1} value={formInterval}
                     onChange={e => setFormInterval(Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200" />
+                    className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }} />
                 </div>
               </>
             )}
@@ -361,18 +365,18 @@ export function EventTimelineBuilder({ events, agentIds, totalTicks, onChange }:
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {PARAM_FIELDS[formType].map(field => (
               <div key={field.key}>
-                <label className="text-[10px] text-slate-500 block mb-1">{field.label}</label>
+                <label className="text-[10px] block mb-1" style={{ color: 'var(--text-muted)' }}>{field.label}</label>
                 {field.type === 'agent' ? (
                   <select value={String(formParams[field.key] ?? '')}
                     onChange={e => setParam(field.key, e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200">
+                    className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}>
                     {agentIds.map(id => <option key={id} value={id}>{id}</option>)}
                     {agentIds.length === 0 && <option value="">No agents</option>}
                   </select>
                 ) : (
                   <input type="number" value={Number(formParams[field.key] ?? 0)}
                     onChange={e => setParam(field.key, Number(e.target.value))}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-200" />
+                    className="w-full rounded px-2 py-1.5 text-xs" style={{ background: "var(--input-bg, var(--card-bg))", border: "1px solid var(--border-color)", color: "var(--text-primary)" }} />
                 )}
               </div>
             ))}

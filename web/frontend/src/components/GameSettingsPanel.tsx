@@ -16,8 +16,8 @@ export interface GameSettings {
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
-  maxDays: 10,
-  numEvalSamples: 50,
+  maxDays: 1,
+  numEvalSamples: 10,
   optimizationInterval: 1,
   constraintPreset: 'full',
   useLlm: true,
@@ -78,7 +78,7 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
     <div className="space-y-4">
       <div>
         <label className="text-xs text-slate-500 flex justify-between mb-1">
-          <span>Max Days</span>
+          <span>Max Repetitions</span>
           <span className="font-mono text-slate-300">{s.maxDays}</span>
         </label>
         <input
@@ -144,19 +144,11 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           </p>
         </div>
       )}
-      <div className="flex gap-6 flex-wrap">
-        <Toggle label="Enable AI Optimization" value={s.useLlm} onChange={v => update({ useLlm: v })} />
-        {s.useLlm && (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500">{s.simulatedAi ? 'Simulated AI' : 'Live AI'}</span>
-              <Toggle label="" value={!s.simulatedAi} onChange={v => update({ simulatedAi: !v })} />
-            </div>
-            <p className="text-[10px] text-slate-500">
-              {s.simulatedAi ? 'Use simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses Gemini for richer, LLM-powered reasoning'}
-            </p>
-          </div>
-        )}
+      <div className="space-y-1">
+        <Toggle label="Mock AI responses" value={s.simulatedAi} onChange={v => update({ simulatedAi: v, useLlm: true })} />
+        <p className="text-[10px] text-slate-500 ml-11">
+          {s.simulatedAi ? 'Uses simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses a real LLM for policy optimization'}
+        </p>
       </div>
 
       {/* Starting Policies */}
