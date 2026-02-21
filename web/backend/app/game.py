@@ -265,12 +265,16 @@ class Game:
         result_json = orch.run_and_get_all_costs(ticks)
         return json.loads(result_json)
 
-    def _run_scenario_day(self) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]]]:
+    def _run_scenario_day(self) -> tuple[list[dict], dict[str, list], dict[str, dict], dict[str, int], int, list[list[dict]], dict[str, dict[str, int]], int, int]:
         """Run one scenario day (ticks_per_day ticks) on the persistent Orchestrator.
 
         For intra-scenario mode: keeps the Orchestrator alive between days,
-        tracks delta costs per day, and destroys the Orchestrator at the end
-        of the last scenario day in a round.
+        tracks costs per day (engine resets accumulators at day boundaries),
+        and tracks cumulative settlement stats across the round (since
+        transactions can arrive on Day N and settle on Day N+k).
+
+        Returns: (events, balance_history, costs, per_agent_costs, total_cost,
+                  tick_events, cumulative_event_summary, cumulative_arrivals, cumulative_settled)
         """
         if self._live_orch is None:
             # Start of a new round — create Orchestrator
@@ -279,7 +283,10 @@ class Game:
             ffi_config = self._build_ffi_config(seed)
             self._live_orch = Orchestrator.new(ffi_config)
             self._day_tick_offset = 0
-            self._prev_cumulative_costs = {}
+            # Track cumulative arrivals/settlements across the round
+            # (transactions can arrive on Day N and settle on Day N+k)
+            self._round_cumulative_arrivals: dict[str, int] = {}
+            self._round_cumulative_settled: dict[str, int] = {}
 
         all_events: list[dict] = []
         tick_events: list[list[dict]] = []
@@ -297,38 +304,56 @@ class Game:
 
         self._day_tick_offset += self._ticks_per_day
 
-        # Compute delta costs for this day
+        # Costs: engine resets accumulators at each day boundary (engine.rs:2958),
+        # so get_agent_accumulated_costs() returns THIS day's costs directly.
         costs: dict[str, dict] = {}
         per_agent_costs: dict[str, int] = {}
         total_cost = 0
         for aid in self.agent_ids:
             ac = self._live_orch.get_agent_accumulated_costs(aid)
-            cum_total = int(ac.get("total_cost", 0))
-            cum_delay = int(ac.get("delay_cost", 0))
-            cum_penalty = int(ac.get("deadline_penalty", 0))
-            cum_overdraft = int(ac.get("liquidity_cost", 0))
-            cum_collateral = int(ac.get("collateral_cost", 0))
-            cum_split = int(ac.get("split_friction_cost", 0))
+            day_total = int(ac.get("total_cost", 0))
+            day_delay = int(ac.get("delay_cost", 0))
+            day_penalty = int(ac.get("deadline_penalty", 0))
+            day_overdraft = int(ac.get("liquidity_cost", 0))
+            day_collateral = int(ac.get("collateral_cost", 0))
+            day_split = int(ac.get("split_friction_cost", 0))
+            day_opportunity = max(0, day_total - day_delay - day_penalty - day_overdraft - day_collateral - day_split)
 
-            prev = self._prev_cumulative_costs.get(aid, 0)
-            delta_total = cum_total - prev
-
-            # For cost breakdown, we approximate by using cumulative ratios
-            # (individual cost components aren't tracked cumulatively in prev)
-            cum_opportunity = max(0, cum_total - cum_delay - cum_penalty - cum_overdraft - cum_collateral - cum_split)
-            if cum_total > 0:
-                ratio = delta_total / cum_total if cum_total != 0 else 0
-            else:
-                ratio = 0
             costs[aid] = {
-                "liquidity_cost": int(cum_opportunity * ratio) if cum_total > 0 else 0,
-                "delay_cost": int(cum_delay * ratio) if cum_total > 0 else 0,
-                "penalty_cost": int(cum_penalty * ratio) if cum_total > 0 else 0,
-                "total": delta_total,
+                "liquidity_cost": day_opportunity,
+                "delay_cost": day_delay,
+                "penalty_cost": day_penalty,
+                "total": day_total,
             }
-            per_agent_costs[aid] = delta_total
-            total_cost += delta_total
-            self._prev_cumulative_costs[aid] = cum_total
+            per_agent_costs[aid] = day_total
+            total_cost += day_total
+
+        # Update cumulative settlement stats across the round
+        _SETTLEMENT_TYPES = {"Settlement", "RtgsImmediateSettlement", "LsmBilateralOffset", "Queue2LiquidityRelease"}
+        for e in all_events:
+            etype = e.get("event_type", "")
+            if etype == "Arrival":
+                sender = e.get("sender_id", "")
+                if sender:
+                    self._round_cumulative_arrivals.setdefault(sender, 0)
+                    self._round_cumulative_arrivals[sender] += 1
+            elif etype in _SETTLEMENT_TYPES:
+                sender = e.get("sender_id", "") or e.get("sender", "")
+                if sender:
+                    self._round_cumulative_settled.setdefault(sender, 0)
+                    self._round_cumulative_settled[sender] += 1
+
+        # Build cumulative event summary for display
+        cum_summary: dict[str, dict[str, int]] = {}
+        cum_arrivals = 0
+        cum_settled = 0
+        all_agents = set(self._round_cumulative_arrivals) | set(self._round_cumulative_settled)
+        for aid in all_agents:
+            a = self._round_cumulative_arrivals.get(aid, 0)
+            s = self._round_cumulative_settled.get(aid, 0)
+            cum_summary[aid] = {"arrivals": a, "settled": s}
+            cum_arrivals += a
+            cum_settled += s
 
         # Check if this is the last scenario day in the current round
         scenario_day_index = self.current_day % self._scenario_num_days
@@ -336,9 +361,8 @@ class Game:
             # End of round — destroy Orchestrator
             self._live_orch = None
             self._day_tick_offset = 0
-            self._prev_cumulative_costs = {}
 
-        return all_events, balance_history, costs, per_agent_costs, total_cost, tick_events
+        return all_events, balance_history, costs, per_agent_costs, total_cost, tick_events, cum_summary, cum_arrivals, cum_settled
 
     def _inject_policies_into_orch(self):
         """Update all agent policies in the live Orchestrator after optimization."""
@@ -424,8 +448,11 @@ class Game:
         """
         day_num = self.current_day
 
+        cum_event_summary = None
+        cum_arrivals = None
+        cum_settled = None
         if self.optimization_schedule == "every_scenario_day":
-            all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_scenario_day()
+            all_events, balance_history, costs, per_agent_costs, total_cost, tick_events, cum_event_summary, cum_arrivals, cum_settled = self._run_scenario_day()
             seed = self._base_seed + (day_num // self._scenario_num_days)
         else:
             seed = self._base_seed + day_num
@@ -478,6 +505,11 @@ class Game:
             total_cost=total_cost,
             per_agent_costs=per_agent_costs,
             tick_events=tick_events,
+            # In intra-scenario mode, use cumulative settlement stats across the round
+            # (transactions can arrive on Day N and settle on Day N+k)
+            event_summary=cum_event_summary,
+            total_arrivals=cum_arrivals,
+            total_settled=cum_settled,
         )
 
     def commit_day(self, day: GameDay):
