@@ -316,16 +316,21 @@ export function PolicyTreeView({ tree, title, className = '' }: PolicyTreeViewPr
     );
   }
 
+  // Parse viewBox to detect small trees and cap SVG size
+  const vbParts = viewBox.split(' ').map(Number);
+  const vbWidth = vbParts[2] || 200;
+  // For small trees (few nodes), cap width so a single node doesn't blow up to 100% viewport
+  const maxSvgWidthPct = Math.min(100, Math.max(25, (vbWidth / 600) * 100));
+
   return (
     <div className={className}>
       {title && (
         <h3 className="text-sm font-semibold text-slate-400 mb-2">{title}</h3>
       )}
-      <div ref={containerRef} className="bg-slate-900/50 rounded-lg border border-slate-700/50 overflow-auto relative">
+      <div ref={containerRef} className="bg-slate-900/50 rounded-lg border border-slate-700/50 overflow-auto relative flex justify-center">
         <svg
           viewBox={viewBox}
-          className="w-full"
-          style={{ minHeight: 200, maxHeight: 600 }}
+          style={{ minHeight: 80, maxHeight: 600, maxWidth: `${maxSvgWidthPct}%`, width: '100%' }}
           preserveAspectRatio="xMidYMin meet"
           onMouseMove={handleMouseOver}
           onMouseLeave={handleMouseOut}
