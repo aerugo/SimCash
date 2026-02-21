@@ -366,7 +366,7 @@ async def stream_optimize(
 
         # Validate against scenario constraints
         from .constraint_presets import build_constraints
-        from payment_simulator.ai_cash_mgmt.constraints import ConstraintValidator
+        from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import ConstraintValidator
         constraints = build_constraints(constraint_preset, raw_yaml)
         validator = ConstraintValidator(constraints)
         validation_result = validator.validate(new_policy)
