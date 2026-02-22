@@ -129,11 +129,27 @@ class BootstrapGate:
             max_collateral_capacity=agent_cfg.get("max_collateral_capacity"),
             cost_rates=scenario_cost_rates,
         )
-        deltas = evaluator.compute_paired_deltas(
-            samples=samples,
-            policy_a=self.policies[aid],
-            policy_b=result["new_policy"],
-        )
+        try:
+            deltas = evaluator.compute_paired_deltas(
+                samples=samples,
+                policy_a=self.policies[aid],
+                policy_b=result["new_policy"],
+            )
+        except Exception as e:
+            # Proposed policy is structurally invalid (e.g. hallucinated field names)
+            error_msg = str(e)
+            logger.warning("Bootstrap eval for %s: proposed policy is invalid — %s", aid, error_msg)
+            result["accepted"] = False
+            result["rejection_reason"] = f"Invalid policy: {error_msg}"
+            result["reasoning"] += f" [REJECTED: invalid policy — {error_msg}]"
+            rejected_pol = result.get("new_policy")
+            result["rejected_policy"] = rejected_pol
+            result["rejected_fraction"] = result.get("new_fraction")
+            result["new_policy"] = None
+            result["new_fraction"] = None
+            if rejected_pol:
+                day.rejected_policies[aid] = rejected_pol
+            return result
 
         if deltas:
             costs_a = [d.cost_a for d in deltas]
