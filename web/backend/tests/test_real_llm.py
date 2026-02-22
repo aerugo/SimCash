@@ -44,7 +44,7 @@ class TestRealLLMOptimization:
             game_id="real-llm-test",
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
-            mock_reasoning=False,  # Real LLM!
+            simulated_ai=False,  # Real LLM!
             max_days=2,
         )
         # Run day 0
@@ -52,7 +52,7 @@ class TestRealLLMOptimization:
         assert day.total_cost > 0
 
         # Optimize with real LLM
-        reasoning = await game.optimize_policies()
+        reasoning = await game.optimize_all_agents()
         assert len(reasoning) == 2  # 2 agents
 
         for aid, r in reasoning.items():
@@ -69,17 +69,17 @@ class TestRealLLMOptimization:
 
     @pytest.mark.asyncio
     async def test_real_optimize_fallback_on_mock(self) -> None:
-        """When mock_reasoning=True, should use mock even if use_llm=True."""
+        """When simulated_ai=True, should use mock even if use_llm=True."""
         scenario = get_scenario_by_id("2bank_2tick")
         game = Game(
             game_id="mock-test",
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
-            mock_reasoning=True,
+            simulated_ai=True,
             max_days=2,
         )
         game.run_day()
-        reasoning = await game.optimize_policies()
+        reasoning = await game.optimize_all_agents()
         for aid, r in reasoning.items():
             assert r["mock"] is True
 
@@ -91,7 +91,7 @@ class TestRealLLMOptimization:
             game_id="real-2day",
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
-            mock_reasoning=False,
+            simulated_ai=False,
             max_days=2,
         )
         # Day 0 with default fraction=1.0
@@ -99,7 +99,7 @@ class TestRealLLMOptimization:
         print(f"Day 0: total_cost={d0.total_cost}")
 
         # LLM optimize
-        reasoning = await game.optimize_policies()
+        reasoning = await game.optimize_all_agents()
         for aid, r in reasoning.items():
             print(f"  {aid}: {r['old_fraction']:.3f} -> {r.get('new_fraction', 'rejected')}")
 

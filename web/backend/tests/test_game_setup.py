@@ -16,7 +16,7 @@ class TestCreateGameValidation:
         assert "game_id" in data
         state = data["game"]
         assert state["max_days"] == 10
-        assert state["use_llm"] is False
+        assert state["use_llm"] is True
         assert state["num_eval_samples"] == 1
 
     def test_create_game_with_all_params(self):
@@ -25,7 +25,7 @@ class TestCreateGameValidation:
             "num_eval_samples": 5,
             "max_days": 3,
             "use_llm": False,
-            "mock_reasoning": True,
+            "simulated_ai": True,
         })
         assert resp.status_code == 200
         state = resp.json()["game"]

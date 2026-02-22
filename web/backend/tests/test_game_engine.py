@@ -21,7 +21,7 @@ class TestGameCreation:
         """All agents start with fraction=1.0 FIFO policy."""
         for aid in game.agent_ids:
             policy = game.policies[aid]
-            assert policy["parameters"]["initial_liquidity_fraction"] == 1.0
+            assert policy["parameters"]["initial_liquidity_fraction"] == 0.5
             assert policy["payment_tree"]["action"] == "Release"
 
     def test_current_day_starts_at_zero(self, game: Game) -> None:
@@ -125,7 +125,7 @@ class TestMockOptimize:
         game_stochastic.run_day()
         game_stochastic.use_llm = True
         game_stochastic.mock_reasoning = True
-        reasoning = await game_stochastic.optimize_policies()
+        reasoning = await game_stochastic.optimize_all_agents()
         assert len(reasoning) == len(game_stochastic.agent_ids)
         for aid, r in reasoning.items():
             assert "reasoning" in r
@@ -142,7 +142,7 @@ class TestMockOptimize:
             aid: game_stochastic.policies[aid]["parameters"]["initial_liquidity_fraction"]
             for aid in game_stochastic.agent_ids
         }
-        await game_stochastic.optimize_policies()
+        await game_stochastic.optimize_all_agents()
         new_fractions = {
             aid: game_stochastic.policies[aid]["parameters"]["initial_liquidity_fraction"]
             for aid in game_stochastic.agent_ids

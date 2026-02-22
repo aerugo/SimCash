@@ -13,16 +13,21 @@ async def test_stream_optimize_timeout_on_hang():
     original_stall = so.LLM_CHUNK_STALL_SECONDS
     original_total = so.LLM_CALL_TIMEOUT_SECONDS
     so.LLM_CHUNK_STALL_SECONDS = 2  # 2 seconds for test
-    so.LLM_CALL_TIMEOUT_SECONDS = 5  # 5 seconds total
+    so.LLM_CALL_TIMEOUT_SECONDS = 2  # 2 seconds total
+    original_max_retries = so.MAX_RETRIES
+    so.MAX_RETRIES = 1  # No retries for test
 
     class HangingStream:
-        """Simulates a stream that connects but never produces chunks."""
-        def stream_text(self, delta=True):
+        """Simulates a stream that connects but never produces responses."""
+        def stream_responses(self, debounce_by=None):
             return self._hang()
 
         async def _hang(self):
             await asyncio.sleep(999999)
-            yield "never"  # pragma: no cover
+            yield None, True  # pragma: no cover
+
+        def usage(self):
+            return MagicMock(input_tokens=0, output_tokens=0, details={})
 
         async def __aenter__(self):
             return self
@@ -38,8 +43,11 @@ async def test_stream_optimize_timeout_on_hang():
     mock_day.day_num = 1
     mock_day.seed = 42
     mock_day.per_agent_costs = {"BANK_A": 49800}
+    mock_day.per_agent_cost_std = {"BANK_A": 0}
     mock_day.costs = {"BANK_A": {"delay_cost": 0, "penalty_cost": 0, "liquidity_cost": 49800, "total": 49800}}
     mock_day.events = []
+    mock_day.total_cost = 49800
+    mock_day.rejected_policies = {}
     mock_day.policies = {"BANK_A": {
         "version": "2.0",
         "parameters": {"initial_liquidity_fraction": 1.0},
@@ -67,11 +75,12 @@ async def test_stream_optimize_timeout_on_hang():
 
         # Verify the error mentions stall or timeout
         error_events = [e for e in events if e["type"] == "error"]
-        assert any("stall" in e["message"].lower() or "timeout" in e["message"].lower()
+        assert any("stall" in e["message"].lower() or "timeout" in e["message"].lower() or "timed out" in e["message"].lower()
                     for e in error_events), f"Error should mention stall/timeout: {error_events}"
     finally:
         so.LLM_CHUNK_STALL_SECONDS = original_stall
         so.LLM_CALL_TIMEOUT_SECONDS = original_total
+        so.MAX_RETRIES = original_max_retries
 
 
 @pytest.mark.asyncio
@@ -81,16 +90,27 @@ async def test_stream_optimize_total_timeout():
 
     original_total = so.LLM_CALL_TIMEOUT_SECONDS
     so.LLM_CALL_TIMEOUT_SECONDS = 3  # 3 seconds total
+    original_max_retries = so.MAX_RETRIES
+    so.MAX_RETRIES = 1  # No retries for test
 
     class SlowStream:
-        """Produces chunks slowly, exceeding total timeout."""
-        def stream_text(self, delta=True):
+        """Produces responses slowly, exceeding total timeout."""
+        def stream_responses(self, debounce_by=None):
             return self._slow()
 
         async def _slow(self):
+            from pydantic_ai.messages import TextPart, ModelResponse
+            accumulated = ""
             for i in range(100):
-                await asyncio.sleep(0.5)  # Chunk every 0.5s — won't stall but total > 3s
-                yield f"chunk_{i} "
+                await asyncio.sleep(0.5)  # Response every 0.5s — won't stall but total > 3s
+                accumulated += f"chunk_{i} "
+                part = TextPart(content=accumulated)
+                response = MagicMock()
+                response.parts = [part]
+                yield response, (i == 99)
+
+        def usage(self):
+            return MagicMock(input_tokens=0, output_tokens=0, details={})
 
         async def __aenter__(self):
             return self
@@ -106,8 +126,11 @@ async def test_stream_optimize_total_timeout():
     mock_day.day_num = 1
     mock_day.seed = 42
     mock_day.per_agent_costs = {"BANK_A": 49800}
+    mock_day.per_agent_cost_std = {"BANK_A": 0}
     mock_day.costs = {"BANK_A": {"delay_cost": 0, "penalty_cost": 0, "liquidity_cost": 49800, "total": 49800}}
     mock_day.events = []
+    mock_day.total_cost = 49800
+    mock_day.rejected_policies = {}
     mock_day.policies = {"BANK_A": {
         "version": "2.0",
         "parameters": {"initial_liquidity_fraction": 1.0},
@@ -135,3 +158,4 @@ async def test_stream_optimize_total_timeout():
         assert "error" in event_types, f"Expected error event from total timeout, got: {event_types}"
     finally:
         so.LLM_CALL_TIMEOUT_SECONDS = original_total
+        so.MAX_RETRIES = original_max_retries

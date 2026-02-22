@@ -66,7 +66,7 @@ class TestGameStep:
 
     def test_step_with_mock_reasoning(self, client: TestClient) -> None:
         gid = client.post("/api/games", json={
-            "use_llm": True, "mock_reasoning": True, "max_days": 3
+            "use_llm": True, "simulated_ai": True, "max_days": 3
         }).json()["game_id"]
         resp = client.post(f"/api/games/{gid}/step")
         data = resp.json()

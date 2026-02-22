@@ -129,7 +129,7 @@ def mock_env():
          patch(_PATCHES["create_agent"]) as mock_create, \
          patch(_PATCHES["parse_policy"]) as mock_parse, \
          patch(_PATCHES["constraint_presets"]) as mock_bc, \
-         patch("payment_simulator.ai_cash_mgmt.constraints.ConstraintValidator") as mock_cv_cls, \
+         patch("payment_simulator.ai_cash_mgmt.optimization.constraint_validator.ConstraintValidator") as mock_cv_cls, \
          patch(_PATCHES["load_dotenv"]):
 
         # Build prompt returns (system, user, context)

@@ -77,8 +77,8 @@ class TestCumulativeSettlementStats:
     """When a transaction arrives on Day 1 and settles on Day 2,
     the cumulative event_summary should count both."""
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_arrival_day1_settlement_day2(self, mock_orch_cls, mock_sim_cfg):
         """Arrival on day 0, settlement on day 1 → cumulative counts both."""
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
@@ -105,7 +105,7 @@ class TestCumulativeSettlementStats:
         )
 
         # Day 0
-        ev0, _, _, _, _, _, cum_summary0, cum_arr0, cum_set0 = game._run_scenario_day()
+        ev0, _, _, _, _, _, cum_summary0, cum_arr0, cum_set0 = game.sim.run_scenario_day(game.current_day)
         assert cum_arr0 == 1
         assert cum_set0 == 0
         assert cum_summary0["BANK_A"]["arrivals"] == 1
@@ -113,14 +113,14 @@ class TestCumulativeSettlementStats:
         game.days.append(GameDay(0, 42, {}, {}, ev0, {}, 0, {}, event_summary=cum_summary0, total_arrivals=cum_arr0, total_settled=cum_set0))
 
         # Day 1
-        ev1, _, _, _, _, _, cum_summary1, cum_arr1, cum_set1 = game._run_scenario_day()
+        ev1, _, _, _, _, _, cum_summary1, cum_arr1, cum_set1 = game.sim.run_scenario_day(game.current_day)
         assert cum_arr1 == 1, "Cumulative arrivals should still be 1"
         assert cum_set1 == 1, "Cumulative settlements should be 1"
         assert cum_summary1["BANK_A"]["arrivals"] == 1
         assert cum_summary1["BANK_A"]["settled"] == 1
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_settlement_rate_never_exceeds_100_pct(self, mock_orch_cls, mock_sim_cfg):
         """Settlement rate (settled/arrivals) should never exceed 100%."""
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
@@ -145,7 +145,7 @@ class TestCumulativeSettlementStats:
             optimization_schedule="every_scenario_day",
         )
 
-        _, _, _, _, _, _, cum_summary, cum_arr, cum_set = game._run_scenario_day()
+        _, _, _, _, _, _, cum_summary, cum_arr, cum_set = game.sim.run_scenario_day(game.current_day)
         assert cum_arr >= cum_set, "Settled should never exceed arrivals"
         if cum_arr > 0:
             assert cum_set / cum_arr <= 1.0
@@ -159,8 +159,8 @@ class TestDirectCostUsage:
     """Engine resets cost accumulators per day. _run_scenario_day() should
     return the day's costs directly from get_agent_accumulated_costs()."""
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_costs_are_direct_not_delta(self, mock_orch_cls, mock_sim_cfg):
         """Costs returned are direct from FFI, not subtracted from previous."""
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
@@ -185,7 +185,7 @@ class TestDirectCostUsage:
         )
 
         # Day 0
-        _, _, costs0, per_agent0, total0, _, _, _, _ = game._run_scenario_day()
+        _, _, costs0, per_agent0, total0, _, _, _, _ = game.sim.run_scenario_day(game.current_day)
         assert per_agent0["BANK_A"] == 100
         assert per_agent0["BANK_B"] == 50
         assert costs0["BANK_A"]["delay_cost"] == 30
@@ -195,7 +195,7 @@ class TestDirectCostUsage:
 
         # Day 1: same costs returned by FFI (engine reset accumulators)
         # The code should NOT subtract day 0 costs
-        _, _, costs1, per_agent1, total1, _, _, _, _ = game._run_scenario_day()
+        _, _, costs1, per_agent1, total1, _, _, _, _ = game.sim.run_scenario_day(game.current_day)
         assert per_agent1["BANK_A"] == 100, "Should be direct, not delta"
         assert per_agent1["BANK_B"] == 50
         assert total1 == 150
@@ -209,8 +209,8 @@ class TestOrchestratorLifecycle:
     """Orchestrator created on first day of round, persisted across days,
     destroyed at end of last scenario day."""
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_orch_created_once_per_round(self, mock_orch_cls, mock_sim_cfg):
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
             "ticks_per_day": 2, "num_days": 3,
@@ -226,30 +226,30 @@ class TestOrchestratorLifecycle:
             optimization_schedule="every_scenario_day",
         )
 
-        assert game._live_orch is None
+        assert game.sim._live_orch is None
 
         # Day 0: orchestrator created
-        game._run_scenario_day()
+        game.sim.run_scenario_day(game.current_day)
         game.days.append(GameDay(0, 42, {}, {}, [], {}, 0, {}))
         assert mock_orch_cls.new.call_count == 1
-        assert game._live_orch is not None  # still alive
+        assert game.sim._live_orch is not None  # still alive
 
         # Day 1: same orchestrator
-        game._run_scenario_day()
+        game.sim.run_scenario_day(game.current_day)
         game.days.append(GameDay(1, 42, {}, {}, [], {}, 0, {}))
         assert mock_orch_cls.new.call_count == 1  # NOT called again
-        assert game._live_orch is not None
+        assert game.sim._live_orch is not None
 
         # Day 2: last day of round → destroyed
-        game._run_scenario_day()
+        game.sim.run_scenario_day(game.current_day)
         game.days.append(GameDay(2, 42, {}, {}, [], {}, 0, {}))
-        assert game._live_orch is None, "Should be destroyed after last scenario day"
+        assert game.sim._live_orch is None, "Should be destroyed after last scenario day"
 
         # Day 3: new round → new orchestrator
-        game._run_scenario_day()
+        game.sim.run_scenario_day(game.current_day)
         game.days.append(GameDay(3, 42, {}, {}, [], {}, 0, {}))
         assert mock_orch_cls.new.call_count == 2
-        assert game._live_orch is not None
+        assert game.sim._live_orch is not None
 
 
 # ---------------------------------------------------------------------------
@@ -260,18 +260,18 @@ class TestSimulateDayCumulativeStats:
     """When optimization_schedule == 'every_scenario_day', simulate_day()
     should set cumulative stats on the GameDay."""
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_simulate_day_sets_cumulative_stats(self, mock_orch_cls, mock_sim_cfg):
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
             "ticks_per_day": 2, "num_days": 2,
         }
 
         events_by_tick = {
-            0: [{"event_type": "Arrival", "sender_id": "BANK_A"},
-                {"event_type": "Arrival", "sender_id": "BANK_B"}],
-            1: [{"event_type": "Settlement", "sender_id": "BANK_A"}],
-            2: [{"event_type": "Settlement", "sender_id": "BANK_B"}],
+            0: [{"event_type": "Arrival", "sender_id": "BANK_A", "receiver_id": "BANK_B", "tx_id": "tx1", "tick": 0, "amount": 100, "priority": 1, "deadline_tick": 10},
+                {"event_type": "Arrival", "sender_id": "BANK_B", "receiver_id": "BANK_A", "tx_id": "tx2", "tick": 0, "amount": 200, "priority": 1, "deadline_tick": 10}],
+            1: [{"event_type": "Settlement", "sender_id": "BANK_A", "tx_id": "tx1", "tick": 1}],
+            2: [{"event_type": "Settlement", "sender_id": "BANK_B", "tx_id": "tx2", "tick": 2}],
             3: [],
         }
         orch = _mock_orchestrator(events_by_tick=events_by_tick)
@@ -299,8 +299,8 @@ class TestSimulateDayCumulativeStats:
         assert day1._total_arrivals == 2, "Cumulative arrivals across round"
         assert day1._total_settled == 2, "Cumulative settlements across round"
 
-    @patch("app.game.SimulationConfig")
-    @patch("app.game.Orchestrator")
+    @patch("app.sim_runner.SimulationConfig")
+    @patch("app.sim_runner.Orchestrator")
     def test_every_round_mode_computes_from_events(self, mock_orch_cls, mock_sim_cfg):
         """In every_round mode, GameDay computes stats from events (not cumulative)."""
         mock_sim_cfg.from_dict.return_value.to_ffi_dict.return_value = {
@@ -308,8 +308,8 @@ class TestSimulateDayCumulativeStats:
         }
 
         events_by_tick = {
-            0: [{"event_type": "Arrival", "sender_id": "BANK_A"}],
-            1: [{"event_type": "Settlement", "sender_id": "BANK_A"}],
+            0: [{"event_type": "Arrival", "sender_id": "BANK_A", "receiver_id": "BANK_B", "tx_id": "tx1", "tick": 0, "amount": 100, "priority": 1, "deadline_tick": 10}],
+            1: [{"event_type": "Settlement", "sender_id": "BANK_A", "tx_id": "tx1", "tick": 1}],
         }
         orch = _mock_orchestrator(events_by_tick=events_by_tick)
         mock_orch_cls.new.return_value = orch
