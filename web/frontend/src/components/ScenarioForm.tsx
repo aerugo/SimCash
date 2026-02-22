@@ -278,6 +278,16 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
               allAgentIds={agentIds}
               canRemove={data.agents.length > 2}
               onChange={(mutate) => update(d => { mutate(d.agents[idx]); })}
+              onRename={(oldId, newId) => update(d => {
+                d.agents[idx].id = newId;
+                d.agents.forEach((a, i) => {
+                  if (i !== idx && oldId in a.arrival_config.counterparty_weights) {
+                    const weight = a.arrival_config.counterparty_weights[oldId];
+                    delete a.arrival_config.counterparty_weights[oldId];
+                    a.arrival_config.counterparty_weights[newId] = weight;
+                  }
+                });
+              })}
               onRemove={() => update(d => {
                 const removedId = d.agents[idx].id;
                 d.agents.splice(idx, 1);
@@ -294,12 +304,13 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
 
 // ── Agent Card ──────────────────────────────────────────────────────
 
-function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }: {
+function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, onRemove }: {
   agent: AgentFormData;
   index: number;
   allAgentIds: string[];
   canRemove: boolean;
   onChange: (mutate: (a: AgentFormData) => void) => void;
+  onRename: (oldId: string, newId: string) => void;
   onRemove: () => void;
 }) {
   const [expanded, setExpanded] = useState(index < 2);
@@ -325,7 +336,7 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRemove }:
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className={labelCls}>Agent ID</label>
-              <input value={agent.id} onChange={e => onChange(a => { a.id = e.target.value; })} className={inputCls} />
+              <input value={agent.id} onChange={e => onRename(agent.id, e.target.value)} className={inputCls} />
             </div>
             <NumberField label="Opening Balance" value={agent.opening_balance} onChange={v => onChange(a => { a.opening_balance = v; })} />
             <NumberField label="Liquidity Pool" value={agent.liquidity_pool} onChange={v => onChange(a => { a.liquidity_pool = v; })} />
