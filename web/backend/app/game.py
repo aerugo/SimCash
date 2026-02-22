@@ -847,22 +847,15 @@ class Game:
         )
 
         # Step 2: Paired evaluation on single-agent sandboxes
-        # Extract cost_rates from scenario config for the sandbox
-        scenario_cost_rates = self.raw_yaml.get("cost_rates", {})
-        cost_rates_dict = None
-        if scenario_cost_rates:
-            cost_rates_dict = {
-                "delay_cost_rate": scenario_cost_rates.get("delay_cost_rate", 0.0001),
-                "liquidity_cost_rate": scenario_cost_rates.get("liquidity_cost_rate", 0.00005),
-                "deadline_penalty_rate": scenario_cost_rates.get("deadline_penalty_rate", 0.001),
-            }
+        # Pass cost_rates from scenario config directly — keys match CostRates pydantic fields
+        scenario_cost_rates = self.raw_yaml.get("cost_rates") or None
 
         evaluator = BootstrapPolicyEvaluator(
             opening_balance=agent_cfg.get("opening_balance", 0),
             credit_limit=agent_cfg.get("unsecured_cap", 0),
             liquidity_pool=agent_cfg.get("liquidity_pool") or agent_cfg.get("opening_balance", 0),
             max_collateral_capacity=agent_cfg.get("max_collateral_capacity"),
-            cost_rates=cost_rates_dict,
+            cost_rates=scenario_cost_rates,
         )
         deltas = evaluator.compute_paired_deltas(
             samples=samples,
