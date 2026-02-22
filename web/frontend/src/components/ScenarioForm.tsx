@@ -161,6 +161,33 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
 
   const agentIds = data.agents.map(a => a.id);
 
+  const nextAgentId = useCallback((existingIds: string[], baseId?: string) => {
+    if (baseId) {
+      for (let n = 2; n < 100; n++) {
+        const candidate = `${baseId}_${n}`;
+        if (!existingIds.includes(candidate)) return candidate;
+      }
+    }
+    for (let i = 0; i < 26; i++) {
+      const candidate = `BANK_${String.fromCharCode(65 + i)}`;
+      if (!existingIds.includes(candidate)) return candidate;
+    }
+    return `BANK_${Date.now()}`;
+  }, []);
+
+  const cloneAgent = useCallback((idx: number) => {
+    update(d => {
+      const src = d.agents[idx];
+      const newId = nextAgentId(d.agents.map(a => a.id), src.id);
+      const clone: AgentFormData = JSON.parse(JSON.stringify(src));
+      clone.id = newId;
+      delete clone.arrival_config.counterparty_weights[src.id];
+      clone.arrival_config.counterparty_weights[src.id] = 1.0;
+      d.agents.push(clone);
+      d.agents.forEach((a, i) => { if (i < d.agents.length - 1) a.arrival_config.counterparty_weights[newId] = 1.0; });
+    });
+  }, [update, nextAgentId]);
+
   return (
     <div className="space-y-4">
       {/* Simulation */}
@@ -278,6 +305,7 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
               allAgentIds={agentIds}
               canRemove={data.agents.length > 2}
               onChange={(mutate) => update(d => { mutate(d.agents[idx]); })}
+              onClone={() => cloneAgent(idx)}
               onRename={(oldId, newId) => update(d => {
                 d.agents[idx].id = newId;
                 d.agents.forEach((a, i) => {
@@ -304,7 +332,7 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
 
 // ── Agent Card ──────────────────────────────────────────────────────
 
-function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, onRemove }: {
+function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, onRemove, onClone }: {
   agent: AgentFormData;
   index: number;
   allAgentIds: string[];
@@ -312,6 +340,7 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, o
   onChange: (mutate: (a: AgentFormData) => void) => void;
   onRename: (oldId: string, newId: string) => void;
   onRemove: () => void;
+  onClone: () => void;
 }) {
   const [expanded, setExpanded] = useState(index < 2);
   const otherIds = allAgentIds.filter(id => id !== agent.id);
@@ -325,6 +354,7 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, o
         </button>
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Pool: {agent.liquidity_pool.toLocaleString()}</span>
+          <button onClick={onClone} className="text-xs text-sky-400 hover:text-sky-300 px-1" title="Clone agent">📋</button>
           {canRemove && (
             <button onClick={onRemove} className="text-xs text-red-400 hover:text-red-300 px-1">✕</button>
           )}
