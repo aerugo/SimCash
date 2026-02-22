@@ -352,10 +352,17 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                           </td>
                           <td className="py-2 px-2 text-right flex items-center justify-end gap-2">
                             <button
-                              onClick={() => {
-                                const ug = usersWithGames.find(ug => ug.email === u.email);
-                                const uid = ug?.uid || '';
-                                if (!uid) { alert('No UID found for this user'); return; }
+                              onClick={async () => {
+                                let uid = usersWithGames.find(ug => ug.email === u.email)?.uid || '';
+                                if (!uid) {
+                                  // Retry fetching users with games to resolve UID
+                                  try {
+                                    const fresh = await fetchUsersWithGames();
+                                    setUsersWithGames(fresh);
+                                    uid = fresh.find(ug => ug.email === u.email)?.uid || '';
+                                  } catch { /* ignore */ }
+                                }
+                                if (!uid) { alert('No UID found for this user. They may not have logged in yet.'); return; }
                                 setImpersonating(uid, u.email);
                                 onClose?.();
                                 navigate('/experiments');
