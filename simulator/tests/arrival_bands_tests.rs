@@ -591,7 +591,7 @@ fn test_orchestrator_with_arrival_bands() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Should create orchestrator");
@@ -679,7 +679,7 @@ fn test_arrival_config_and_bands_mutually_exclusive() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let result = Orchestrator::new(config);

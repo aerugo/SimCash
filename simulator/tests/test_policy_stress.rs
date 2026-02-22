@@ -77,7 +77,7 @@ fn test_high_frequency_arrivals_single_agent() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -195,7 +195,7 @@ fn test_sustained_high_load_100_ticks() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -316,7 +316,7 @@ fn test_extreme_high_frequency_arrivals() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -427,7 +427,7 @@ fn test_50_agent_high_frequency_simulation() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     println!("Initializing 50-agent simulation...");

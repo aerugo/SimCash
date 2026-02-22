@@ -303,6 +303,14 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         PriorityEscalationConfig::default()
     };
 
+    // Parse daily_liquidity_reallocation (default: false for backward compatibility)
+    // When true, liquidity is returned to pool at EOD and reallocated at SOD
+    let daily_liquidity_reallocation: bool = py_config
+        .get_item("daily_liquidity_reallocation")?
+        .map(|item| item.extract())
+        .transpose()?
+        .unwrap_or(false);
+
     Ok(OrchestratorConfig {
         ticks_per_day,
         eod_rush_threshold,
@@ -319,6 +327,7 @@ pub fn parse_orchestrator_config(py_config: &Bound<'_, PyDict>) -> PyResult<Orch
         entry_disposition_offsetting,
         deferred_crediting,
         deadline_cap_at_eod,
+        daily_liquidity_reallocation,
     })
 }
 

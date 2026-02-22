@@ -312,6 +312,18 @@ fn event_to_py_dict<'py>(
             dict.set_item("amount", amount)?;
             dict.set_item("source_transactions", source_transactions)?;
         }
+        crate::models::event::Event::LiquidityReturn { agent_id, amount, balance_after, .. } => {
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("balance_after", balance_after)?;
+        }
+        crate::models::event::Event::LiquidityAllocation { day, agent_id, fraction, amount, balance_after, .. } => {
+            dict.set_item("day", day)?;
+            dict.set_item("agent_id", agent_id)?;
+            dict.set_item("fraction", fraction)?;
+            dict.set_item("amount", amount)?;
+            dict.set_item("balance_after", balance_after)?;
+        }
     }
 
     Ok(dict)

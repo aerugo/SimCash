@@ -38,7 +38,7 @@ fn create_test_config() -> OrchestratorConfig {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     }
 }
 
@@ -94,7 +94,7 @@ fn test_collateral_events_filter_by_day() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

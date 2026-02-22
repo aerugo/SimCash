@@ -286,6 +286,31 @@ pub enum Event {
         total_penalties: i64,
     },
 
+    /// Liquidity returned to pool at end of day (daily liquidity cycle)
+    ///
+    /// Emitted when `daily_liquidity_reallocation` is enabled. The allocated
+    /// liquidity is withdrawn from the agent's RTGS balance back to the pool.
+    LiquidityReturn {
+        tick: usize,
+        agent_id: String,
+        amount: i64,           // Amount returned to pool
+        balance_after: i64,    // Agent balance after return
+    },
+
+    /// Liquidity allocated from pool at start of day (daily liquidity cycle)
+    ///
+    /// Emitted when `daily_liquidity_reallocation` is enabled. Fresh liquidity
+    /// is allocated from the pool to the agent's RTGS balance based on the
+    /// current policy's `initial_liquidity_fraction`.
+    LiquidityAllocation {
+        tick: usize,
+        day: usize,
+        agent_id: String,
+        fraction: f64,         // Fraction used for allocation
+        amount: i64,           // Amount allocated
+        balance_after: i64,    // Agent balance after allocation
+    },
+
     /// Transaction crossed its deadline and became overdue
     ///
     /// Emitted when a transaction first becomes overdue. The one-time deadline penalty
@@ -466,6 +491,8 @@ impl Event {
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { tick, .. } => *tick,
             Event::DeferredCreditApplied { tick, .. } => *tick,
+            Event::LiquidityReturn { tick, .. } => *tick,
+            Event::LiquidityAllocation { tick, .. } => *tick,
         }
     }
 
@@ -505,6 +532,8 @@ impl Event {
             #[allow(deprecated)]
             Event::RtgsQueue2Settle { .. } => "RtgsQueue2Settle",
             Event::DeferredCreditApplied { .. } => "DeferredCreditApplied",
+            Event::LiquidityReturn { .. } => "LiquidityReturn",
+            Event::LiquidityAllocation { .. } => "LiquidityAllocation",
         }
     }
 

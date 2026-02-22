@@ -58,7 +58,7 @@ fn test_eod_penalty_only_applies_to_overdue_transactions() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -179,7 +179,7 @@ fn test_eod_penalty_applies_to_all_overdue_transactions() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();
@@ -267,7 +267,7 @@ fn test_no_eod_penalty_when_all_transactions_settle_before_deadline() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut engine = Orchestrator::new(config).unwrap();

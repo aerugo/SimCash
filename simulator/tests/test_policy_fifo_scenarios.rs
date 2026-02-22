@@ -69,7 +69,7 @@ fn test_fifo_preserves_arrival_order() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -157,7 +157,7 @@ fn test_fifo_partial_submission() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -276,7 +276,7 @@ fn test_fifo_vs_deadline_under_pressure() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
