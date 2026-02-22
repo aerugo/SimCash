@@ -680,12 +680,24 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     logger.info("Creating game %s: use_llm=%s simulated_ai=%s constraint_preset=%s",
                 game_id, config.use_llm, config.simulated_ai, config.constraint_preset)
     try:
+        # For every_scenario_day mode, "Rounds" means full scenario passes.
+        # Multiply by num_days so the game runs all days per round.
+        effective_max_days = config.max_days
+        if config.optimization_schedule == "every_scenario_day":
+            import yaml as _yaml
+            try:
+                parsed = _yaml.safe_load(raw_yaml) if isinstance(raw_yaml, str) else raw_yaml
+                scenario_num_days = parsed.get("simulation", {}).get("num_days", 1)
+                effective_max_days = config.max_days * scenario_num_days
+            except Exception:
+                pass  # Fall back to raw max_days
+
         game = Game(
             game_id=game_id,
             raw_yaml=raw_yaml,
             use_llm=config.use_llm,
             simulated_ai=config.simulated_ai,
-            max_days=config.max_days,
+            max_days=effective_max_days,
             num_eval_samples=config.num_eval_samples,
             optimization_interval=config.optimization_interval,
             constraint_preset=config.constraint_preset,
