@@ -228,29 +228,14 @@ class Game:
         self.sim.inject_policies_into_orch()
 
     def run_day(self) -> GameDay:
-        """Run one day of simulation with current policies.
+        """Run one day and commit immediately.
 
-        NOTE: Does not collect agent_histories (transaction records for bootstrap).
-        Only simulate_day() does that. This means bootstrap evaluation won't work
-        for games run via the HTTP path (POST /step, POST /auto). Use the WebSocket
-        path for full optimization with bootstrap. This is intentional — HTTP is
-        the simple/fast path.
+        Convenience wrapper around simulate_day() + commit_day().
+        Both HTTP and WS paths get identical behavior including
+        transaction history collection for bootstrap evaluation.
         """
-        day_num = self.current_day
-        seed = self._base_seed + day_num
-
-        all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self.sim.run_single(seed)
-        costs, per_agent_costs, total_cost, cost_std = self.sim.run_with_samples(
-            seed, costs, per_agent_costs, total_cost, self.num_eval_samples,
-        )
-
-        day = GameDay(
-            day_num=day_num, seed=seed, policies=copy.deepcopy(self.policies),
-            costs=costs, events=all_events, balance_history=balance_history,
-            total_cost=total_cost, per_agent_costs=per_agent_costs,
-            tick_events=tick_events, per_agent_cost_std=cost_std,
-        )
-        self.days.append(day)
+        day = self.simulate_day()
+        self.commit_day(day)
         return day
 
     def simulate_day(self) -> GameDay:
