@@ -113,12 +113,22 @@ export function ReasoningExplorer({ result, defaultExpanded = null, compact = fa
   const hasPolicyJson = !!(parsed?.policyJson || result.new_policy);
   const diffSummary = useMemo(() => policyDiffSummary(result.old_policy, result.new_policy), [result.old_policy, result.new_policy]);
 
-  if (!hasRaw && !hasThinking) return null;
+  // Show note for non-thinking models (no thinking content and no thinking tokens), but not for mock results
+  const noThinkingAvailable = !hasThinking && (!result.usage?.thinking_tokens) && !result.mock;
+
+  if (!hasRaw && !hasThinking && !noThinkingAvailable) return null;
 
   const toggle = (section: Section) => setExpanded(expanded === section ? null : section);
 
   return (
     <div className={`mt-2 space-y-2`}>
+      {/* Note for models that don't expose thinking */}
+      {noThinkingAvailable && !hasRaw && (
+        <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>
+          This model does not expose chain-of-thought reasoning tokens.
+        </p>
+      )}
+
       {/* Change summary chips */}
       {diffSummary.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -141,6 +151,11 @@ export function ReasoningExplorer({ result, defaultExpanded = null, compact = fa
         )}
         {hasThinking && (
           <ToggleButton active={expanded === 'thinking'} onClick={() => toggle('thinking')} label={expanded === 'thinking' ? 'Hide Thinking' : 'Thinking'} />
+        )}
+        {noThinkingAvailable && hasRaw && (
+          <span className="text-xs italic self-center" style={{ color: 'var(--text-muted)' }}>
+            This model does not expose chain-of-thought reasoning tokens.
+          </span>
         )}
       </div>
 

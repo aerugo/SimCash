@@ -110,7 +110,7 @@ export function GameView() {
           simStartTimeRef.current = Date.now();
           simEventIdRef.current = actLog.push(
             'simulation_running',
-            `Simulating round ${((msg.day as number) ?? 0) + 1}...`,
+            `Simulating day ${((msg.day as number) ?? 0) + 1}...`,
             'info',
             true,
           );
@@ -124,7 +124,7 @@ export function GameView() {
           const totalCost = d?.total_cost as number | undefined;
           actLog.push(
             'simulation_complete',
-            `Round complete in ${elapsed}s` + (totalCost != null ? ` — total cost: ${Math.round(totalCost).toLocaleString()}` : ''),
+            `Day complete in ${elapsed}s` + (totalCost != null ? ` — total cost: ${Math.round(totalCost).toLocaleString()}` : ''),
             'success',
           );
           break;
@@ -168,7 +168,7 @@ export function GameView() {
           setExperimentError(msg.message ?? 'Experiment stopped due to LLM failure');
           break;
         case 'game_complete':
-          actLog.push('experiment_complete', `All rounds complete!`, 'success');
+          actLog.push('experiment_complete', `All days complete!`, 'success');
           break;
         case 'error':
           actLog.push('error', msg.message ?? 'Unknown error', 'error');
@@ -288,9 +288,9 @@ export function GameView() {
                     : gameState.current_day + 1;  // show next day to simulate
                   const scenDay = ((displayDay - 1) % gameState.scenario_num_days) + 1;
                   const round = Math.floor((displayDay - 1) / gameState.scenario_num_days) + 1;
-                  return `Day ${scenDay}/${gameState.scenario_num_days} · Round ${round}`;
+                  return `Day ${scenDay}/${gameState.scenario_num_days} · Cycle ${round}`;
                 })()
-              : `Round ${gameState.current_day}/${gameState.max_days}`
+              : `Day ${gameState.current_day}/${gameState.max_days}`
             }
           </span>
           {gameState.is_complete && (
@@ -323,7 +323,7 @@ export function GameView() {
           <button
             onClick={() => rerun()}
             disabled={!connected || autoRunning || gameState.days.length === 0}
-            title="Re-run the last round with the same seed (deterministic replay)"
+            title="Re-run the last day with the same seed (deterministic replay)"
             className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm font-medium text-white"
             data-tour="rerun-btn"
           >
@@ -433,7 +433,7 @@ export function GameView() {
       {autoRunning && phase === 'idle' && !gameState.is_complete && speed !== 'fast' && (
         <div className="bg-slate-700/30 border border-slate-600/30 rounded-xl p-3 text-center">
           <span className="text-sm text-slate-400">
-            ⏳ Pausing between rounds... ({speed === 'normal' ? '3s' : '8s'})
+            ⏳ Pausing between days... ({speed === 'normal' ? '3s' : '8s'})
           </span>
         </div>
       )}
@@ -484,10 +484,10 @@ export function GameView() {
         const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
         return (
           <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
-            <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.max_days} Rounds</h3>
+            <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.max_days} Days</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-xs text-slate-500">Round 1 Cost</div>
+                <div className="text-xs text-slate-500">Day 1 Cost</div>
                 <div className="font-mono text-sm">{firstTotal.toLocaleString()}</div>
               </div>
               <div>
@@ -495,7 +495,7 @@ export function GameView() {
                 <div className="font-mono text-sm">{lastTotal.toLocaleString()}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-500">Cost Reduction<InfoTip text="Percentage decrease in total system cost from Round 1 to the final round" /></div>
+                <div className="text-xs text-slate-500">Cost Reduction<InfoTip text="Percentage decrease in total system cost from Day 1 to the final day" /></div>
                 <div className={`font-mono text-sm ${reduction > 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {reduction > 0 ? '↓' : '↑'} {Math.abs(reduction).toFixed(1)}%
                 </div>
@@ -536,8 +536,8 @@ export function GameView() {
           
           <h3 className="text-lg font-semibold mb-2">Ready to Start</h3>
           <p className="text-sm text-slate-400 max-w-lg mx-auto">
-            Click <strong>▶ Next Day</strong> to simulate the first round. Each round, banks process payments using their current liquidity policy.
-            After each round, the AI optimizer analyzes costs and proposes improved policies — watching for the sweet spot between
+            Click <strong>▶ Next Day</strong> to simulate the first day. Each day, banks process payments using their current liquidity policy.
+            After each day, the AI optimizer analyzes costs and proposes improved policies — watching for the sweet spot between
             holding too much liquidity (wasted capital) and too little (missed deadlines).
           </p>
           <p className="text-xs text-slate-500 mt-3">
@@ -545,12 +545,12 @@ export function GameView() {
               const fracs = Object.entries(gameState.current_policies).map(([aid, p]) => ({ aid, f: (p.parameters?.initial_liquidity_fraction as number) ?? 1 }));
               const allSame = fracs.length > 0 && fracs.every(x => x.f === fracs[0].f);
               if (gameState.constraint_preset === 'full') {
-                return <>Agents start with full decision-tree policies. The optimizer will refine payment strategies, bank actions, and parameters over multiple rounds.</>;
+                return <>Agents start with full decision-tree policies. The optimizer will refine payment strategies, bank actions, and parameters over multiple days.</>;
               }
               if (allSame) {
-                return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple rounds.</>;
+                return <>All agents start with <span className="font-mono text-slate-400">fraction = {fracs[0].f.toFixed(3)}</span> (commit {(fracs[0].f * 100).toFixed(0)}% of their pool). The optimizer will learn to reduce this over multiple days.</>;
               }
-              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={(x.f as number).toFixed(2)}</span></span>)}. The optimizer will refine these over multiple rounds.</>;
+              return <>Agents start with custom fractions: {fracs.map((x, i) => <span key={x.aid}>{i > 0 && ', '}<span className="font-mono text-slate-400">{x.aid}={(x.f as number).toFixed(2)}</span></span>)}. The optimizer will refine these over multiple days.</>;
             })()}
           </p>
         </div>
@@ -563,13 +563,13 @@ export function GameView() {
           {/* Day selector */}
           {gameState.days.length > 0 && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="round-timeline">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">Round Timeline</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Day Timeline</h3>
               <div className="flex gap-1 flex-wrap">
                 {gameState.days.map((d, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedDay(i)}
-                    title={d.optimized ? `Round ${i + 1} — optimized` : `Round ${i + 1}`}
+                    title={d.optimized ? `Day ${i + 1} — optimized` : `Day ${i + 1}`}
                     className={`w-8 h-8 rounded text-xs font-mono transition-all relative ${
                       selectedDay === i || (selectedDay === null && i === gameState.days.length - 1)
                         ? 'bg-sky-500 text-white'
@@ -577,9 +577,13 @@ export function GameView() {
                     }`}
                   >
                     {i + 1}
-                    {d.optimized && <span className="absolute -top-1 -right-1 text-[8px]">🧠</span>}
+                    {d.optimized && !d.optimization_failed && <span className="absolute -top-1 -right-1 text-[8px]">🧠</span>}
+                    {d.optimization_failed && <span className="absolute -top-1 -right-1 text-[8px]">⚠️</span>}
                   </button>
                 ))}
+              </div>
+              <div className="text-[10px] mt-1.5" style={{ color: 'var(--text-muted, #94a3b8)' }}>
+                🧠 optimized · ⚠️ optimization failed
               </div>
             </div>
           )}
@@ -594,7 +598,7 @@ export function GameView() {
                     onClick={() => handleReplay(selectedDay ?? gameState.days.length - 1)}
                     className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs"
                   >
-                    Load Round {(selectedDay ?? gameState.days.length - 1) + 1} Replay
+                    Load Day {(selectedDay ?? gameState.days.length - 1) + 1} Replay
                   </button>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -661,7 +665,7 @@ export function GameView() {
           {day && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="day-costs">
               <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Round {day.day + 1} Results{' '}
+                Day {day.day + 1} Results{' '}
                 <span className="text-xs text-slate-500 font-normal ml-1">seed={day.seed}</span>
               </h3>
               {/* Settlement Rate Banner */}
@@ -790,7 +794,7 @@ export function GameView() {
                             <div className="font-mono">{Math.round(costs.delay_cost).toLocaleString()}</div>
                           </div>
                           <div>
-                            <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of round." /></div>
+                            <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of day." /></div>
                             <div className="font-mono text-red-400">{Math.round(costs.penalty_cost).toLocaleString()}</div>
                           </div>
                           <div>
@@ -812,7 +816,7 @@ export function GameView() {
           {/* Balance chart for selected day */}
           {day && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="balance-chart">
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">Round {day.day + 1} Balances</h3>
+              <h3 className="text-sm font-semibold text-slate-300 mb-3">Day {day.day + 1} Balances</h3>
               <MiniBalanceChart balanceHistory={day.balance_history} agentIds={gameState.agent_ids} />
             </div>
           )}
@@ -881,7 +885,7 @@ export function GameView() {
               <div className="flex items-center gap-3 mb-4">
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                   🧠 {selectedDay !== null && selectedDay < gameState.days.length - 1
-                    ? `Round ${selectedDay + 1} Reasoning`
+                    ? `Day ${selectedDay + 1} Reasoning`
                     : 'Latest Reasoning'}
                 </h3>
                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg-secondary)', color: 'var(--text-muted)' }} title="Each agent optimizes independently using only its own performance data — no visibility into other agents' policies, costs, or strategies. This mirrors real-world banking where institutions make decisions with private information only.">🔒 information-isolated</span>
@@ -889,9 +893,18 @@ export function GameView() {
               <div className="space-y-4">
                 {gameState.agent_ids.map((aid, i) => {
                   const history = gameState.reasoning_history[aid] ?? [];
-                  const reasoningIndex = selectedDay ?? history.length - 1;
-                  const latest = history[reasoningIndex];
-                  if (!latest) return null;
+                  if (history.length === 0) return null;
+                  const targetDay = selectedDay ?? gameState.days.length - 1;
+                  const exactMatch = history.find((r: GameOptimizationResult & { day_num?: number }) => r.day_num === targetDay);
+                  const latest = exactMatch ?? history[history.length - 1];
+                  if (selectedDay !== null && !exactMatch) {
+                    return (
+                      <div key={aid} className="rounded-lg p-3" style={{ background: 'var(--bg-inset)', border: '1px solid var(--border-color)' }}>
+                        <span className="font-mono text-sm" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>{aid}</span>
+                        <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>No optimization ran on this day.</span>
+                      </div>
+                    );
+                  }
                   return (
                     <AgentReasoningCard
                       key={aid}
@@ -915,7 +928,7 @@ export function GameView() {
           <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4" data-tour="policy-display">
             <h3 className="text-sm font-semibold text-slate-300 mb-3">
               📋 {selectedDay !== null && selectedDay < gameState.days.length - 1
-                ? `Round ${selectedDay + 1} Policies`
+                ? `Day ${selectedDay + 1} Policies`
                 : 'Current Policies'}
             </h3>
             <div className="space-y-2">
@@ -1028,7 +1041,7 @@ function SimulatingBanner({ day }: { day: number }) {
   }, [day]);
   return (
     <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 text-center animate-pulse">
-      <span className="text-sm">⚙️ Simulating Round {day}… ({elapsed}s elapsed)</span>
+      <span className="text-sm">⚙️ Simulating Day {day}… ({elapsed}s elapsed)</span>
     </div>
   );
 }
@@ -1090,7 +1103,7 @@ function EventSummary({ day, gameId }: { day: { day: number; events: Record<stri
     <div className="bg-slate-800/50 rounded-xl border border-slate-700 p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-slate-300">
-          Round {day.day + 1} Events {events.length > 0 ? `(${events.length})` : needsLazyLoad ? '(click to load)' : '(0)'}
+          Day {day.day + 1} Events {events.length > 0 ? `(${events.length})` : needsLazyLoad ? '(click to load)' : '(0)'}
         </h3>
         <button
           onClick={handleExpand}
@@ -1316,10 +1329,14 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
               }}
               title={r.reasoning}
             >
-              <span>R{i + 1}</span>
-              <span style={{ color: isSelected ? '#fff' : r.accepted ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                {r.accepted ? '✓' : '✗'}
-              </span>
+              <span>D{r.day_num != null ? r.day_num + 1 : i + 1}</span>
+              {r.failed ? (
+                <span style={{ color: isSelected ? '#fff' : 'var(--text-muted)' }}>⚠</span>
+              ) : (
+                <span style={{ color: isSelected ? '#fff' : r.accepted ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                  {r.accepted ? '✓' : '✗'}
+                </span>
+              )}
             </button>
           );
         })}
@@ -1358,7 +1375,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
 
       {!selected && history.length > 0 && (
         <div className="text-xs text-center py-3" style={{ color: 'var(--text-muted)' }}>
-          Select a round to explore reasoning
+          Select a day to explore reasoning
         </div>
       )}
     </div>
@@ -1448,7 +1465,7 @@ function EvolutionChart({ data, agentIds, yLabel, format }: {
                   onMouseMove={(e) => showTooltip(e, (
                     <div>
                       <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
-                      <div>Round {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
                       {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
                     </div>
                   ))}
@@ -1467,7 +1484,7 @@ function EvolutionChart({ data, agentIds, yLabel, format }: {
                   onMouseMove={(e) => showTooltip(e, (
                     <div>
                       <div className="font-semibold" style={{ color: AGENT_COLORS[ci % AGENT_COLORS.length] }}>{aid}</div>
-                      <div>Round {i + 1}: <span className="font-mono">{format(v)}</span></div>
+                      <div>Day {i + 1}: <span className="font-mono">{format(v)}</span></div>
                       {yLabel && <div className="text-slate-400 text-[10px]">{yLabel}</div>}
                     </div>
                   ))}
