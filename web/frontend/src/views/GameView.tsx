@@ -9,6 +9,7 @@ import { ReasoningExplorer } from '../components/ReasoningExplorer';
 import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
+import { PolicyViewerModal } from '../components/PolicyViewerModal';
 import { useTour } from '../hooks/useTour';
 import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
 import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
@@ -278,7 +279,7 @@ export function GameView() {
       {/* Top Bar */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2" data-tour="top-bar">
-          <h2 className="text-xl sm:text-2xl font-bold">{'Policy Experiment'}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">{gameState.scenario_name || 'Policy Experiment'}</h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
             {gameState.optimization_schedule === 'every_scenario_day' && gameState.scenario_num_days
               ? (() => {
@@ -296,7 +297,9 @@ export function GameView() {
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>
           )}
           {gameState.use_llm && (
-            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">🧠 AI</span>
+            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">
+              🧠 {gameState.optimization_model ? gameState.optimization_model.split(':').pop() : 'AI'}
+            </span>
           )}
           {connectionStatus === 'reconnecting' && (
             <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
@@ -1140,6 +1143,7 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
   colorIdx: number;
   constraintPreset?: string;
 }) {
+  const [policyModal, setPolicyModal] = useState<{ policy: import('../types').PolicyJson; rejected?: boolean; rejectionReason?: string; bootstrap?: import('../types').BootstrapResult } | null>(null);
   const bs = result.bootstrap;
   return (
     <div className="rounded-lg p-4 border-l-3"
@@ -1217,6 +1221,46 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
         <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
           <PolicyDiffView oldPolicy={result.old_policy} newPolicy={result.new_policy} />
         </div>
+      )}
+
+      {/* View Policy buttons */}
+      <div className="flex flex-wrap gap-2 mt-2">
+        {(result.accepted ? result.new_policy : result.old_policy) && (
+          <button
+            onClick={() => setPolicyModal({
+              policy: (result.accepted ? result.new_policy : result.old_policy)!,
+            })}
+            className="text-[11px] px-2 py-1 rounded"
+            style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+          >
+            🔍 View Policy
+          </button>
+        )}
+        {!result.accepted && (result.rejected_policy || result.new_policy) && (
+          <button
+            onClick={() => setPolicyModal({
+              policy: (result.rejected_policy || result.new_policy)!,
+              rejected: true,
+              rejectionReason: result.rejection_reason,
+              bootstrap: result.bootstrap,
+            })}
+            className="text-[11px] px-2 py-1 rounded"
+            style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer' }}
+          >
+            🚫 View Rejected Policy
+          </button>
+        )}
+      </div>
+
+      {policyModal && (
+        <PolicyViewerModal
+          policy={policyModal.policy}
+          onClose={() => setPolicyModal(null)}
+          title={`${aid} — ${policyModal.rejected ? 'Rejected' : 'Active'} Policy`}
+          rejected={policyModal.rejected}
+          rejectionReason={policyModal.rejectionReason}
+          bootstrap={policyModal.bootstrap}
+        />
       )}
     </div>
   );

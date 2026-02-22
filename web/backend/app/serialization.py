@@ -73,6 +73,8 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         "created_at": getattr(game, '_created_at', datetime.now(timezone.utc).isoformat()),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
+        "scenario_name": getattr(game, '_scenario_name', ''),
+        "optimization_model": getattr(game, '_optimization_model', ''),
         "config": {
             "raw_yaml": game.raw_yaml,
             "use_llm": game.use_llm,
@@ -121,6 +123,8 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game.bootstrap_gate.base_seed = game._base_seed
     game._created_at = data.get("created_at", "")
     game._scenario_id = data.get("scenario_id", "")
+    game._scenario_name = data.get("scenario_name", "")
+    game._optimization_model = data.get("optimization_model", "")
     game._uid = data.get("uid", "")
 
     # Restore policies (update shared references)
@@ -188,4 +192,6 @@ def get_game_state(game: 'Game') -> dict[str, Any]:
             for aid in game.agent_ids
         },
         "reasoning_history": game.reasoning_history,
+        "scenario_name": getattr(game, '_scenario_name', ''),
+        "optimization_model": getattr(game, '_optimization_model', ''),
     }

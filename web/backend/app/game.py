@@ -158,6 +158,8 @@ class Game:
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
         self.reasoning_history: dict[str, list[dict]] = {aid: [] for aid in self.agent_ids}
+        self._scenario_name: str = ""
+        self._optimization_model: str = ""
         self._base_seed = raw_yaml.get("simulation", {}).get("rng_seed", 42)
 
         # Scenario configuration

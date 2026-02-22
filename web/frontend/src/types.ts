@@ -208,6 +208,8 @@ export interface GameState {
   cost_history: Record<string, number[]>;
   fraction_history: Record<string, number[]>;
   reasoning_history: Record<string, GameOptimizationResult[]>;
+  scenario_name?: string;
+  optimization_model?: string;
 }
 
 export interface DayResult {
@@ -245,6 +247,8 @@ export interface GameOptimizationResult {
   rejection_reason?: string;
   new_policy?: PolicyJson;
   old_policy?: PolicyJson;
+  rejected_policy?: PolicyJson;
+  rejected_fraction?: number;
   reasoning_summary?: string;
   /** Full raw LLM response text (reasoning + policy JSON). */
   raw_response?: string;
