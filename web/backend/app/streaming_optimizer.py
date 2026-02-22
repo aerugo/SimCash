@@ -484,7 +484,8 @@ async def stream_optimize(
                 # Retry with parse error feedback
                 error_feedback = (
                     f"\n\n--- VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
-                    f"Your previous response could not be parsed: {e}\n"
+                    f"Your previous response:\n```\n{full_text[:2000]}\n```\n\n"
+                    f"This could not be parsed as a valid policy: {e}\n"
                     f"Please try again with a valid JSON policy block."
                 )
                 validation_user_prompt = user_prompt + error_feedback
@@ -548,7 +549,8 @@ async def stream_optimize(
                 if validation_attempt < MAX_VALIDATION_RETRIES:
                     error_feedback = (
                         f"\n\n--- ENGINE VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
-                        f"Your policy failed engine validation: {engine_error_str}\n\n"
+                        f"Your previous response:\n```json\n{full_text}\n```\n\n"
+                        f"This policy failed engine validation: {engine_error_str}\n\n"
                         f"You likely referenced field names that don't exist in the simulation context. "
                         f"Use ONLY the fields listed in the system prompt schema. "
                         f"Do NOT invent field names — even if they sound plausible for a payment system.\n"
@@ -647,10 +649,11 @@ async def stream_optimize(
             }
             return
 
-        # Retry with validation error feedback
+        # Retry with validation error feedback (include the model's own erroneous response)
         error_feedback = (
             f"\n\n--- VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
-            f"Your previous policy was invalid. Errors:\n{errors_str}\n\n"
+            f"Your previous response:\n```json\n{full_text}\n```\n\n"
+            f"This policy was invalid. Errors:\n{errors_str}\n\n"
             f"Please fix these issues and provide a corrected policy."
         )
         validation_user_prompt = user_prompt + error_feedback
