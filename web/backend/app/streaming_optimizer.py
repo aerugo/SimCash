@@ -536,7 +536,7 @@ async def stream_optimize(
                         frac = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
                         if frac is not None:
                             ag["liquidity_allocation_fraction"] = frac
-                from payment_simulator.config.simulation_config import SimulationConfig
+                from payment_simulator.config import SimulationConfig
                 from payment_simulator._core import Orchestrator
                 test_ffi = SimulationConfig.from_dict(test_yaml).to_ffi_dict()
                 Orchestrator.new(test_ffi)
