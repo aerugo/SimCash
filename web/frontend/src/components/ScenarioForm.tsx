@@ -215,6 +215,49 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
     setTemplateOpen(false);
   }, [update, nextAgentId]);
 
+  const [toast, setToast] = useState<string | null>(null);
+
+  const copyAgent = useCallback((idx: number) => {
+    if (!data) return;
+    const agent = data.agents[idx];
+    const json = JSON.stringify({ id: agent.id, opening_balance: agent.opening_balance, liquidity_pool: agent.liquidity_pool, arrival_config: agent.arrival_config }, null, 2);
+    navigator.clipboard.writeText(json).then(() => {
+      setToast(`Copied ${agent.id} config`);
+      setTimeout(() => setToast(null), 2000);
+    });
+  }, [data]);
+
+  const pasteAgent = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const parsed = JSON.parse(text);
+      if (!parsed.id || !parsed.arrival_config) { setToast('Invalid agent JSON'); setTimeout(() => setToast(null), 2000); return; }
+      update(d => {
+        const ids = d.agents.map(a => a.id);
+        const newId = ids.includes(parsed.id) ? nextAgentId(ids, parsed.id) : parsed.id;
+        const weights: Record<string, number> = {};
+        d.agents.forEach(a => { weights[a.id] = parsed.arrival_config?.counterparty_weights?.[a.id] ?? 1.0; });
+        d.agents.push({
+          id: newId,
+          opening_balance: parsed.opening_balance ?? 0,
+          liquidity_pool: parsed.liquidity_pool ?? 1000000,
+          arrival_config: {
+            rate_per_tick: parsed.arrival_config.rate_per_tick ?? 2.0,
+            amount_distribution: parsed.arrival_config.amount_distribution ?? { type: 'LogNormal', mean: 10000, std_dev: 5000 },
+            counterparty_weights: weights,
+            deadline_range: parsed.arrival_config.deadline_range ?? [3, 8],
+          },
+        });
+        d.agents.forEach((a, i) => { if (i < d.agents.length - 1) a.arrival_config.counterparty_weights[newId] = 1.0; });
+      });
+      setToast('Agent pasted!');
+      setTimeout(() => setToast(null), 2000);
+    } catch {
+      setToast('Failed to paste — check clipboard');
+      setTimeout(() => setToast(null), 2000);
+    }
+  }, [update, nextAgentId]);
+
   const cloneAgent = useCallback((idx: number) => {
     update(d => {
       const src = d.agents[idx];
@@ -307,6 +350,8 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
       <div className={sectionCls}>
         <div className="flex items-center justify-between">
           <h3 className={sectionTitle + ' mb-0'}>🏦 Agents ({data.agents.length})</h3>
+          <div className="flex items-center gap-2">
+            <button onClick={pasteAgent} className="px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors" title="Paste agent from clipboard">📥 Paste</button>
           <div className="relative">
             <div className="flex">
               <button onClick={() => addAgentFromTemplate('default')} className="px-3 py-1 text-xs bg-sky-600 hover:bg-sky-500 rounded-l-lg transition-colors">+ Add Agent</button>
@@ -320,8 +365,10 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
               </div>
             )}
           </div>
+          </div>
         </div>
         <div className="space-y-3 mt-2">
+          {toast && <div className="text-xs text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded px-2 py-1">{toast}</div>}
           {data.agents.map((agent, idx) => (
             <AgentCard
               key={idx}
@@ -332,6 +379,7 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
               canRemove={data.agents.length > 2}
               onChange={(mutate) => update(d => { mutate(d.agents[idx]); })}
               onClone={() => cloneAgent(idx)}
+              onCopy={() => copyAgent(idx)}
               onRename={(oldId, newId) => update(d => {
                 d.agents[idx].id = newId;
                 d.agents.forEach((a, i) => {
@@ -358,7 +406,7 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
 
 // ── Agent Card ──────────────────────────────────────────────────────
 
-function AgentCard({ agent, index, allAgentIds, allAgents, canRemove, onChange, onRename, onRemove, onClone }: {
+function AgentCard({ agent, index, allAgentIds, allAgents, canRemove, onChange, onRename, onRemove, onClone, onCopy }: {
   agent: AgentFormData;
   index: number;
   allAgentIds: string[];
@@ -368,6 +416,7 @@ function AgentCard({ agent, index, allAgentIds, allAgents, canRemove, onChange, 
   onRename: (oldId: string, newId: string) => void;
   onRemove: () => void;
   onClone: () => void;
+  onCopy: () => void;
 }) {
   const [expanded, setExpanded] = useState(index < 2);
   const otherIds = allAgentIds.filter(id => id !== agent.id);
@@ -382,6 +431,7 @@ function AgentCard({ agent, index, allAgentIds, allAgents, canRemove, onChange, 
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Pool: {agent.liquidity_pool.toLocaleString()}</span>
           <button onClick={onClone} className="text-xs text-sky-400 hover:text-sky-300 px-1" title="Clone agent">📋</button>
+          <button onClick={onCopy} className="text-xs text-slate-400 hover:text-slate-300 px-1" title="Copy JSON to clipboard">📤</button>
           {canRemove && (
             <button onClick={onRemove} className="text-xs text-red-400 hover:text-red-300 px-1">✕</button>
           )}
