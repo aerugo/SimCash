@@ -140,6 +140,8 @@ class ScenarioFeatures:
     def from_config(cls, config: dict) -> "ScenarioFeatures":
         """Detect features from a raw scenario YAML dict."""
         features = cls()
+        if not isinstance(config, dict):
+            return features
 
         # LSM detection
         lsm = config.get("lsm_config", {})
