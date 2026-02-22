@@ -10,7 +10,7 @@ class TestWSMessageTypes:
     """Verify WebSocket message protocol."""
 
     def test_step_emits_simulation_running_then_day_complete(self):
-        resp = client.post("/api/games", json={"max_days": 3})
+        resp = client.post("/api/games", json={"max_days": 3, "use_llm": False})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:
@@ -35,7 +35,7 @@ class TestWSMessageTypes:
                     break
 
     def test_auto_streams_all_days(self):
-        resp = client.post("/api/games", json={"max_days": 3})
+        resp = client.post("/api/games", json={"max_days": 3, "use_llm": False})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:

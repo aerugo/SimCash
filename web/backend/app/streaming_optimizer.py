@@ -16,6 +16,9 @@ import time as _time
 from pathlib import Path
 from typing import Any, AsyncIterator
 
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parents[3] / ".env")
+
 # Timeout for a single LLM optimization call (seconds).
 LLM_CALL_TIMEOUT_SECONDS = 600
 
@@ -340,9 +343,6 @@ async def stream_optimize(
       {"type": "retry", "attempt": N, "delay": S, "reason": "..."} — retry notification
     """
     from payment_simulator.llm.config import LLMConfig
-    from dotenv import load_dotenv
-
-    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
 
     try:
         from pydantic_ai import Agent

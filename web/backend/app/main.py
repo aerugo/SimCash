@@ -622,14 +622,6 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
             pass
 
 
-# ---- Scenario Pack ----
-
-@app.get("/api/scenario-pack")
-def list_scenario_pack():
-    """List available scenario pack entries."""
-    return {"scenarios": get_scenario_pack()}
-
-
 # ---- Multi-Day Games ----
 
 @app.get("/api/games/scenarios")
