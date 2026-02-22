@@ -137,6 +137,16 @@ const labelCls = 'text-xs text-slate-400 block mb-1';
 const sectionCls = 'bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-3';
 const sectionTitle = 'text-sm font-semibold text-slate-300 mb-2';
 
+// ── Agent Templates ─────────────────────────────────────────────────
+
+const AGENT_TEMPLATES: Record<string, { label: string; config: Partial<AgentFormData> }> = {
+  default: { label: '🏦 Default', config: { opening_balance: 0, liquidity_pool: 1000000, arrival_config: { rate_per_tick: 2.0, amount_distribution: { type: 'LogNormal', mean: 10000, std_dev: 5000 }, counterparty_weights: {}, deadline_range: [3, 8] } } },
+  major: { label: '🏛️ Major Bank', config: { opening_balance: 50000, liquidity_pool: 5000000, arrival_config: { rate_per_tick: 12, amount_distribution: { type: 'LogNormal', mean: 30000, std_dev: 15000 }, counterparty_weights: {}, deadline_range: [3, 8] } } },
+  midtier: { label: '🏢 Mid-Tier', config: { opening_balance: 20000, liquidity_pool: 2000000, arrival_config: { rate_per_tick: 8, amount_distribution: { type: 'LogNormal', mean: 15000, std_dev: 7500 }, counterparty_weights: {}, deadline_range: [3, 8] } } },
+  small: { label: '🏠 Small Bank', config: { opening_balance: 5000, liquidity_pool: 500000, arrival_config: { rate_per_tick: 4, amount_distribution: { type: 'LogNormal', mean: 5000, std_dev: 2500 }, counterparty_weights: {}, deadline_range: [3, 8] } } },
+  ccp: { label: '⚡ Central Counterparty', config: { opening_balance: 100000, liquidity_pool: 10000000, arrival_config: { rate_per_tick: 15, amount_distribution: { type: 'LogNormal', mean: 50000, std_dev: 25000 }, counterparty_weights: {}, deadline_range: [2, 6] } } },
+};
+
 function SetAllWeights({ otherIds, onChange }: { otherIds: string[]; onChange: (mutate: (a: AgentFormData) => void) => void }) {
   const [val, setVal] = useState('1.0');
   return (
@@ -184,6 +194,26 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
     }
     return `BANK_${Date.now()}`;
   }, []);
+
+  const [templateOpen, setTemplateOpen] = useState(false);
+
+  const addAgentFromTemplate = useCallback((templateKey: string) => {
+    update(d => {
+      const tmpl = AGENT_TEMPLATES[templateKey]?.config;
+      if (!tmpl || !tmpl.arrival_config) return;
+      const newId = nextAgentId(d.agents.map(a => a.id));
+      const weights: Record<string, number> = {};
+      d.agents.forEach(a => { weights[a.id] = 1.0; });
+      d.agents.push({
+        id: newId,
+        opening_balance: tmpl.opening_balance ?? 0,
+        liquidity_pool: tmpl.liquidity_pool ?? 1000000,
+        arrival_config: { ...JSON.parse(JSON.stringify(tmpl.arrival_config)), counterparty_weights: weights },
+      });
+      d.agents.forEach((a, i) => { if (i < d.agents.length - 1) a.arrival_config.counterparty_weights[newId] = 1.0; });
+    });
+    setTemplateOpen(false);
+  }, [update, nextAgentId]);
 
   const cloneAgent = useCallback((idx: number) => {
     update(d => {
@@ -277,34 +307,19 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
       <div className={sectionCls}>
         <div className="flex items-center justify-between">
           <h3 className={sectionTitle + ' mb-0'}>🏦 Agents ({data.agents.length})</h3>
-          <button
-            onClick={() => update(d => {
-              const nextId = `BANK_${String.fromCharCode(65 + d.agents.length)}`;
-              const otherIds = d.agents.map(a => a.id);
-              const weights: Record<string, number> = {};
-              otherIds.forEach(id => { weights[id] = 1.0; });
-              d.agents.push({
-                id: nextId,
-                opening_balance: 0,
-                liquidity_pool: 1000000,
-                arrival_config: {
-                  rate_per_tick: 2.0,
-                  amount_distribution: { type: 'LogNormal', mean: 10000, std_dev: 5000 },
-                  counterparty_weights: weights,
-                  deadline_range: [3, 8],
-                },
-              });
-              // Add this new agent to other agents' weights
-              d.agents.forEach((a, i) => {
-                if (i < d.agents.length - 1) {
-                  a.arrival_config.counterparty_weights[nextId] = 1.0;
-                }
-              });
-            })}
-            className="px-3 py-1 text-xs bg-sky-600 hover:bg-sky-500 rounded-lg transition-colors"
-          >
-            + Add Agent
-          </button>
+          <div className="relative">
+            <div className="flex">
+              <button onClick={() => addAgentFromTemplate('default')} className="px-3 py-1 text-xs bg-sky-600 hover:bg-sky-500 rounded-l-lg transition-colors">+ Add Agent</button>
+              <button onClick={() => setTemplateOpen(!templateOpen)} className="px-1.5 py-1 text-xs bg-sky-700 hover:bg-sky-600 rounded-r-lg border-l border-sky-500 transition-colors">▾</button>
+            </div>
+            {templateOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-10 min-w-[180px]">
+                {Object.entries(AGENT_TEMPLATES).map(([key, tmpl]) => (
+                  <button key={key} onClick={() => addAgentFromTemplate(key)} className="block w-full text-left px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 first:rounded-t-lg last:rounded-b-lg transition-colors">{tmpl.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div className="space-y-3 mt-2">
           {data.agents.map((agent, idx) => (
