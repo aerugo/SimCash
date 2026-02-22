@@ -137,6 +137,16 @@ const labelCls = 'text-xs text-slate-400 block mb-1';
 const sectionCls = 'bg-slate-800/60 border border-slate-700 rounded-xl p-4 space-y-3';
 const sectionTitle = 'text-sm font-semibold text-slate-300 mb-2';
 
+function SetAllWeights({ otherIds, onChange }: { otherIds: string[]; onChange: (mutate: (a: AgentFormData) => void) => void }) {
+  const [val, setVal] = useState('1.0');
+  return (
+    <div className="flex items-center gap-1">
+      <input value={val} onChange={e => setVal(e.target.value)} className="w-12 bg-slate-900 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-slate-200 focus:outline-none focus:border-sky-500" />
+      <button onClick={() => onChange(a => { const v = parseFloat(val) || 0; otherIds.forEach(id => { a.arrival_config.counterparty_weights[id] = v; }); })} className="px-2 py-0.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors">Set All</button>
+    </div>
+  );
+}
+
 // ── Component ───────────────────────────────────────────────────────
 
 export function ScenarioForm({ yaml, onYamlChange }: Props) {
@@ -303,6 +313,7 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
               agent={agent}
               index={idx}
               allAgentIds={agentIds}
+              allAgents={data.agents}
               canRemove={data.agents.length > 2}
               onChange={(mutate) => update(d => { mutate(d.agents[idx]); })}
               onClone={() => cloneAgent(idx)}
@@ -332,10 +343,11 @@ export function ScenarioForm({ yaml, onYamlChange }: Props) {
 
 // ── Agent Card ──────────────────────────────────────────────────────
 
-function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, onRemove, onClone }: {
+function AgentCard({ agent, index, allAgentIds, allAgents, canRemove, onChange, onRename, onRemove, onClone }: {
   agent: AgentFormData;
   index: number;
   allAgentIds: string[];
+  allAgents: AgentFormData[];
   canRemove: boolean;
   onChange: (mutate: (a: AgentFormData) => void) => void;
   onRename: (oldId: string, newId: string) => void;
@@ -414,7 +426,21 @@ function AgentCard({ agent, index, allAgentIds, canRemove, onChange, onRename, o
 
           {/* Counterparty weights */}
           <div className="bg-slate-800/40 rounded-lg p-3 space-y-2">
-            <div className="text-xs font-medium text-slate-400">Counterparty Weights</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs font-medium text-slate-400">Counterparty Weights</div>
+              {otherIds.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => onChange(a => { otherIds.forEach(id => { a.arrival_config.counterparty_weights[id] = 1.0; }); })} className="px-2 py-0.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors">Equal</button>
+                  <button onClick={() => onChange(a => {
+                    const balances = otherIds.map(id => allAgents.find(ag => ag.id === id)?.opening_balance ?? 0);
+                    const maxBal = Math.max(...balances, 1);
+                    otherIds.forEach((id, i) => { a.arrival_config.counterparty_weights[id] = parseFloat((balances[i] / maxBal).toFixed(2)) || 0.1; });
+                  })} className="px-2 py-0.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors">∝ Balance</button>
+                  <button onClick={() => onChange(a => { otherIds.forEach((id, i) => { a.arrival_config.counterparty_weights[id] = i === 0 ? 3.0 : 1.0; }); })} className="px-2 py-0.5 text-[10px] bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors">Hub-Spoke</button>
+                  <SetAllWeights otherIds={otherIds} onChange={onChange} />
+                </div>
+              )}
+            </div>
             {otherIds.length === 0 && <div className="text-xs text-slate-500">No other agents</div>}
             <div className="grid grid-cols-2 gap-2">
               {otherIds.map(otherId => (
