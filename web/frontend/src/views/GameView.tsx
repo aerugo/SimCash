@@ -298,7 +298,7 @@ export function GameView() {
           )}
           {gameState.use_llm && (
             <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">
-              🧠 {gameState.optimization_model ? gameState.optimization_model.split(':').pop() : 'AI'}
+              🧠 {gameState.optimization_model ? gameState.optimization_model.split(':').pop() : 'glm-4.7-maas'}
             </span>
           )}
           {connectionStatus === 'reconnecting' && (

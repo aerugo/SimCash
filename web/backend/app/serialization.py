@@ -124,7 +124,8 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game._created_at = data.get("created_at", "")
     game._scenario_id = data.get("scenario_id", "")
     game._scenario_name = data.get("scenario_name", "")
-    game._optimization_model = data.get("optimization_model", "")
+    from .settings import DEFAULT_MODEL
+    game._optimization_model = data.get("optimization_model", "") or DEFAULT_MODEL
     game._uid = data.get("uid", "")
 
     # Restore policies (update shared references)
