@@ -194,6 +194,7 @@ export function ScenarioLibraryView() {
     let parsedConfig: Record<string, unknown> | null = null;
     try { parsedConfig = yaml.load(selectedCustom.yaml_string) as Record<string, unknown>; } catch { /* */ }
     const numAgents = parsedConfig && Array.isArray((parsedConfig as any)?.agents) ? (parsedConfig as any).agents.length : '?';
+    const customNumDays: number = (parsedConfig as any)?.simulation?.num_days ?? 1;
     const handleCustomLaunch = () => {
       if (!parsedConfig) return;
       onLaunchGame({
@@ -204,6 +205,7 @@ export function ScenarioLibraryView() {
         max_days: maxDays,
         num_eval_samples: numEvalSamples,
         optimization_interval: optimizationInterval,
+        optimization_schedule: customNumDays > 1 ? optimizationSchedule : undefined,
         constraint_preset: constraintPreset,
       });
     };
@@ -280,14 +282,28 @@ export function ScenarioLibraryView() {
                 />
               </div>
               <div>
-                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimize Every</label>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>
+                  {customNumDays > 1 ? 'Optimize When' : 'Optimize Every'}
+                </label>
                 <select
-                  value={String(optimizationInterval)}
-                  onChange={e => setOptimizationInterval(Number(e.target.value))}
+                  value={customNumDays > 1 && optimizationSchedule === 'every_scenario_day' ? 'every_scenario_day' : String(optimizationInterval)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v === 'every_scenario_day') {
+                      setOptimizationSchedule('every_scenario_day');
+                      setOptimizationInterval(1);
+                    } else {
+                      setOptimizationSchedule('every_round');
+                      setOptimizationInterval(Number(v));
+                    }
+                  }}
                   className="w-full px-3 py-1.5 rounded text-sm"
                   style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 >
-                  <option value={1}>Every round</option>
+                  {customNumDays > 1 && (
+                    <option value="every_scenario_day">Between each day ({customNumDays}× per round)</option>
+                  )}
+                  <option value={1}>Every round{customNumDays > 1 ? ` (all ${customNumDays} days)` : ''}</option>
                   <option value={2}>Every 2 rounds</option>
                   <option value={3}>Every 3 rounds</option>
                   <option value={5}>Every 5 rounds</option>
