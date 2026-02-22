@@ -147,10 +147,11 @@ Game holds a `SimulationRunner` instance, updates it when policies change.
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1 | Pending | |
-| Phase 2 | Pending | |
-| Phase 3 | Pending | |
-| Phase 4 | Pending | |
-| Phase 5 | Pending | |
-| Phase 6 | Pending | |
-| Phase 7 | Pending | |
+| Phase 1 | ✅ Done | `29e70aaf` — extracted `_run_with_samples()` |
+| Phase 2 | ✅ Done | `8e23d46c` — unified optimization, deleted `_real_optimize` |
+| Phase 3 | ✅ Done | `1c77e3a4` — extracted `SimulationRunner` (252 lines) |
+| Phase 4 | ✅ Done | `6ad2e6ed` — extracted `BootstrapGate` (217 lines) |
+| Phase 5 | ✅ Done | `fb1d8cb1` — extracted `GameSerializer` (191 lines) |
+| Phase 6 | Deferred | main.py WS handler is tightly coupled to globals; low ROI vs risk |
+| Phase 7 | ✅ Done | `467902f3` — duplicate route, dotenv, WS test fix |
+| Tests  | ✅ Done | `2643cddc` — 32→0 refactor failures, 314 passing |
