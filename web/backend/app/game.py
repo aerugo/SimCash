@@ -362,6 +362,7 @@ class Game:
                         include_groups=self.include_groups,
                         exclude_groups=self.exclude_groups,
                         prompt_profile=self.prompt_profile,
+                        model_override=self._optimization_model or None,
                     ):
                         if event["type"] == "chunk":
                             await _send({

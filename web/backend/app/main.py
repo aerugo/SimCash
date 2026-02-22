@@ -704,7 +704,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     game._scenario_id = config.scenario_id
     scenario_entry = get_scenario_by_id(config.scenario_id) or {}
     game._scenario_name = scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id
-    game._optimization_model = settings_manager.settings.optimization_model
+    game._optimization_model = config.model_override or settings_manager.settings.optimization_model
     game._uid = uid
     from datetime import datetime, timezone
     game._created_at = datetime.now(timezone.utc).isoformat()

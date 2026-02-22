@@ -304,6 +304,7 @@ export interface GameSetupConfig {
   optimization_schedule?: 'every_round' | 'every_scenario_day';
   prompt_profile_id?: string;
   prompt_profile?: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
+  model_override?: string;
 }
 
 export interface ConstraintPresetInfo {

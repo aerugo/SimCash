@@ -231,8 +231,11 @@ class SettingsManager:
         self._cache_time = time.time()
         return current
 
-    def get_llm_config(self) -> Any:
+    def get_llm_config(self, model_override: str | None = None) -> Any:
         """Build an LLMConfig from current settings.
+
+        Args:
+            model_override: Optional model ID to use instead of the global default.
 
         Returns:
             LLMConfig instance ready for pydantic-ai Agent.
@@ -240,7 +243,7 @@ class SettingsManager:
         from payment_simulator.llm.config import LLMConfig  # type: ignore[import-untyped]
 
         settings = self.get_settings()
-        model = settings.optimization_model
+        model = model_override or settings.optimization_model
         provider = model.split(":")[0]
 
         # Start with provider defaults, overlay any saved model_settings

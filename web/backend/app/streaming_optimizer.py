@@ -333,6 +333,7 @@ async def stream_optimize(
     include_groups: list[str] | None = None,
     exclude_groups: list[str] | None = None,
     prompt_profile: dict[str, dict] | None = None,
+    model_override: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream LLM optimization with retry on transient errors.
 
@@ -361,9 +362,9 @@ async def stream_optimize(
     cost_breakdown = ctx["cost_breakdown"]
     structured_prompt = ctx.get("structured_prompt")  # StructuredPrompt instance
 
-    # Get LLM config
+    # Get LLM config (with optional per-game model override)
     from .settings import settings_manager
-    llm_config = settings_manager.get_llm_config()
+    llm_config = settings_manager.get_llm_config(model_override=model_override)
 
     agent = _create_agent(llm_config, system_prompt)
     model_settings = llm_config.to_model_settings()

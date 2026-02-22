@@ -161,6 +161,7 @@ class CreateGameRequest(BaseModel):
     optimization_schedule: str = Field(default="every_scenario_day", pattern="^(every_round|every_scenario_day)$")
     prompt_profile_id: str | None = None  # load saved profile by ID
     prompt_profile: dict[str, dict] | None = None  # inline block overrides {block_id: {enabled, options}}
+    model_override: str | None = None  # per-game model override (e.g. "google-vertex:glm-4.7-maas")
 
 
 class CompareRequest(BaseModel):

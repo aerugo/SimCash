@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
-import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario } from '../api';
+import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario, fetchModels, type ModelOption } from '../api';
 import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
 import yaml from 'js-yaml';
@@ -64,6 +64,8 @@ export function ScenarioLibraryView() {
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
   const [optimizationSchedule, setOptimizationSchedule] = useState<'every_round' | 'every_scenario_day'>('every_scenario_day');
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>('');  // empty = server default
   const [startingFraction, setStartingFraction] = useState(0.5);
 
   const buildStartingPolicies = (agentIds: string[]): Record<string, string> => {
@@ -86,8 +88,16 @@ export function ScenarioLibraryView() {
       getScenarioLibrary(showArchived),
       fetchCollections().catch(() => [] as Collection[]),
       isGuest ? Promise.resolve([]) : listCustomScenarios().catch(() => [] as CustomScenario[]),
+      isGuest ? Promise.resolve([]) : fetchModels().catch(() => [] as ModelOption[]),
     ])
-      .then(([s, c, cs]) => { setScenarios(s); setCollections(c); setCustomScenarios(cs); })
+      .then(([s, c, cs, m]) => {
+        setScenarios(s);
+        setCollections(c);
+        setCustomScenarios(cs);
+        setAvailableModels(m as ModelOption[]);
+        const active = (m as ModelOption[]).find(x => x.active);
+        if (active && !selectedModel) setSelectedModel(active.id);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [showArchived, isGuest]);
@@ -178,6 +188,7 @@ export function ScenarioLibraryView() {
       constraint_preset: constraintPreset,
       optimization_schedule: selectedScenario.num_days > 1 ? optimizationSchedule : undefined,
       starting_policies: libAgentIds.length > 0 ? buildStartingPolicies(libAgentIds) : undefined,
+      model_override: selectedModel || undefined,
     });
   };
 
@@ -230,6 +241,7 @@ export function ScenarioLibraryView() {
         optimization_schedule: customNumDays > 1 ? optimizationSchedule : undefined,
         constraint_preset: constraintPreset,
         starting_policies: customAgentIds.length > 0 ? buildStartingPolicies(customAgentIds) : undefined,
+        model_override: selectedModel || undefined,
       });
     };
     return (
@@ -373,6 +385,21 @@ export function ScenarioLibraryView() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+            {useLlm && !simulatedAi && availableModels.length > 0 && (
+              <div className="mb-4">
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimization Model</label>
+                <select
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  {availableModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}{m.active ? ' (default)' : ''}</option>
+                  ))}
+                </select>
               </div>
             )}
             {/* Starting Liquidity Fraction */}
@@ -598,6 +625,21 @@ export function ScenarioLibraryView() {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+            {useLlm && !simulatedAi && availableModels.length > 0 && (
+              <div className="mb-4">
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimization Model</label>
+                <select
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  {availableModels.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}{m.active ? ' (default)' : ''}</option>
+                  ))}
+                </select>
               </div>
             )}
             {/* Starting Liquidity Fraction */}
