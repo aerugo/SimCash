@@ -19,7 +19,7 @@ logging.basicConfig(
 from fastapi import Depends, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 # CORSMiddleware replaced by ExplicitCORSMiddleware below
 
-from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email, get_optional_user, get_optional_ws_user, GuestCookieMiddleware
+from .auth import get_current_user, get_ws_user, get_admin_user, get_current_user_email, get_optional_user, get_optional_ws_user, get_effective_user, get_effective_optional_user, get_effective_ws_user, GuestCookieMiddleware
 
 from .models import (
     CompareRequest,
@@ -625,7 +625,7 @@ async def simulation_ws(websocket: WebSocket, sim_id: str):
 # ---- Multi-Day Games ----
 
 @app.get("/api/games/scenarios")
-def list_game_scenarios(uid: str = Depends(get_optional_user)):
+def list_game_scenarios(uid: str = Depends(get_effective_optional_user)):
     """List scenarios available for game creation with preview metadata."""
     scenarios = []
     for entry in SCENARIO_PACK:
@@ -643,7 +643,7 @@ def list_game_scenarios(uid: str = Depends(get_optional_user)):
 
 
 @app.post("/api/games")
-async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_optional_user)):
+async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_effective_optional_user)):
     """Create a multi-day policy optimization game."""
     import copy
 
@@ -734,7 +734,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
 
 
 @app.get("/api/games")
-def list_games(uid: str = Depends(get_current_user)):
+def list_games(uid: str = Depends(get_effective_user)):
     """List all games for the current user (from checkpoints + in-memory)."""
     # Prefer checkpoint listing (richer data)
     checkpoints = game_storage.list_checkpoints(uid)
@@ -756,7 +756,7 @@ def list_games(uid: str = Depends(get_current_user)):
 
 
 @app.get("/api/games/{game_id}")
-def get_game(game_id: str, uid: str = Depends(get_optional_user)):
+def get_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Get game state. Checks memory first, then storage."""
     game = game_manager.get(game_id)
     if not game:
@@ -768,7 +768,7 @@ def get_game(game_id: str, uid: str = Depends(get_optional_user)):
 
 
 @app.get("/api/games/{game_id}/days/{day_num}/replay")
-def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_optional_user)):
+def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_effective_optional_user)):
     """Get tick-by-tick replay data for a specific game day."""
     game = game_manager.get(game_id)
     if not game:
@@ -798,7 +798,7 @@ def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_optional_
 
 
 @app.post("/api/games/{game_id}/step")
-async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
+async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Run next day + optimize. Returns day results + reasoning."""
     game = game_manager.get(game_id)
     if not game:
@@ -837,7 +837,7 @@ async def step_game(game_id: str, uid: str = Depends(get_optional_user)):
 
 
 @app.post("/api/games/{game_id}/auto")
-async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
+async def auto_run_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Run all remaining days."""
     game = game_manager.get(game_id)
     if not game:
@@ -864,7 +864,7 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
 
 
 @app.get("/api/games/{game_id}/download")
-def download_game(game_id: str, uid: str = Depends(get_optional_user)):
+def download_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Download the DuckDB file for a game."""
     from fastapi.responses import FileResponse
     db_path = game_storage.load_game(uid, game_id)
@@ -874,7 +874,7 @@ def download_game(game_id: str, uid: str = Depends(get_optional_user)):
 
 
 @app.delete("/api/games/{game_id}")
-def delete_game(game_id: str, uid: str = Depends(get_optional_user)):
+def delete_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Delete a game."""
     if game_id in game_manager:
         del game_manager[game_id]
@@ -1128,6 +1128,18 @@ async def admin_list_users(email: str = Depends(get_admin_user)):
     return {"users": user_manager.list_users()}
 
 
+@app.get("/api/admin/users/list-with-games")
+async def admin_list_users_with_games(email: str = Depends(get_admin_user)):
+    """List all users with their game counts."""
+    users = user_manager.list_users()
+    result = []
+    for u in users:
+        uid = u.get("uid", "")
+        game_count = len(game_storage.list_checkpoints(uid)) if uid else 0
+        result.append({**u, "game_count": game_count})
+    return {"users": result}
+
+
 @app.post("/api/admin/invite")
 async def admin_invite_user(req: InviteRequest, email: str = Depends(get_admin_user)):
     """Invite a user by email (admin only)."""
@@ -1362,7 +1374,7 @@ def get_policy_library_tree(policy_id: str):
 # ---- Payment Trace ----
 
 @app.get("/api/games/{game_id}/days/{day_num}/payments")
-def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_optional_user)):
+def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_effective_optional_user)):
     """Get payment lifecycle traces for a specific game day."""
     game = game_manager.get(game_id)
     if not game:
@@ -1382,7 +1394,7 @@ def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_option
 # ---- Policy Evolution Endpoints ----
 
 @app.get("/api/games/{game_id}/policy-history")
-def get_policy_history(game_id: str, uid: str = Depends(get_optional_user)):
+def get_policy_history(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Get full policy evolution data for a game."""
     game = game_manager.get(game_id)
     if not game:
@@ -1437,7 +1449,7 @@ def get_policy_diff(
     day1: int = Query(...),
     day2: int = Query(...),
     agent: str = Query(...),
-    uid: str = Depends(get_optional_user),
+    uid: str = Depends(get_effective_optional_user),
 ):
     """Get structural diff between policies on two days for an agent."""
     game = game_manager.get(game_id)
@@ -1470,7 +1482,7 @@ def get_prompt(
     game_id: str,
     day_num: int,
     agent_id: str,
-    uid: str = Depends(get_optional_user),
+    uid: str = Depends(get_effective_optional_user),
 ):
     """Get the structured prompt for a specific optimization round/agent."""
     game = game_manager.get(game_id)
@@ -1490,7 +1502,7 @@ def get_prompt(
 @app.get("/api/games/{game_id}/prompts")
 def list_prompts(
     game_id: str,
-    uid: str = Depends(get_optional_user),
+    uid: str = Depends(get_effective_optional_user),
 ):
     """List all optimization prompts with metadata (no full content)."""
     game = game_manager.get(game_id)

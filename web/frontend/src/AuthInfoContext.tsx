@@ -6,6 +6,9 @@ export interface AuthInfo {
   isGuest: boolean;
   onSignOut: () => void;
   onSignIn: () => Promise<void>;
+  impersonatingUid: string | null;
+  impersonatingEmail: string | null;
+  setImpersonating: (uid: string | null, email: string | null) => void;
 }
 
 export const AuthInfoContext = createContext<AuthInfo>({
@@ -14,6 +17,9 @@ export const AuthInfoContext = createContext<AuthInfo>({
   isGuest: true,
   onSignOut: () => {},
   onSignIn: async () => {},
+  impersonatingUid: null,
+  impersonatingEmail: null,
+  setImpersonating: () => {},
 });
 
 export function useAuthInfo() {

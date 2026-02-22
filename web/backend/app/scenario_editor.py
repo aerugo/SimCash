@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from payment_simulator.config.schemas import SimulationConfig  # type: ignore[import-untyped]
 
-from .auth import get_current_user
+from .auth import get_effective_user
 from .user_content import UserContentStore
 
 router = APIRouter(prefix="/api/scenarios", tags=["scenario-editor"])
@@ -132,7 +132,7 @@ def validate_scenario(req: ValidateRequest):
 
 
 @router.post("/custom")
-def save_custom_scenario(req: CustomScenarioRequest, uid: str = Depends(get_current_user)):
+def save_custom_scenario(req: CustomScenarioRequest, uid: str = Depends(get_effective_user)):
     """Save a new custom scenario."""
     config_dict, sim_config = _validate_yaml(req.yaml_string)
     scenario_id = str(uuid.uuid4())[:8]
@@ -150,13 +150,13 @@ def save_custom_scenario(req: CustomScenarioRequest, uid: str = Depends(get_curr
 
 
 @router.get("/custom")
-def list_custom_scenarios(uid: str = Depends(get_current_user)):
+def list_custom_scenarios(uid: str = Depends(get_effective_user)):
     """List all custom scenarios for the current user."""
     return {"scenarios": _store.list(uid)}
 
 
 @router.get("/custom/{scenario_id}")
-def get_custom_scenario(scenario_id: str, uid: str = Depends(get_current_user)):
+def get_custom_scenario(scenario_id: str, uid: str = Depends(get_effective_user)):
     """Get a specific custom scenario."""
     item = _store.get(uid, scenario_id)
     if item is None:
@@ -165,7 +165,7 @@ def get_custom_scenario(scenario_id: str, uid: str = Depends(get_current_user)):
 
 
 @router.put("/custom/{scenario_id}")
-def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: str = Depends(get_current_user)):
+def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: str = Depends(get_effective_user)):
     """Update an existing custom scenario."""
     existing = _store.get(uid, scenario_id)
     if existing is None:
@@ -186,7 +186,7 @@ def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: st
 
 
 @router.delete("/custom/{scenario_id}")
-def delete_custom_scenario(scenario_id: str, uid: str = Depends(get_current_user)):
+def delete_custom_scenario(scenario_id: str, uid: str = Depends(get_effective_user)):
     """Delete a custom scenario."""
     if not _store.delete(uid, scenario_id):
         raise HTTPException(status_code=404, detail="Custom scenario not found")

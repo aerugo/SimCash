@@ -196,6 +196,35 @@ async def get_ws_user(websocket: WebSocket) -> str:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+async def get_effective_user(request: Request) -> str:
+    """Like get_current_user, but allows admin impersonation via X-Impersonate-Uid header."""
+    caller_uid = await get_current_user(request)
+    impersonate_uid = request.headers.get("X-Impersonate-Uid")
+    if impersonate_uid:
+        email = _get_email_for_uid(caller_uid)
+        from .admin import user_manager
+        if not user_manager.is_admin(email):
+            raise HTTPException(status_code=403, detail="Admin required for impersonation")
+        logger.warning("Admin %s (%s) impersonating uid %s", email, caller_uid, impersonate_uid)
+        return impersonate_uid
+    return caller_uid
+
+
+async def get_effective_ws_user(websocket: WebSocket) -> str:
+    """Like get_ws_user, but allows admin impersonation via ?impersonate query param."""
+    caller_uid = await get_ws_user(websocket)
+    impersonate_uid = websocket.query_params.get("impersonate")
+    if impersonate_uid:
+        email = _get_email_for_uid(caller_uid)
+        from .admin import user_manager
+        if not user_manager.is_admin(email):
+            from starlette.websockets import WebSocketException
+            raise WebSocketException(code=4003, reason="Admin required")
+        logger.warning("Admin %s (%s) impersonating uid %s via WS", email, caller_uid, impersonate_uid)
+        return impersonate_uid
+    return caller_uid
+
+
 async def get_optional_user(request: Request) -> str:
     """Returns uid if authenticated, else 'guest-{session_id}' from cookie."""
     try:
@@ -206,6 +235,23 @@ async def get_optional_user(request: Request) -> str:
         if guest_id:
             return guest_id
         return f"guest-{uuid4().hex[:12]}"
+
+
+async def get_effective_optional_user(request: Request) -> str:
+    """Like get_optional_user, but allows admin impersonation via X-Impersonate-Uid header."""
+    caller_uid = await get_optional_user(request)
+    impersonate_uid = request.headers.get("X-Impersonate-Uid")
+    if impersonate_uid:
+        # Only check admin if caller is authenticated (not a guest)
+        if caller_uid.startswith("guest-"):
+            raise HTTPException(status_code=401, detail="Authentication required for impersonation")
+        email = _get_email_for_uid(caller_uid)
+        from .admin import user_manager
+        if not user_manager.is_admin(email):
+            raise HTTPException(status_code=403, detail="Admin required for impersonation")
+        logger.warning("Admin %s (%s) impersonating uid %s", email, caller_uid, impersonate_uid)
+        return impersonate_uid
+    return caller_uid
 
 
 async def get_optional_ws_user(websocket: WebSocket) -> str:

@@ -16,7 +16,8 @@ const NAV_SECTIONS = [
 
 function LayoutInner() {
   const { simId, state, gameId } = useGameContext();
-  const { isAdmin, userEmail, isGuest, onSignOut, onSignIn } = useAuthInfo();
+  const authInfo = useAuthInfo();
+  const { isAdmin, userEmail, isGuest, onSignOut, onSignIn } = authInfo;
   const [showChangePassword, setShowChangePassword] = useState(false);
   const location = useLocation();
   useTheme(); // apply theme on mount
@@ -37,6 +38,29 @@ function LayoutInner() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      {/* Impersonation Banner */}
+      {authInfo.impersonatingUid && (
+        <div
+          className="sticky top-0 z-[60] px-4 py-2 text-sm font-medium flex items-center justify-center gap-3"
+          style={{
+            backgroundColor: 'var(--color-warning-bg, #fef3c7)',
+            color: 'var(--tag-amber-fg, #92400e)',
+            borderBottom: '1px solid var(--alert-warning-border, #fde68a)',
+          }}
+        >
+          <span>⚠️ Viewing as {authInfo.impersonatingEmail || authInfo.impersonatingUid}</span>
+          <button
+            onClick={() => authInfo.setImpersonating(null, null)}
+            className="px-2 py-0.5 rounded text-xs font-semibold"
+            style={{
+              backgroundColor: 'var(--tag-amber-fg, #92400e)',
+              color: 'var(--color-warning-bg, #fef3c7)',
+            }}
+          >
+            Stop Impersonating
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="backdrop-blur-sm sticky top-0 z-50" style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 80%, transparent)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">

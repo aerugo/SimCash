@@ -6,6 +6,11 @@ import { getIdToken } from './firebase';
 export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || '';
 const BASE = `${API_ORIGIN}/api`;
 
+// ---- Impersonation ----
+let _impersonateUid: string | null = null;
+export function setImpersonateUid(uid: string | null) { _impersonateUid = uid; }
+export function getImpersonateUid(): string | null { return _impersonateUid; }
+
 /** Authenticated fetch wrapper — auto-includes Bearer token for protected endpoints */
 export async function authFetch(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers);
@@ -14,6 +19,9 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
   const token = devToken || await getIdToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (_impersonateUid) {
+    headers.set('X-Impersonate-Uid', _impersonateUid);
   }
   return fetch(url, { ...init, headers, credentials: 'include' });
 }
@@ -60,6 +68,18 @@ export async function createUserWithPassphrase(email: string): Promise<{ email: 
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+export interface AdminUserWithGames extends AdminUser {
+  uid?: string;
+  game_count?: number;
+}
+
+export async function fetchUsersWithGames(): Promise<AdminUserWithGames[]> {
+  const res = await authFetch(`${BASE}/admin/users/list-with-games`);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.users;
 }
 
 export async function revokeUser(email: string): Promise<void> {

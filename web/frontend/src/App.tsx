@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './router';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { AuthInfoContext } from './AuthInfoContext';
-import { checkAdmin } from './api';
+import { checkAdmin, setImpersonateUid } from './api';
 
 function AppContent() {
   const { user, loading, signOut: handleAuthSignOut } = useAuth();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [impersonatingUid, setImpersonatingUid] = useState<string | null>(null);
+  const [impersonatingEmail, setImpersonatingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (loading || !user) {
@@ -20,13 +22,19 @@ function AppContent() {
       .catch(() => setIsAdmin(false));
   }, [user, loading]);
 
-  // Render immediately — don't gate on auth loading.
-  // Guest users see the landing page right away.
-  // Auth state updates reactively once Firebase resolves.
+  // Sync impersonation state with api.ts header injection
+  useEffect(() => {
+    setImpersonateUid(impersonatingUid);
+  }, [impersonatingUid]);
+
+  const setImpersonating = useCallback((uid: string | null, email: string | null) => {
+    setImpersonatingUid(uid);
+    setImpersonatingEmail(email);
+  }, []);
+
   const isGuest = loading || !user;
 
   const handleSignIn = async () => {
-    // Navigate to login page — handled by router
     window.location.href = '/login';
   };
 
@@ -37,6 +45,9 @@ function AppContent() {
       isGuest,
       onSignOut: handleAuthSignOut,
       onSignIn: handleSignIn,
+      impersonatingUid,
+      impersonatingEmail,
+      setImpersonating,
     }}>
       <RouterProvider router={router} />
     </AuthInfoContext.Provider>

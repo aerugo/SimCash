@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .auth import get_current_user
+from .auth import get_effective_user
 from .user_content import UserContentStore
 
 router = APIRouter(prefix="/api/policies", tags=["policy-editor"])
@@ -205,7 +205,7 @@ def validate_policy_endpoint(req: ValidateRequest):
 
 
 @router.post("/custom")
-def save_custom_policy(req: SavePolicyRequest, uid: str = Depends(get_current_user)):
+def save_custom_policy(req: SavePolicyRequest, uid: str = Depends(get_effective_user)):
     """Save a custom policy. Validates first."""
     result = validate_policy_json(req.json_string)
     if not result.valid:
@@ -223,13 +223,13 @@ def save_custom_policy(req: SavePolicyRequest, uid: str = Depends(get_current_us
 
 
 @router.get("/custom")
-def list_custom_policies(uid: str = Depends(get_current_user)):
+def list_custom_policies(uid: str = Depends(get_effective_user)):
     """List all saved custom policies."""
     return {"policies": _store.list(uid)}
 
 
 @router.get("/custom/{policy_id}")
-def get_custom_policy(policy_id: str, uid: str = Depends(get_current_user)):
+def get_custom_policy(policy_id: str, uid: str = Depends(get_effective_user)):
     """Get a specific custom policy by ID."""
     item = _store.get(uid, policy_id)
     if item is None:
@@ -238,7 +238,7 @@ def get_custom_policy(policy_id: str, uid: str = Depends(get_current_user)):
 
 
 @router.put("/custom/{policy_id}")
-def update_custom_policy(policy_id: str, req: SavePolicyRequest, uid: str = Depends(get_current_user)):
+def update_custom_policy(policy_id: str, req: SavePolicyRequest, uid: str = Depends(get_effective_user)):
     """Update an existing custom policy."""
     existing = _store.get(uid, policy_id)
     if existing is None:
@@ -260,7 +260,7 @@ def update_custom_policy(policy_id: str, req: SavePolicyRequest, uid: str = Depe
 
 
 @router.delete("/custom/{policy_id}")
-def delete_custom_policy(policy_id: str, uid: str = Depends(get_current_user)):
+def delete_custom_policy(policy_id: str, uid: str = Depends(get_effective_user)):
     """Delete a custom policy."""
     if not _store.delete(uid, policy_id):
         raise HTTPException(404, detail="Not found")

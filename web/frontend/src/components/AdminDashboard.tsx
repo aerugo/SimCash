@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchUsers, createUserWithPassphrase, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, type AdminUser, type ModelOption, type AdminLibrary, type Collection } from '../api';
+import { useNavigate } from 'react-router-dom';
+import { fetchUsers, createUserWithPassphrase, revokeUser, fetchModels, updateSettings, fetchAdminLibrary, toggleLibraryVisibility, fetchCollections, adminCreateCollection, adminUpdateCollectionScenarios, fetchUsersWithGames, type AdminUser, type AdminUserWithGames, type ModelOption, type AdminLibrary, type Collection } from '../api';
+import { useAuthInfo } from '../AuthInfoContext';
 
 const PROVIDER_COLORS: Record<string, string> = {
   'google-vertex': 'bg-blue-100 text-blue-700',
@@ -8,6 +10,9 @@ const PROVIDER_COLORS: Record<string, string> = {
 };
 
 export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
+  const { setImpersonating } = useAuthInfo();
+  const navigate = useNavigate();
+  const [usersWithGames, setUsersWithGames] = useState<AdminUserWithGames[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -85,7 +90,14 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
     } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => { loadUsers(); loadModels(); }, [loadUsers, loadModels]);
+  const loadUsersWithGames = useCallback(async () => {
+    try {
+      const data = await fetchUsersWithGames();
+      setUsersWithGames(data);
+    } catch { /* non-critical */ }
+  }, []);
+
+  useEffect(() => { loadUsers(); loadModels(); loadUsersWithGames(); }, [loadUsers, loadModels, loadUsersWithGames]);
   useEffect(() => {
     if (activeTab === 'library') {
       if (!library) loadLibrary();
@@ -315,6 +327,7 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                         <th className="text-left py-2 px-2">Method</th>
                         <th className="text-left py-2 px-2">Last Login</th>
                         <th className="text-left py-2 px-2">Invited By</th>
+                        <th className="text-left py-2 px-2">Games</th>
                         <th className="text-right py-2 px-2"></th>
                       </tr>
                     </thead>
@@ -334,7 +347,22 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                             {u.last_login ? new Date(u.last_login).toLocaleDateString() : '—'}
                           </td>
                           <td className="py-2 px-2 text-base-secondary text-xs">{u.invited_by || '—'}</td>
-                          <td className="py-2 px-2 text-right">
+                          <td className="py-2 px-2 text-base-secondary text-xs">
+                            {usersWithGames.find(ug => ug.email === u.email)?.game_count ?? '—'}
+                          </td>
+                          <td className="py-2 px-2 text-right flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                const ug = usersWithGames.find(ug => ug.email === u.email);
+                                setImpersonating(ug?.uid || '', u.email);
+                                onClose?.();
+                                navigate('/experiments');
+                              }}
+                              className="text-base-muted hover:text-sky-400 text-sm"
+                              title={`View as ${u.email}`}
+                            >
+                              👁
+                            </button>
                             {confirmRevoke === u.email ? (
                               <span className="space-x-2">
                                 <button onClick={() => handleRevoke(u.email)} className="text-red-400 hover:text-red-300 text-xs font-medium">Confirm</button>
