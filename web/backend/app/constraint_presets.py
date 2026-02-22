@@ -4,6 +4,13 @@ Presets control WHAT the LLM is allowed to optimize:
 - Simple: Just initial_liquidity_fraction (current behavior)
 - Standard: Fraction + Release/Hold/Split with basic conditions
 - Full: All actions, all context fields, full decision tree optimization
+
+IMPORTANT: Field names MUST match the actual Rust engine context fields exactly.
+See simulator/src/policy/tree/context.rs for:
+  - EvalContext::build() — transaction-level fields (payment_tree)
+  - EvalContext::bank_level() — bank-level fields (bank_tree, collateral trees)
+See simulator/src/policy/tree/validation.rs:
+  - is_bank_level_field() — allowlist for bank_tree field validation
 """
 from __future__ import annotations
 
@@ -53,7 +60,7 @@ PRESET_METADATA: list[dict[str, str]] = [
     {
         "id": "full",
         "name": "Full (All Actions & Fields)",
-        "description": "LLM has access to all 16 actions, 140+ context fields, state registers, and all 4 tree types. Maximum strategy space — slower convergence but richer policies.",
+        "description": "LLM has access to all actions, all context fields, state registers, and all tree types. Maximum strategy space — slower convergence but richer policies.",
         "complexity": "full",
     },
 ]
@@ -106,6 +113,7 @@ def _build_simple(lsm_enabled: bool) -> Any:
             ),
         ],
         allowed_fields=[
+            # Verified against EvalContext::build() in context.rs
             "system_tick_in_day", "balance", "amount", "remaining_amount", "ticks_to_deadline",
         ],
         allowed_actions={"payment_tree": ["Release", "Hold"], "bank_tree": ["NoAction"]},
@@ -140,15 +148,15 @@ def _build_standard(lsm_enabled: bool) -> Any:
             ),
         ],
         allowed_fields=[
-            # Balance & liquidity
-            "balance", "available_liquidity", "liquidity_pool",
-            # Payment attributes
+            # Balance & liquidity (from EvalContext::build)
+            "balance", "available_liquidity", "effective_liquidity",
+            # Payment attributes (transaction-level)
             "amount", "remaining_amount", "ticks_to_deadline", "is_eod_rush",
             # Queue & system state
-            "queue_size", "queue_total_amount", "system_tick_in_day",
-            "total_ticks_in_day", "ticks_remaining_in_day",
+            "outgoing_queue_size", "queue1_total_value", "system_tick_in_day",
+            "system_ticks_per_day", "ticks_remaining_in_day",
             # Cost awareness
-            "delay_cost_rate", "overdraft_cost_rate",
+            "cost_delay_per_tick_per_cent", "cost_overdraft_bps_per_tick",
         ],
         allowed_actions={
             "payment_tree": ["Release", "Hold", "Split"],
@@ -159,40 +167,79 @@ def _build_standard(lsm_enabled: bool) -> Any:
 
 
 def _build_full(lsm_enabled: bool) -> Any:
-    """Full: all actions, all fields, all trees."""
+    """Full: all actions, all fields, all trees.
+    
+    Every field name here has been verified against:
+    - EvalContext::build() for payment_tree fields (context.rs)
+    - EvalContext::bank_level() for bank_tree fields (context.rs)
+    - is_bank_level_field() for bank_tree validation (validation.rs)
+    """
     all_fields = [
-        # Balance & liquidity
-        "balance", "available_liquidity", "liquidity_pool",
-        "opening_balance", "net_position",
-        # Payment attributes
-        "amount", "remaining_amount", "ticks_to_deadline",
-        "is_eod_rush", "is_deadline_payment", "priority",
-        "payment_count_today", "payment_value_today",
-        # Queue state
-        "queue_size", "queue_total_amount",
-        "queue_urgent_count", "queue_urgent_amount",
-        # System timing
-        "system_tick_in_day", "total_ticks_in_day",
-        "ticks_remaining_in_day", "day_progress",
-        # Counterparty
-        "counterparty_balance", "counterparty_queue_size",
-        "bilateral_net_position",
-        # Cost rates
-        "delay_cost_rate", "overdraft_cost_rate",
-        "deadline_penalty_rate", "eod_penalty_rate",
-        "liquidity_cost_rate",
-        # Accumulated costs
-        "cumulative_delay_cost", "cumulative_overdraft_cost",
-        "cumulative_penalty_cost", "total_cost_so_far",
-        # LSM fields (if enabled)
-        "bilateral_offset_available", "cycle_offset_available",
-        "lsm_queue_size",
-        # State registers
-        "register_0", "register_1", "register_2", "register_3",
-        "register_4", "register_5", "register_6", "register_7",
-        "register_8", "register_9",
-        # Budget tracking
-        "budget_remaining", "budget_utilization",
+        # === Transaction fields (payment_tree only) ===
+        "amount", "remaining_amount", "settled_amount",
+        "arrival_tick", "deadline_tick", "priority",
+        "is_split", "is_past_deadline", "is_overdue", "is_in_queue2",
+        "overdue_duration", "queue_age",
+        
+        # === Agent fields (both payment_tree and bank_tree) ===
+        "balance", "available_liquidity", "effective_liquidity",
+        "credit_limit", "credit_used", "credit_headroom",
+        "is_using_credit", "is_overdraft_capped",
+        "liquidity_buffer", "liquidity_pressure",
+        "outgoing_queue_size", "incoming_expected_count",
+        
+        # === Queue 1 metrics ===
+        "queue1_total_value", "queue1_liquidity_gap", "headroom",
+        
+        # === Queue 2 (RTGS) metrics ===
+        "queue2_size", "queue2_count_for_agent",
+        "queue2_nearest_deadline", "ticks_to_nearest_queue2_deadline",
+        "rtgs_queue_size", "rtgs_queue_value",
+        
+        # === System fields ===
+        "current_tick", "total_agents",
+        "system_tick_in_day", "system_ticks_per_day", "system_current_day",
+        "ticks_remaining_in_day", "day_progress_fraction", "is_eod_rush",
+        
+        # === Derived timing fields ===
+        "ticks_to_deadline",
+        
+        # === Counterparty fields (payment_tree only) ===
+        "tx_counterparty_id", "tx_is_top_counterparty",
+        "my_bilateral_net_q2",
+        "my_q2_out_value_to_counterparty", "my_q2_in_value_from_counterparty",
+        
+        # === Bilateral net top-N (payment_tree only) ===
+        "my_bilateral_net_q2_top_1", "my_bilateral_net_q2_top_2",
+        "my_bilateral_net_q2_top_3", "my_bilateral_net_q2_top_4",
+        "my_bilateral_net_q2_top_5",
+        
+        # === Cost rate fields ===
+        "cost_overdraft_bps_per_tick", "cost_delay_per_tick_per_cent",
+        "cost_collateral_bps_per_tick", "cost_split_friction",
+        "cost_deadline_penalty", "cost_eod_penalty",
+        
+        # === Per-transaction cost fields (payment_tree only) ===
+        "cost_delay_this_tx_one_tick", "cost_overdraft_this_amount_one_tick",
+        
+        # === Collateral fields ===
+        "posted_collateral", "max_collateral_capacity",
+        "remaining_collateral_capacity", "collateral_utilization",
+        "required_collateral_for_usage", "excess_collateral",
+        "overdraft_utilization", "overdraft_headroom",
+        "collateral_haircut", "unsecured_cap", "allowed_overdraft_limit",
+        
+        # === Public signal fields ===
+        "system_queue2_pressure_index",
+        "lsm_run_rate_last_10_ticks",
+        
+        # === Throughput progress fields ===
+        "my_throughput_fraction_today",
+        "expected_throughput_fraction_by_now",
+        "throughput_gap",
+        
+        # Note: State registers (bank_state_*) are allowed automatically
+        # by the validator — they don't need to be listed here.
     ]
     
     all_parameters = [
