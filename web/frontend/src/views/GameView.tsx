@@ -1239,7 +1239,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
     <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>📊 Policy History</h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {agentIds.map((aid, i) => (
             <button
               key={aid}
