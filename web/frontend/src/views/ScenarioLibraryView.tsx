@@ -63,7 +63,7 @@ export function ScenarioLibraryView() {
   const [numEvalSamples, setNumEvalSamples] = useState(50);
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
-  const [optimizationSchedule, setOptimizationSchedule] = useState<'every_round' | 'every_scenario_day'>('every_round');
+  const [optimizationSchedule, setOptimizationSchedule] = useState<'every_round' | 'every_scenario_day'>('every_scenario_day');
 
   useEffect(() => {
     setLoading(true);

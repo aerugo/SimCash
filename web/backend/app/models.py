@@ -158,7 +158,7 @@ class CreateGameRequest(BaseModel):
     include_groups: list[str] | None = None  # Extra field groups to force-include
     exclude_groups: list[str] | None = None  # Field groups to force-exclude
     starting_policies: dict[str, str] | None = None  # agent_id → policy JSON string
-    optimization_schedule: str = Field(default="every_round", pattern="^(every_round|every_scenario_day)$")
+    optimization_schedule: str = Field(default="every_scenario_day", pattern="^(every_round|every_scenario_day)$")
     prompt_profile_id: str | None = None  # load saved profile by ID
     prompt_profile: dict[str, dict] | None = None  # inline block overrides {block_id: {enabled, options}}
 

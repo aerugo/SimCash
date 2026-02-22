@@ -137,7 +137,7 @@ class Game:
                  include_groups: list[str] | None = None,
                  exclude_groups: list[str] | None = None,
                  starting_policies: dict[str, str] | None = None,
-                 optimization_schedule: str = "every_round",
+                 optimization_schedule: str = "every_scenario_day",
                  prompt_profile: dict[str, dict] | None = None):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
@@ -971,7 +971,7 @@ class Game:
             constraint_preset=config.get("constraint_preset", "simple"),
             include_groups=config.get("include_groups"),
             exclude_groups=config.get("exclude_groups"),
-            optimization_schedule=config.get("optimization_schedule", "every_round"),
+            optimization_schedule=config.get("optimization_schedule", "every_scenario_day"),
             prompt_profile=config.get("prompt_profile"),
         )
         game._base_seed = config.get("base_seed", 42)
