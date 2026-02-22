@@ -89,7 +89,7 @@ fn create_test_config_with_haircut(
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     }
 }
 
@@ -666,7 +666,7 @@ fn test_cross_agent_collateral_isolation() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();
@@ -813,7 +813,7 @@ fn test_hold_collateral_action_is_noop() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orch = Orchestrator::new(config).unwrap();

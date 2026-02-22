@@ -38,7 +38,7 @@ fn test_orchestrator_loads_fifo_policy_from_json() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     // Should successfully create orchestrator with JSON-loaded policy
@@ -88,7 +88,7 @@ fn test_orchestrator_loads_deadline_policy_from_json_with_default_params() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -141,7 +141,7 @@ fn test_orchestrator_loads_deadline_policy_with_custom_threshold() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -195,7 +195,7 @@ fn test_orchestrator_loads_liquidity_aware_policy_from_json() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).expect("Failed to create orchestrator");
@@ -297,7 +297,7 @@ fn test_multi_agent_different_json_policies() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     // Should successfully create orchestrator with all three JSON policies
@@ -344,7 +344,7 @@ fn test_determinism_with_json_policies() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     // Run simulation 1

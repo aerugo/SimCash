@@ -99,6 +99,8 @@ fn default_eod_rush_threshold() -> f64 {
 /// * `rng_seed` - Seed for deterministic random number generation
 /// * `agent_configs` - Configuration for each participating agent (bank)
 /// * `cost_rates` - Rates for calculating liquidity, delay, and penalty costs
+fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrchestratorConfig {
     /// Number of ticks per business day (e.g., 100 ticks = 1 tick per ~5 minutes)
@@ -186,6 +188,21 @@ pub struct OrchestratorConfig {
     /// When true: Deadlines are capped at the current day's end
     #[serde(default)]
     pub deadline_cap_at_eod: bool,
+
+    /// Daily liquidity reallocation (default: false)
+    ///
+    /// When enabled, implements a daily liquidity cycle matching real RTGS systems:
+    /// - **EOD**: Return allocated liquidity to pool (`balance -= allocated_liquidity`)
+    /// - **SOD**: Reallocate from pool using current policy's `initial_liquidity_fraction`
+    ///
+    /// This makes `initial_liquidity_fraction` a live daily strategic parameter
+    /// instead of a one-shot Day 1 decision. Required for multi-day scenarios
+    /// to produce economically meaningful results.
+    ///
+    /// Only affects agents with `liquidity_pool` configured.
+    /// When false: allocation happens once at init, balances carry forward as-is.
+    #[serde(default = "default_true")]
+    pub daily_liquidity_reallocation: bool,
 }
 
 /// Priority escalation configuration
@@ -953,7 +970,7 @@ impl Orchestrator {
     ///     algorithm_sequencing: false,
     ///     entry_disposition_offsetting: false,
     ///     deferred_crediting: false,
-    ///     deadline_cap_at_eod: false,
+    ///     deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     /// };
     ///
     /// let orchestrator = Orchestrator::new(config).unwrap();
@@ -2963,6 +2980,15 @@ impl Orchestrator {
                     *accumulator = CostAccumulator::new();
                 }
             }
+        }
+
+        // STEP 0.25: DAILY LIQUIDITY REALLOCATION (SOD)
+        // Allocate fresh liquidity from pool using current policy's fraction
+        if self.config.daily_liquidity_reallocation
+            && self.time_manager.tick_within_day() == 0
+            && current_tick > 0
+        {
+            self.allocate_daily_liquidity(current_tick)?;
         }
 
         // STEP 0.5: EXECUTE SCENARIO EVENTS
@@ -5114,6 +5140,121 @@ impl Orchestrator {
     /// Transactions still within their deadline window do NOT incur EOD penalties.
     ///
     /// Returns the total EOD penalties accrued across all agents.
+    /// Extract `initial_liquidity_fraction` from a PolicyConfig.
+    ///
+    /// For `FromJson` policies, parses the JSON and reads
+    /// `parameters.initial_liquidity_fraction`. Returns 1.0 for all
+    /// other policy types or if the field is missing/unparseable.
+    fn extract_fraction_from_policy(policy: &PolicyConfig) -> f64 {
+        match policy {
+            PolicyConfig::FromJson { json } => {
+                serde_json::from_str::<serde_json::Value>(json)
+                    .ok()
+                    .and_then(|v| v["parameters"]["initial_liquidity_fraction"].as_f64())
+                    .unwrap_or(1.0)
+            }
+            _ => 1.0,
+        }
+    }
+
+    /// Return allocated liquidity to pool at end of day.
+    ///
+    /// For each agent with a liquidity pool, withdraws the allocated amount
+    /// from the RTGS balance. The balance may go negative (using overdraft).
+    fn return_daily_liquidity(&mut self, current_tick: usize) -> Result<(), SimulationError> {
+        let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+
+        for agent_id in agent_ids {
+            // Only agents with a liquidity pool participate
+            let has_pool = self.config.agent_configs
+                .iter()
+                .any(|ac| ac.id == agent_id && ac.liquidity_pool.is_some());
+
+            if !has_pool {
+                continue;
+            }
+
+            let allocated = {
+                let agent = self.state.get_agent(&agent_id).unwrap();
+                agent.allocated_liquidity()
+            };
+
+            if allocated == 0 {
+                continue;
+            }
+
+            // Return liquidity: balance -= allocated
+            {
+                let agent = self.state.get_agent_mut(&agent_id).unwrap();
+                agent.adjust_balance(-allocated);
+                agent.set_allocated_liquidity(0);
+            }
+
+            let balance_after = self.state.get_agent(&agent_id).unwrap().balance();
+
+            self.log_event(Event::LiquidityReturn {
+                tick: current_tick,
+                agent_id,
+                amount: allocated,
+                balance_after,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Allocate liquidity from pool at start of day.
+    ///
+    /// For each agent with a liquidity pool, reads the current policy's
+    /// `initial_liquidity_fraction` and allocates `floor(pool × fraction)`.
+    fn allocate_daily_liquidity(&mut self, current_tick: usize) -> Result<(), SimulationError> {
+        let current_day = self.current_day();
+        let agent_ids: Vec<String> = self.state.get_all_agent_ids();
+
+        for agent_id in agent_ids {
+            // Find agent config for pool info
+            let (pool, _) = match self.config.agent_configs
+                .iter()
+                .find(|ac| ac.id == agent_id)
+            {
+                Some(ac) => match ac.liquidity_pool {
+                    Some(pool) => (pool, ()),
+                    None => continue,
+                },
+                None => continue,
+            };
+
+            // Read fraction from current policy
+            let fraction = self.config.agent_configs
+                .iter()
+                .find(|ac| ac.id == agent_id)
+                .map(|ac| Self::extract_fraction_from_policy(&ac.policy))
+                .unwrap_or(1.0);
+
+            let allocation = (pool as f64 * fraction).floor() as i64;
+
+            // Apply allocation
+            {
+                let agent = self.state.get_agent_mut(&agent_id).unwrap();
+                agent.adjust_balance(allocation);
+                agent.set_allocated_liquidity(allocation);
+            }
+
+            let balance_after = self.state.get_agent(&agent_id).unwrap().balance();
+
+            self.log_event(Event::LiquidityAllocation {
+                tick: current_tick,
+                day: current_day,
+                agent_id,
+                fraction,
+                amount: allocation,
+                balance_after,
+            });
+        }
+
+        Ok(())
+    }
+
     fn handle_end_of_day(&mut self) -> Result<i64, SimulationError> {
         let current_tick = self.current_tick();
         let current_day = self.current_day();
@@ -5237,6 +5378,11 @@ impl Orchestrator {
             unsettled_count,
             total_penalties,
         });
+
+        // Daily liquidity cycle: return allocated liquidity to pool
+        if self.config.daily_liquidity_reallocation {
+            self.return_daily_liquidity(current_tick)?;
+        }
 
         // Phase 3: Finalize daily metrics and prepare for next day
         self.finalize_daily_metrics(current_day)?;

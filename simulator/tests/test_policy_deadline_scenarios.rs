@@ -125,7 +125,7 @@ fn test_deadline_policy_submits_urgent_arrivals() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -221,7 +221,7 @@ fn test_deadline_policy_holds_non_urgent_under_liquidity_pressure() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -335,7 +335,7 @@ fn test_deadline_policy_vs_fifo_comparison() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -436,7 +436,7 @@ fn test_deadline_policy_all_urgent_scenario() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();
@@ -525,7 +525,7 @@ fn test_deadline_policy_deadline_cascade() {
             algorithm_sequencing: false,
             entry_disposition_offsetting: false,
             deferred_crediting: false,
-            deadline_cap_at_eod: false,
+            deadline_cap_at_eod: false, daily_liquidity_reallocation: false,
     };
 
     let mut orchestrator = Orchestrator::new(config).unwrap();

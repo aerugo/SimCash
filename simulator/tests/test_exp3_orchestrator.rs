@@ -85,7 +85,7 @@ fn create_exp3_config(seed: u64) -> OrchestratorConfig {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
         deferred_crediting: true,
-        deadline_cap_at_eod: true,
+        deadline_cap_at_eod: true, daily_liquidity_reallocation: false,
         priority_escalation: Default::default(),
     }
 }
@@ -168,7 +168,7 @@ fn test_exp3_high_rate_last_tick() {
         algorithm_sequencing: false,
         entry_disposition_offsetting: false,
         deferred_crediting: true,
-        deadline_cap_at_eod: true,
+        deadline_cap_at_eod: true, daily_liquidity_reallocation: false,
         priority_escalation: Default::default(),
     };
 
