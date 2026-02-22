@@ -64,6 +64,21 @@ export function ScenarioLibraryView() {
   const [constraintPreset, setConstraintPreset] = useState<'simple' | 'full'>('full');
   const [optimizationInterval, setOptimizationInterval] = useState(1);
   const [optimizationSchedule, setOptimizationSchedule] = useState<'every_round' | 'every_scenario_day'>('every_scenario_day');
+  const [startingFraction, setStartingFraction] = useState(0.5);
+
+  const buildStartingPolicies = (agentIds: string[]): Record<string, string> => {
+    const policies: Record<string, string> = {};
+    for (const aid of agentIds) {
+      policies[aid] = JSON.stringify({
+        version: "2.0",
+        policy_id: "default_fifo",
+        parameters: { initial_liquidity_fraction: startingFraction },
+        bank_tree: { type: "action", node_id: "bank_root", action: "NoAction" },
+        payment_tree: { type: "action", node_id: "pay_root", action: "Release" },
+      });
+    }
+    return policies;
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -149,6 +164,9 @@ export function ScenarioLibraryView() {
 
   const handleLaunch = () => {
     if (!selectedScenario || !onLaunchGame) return;
+    const libAgentIds: string[] = Array.isArray((selectedScenario.raw_config as any)?.agents)
+      ? (selectedScenario.raw_config as any).agents.map((a: any) => a.id).filter(Boolean)
+      : [];
     onLaunchGame({
       scenario_id: selectedScenario.id,
       inline_config: selectedScenario.raw_config,
@@ -159,6 +177,7 @@ export function ScenarioLibraryView() {
       optimization_interval: optimizationInterval,
       constraint_preset: constraintPreset,
       optimization_schedule: selectedScenario.num_days > 1 ? optimizationSchedule : undefined,
+      starting_policies: libAgentIds.length > 0 ? buildStartingPolicies(libAgentIds) : undefined,
     });
   };
 
@@ -195,6 +214,9 @@ export function ScenarioLibraryView() {
     try { parsedConfig = yaml.load(selectedCustom.yaml_string) as Record<string, unknown>; } catch { /* */ }
     const numAgents = parsedConfig && Array.isArray((parsedConfig as any)?.agents) ? (parsedConfig as any).agents.length : '?';
     const customNumDays: number = (parsedConfig as any)?.simulation?.num_days ?? 1;
+    const customAgentIds: string[] = parsedConfig && Array.isArray((parsedConfig as any)?.agents)
+      ? (parsedConfig as any).agents.map((a: any) => a.id).filter(Boolean)
+      : [];
     const handleCustomLaunch = () => {
       if (!parsedConfig) return;
       onLaunchGame({
@@ -207,6 +229,7 @@ export function ScenarioLibraryView() {
         optimization_interval: optimizationInterval,
         optimization_schedule: customNumDays > 1 ? optimizationSchedule : undefined,
         constraint_preset: constraintPreset,
+        starting_policies: customAgentIds.length > 0 ? buildStartingPolicies(customAgentIds) : undefined,
       });
     };
     return (
@@ -352,6 +375,26 @@ export function ScenarioLibraryView() {
                 </div>
               </div>
             )}
+            {/* Starting Liquidity Fraction */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Starting Liquidity Fraction</label>
+                <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{Math.round(startingFraction * 100)}% of pool</span>
+              </div>
+              <input
+                type="range"
+                min={0.05}
+                max={1.0}
+                step={0.05}
+                value={startingFraction}
+                onChange={e => setStartingFraction(Number(e.target.value))}
+                className="w-full accent-sky-500"
+                style={{ height: '6px' }}
+              />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                How much of their liquidity pool each bank commits at day start. Lower = less capital tied up but higher risk of payment failures.
+              </p>
+            </div>
             <button
               onClick={handleCustomLaunch}
               disabled={!parsedConfig}
@@ -557,6 +600,26 @@ export function ScenarioLibraryView() {
                 </div>
               </div>
             )}
+            {/* Starting Liquidity Fraction */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Starting Liquidity Fraction</label>
+                <span className="text-xs font-mono" style={{ color: 'var(--text-primary)' }}>{Math.round(startingFraction * 100)}% of pool</span>
+              </div>
+              <input
+                type="range"
+                min={0.05}
+                max={1.0}
+                step={0.05}
+                value={startingFraction}
+                onChange={e => setStartingFraction(Number(e.target.value))}
+                className="w-full accent-sky-500"
+                style={{ height: '6px' }}
+              />
+              <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                How much of their liquidity pool each bank commits at day start. Lower = less capital tied up but higher risk of payment failures.
+              </p>
+            </div>
             {isGuest ? (
               <div className="text-center py-3 rounded-lg text-sm" style={{ backgroundColor: 'var(--bg-inset)', border: '1px solid var(--border-color)' }}>
                 <p style={{ color: 'var(--text-secondary)' }}>Sign in to run experiments</p>
