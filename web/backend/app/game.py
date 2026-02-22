@@ -17,6 +17,9 @@ sys.path.insert(0, str(API_DIR))
 
 from payment_simulator._core import Orchestrator  # type: ignore
 from payment_simulator.config.schemas import SimulationConfig  # type: ignore
+from payment_simulator.ai_cash_mgmt.bootstrap.history_collector import TransactionHistoryCollector  # type: ignore
+from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler  # type: ignore
+from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import BootstrapPolicyEvaluator  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,7 @@ class GameDay:
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
         self.optimization_prompts: dict[str, dict] = {}  # agent_id → StructuredPrompt.to_dict()
+        self.agent_histories: dict[str, Any] = {}  # agent_id → AgentTransactionHistory (for bootstrap)
 
         # Cache settlement stats — computed once from events, persisted in checkpoints
         if event_summary is not None:
@@ -522,7 +526,13 @@ class Game:
         else:
             cost_std_per_agent = {aid: 0 for aid in self.agent_ids}
 
-        return GameDay(
+        # Collect transaction histories for bootstrap evaluation
+        collector = TransactionHistoryCollector()
+        flat_events = [e for tick_list in tick_events for e in tick_list]
+        collector.process_events(flat_events)
+        agent_histories = {aid: collector.get_agent_history(aid) for aid in self.agent_ids}
+
+        day = GameDay(
             day_num=day_num,
             seed=seed,
             policies=copy.deepcopy(self.policies),
@@ -539,6 +549,8 @@ class Game:
             total_arrivals=cum_arrivals,
             total_settled=cum_settled,
         )
+        day.agent_histories = agent_histories
+        return day
 
     def commit_day(self, day: GameDay):
         """Commit a previously simulated day to game state.
@@ -582,19 +594,12 @@ class Game:
         """
         import asyncio
         import time as _time
-        from .bootstrap_eval import WebBootstrapEvaluator
         from .streaming_optimizer import stream_optimize
 
         if not self.days:
             return
 
         last_day = self.days[-1]
-        evaluator = None
-        if self.num_eval_samples > 1:
-            evaluator = WebBootstrapEvaluator(
-                num_samples=self.num_eval_samples,
-                cv_threshold=0.5,
-            )
 
         # --- Mock mode: sequential (instant, no parallelism needed) ---
         if self.simulated_ai:
@@ -605,8 +610,8 @@ class Game:
                     "agent_id": aid,
                 })
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
-                if evaluator and result.get("new_policy"):
-                    result = self._run_bootstrap(evaluator, aid, result)
+                if result.get("new_policy"):
+                    result = self._run_real_bootstrap(aid, last_day, result)
                 await send_fn({
                     "type": "optimization_complete",
                     "day": last_day.day_num,
@@ -701,9 +706,9 @@ class Game:
                     })
                     raise RuntimeError(f"LLM optimization produced no result for {aid}")
 
-                # Bootstrap evaluation gate
-                if evaluator and result.get("new_policy"):
-                    result = self._run_bootstrap(evaluator, aid, result)
+                # Bootstrap evaluation: resample → single-agent sandbox → paired comparison
+                if result.get("new_policy"):
+                    result = self._run_real_bootstrap(aid, last_day, result)
 
                 await send_fn({
                     "type": "optimization_complete",
@@ -744,40 +749,116 @@ class Game:
                 self._store_prompt(last_day, aid, results[aid])
                 self._apply_result(aid, results[aid])
 
-    def _run_bootstrap(self, evaluator, aid: str, result: dict) -> dict:
-        """Run bootstrap paired evaluation and annotate result."""
+    def _run_real_bootstrap(self, aid: str, day: 'GameDay', result: dict) -> dict:
+        """Run paper's bootstrap evaluation: resample → single-agent sandbox → paired comparison.
+
+        Uses TransactionHistoryCollector → BootstrapSampler → BootstrapPolicyEvaluator
+        from api/payment_simulator/ai_cash_mgmt/bootstrap/. This is the same statistical
+        method used in the paper (50 bootstrap samples, SOURCE→TARGET→SINK sandbox).
+
+        Delta convention: cost_a - cost_b (positive = new policy is cheaper = improvement).
+        """
+        import math
+        import statistics
         import time as _time
-        other_policies = {
-            other_aid: self.policies[other_aid]
-            for other_aid in self.agent_ids if other_aid != aid
-        }
+
+        history = day.agent_histories.get(aid)
+        if not history or (not history.outgoing and not history.incoming):
+            logger.warning("No transaction history for %s on day %d, skipping bootstrap", aid, day.day_num)
+            return result
+
+        # Extract agent config from scenario YAML
+        agent_cfg = next((a for a in self.raw_yaml.get("agents", []) if a.get("id") == aid), None)
+        if not agent_cfg:
+            logger.warning("Agent %s not found in scenario config, skipping bootstrap", aid)
+            return result
+
         _bs_start = _time.monotonic()
-        eval_result = evaluator.evaluate(
-            raw_yaml=self.raw_yaml,
+
+        # Step 1: Generate bootstrap samples (resampled transaction schedules)
+        sampler = BootstrapSampler(seed=self._base_seed + day.day_num * 100)
+        n_samples = 50
+        samples = sampler.generate_samples(
             agent_id=aid,
-            old_policy=self.policies[aid],
-            new_policy=result["new_policy"],
-            base_seed=self._base_seed + self.current_day * 100,
-            other_policies=other_policies,
+            n_samples=n_samples,
+            outgoing_records=history.outgoing,
+            incoming_records=history.incoming,
+            total_ticks=self._ticks_per_day,
         )
-        logger.warning("Bootstrap eval for %s: %.1fs (%d samples)", aid, _time.monotonic() - _bs_start, self.num_eval_samples)
+
+        # Step 2: Paired evaluation on single-agent sandboxes
+        evaluator = BootstrapPolicyEvaluator(
+            opening_balance=agent_cfg.get("opening_balance", 0),
+            credit_limit=agent_cfg.get("unsecured_cap", 0),
+            liquidity_pool=agent_cfg.get("liquidity_pool", 0),
+            max_collateral_capacity=agent_cfg.get("max_collateral_capacity"),
+        )
+        deltas = evaluator.compute_paired_deltas(
+            samples=samples,
+            policy_a=self.policies[aid],   # current/old
+            policy_b=result["new_policy"],  # proposed/new
+        )
+        # delta = cost_a - cost_b. Positive = new is cheaper = improvement.
+
+        # Step 3: Compute statistics
+        delta_values = [d.delta for d in deltas]
+        n = len(delta_values)
+        delta_sum = sum(delta_values)
+        mean_delta = delta_sum // n if n else 0
+
+        if n >= 2 and mean_delta != 0:
+            std = statistics.stdev(delta_values)
+            se = std / math.sqrt(n)
+            ci_lower = int(mean_delta - 1.96 * se)
+            ci_upper = int(mean_delta + 1.96 * se)
+            cv = abs(std / mean_delta)
+        else:
+            ci_lower = ci_upper = mean_delta
+            cv = 0.0
+
+        mean_old = sum(d.cost_a for d in deltas) // n if n else 0
+        mean_new = sum(d.cost_b for d in deltas) // n if n else 0
+
+        # Step 4: Acceptance criteria (paper convention)
+        accepted = True
+        rejection_reason = ""
+        if delta_sum <= 0:
+            accepted = False
+            rejection_reason = f"No improvement: delta_sum={delta_sum} (old={mean_old:,}, new={mean_new:,})"
+        elif ci_lower <= 0 and n >= 2:
+            accepted = False
+            rejection_reason = f"Not significant: 95% CI [{ci_lower:,}, {ci_upper:,}] includes zero"
+        elif cv > 0.5:
+            accepted = False
+            rejection_reason = f"CV too high: {cv:.3f} > 0.5"
+
+        _bs_elapsed = _time.monotonic() - _bs_start
+        logger.warning(
+            "Bootstrap eval for %s: %.1fs, %d samples, delta_sum=%d, accepted=%s%s",
+            aid, _bs_elapsed, n, delta_sum, accepted,
+            f" ({rejection_reason})" if rejection_reason else "",
+        )
+
+        # Annotate result with bootstrap details
         result["bootstrap"] = {
-            "delta_sum": eval_result.delta_sum,
-            "mean_delta": eval_result.mean_delta,
-            "cv": eval_result.cv,
-            "ci_lower": eval_result.ci_lower,
-            "ci_upper": eval_result.ci_upper,
-            "num_samples": eval_result.num_samples,
-            "old_mean_cost": eval_result.old_mean_cost,
-            "new_mean_cost": eval_result.new_mean_cost,
-            "rejection_reason": eval_result.rejection_reason,
+            "delta_sum": delta_sum,
+            "mean_delta": mean_delta,
+            "cv": round(cv, 4),
+            "ci_lower": ci_lower,
+            "ci_upper": ci_upper,
+            "num_samples": n,
+            "old_mean_cost": mean_old,
+            "new_mean_cost": mean_new,
+            "rejection_reason": rejection_reason,
         }
-        if not eval_result.accepted:
+
+        if not accepted:
             result["accepted"] = False
-            result["rejection_reason"] = eval_result.rejection_reason
-            result["reasoning"] += f" [REJECTED: {eval_result.rejection_reason}]"
+            result["rejection_reason"] = rejection_reason
+            result["reasoning"] += f" [REJECTED: {rejection_reason}]"
             result["new_policy"] = None
             result["new_fraction"] = None
+
         return result
 
     def _store_prompt(self, day: 'GameDay', aid: str, result: dict) -> None:
@@ -810,24 +891,16 @@ class Game:
     async def optimize_policies(self) -> dict[str, dict]:
         """Run optimization step between days. Returns reasoning per agent.
 
-        All agents optimise in parallel. When num_eval_samples > 1, uses
-        WebBootstrapEvaluator for paired comparison.
+        All agents optimise in parallel. Bootstrap evaluation uses the paper's
+        pipeline (resample → single-agent sandbox → paired comparison).
         """
         import asyncio
-        from .bootstrap_eval import WebBootstrapEvaluator
 
         if not self.days:
             return {}
 
         last_day = self.days[-1]
         reasoning: dict[str, dict] = {}
-
-        evaluator = None
-        if self.num_eval_samples > 1:
-            evaluator = WebBootstrapEvaluator(
-                num_samples=self.num_eval_samples,
-                cv_threshold=0.5,
-            )
 
         async def optimize_one(aid: str) -> tuple[str, dict]:
             if self.simulated_ai:
@@ -840,8 +913,8 @@ class Game:
                                               include_groups=self.include_groups,
                                               exclude_groups=self.exclude_groups)
 
-            if evaluator and result.get("new_policy"):
-                result = self._run_bootstrap(evaluator, aid, result)
+            if result.get("new_policy"):
+                result = self._run_real_bootstrap(aid, last_day, result)
 
             return aid, result
 
