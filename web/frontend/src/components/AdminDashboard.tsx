@@ -354,7 +354,9 @@ export function AdminDashboard({ onClose }: { onClose?: () => void } = {}) {
                             <button
                               onClick={() => {
                                 const ug = usersWithGames.find(ug => ug.email === u.email);
-                                setImpersonating(ug?.uid || '', u.email);
+                                const uid = ug?.uid || '';
+                                if (!uid) { alert('No UID found for this user'); return; }
+                                setImpersonating(uid, u.email);
                                 onClose?.();
                                 navigate('/experiments');
                               }}

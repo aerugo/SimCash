@@ -1131,12 +1131,20 @@ async def admin_list_users(email: str = Depends(get_admin_user)):
 @app.get("/api/admin/users/list-with-games")
 async def admin_list_users_with_games(email: str = Depends(get_admin_user)):
     """List all users with their game counts."""
+    from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
     users = user_manager.list_users()
     result = []
     for u in users:
         uid = u.get("uid", "")
+        # Resolve UID from Firebase Auth if not stored in Firestore
+        if not uid and u.get("email"):
+            try:
+                fb_user = fb_auth.get_user_by_email(u["email"])
+                uid = fb_user.uid
+            except Exception:
+                uid = ""
         game_count = len(game_storage.list_checkpoints(uid)) if uid else 0
-        result.append({**u, "game_count": game_count})
+        result.append({**u, "uid": uid, "game_count": game_count})
     return {"users": result}
 
 
