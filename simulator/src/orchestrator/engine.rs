@@ -99,6 +99,8 @@ fn default_eod_rush_threshold() -> f64 {
 /// * `rng_seed` - Seed for deterministic random number generation
 /// * `agent_configs` - Configuration for each participating agent (bank)
 /// * `cost_rates` - Rates for calculating liquidity, delay, and penalty costs
+fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OrchestratorConfig {
     /// Number of ticks per business day (e.g., 100 ticks = 1 tick per ~5 minutes)
@@ -198,8 +200,8 @@ pub struct OrchestratorConfig {
     /// to produce economically meaningful results.
     ///
     /// Only affects agents with `liquidity_pool` configured.
-    /// When false (default): allocation happens once at init, balances carry forward as-is.
-    #[serde(default)]
+    /// When false: allocation happens once at init, balances carry forward as-is.
+    #[serde(default = "default_true")]
     pub daily_liquidity_reallocation: bool,
 }
 
