@@ -338,7 +338,7 @@ class Game:
             return reasoning
 
         # --- Real LLM mode: parallel agent optimization ---
-        MAX_CONCURRENT = 10
+        MAX_CONCURRENT = 3
         semaphore = asyncio.Semaphore(min(len(self.agent_ids), MAX_CONCURRENT))
 
         # Results collected per agent (order doesn't matter for policy application
