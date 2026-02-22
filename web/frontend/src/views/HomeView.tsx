@@ -15,6 +15,11 @@ export function HomeView() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      {/* Alpha disclaimer */}
+      <div className="mb-6 rounded-lg px-4 py-3 text-center text-sm" style={{ backgroundColor: 'var(--bg-surface, rgba(255,255,255,0.05))', border: '1px solid var(--border-color, rgba(255,255,255,0.1))', color: 'var(--text-muted, #94a3b8)' }}>
+        🚧 <strong style={{ color: 'var(--text-secondary, #cbd5e1)' }}>Early Alpha</strong> — SimCash is under active development. Some features may be incomplete or behave unexpectedly.
+      </div>
+
       <div className="text-center mb-8">
         <h2 className="text-3xl font-bold mb-1">Payment System Simulator</h2>
         <p className="text-lg text-violet-300/90 italic mb-3">Can AI agents learn to coordinate in payment systems?</p>
