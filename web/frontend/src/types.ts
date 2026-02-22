@@ -222,6 +222,7 @@ export interface DayResult {
   total_cost: number;
   per_agent_costs: Record<string, number>;
   optimized?: boolean;
+  optimization_failed?: boolean;
 }
 
 export interface BootstrapResult {
@@ -249,6 +250,9 @@ export interface GameOptimizationResult {
   old_policy?: PolicyJson;
   rejected_policy?: PolicyJson;
   rejected_fraction?: number;
+  day_num?: number;
+  failed?: boolean;
+  failure_reason?: string;
   reasoning_summary?: string;
   /** Full raw LLM response text (reasoning + policy JSON). */
   raw_response?: string;

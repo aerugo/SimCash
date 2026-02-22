@@ -831,6 +831,8 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
         if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
             reasoning = await game.optimize_all_agents()
             day.optimized = True
+            if not reasoning:
+                day.optimization_failed = True
             _save_game_checkpoint(game)
 
         return {"day": day.to_summary_dict(), "reasoning": reasoning, "game": game.get_state()}
@@ -854,6 +856,8 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_effective_optional_
             if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
                 reasoning = await game.optimize_all_agents()
                 day.optimized = True
+                if not reasoning:
+                    day.optimization_failed = True
                 # In intra-scenario mode, inject updated policies into the live Orchestrator
                 if game.optimization_schedule == "every_scenario_day":
                     game._inject_policies_into_orch()
@@ -979,8 +983,10 @@ async def game_ws(websocket: WebSocket, game_id: str):
                         game.is_complete, day.day_num, game.should_optimize(day.day_num), game.use_llm)
             if not game.is_complete and game.should_optimize(day.day_num):
                 logger.info("Starting LLM optimization for game %s day %d", game_id, day.day_num)
-                await game.optimize_all_agents(websocket.send_json)
+                opt_results = await game.optimize_all_agents(websocket.send_json)
                 day.optimized = True
+                if not opt_results:
+                    day.optimization_failed = True
                 # In intra-scenario mode, inject updated policies into the live Orchestrator
                 if game.optimization_schedule == "every_scenario_day":
                     game._inject_policies_into_orch()

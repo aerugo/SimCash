@@ -54,6 +54,7 @@ class GameDay:
         self.per_agent_cost_std = per_agent_cost_std or {}  # std dev from multi-seed eval
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
+        self.optimization_failed: bool = False  # whether optimization failed fatally
         self.optimization_prompts: dict[str, dict] = {}  # agent_id → StructuredPrompt.to_dict()
         self.rejected_policies: dict[str, dict] = {}  # agent_id → rejected policy (for learning)
         self.agent_histories: dict[str, Any] = {}  # agent_id → AgentTransactionHistory (for bootstrap)
@@ -102,6 +103,7 @@ class GameDay:
             "per_agent_costs": self.per_agent_costs,
             "num_ticks": len(self.tick_events),
             "optimized": self.optimized,
+            "optimization_failed": self.optimization_failed,
         }
 
     def to_summary_dict(self) -> dict[str, Any]:
@@ -121,6 +123,7 @@ class GameDay:
             "per_agent_costs": self.per_agent_costs,
             "num_ticks": len(self.tick_events),
             "optimized": self.optimized,
+            "optimization_failed": self.optimization_failed,
             "event_count": len(self.events) or (self._total_arrivals + self._total_settled),
             "event_summary": self._event_summary,
             "total_arrivals": self._total_arrivals,
@@ -444,12 +447,27 @@ class Game:
 
         for i, r in enumerate(gather_results):
             if isinstance(r, Exception):
-                aid = self.agent_ids[i]
+                failed_aid = self.agent_ids[i]
                 error_msg = str(r)
-                logger.error("Agent %s optimization failed fatally: %s", aid, error_msg)
+                logger.error("Agent %s optimization failed fatally: %s", failed_aid, error_msg)
+                # Store failure records for all agents
+                for a in self.agent_ids:
+                    failure_record = {
+                        "day_num": last_day.day_num,
+                        "failed": True,
+                        "failure_reason": f"Fatal LLM error for {failed_aid}: {error_msg}",
+                        "reasoning": f"Optimization failed: {error_msg}",
+                        "accepted": False,
+                        "new_policy": None,
+                        "old_policy": copy.deepcopy(self.policies[a]),
+                        "old_fraction": self.policies[a].get("parameters", {}).get("initial_liquidity_fraction"),
+                        "new_fraction": None,
+                        "mock": False,
+                    }
+                    self.reasoning_history[a].append(failure_record)
                 await _send({
                     "type": "experiment_error",
-                    "message": f"Experiment stopped: LLM optimization failed for {aid} after all retries. {error_msg}",
+                    "message": f"Experiment stopped: LLM optimization failed for {failed_aid} after all retries. {error_msg}",
                     "fatal": True,
                 })
                 self.auto_run = False
@@ -457,6 +475,7 @@ class Game:
 
         for aid in self.agent_ids:
             if aid in results:
+                results[aid]["day_num"] = last_day.day_num
                 self._store_prompt(last_day, aid, results[aid])
                 self._apply_result(aid, results[aid])
 

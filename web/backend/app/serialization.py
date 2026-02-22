@@ -57,6 +57,7 @@ def day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
         "per_agent_costs": day.per_agent_costs,
         "per_agent_cost_std": day.per_agent_cost_std,
         "optimized": day.optimized,
+        "optimization_failed": day.optimization_failed,
         "optimization_prompts": day.optimization_prompts,
         "rejected_policies": day.rejected_policies,
     }
@@ -154,6 +155,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
             total_settled=day_data.get("settlement_stats", {}).get("total_settled"),
             per_agent_cost_std=day_data.get("per_agent_cost_std", {}),
         )
+        day.optimization_failed = day_data.get("optimization_failed", False)
         day.optimization_prompts = day_data.get("optimization_prompts", {})
         day.rejected_policies = day_data.get("rejected_policies", {})
         game.days.append(day)

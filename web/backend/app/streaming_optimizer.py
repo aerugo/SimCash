@@ -358,6 +358,7 @@ async def stream_optimize(
         include_groups=include_groups, exclude_groups=exclude_groups,
         prompt_profile=prompt_profile,
     )
+    old_policy_snapshot = copy.deepcopy(current_policy)
     current_fraction = ctx["current_fraction"]
     agent_cost = ctx["agent_cost"]
     cost_breakdown = ctx["cost_breakdown"]
@@ -503,6 +504,7 @@ async def stream_optimize(
                 "type": "result",
                 "data": {
                     "new_policy": None,
+                    "old_policy": old_policy_snapshot,
                     "reasoning": f"LLM response could not be parsed for {agent_id}: {e}. Keeping fraction at {current_fraction:.3f}.",
                     "old_fraction": current_fraction,
                     "new_fraction": None,
@@ -569,6 +571,7 @@ async def stream_optimize(
                         "type": "result",
                         "data": {
                             "new_policy": None,
+                            "old_policy": old_policy_snapshot,
                             "reasoning": f"Engine validation failed after {MAX_VALIDATION_RETRIES} attempts for {agent_id}: {engine_error_str}. Keeping fraction at {current_fraction:.3f}.",
                             "old_fraction": current_fraction,
                             "new_fraction": None,
@@ -603,6 +606,7 @@ async def stream_optimize(
                 "type": "result",
                 "data": {
                     "new_policy": new_policy,
+                    "old_policy": old_policy_snapshot,
                     "reasoning": reasoning_text,
                     "old_fraction": current_fraction,
                     "new_fraction": new_fraction,
@@ -633,6 +637,7 @@ async def stream_optimize(
                 "type": "result",
                 "data": {
                     "new_policy": None,
+                    "old_policy": old_policy_snapshot,
                     "reasoning": f"Policy validation failed after {MAX_VALIDATION_RETRIES} attempts for {agent_id}: {errors_str}. Keeping fraction at {current_fraction:.3f}.",
                     "old_fraction": current_fraction,
                     "new_fraction": None,
