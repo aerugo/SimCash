@@ -23,6 +23,60 @@ from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import BootstrapPolicyEv
 
 logger = logging.getLogger(__name__)
 
+# ── Bootstrap acceptance profiles ────────────────────────────────────
+# Per-agent risk profiles for the bootstrap evaluation gate.
+# Agents can set `bootstrap_profile: "conservative"` or provide custom
+# thresholds via `bootstrap_thresholds: {n_samples: 100, ...}` in the
+# scenario YAML.
+
+BOOTSTRAP_PROFILES: dict[str, dict[str, Any]] = {
+    "conservative": {
+        "n_samples": 100,
+        "cv_threshold": 0.3,
+        "require_significance": True,   # 95% CI lower > 0
+        "min_improvement_pct": 0.02,    # new cost must be ≥2% cheaper
+    },
+    "moderate": {
+        "n_samples": 50,
+        "cv_threshold": 0.5,
+        "require_significance": True,
+        "min_improvement_pct": 0.0,
+    },
+    "aggressive": {
+        "n_samples": 20,
+        "cv_threshold": 1.0,
+        "require_significance": False,  # accept if delta_sum > 0, skip CI
+        "min_improvement_pct": 0.0,
+    },
+}
+DEFAULT_BOOTSTRAP_PROFILE = "moderate"
+
+
+def _resolve_bootstrap_thresholds(agent_cfg: dict[str, Any]) -> dict[str, Any]:
+    """Resolve bootstrap thresholds for an agent from its scenario config.
+
+    Priority:
+    1. agent.bootstrap_thresholds (custom dict) — full override
+    2. agent.bootstrap_profile (str) — named profile lookup
+    3. DEFAULT_BOOTSTRAP_PROFILE fallback
+    """
+    # Custom thresholds take priority
+    custom = agent_cfg.get("bootstrap_thresholds")
+    if isinstance(custom, dict):
+        # Merge with moderate defaults so partial overrides work
+        base = dict(BOOTSTRAP_PROFILES["moderate"])
+        base.update(custom)
+        return base
+
+    # Named profile
+    profile_name = agent_cfg.get("bootstrap_profile", DEFAULT_BOOTSTRAP_PROFILE)
+    if profile_name in BOOTSTRAP_PROFILES:
+        return dict(BOOTSTRAP_PROFILES[profile_name])
+
+    logger.warning("Unknown bootstrap_profile '%s', using moderate", profile_name)
+    return dict(BOOTSTRAP_PROFILES["moderate"])
+
+
 DEFAULT_POLICY: dict[str, Any] = {
     "version": "2.0",
     "policy_id": "default_fifo",
@@ -775,9 +829,15 @@ class Game:
 
         _bs_start = _time.monotonic()
 
+        # Resolve per-agent bootstrap thresholds
+        thresholds = _resolve_bootstrap_thresholds(agent_cfg)
+        n_samples = thresholds["n_samples"]
+        cv_threshold = thresholds["cv_threshold"]
+        require_significance = thresholds["require_significance"]
+        min_improvement_pct = thresholds.get("min_improvement_pct", 0.0)
+
         # Step 1: Generate bootstrap samples (resampled transaction schedules)
         sampler = BootstrapSampler(seed=self._base_seed + day.day_num * 100)
-        n_samples = 50
         samples = sampler.generate_samples(
             agent_id=aid,
             n_samples=n_samples,
@@ -819,23 +879,32 @@ class Game:
         mean_old = sum(d.cost_a for d in deltas) // n if n else 0
         mean_new = sum(d.cost_b for d in deltas) // n if n else 0
 
-        # Step 4: Acceptance criteria (paper convention)
+        # Step 4: Acceptance criteria (per-agent thresholds)
         accepted = True
         rejection_reason = ""
+        profile_name = agent_cfg.get("bootstrap_profile", DEFAULT_BOOTSTRAP_PROFILE)
+        if "bootstrap_thresholds" in agent_cfg:
+            profile_name = "custom"
+
         if delta_sum <= 0:
             accepted = False
             rejection_reason = f"No improvement: delta_sum={delta_sum} (old={mean_old:,}, new={mean_new:,})"
-        elif ci_lower <= 0 and n >= 2:
+        elif min_improvement_pct > 0 and mean_old > 0:
+            improvement_pct = delta_sum / (n * mean_old) if n else 0
+            if improvement_pct < min_improvement_pct:
+                accepted = False
+                rejection_reason = f"Improvement too small: {improvement_pct:.1%} < {min_improvement_pct:.0%} threshold"
+        if accepted and require_significance and ci_lower <= 0 and n >= 2:
             accepted = False
             rejection_reason = f"Not significant: 95% CI [{ci_lower:,}, {ci_upper:,}] includes zero"
-        elif cv > 0.5:
+        if accepted and cv > cv_threshold:
             accepted = False
-            rejection_reason = f"CV too high: {cv:.3f} > 0.5"
+            rejection_reason = f"CV too high: {cv:.3f} > {cv_threshold}"
 
         _bs_elapsed = _time.monotonic() - _bs_start
         logger.warning(
-            "Bootstrap eval for %s: %.1fs, %d samples, delta_sum=%d, accepted=%s%s",
-            aid, _bs_elapsed, n, delta_sum, accepted,
+            "Bootstrap eval for %s [%s]: %.1fs, %d samples, delta_sum=%d, accepted=%s%s",
+            aid, profile_name, _bs_elapsed, n, delta_sum, accepted,
             f" ({rejection_reason})" if rejection_reason else "",
         )
 
@@ -850,6 +919,9 @@ class Game:
             "old_mean_cost": mean_old,
             "new_mean_cost": mean_new,
             "rejection_reason": rejection_reason,
+            "profile": profile_name,
+            "cv_threshold": cv_threshold,
+            "require_significance": require_significance,
         }
 
         if not accepted:
