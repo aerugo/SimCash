@@ -590,32 +590,35 @@ class Game:
         )
         con.close()
 
-    async def optimize_policies_streaming(self, send_fn):
-        """Run optimization with streaming text chunks.
-
-        All agents optimise in parallel (up to 10 concurrently). Each agent's
-        LLM call streams chunks independently; the WebSocket receives
-        interleaved events tagged with agent_id so the frontend can display
-        per-agent progress.
+    async def optimize_all_agents(self, send_fn=None) -> dict[str, dict]:
+        """Run optimization for all agents, optionally streaming progress.
 
         Args:
-            send_fn: async callable(dict) to send WS messages.
-                Called with optimization_start, optimization_chunk,
-                optimization_complete messages.
+            send_fn: async callable(dict) to send WS messages, or None for
+                silent HTTP mode. When None, results are collected and returned.
+
+        Returns:
+            dict mapping agent_id → optimization result (reasoning, policy, etc.).
+            In streaming mode, results are also sent via send_fn.
         """
         import asyncio
         import time as _time
         from .streaming_optimizer import stream_optimize
 
         if not self.days:
-            return
+            return {}
 
         last_day = self.days[-1]
 
+        async def _send(msg: dict) -> None:
+            if send_fn is not None:
+                await send_fn(msg)
+
         # --- Mock mode: sequential (instant, no parallelism needed) ---
         if self.simulated_ai:
+            reasoning: dict[str, dict] = {}
             for aid in self.agent_ids:
-                await send_fn({
+                await _send({
                     "type": "optimization_start",
                     "day": last_day.day_num,
                     "agent_id": aid,
@@ -623,14 +626,15 @@ class Game:
                 result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
                 if result.get("new_policy"):
                     result = self._run_real_bootstrap(aid, last_day, result)
-                await send_fn({
+                await _send({
                     "type": "optimization_complete",
                     "day": last_day.day_num,
                     "agent_id": aid,
                     "data": result,
                 })
                 self._apply_result(aid, result)
-            return
+                reasoning[aid] = result
+            return reasoning
 
         # --- Real LLM mode: parallel agent optimization ---
         MAX_CONCURRENT = 10
@@ -641,9 +645,9 @@ class Game:
         results: dict[str, dict] = {}
 
         async def optimize_one_agent(aid: str) -> None:
-            """Run LLM optimization for a single agent, streaming events to WS."""
+            """Run LLM optimization for a single agent, streaming events."""
             async with semaphore:
-                await send_fn({
+                await _send({
                     "type": "optimization_start",
                     "day": last_day.day_num,
                     "agent_id": aid,
@@ -659,21 +663,20 @@ class Game:
                         prompt_profile=self.prompt_profile,
                     ):
                         if event["type"] == "chunk":
-                            await send_fn({
+                            await _send({
                                 "type": "optimization_chunk",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
                                 "text": event["text"],
                             })
                         elif event["type"] == "retry":
-                            # Notify frontend of retry (both as chunk for streaming display and as dedicated event)
-                            await send_fn({
+                            await _send({
                                 "type": "optimization_chunk",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
                                 "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n",
                             })
-                            await send_fn({
+                            await _send({
                                 "type": "agent_retry",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
@@ -686,7 +689,7 @@ class Game:
                         elif event["type"] == "error":
                             error_msg = event["message"]
                             logger.error("LLM optimization failed permanently for %s: %s", aid, error_msg)
-                            await send_fn({
+                            await _send({
                                 "type": "agent_error",
                                 "day": last_day.day_num,
                                 "agent_id": aid,
@@ -695,10 +698,10 @@ class Game:
                             })
                             raise RuntimeError(f"LLM optimization failed for {aid}: {error_msg}")
                 except RuntimeError:
-                    raise  # Re-raise LLM failures — do NOT fall back to mock
+                    raise
                 except Exception as e:
                     logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
-                    await send_fn({
+                    await _send({
                         "type": "agent_error",
                         "day": last_day.day_num,
                         "agent_id": aid,
@@ -708,7 +711,7 @@ class Game:
                     raise RuntimeError(f"LLM optimization failed for {aid}: {e}")
 
                 if result is None:
-                    await send_fn({
+                    await _send({
                         "type": "agent_error",
                         "day": last_day.day_num,
                         "agent_id": aid,
@@ -717,11 +720,10 @@ class Game:
                     })
                     raise RuntimeError(f"LLM optimization produced no result for {aid}")
 
-                # Bootstrap evaluation: resample → single-agent sandbox → paired comparison
                 if result.get("new_policy"):
                     result = self._run_real_bootstrap(aid, last_day, result)
 
-                await send_fn({
+                await _send({
                     "type": "optimization_complete",
                     "day": last_day.day_num,
                     "agent_id": aid,
@@ -729,7 +731,6 @@ class Game:
                 })
                 results[aid] = result
 
-        # Fire all agent tasks concurrently
         _par_start = _time.monotonic()
         tasks = [asyncio.create_task(optimize_one_agent(aid)) for aid in self.agent_ids]
         gather_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -739,26 +740,25 @@ class Game:
             len(self.agent_ids), _par_elapsed,
         )
 
-        # Check for fatal LLM failures — abort experiment if any agent failed
         for i, r in enumerate(gather_results):
             if isinstance(r, Exception):
                 aid = self.agent_ids[i]
                 error_msg = str(r)
                 logger.error("Agent %s optimization failed fatally: %s", aid, error_msg)
-                await send_fn({
+                await _send({
                     "type": "experiment_error",
                     "message": f"Experiment stopped: LLM optimization failed for {aid} after all retries. {error_msg}",
                     "fatal": True,
                 })
-                # Mark game as stopped so auto-run doesn't continue
                 self.auto_run = False
-                return  # Do NOT apply any results — abort this round
+                return {}
 
-        # Apply results (order doesn't matter — agents are isolated)
         for aid in self.agent_ids:
             if aid in results:
                 self._store_prompt(last_day, aid, results[aid])
                 self._apply_result(aid, results[aid])
+
+        return results
 
     def _run_real_bootstrap(self, aid: str, day: 'GameDay', result: dict) -> dict:
         """Run paper's bootstrap evaluation: resample → single-agent sandbox → paired comparison.
@@ -943,52 +943,6 @@ class Game:
                 result["new_policy"] = None
         if result:
             self.reasoning_history[aid].append(result)
-
-    async def optimize_policies(self) -> dict[str, dict]:
-        """Run optimization step between days. Returns reasoning per agent.
-
-        All agents optimise in parallel. Bootstrap evaluation uses the paper's
-        pipeline (resample → single-agent sandbox → paired comparison).
-        """
-        import asyncio
-
-        if not self.days:
-            return {}
-
-        last_day = self.days[-1]
-        reasoning: dict[str, dict] = {}
-
-        async def optimize_one(aid: str) -> tuple[str, dict]:
-            if self.simulated_ai:
-                result = _mock_optimize(aid, self.policies[aid], last_day, self.days)
-            else:
-                # Real LLM mode — never fall back to mock. Fail hard.
-                result = await _real_optimize(aid, self.policies[aid], last_day,
-                                              self.days, self.raw_yaml,
-                                              constraint_preset=self.constraint_preset,
-                                              include_groups=self.include_groups,
-                                              exclude_groups=self.exclude_groups)
-
-            if result.get("new_policy"):
-                result = self._run_real_bootstrap(aid, last_day, result)
-
-            return aid, result
-
-        # Run all agents concurrently
-        tasks = [optimize_one(aid) for aid in self.agent_ids]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for item in results:
-            if isinstance(item, Exception):
-                logger.error("Agent optimization raised: %s", item)
-                continue
-            aid, result = item
-            self._apply_result(aid, result)
-            if last_day:
-                self._store_prompt(last_day, aid, result)
-            reasoning[aid] = result
-
-        return reasoning
 
     def get_state(self) -> dict[str, Any]:
         return {
@@ -1226,178 +1180,5 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     }
 
 
-async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
-                         all_days: list[GameDay], raw_yaml: dict,
-                         constraint_preset: str = "simple",
-                         include_groups: list[str] | None = None,
-                         exclude_groups: list[str] | None = None) -> dict[str, Any]:
-    """Use the real LLM optimization infrastructure.
-
-    Reuses the existing PolicyOptimizer + ExperimentLLMClient from the experiment
-    runner. Builds proper context with agent-isolated events, cost breakdown, and
-    iteration history. Always accepts new policies (temporal mode — the cost landscape
-    shifts as counterparties change).
-    """
-    from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer
-    from payment_simulator.ai_cash_mgmt.prompts.event_filter import (
-        filter_events_for_agent,
-        format_filtered_output,
-    )
-    from payment_simulator.ai_cash_mgmt.prompts.context_types import (
-        SingleAgentIterationRecord,
-    )
-    from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient
-    from payment_simulator.llm.config import LLMConfig
-    from dotenv import load_dotenv
-    import os
-
-    load_dotenv(Path(__file__).resolve().parents[3] / ".env")
-
-    # Build constraints from preset
-    from .constraint_presets import build_constraints
-    constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
-
-    optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
-
-    # Use platform settings for model selection (admin-switchable)
-    from .settings import settings_manager, MAAS_MODEL_CONFIG
-    llm_config = settings_manager.get_llm_config()
-
-    client = ExperimentLLMClient(llm_config)
-
-    # MaaS models (GLM-5, Gemini 3 preview) need custom provider config.
-    # Patch the client's agent creation to use our _create_agent helper.
-    if llm_config.model_name in MAAS_MODEL_CONFIG:
-        from .streaming_optimizer import _create_agent
-        _orig_generate = client.generate_policy
-
-        async def _maas_generate_policy(prompt, current_policy=None, context=None):
-            """Override that uses _create_agent for MaaS/global-region model support.
-            
-            Must return a parsed dict (like the original generate_policy),
-            NOT an LLMResponse. PolicyOptimizer.optimize() expects a dict.
-            """
-            user_prompt = client._build_user_prompt(prompt, current_policy, context)
-            system_prompt = client.system_prompt or ""
-            agent = _create_agent(llm_config, system_prompt)
-            import time
-            start = time.time()
-            result = await agent.run(user_prompt, model_settings=llm_config.to_model_settings())
-            latency = time.time() - start
-            raw = str(result.output)
-            # Parse the raw response into a policy dict — same as original generate_policy
-            parsed = client.parse_policy(raw)
-            if not isinstance(parsed, dict):
-                raise TypeError(
-                    f"_maas_generate_policy must return dict, got {type(parsed).__name__}. "
-                    f"This breaks PolicyOptimizer.optimize() which passes the return value "
-                    f"to ConstraintValidator.validate()."
-                )
-            return parsed
-
-        client.generate_policy = _maas_generate_policy
-
-    # Build dynamic system prompt with cost rates from scenario
-    cost_rates = raw_yaml.get("cost_rates", {})
-    dynamic_prompt = optimizer.get_system_prompt(cost_rates=cost_rates)
-    client.set_system_prompt(dynamic_prompt)
-
-    current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
-    agent_cost = last_day.per_agent_costs.get(agent_id, 0)
-
-    # Build cost breakdown from last day
-    agent_costs = last_day.costs.get(agent_id, {})
-    cost_breakdown = {
-        "delay_cost": agent_costs.get("delay_cost", 0),
-        "liquidity_opportunity_cost": agent_costs.get("liquidity_cost", 0),
-        "deadline_penalty": agent_costs.get("penalty_cost", 0),
-        "eod_penalty": 0,
-    }
-
-    # Build iteration history for LLM context (agent sees only own history)
-    iteration_history: list[SingleAgentIterationRecord] = []
-    best_cost = float("inf")
-    n_rejected = 0
-    for i, day in enumerate(all_days):
-        day_agent_cost = day.per_agent_costs.get(agent_id, 0)
-        day_policy = day.policies.get(agent_id, current_policy)
-        is_best = day_agent_cost < best_cost
-        if is_best:
-            best_cost = day_agent_cost
-        rejected_pol = day.rejected_policies.get(agent_id)
-        if rejected_pol:
-            n_rejected += 1
-        iteration_history.append(SingleAgentIterationRecord(
-            iteration=i + 1,
-            metrics={"total_cost_mean": day_agent_cost},
-            policy=day_policy,
-            was_accepted=True,  # Temporal mode: always accepted
-            is_best_so_far=is_best,
-            rejected_policy=rejected_pol,
-        ))
-    logger.info("Optimizing %s: %d days in history, %d rejected policies", agent_id, len(all_days), n_rejected)
-
-    # Filter events for agent isolation (agent sees ONLY their own events)
-    filtered_events = filter_events_for_agent(agent_id, last_day.events)
-    simulation_trace = None
-    if filtered_events:
-        simulation_trace = format_filtered_output(
-            agent_id, filtered_events, include_tick_headers=True
-        )
-
-    current_metrics = {
-        "total_cost_mean": agent_cost,
-        "iteration": len(all_days),
-    }
-
-    result = await optimizer.optimize(
-        agent_id=agent_id,
-        current_policy=current_policy,
-        current_iteration=len(all_days),
-        current_metrics=current_metrics,
-        llm_client=client,
-        llm_model=llm_config.model_name,
-        current_cost=float(agent_cost),
-        iteration_history=iteration_history,
-        events=last_day.events,  # Raw events for agent filtering
-        simulation_trace=simulation_trace,
-        sample_seed=last_day.seed,
-        sample_cost=agent_cost,
-        mean_cost=agent_cost,
-        cost_std=0,
-        cost_breakdown=cost_breakdown,
-        cost_rates=cost_rates,
-    )
-
-    new_fraction = None
-    new_policy = None
-    reasoning_text = ""
-
-    if result.was_accepted and result.new_policy:
-        new_policy = result.new_policy
-        new_fraction = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
-        reasoning_text = (
-            f"LLM proposed: fraction {current_fraction:.3f} → {new_fraction:.3f}. Accepted. "
-            f"Cost was {agent_cost:,}. "
-            f"Breakdown: delay={cost_breakdown['delay_cost']:,}, "
-            f"penalty={cost_breakdown['deadline_penalty']:,}, "
-            f"opportunity={max(0, agent_cost - cost_breakdown['delay_cost'] - cost_breakdown['deadline_penalty']):,}."
-        )
-    else:
-        # Even if rejected/failed, try to extract reasoning
-        reasoning_text = (
-            f"LLM optimization failed or rejected for {agent_id}. "
-            f"Keeping fraction at {current_fraction:.3f}. Cost was {agent_cost:,}."
-        )
-
-    return {
-        "new_policy": new_policy,
-        "old_policy": current_policy,
-        "reasoning": reasoning_text,
-        "old_fraction": current_fraction,
-        "new_fraction": new_fraction,
-        "accepted": result.was_accepted,
-        "mock": False,
-        "reasoning_summary": result.reasoning_summary if hasattr(result, 'reasoning_summary') else None,
-        "validation_errors": result.validation_errors if hasattr(result, 'validation_errors') else [],
-    }
+    # _real_optimize() removed in Phase 2 — all optimization goes through
+    # optimize_all_agents() → streaming_optimizer.stream_optimize()
