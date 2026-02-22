@@ -66,6 +66,13 @@ export function LandingView() {
         </button>
       </div>
 
+      {/* Alpha disclaimer */}
+      <div className="max-w-2xl mx-auto px-6 pb-8">
+        <div className="rounded-lg px-4 py-3 text-center text-sm" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+          🚧 <strong style={{ color: 'var(--text-secondary)' }}>Early Alpha</strong> — SimCash is under active development. Some features may be incomplete or behave unexpectedly.
+        </div>
+      </div>
+
       {/* Feature cards */}
       <div className="max-w-5xl mx-auto px-6 pb-16">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
