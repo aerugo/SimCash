@@ -54,6 +54,7 @@ export function ScenarioLibraryView() {
   const [showMyScenarios, setShowMyScenarios] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
+  const [selectedCustom, setSelectedCustom] = useState<CustomScenario | null>(null);
 
   // Game launch config
   const [maxDays, setMaxDays] = useState(1);
@@ -184,6 +185,166 @@ export function ScenarioLibraryView() {
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
         <span className="ml-3 text-sm text-slate-400">Loading scenario details…</span>
+      </div>
+    );
+  }
+
+  // Detail view for a selected custom scenario
+  if (selectedCustom) {
+    let parsedConfig: Record<string, unknown> | null = null;
+    try { parsedConfig = yaml.load(selectedCustom.yaml_string) as Record<string, unknown>; } catch { /* */ }
+    const numAgents = parsedConfig && Array.isArray((parsedConfig as any)?.agents) ? (parsedConfig as any).agents.length : '?';
+    const handleCustomLaunch = () => {
+      if (!parsedConfig) return;
+      onLaunchGame({
+        scenario_id: `custom:${selectedCustom.id}`,
+        inline_config: parsedConfig,
+        use_llm: useLlm,
+        simulated_ai: simulatedAi,
+        max_days: maxDays,
+        num_eval_samples: numEvalSamples,
+        optimization_interval: optimizationInterval,
+        constraint_preset: constraintPreset,
+      });
+    };
+    return (
+      <div>
+        <button
+          onClick={() => setSelectedCustom(null)}
+          className="mb-4 text-sm flex items-center gap-1"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          ← Back to My Scenarios
+        </button>
+
+        <div className="rounded-xl p-6" style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-color)' }}>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">📝</span>
+                <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{selectedCustom.name}</h2>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300 border border-slate-600">Custom</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigate(`/create?edit=${selectedCustom.id}`)}
+                className="p-1.5 rounded hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 transition-colors text-sm"
+                title="Edit"
+              >✏️ Edit</button>
+            </div>
+          </div>
+
+          <p className="text-sm mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            {selectedCustom.description || 'No description'}
+          </p>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
+              <div className="text-lg font-bold text-sky-400">{numAgents}</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Banks</div>
+            </div>
+            <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'var(--bg-inset)' }}>
+              <div className="text-lg font-bold text-sky-400">Custom</div>
+              <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Source</div>
+            </div>
+          </div>
+
+          {/* Launch Configuration */}
+          <div className="pt-4 mt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>🚀 Launch Configuration</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Rounds</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={maxDays}
+                  onChange={e => setMaxDays(Number(e.target.value))}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Eval Samples</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={numEvalSamples}
+                  onChange={e => setNumEvalSamples(Number(e.target.value))}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                />
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Optimize Every</label>
+                <select
+                  value={String(optimizationInterval)}
+                  onChange={e => setOptimizationInterval(Number(e.target.value))}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value={1}>Every round</option>
+                  <option value={2}>Every 2 rounds</option>
+                  <option value={3}>Every 3 rounds</option>
+                  <option value={5}>Every 5 rounds</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>AI Reasoning</label>
+                <select
+                  value={useLlm ? (simulatedAi ? 'mock' : 'real') : 'off'}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setUseLlm(v !== 'off');
+                    setSimulatedAi(v === 'mock');
+                  }}
+                  className="w-full px-3 py-1.5 rounded text-sm"
+                  style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                >
+                  <option value="off">Off (FIFO)</option>
+                  <option value="mock">Simulated AI (no API cost)</option>
+                  <option value="real" disabled={isGuest}>Live AI (Vertex AI){isGuest ? ' — sign in required' : ''}</option>
+                </select>
+              </div>
+            </div>
+            {useLlm && (
+              <div className="mb-4">
+                <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>LLM Strategy Depth</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: 'simple' as const, label: 'Simple', desc: 'initial_liquidity_fraction only' },
+                    { id: 'full' as const, label: 'Full', desc: 'Complete decision trees' },
+                  ]).map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setConstraintPreset(p.id)}
+                      className={`p-2 rounded-lg text-left border transition-colors ${
+                        constraintPreset === p.id
+                          ? 'border-sky-500 bg-sky-500/10'
+                          : 'hover:border-sky-500/30'
+                      }`}
+                      style={constraintPreset !== p.id ? { borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-inset)' } : undefined}
+                    >
+                      <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{p.label}</div>
+                      <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={handleCustomLaunch}
+              disabled={!parsedConfig}
+              className="w-full py-3 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-sm font-semibold transition-colors"
+            >
+              🚀 Launch Simulation
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -447,9 +608,10 @@ export function ScenarioLibraryView() {
       {showMyScenarios && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {customScenarios.map(cs => (
-            <div
+            <button
               key={cs.id}
-              className="rounded-xl border p-5 text-left transition-colors group"
+              onClick={() => setSelectedCustom(cs)}
+              className="rounded-xl border p-5 text-left hover:border-sky-500/50 transition-colors group"
               style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}
             >
               <div className="flex items-start justify-between mb-2">
@@ -458,12 +620,12 @@ export function ScenarioLibraryView() {
                 </h3>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => navigate(`/create?edit=${cs.id}`)}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/create?edit=${cs.id}`); }}
                     className="p-1 rounded hover:bg-sky-500/20 text-slate-400 hover:text-sky-300 transition-colors"
                     title="Edit"
                   >✏️</button>
                   <button
-                    onClick={() => setDeleteConfirm(cs.id)}
+                    onClick={(e) => { e.stopPropagation(); setDeleteConfirm(cs.id); }}
                     className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-300 transition-colors"
                     title="Delete"
                   >🗑️</button>
@@ -482,17 +644,17 @@ export function ScenarioLibraryView() {
                   <p className="text-xs mb-2" style={{ color: 'var(--text-primary)' }}>Delete this scenario?</p>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleDeleteCustom(cs.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDeleteCustom(cs.id); }}
                       className="px-2 py-1 rounded text-xs bg-red-600 hover:bg-red-500 text-white"
                     >Delete</button>
                     <button
-                      onClick={() => setDeleteConfirm(null)}
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(null); }}
                       className="px-2 py-1 rounded text-xs bg-slate-700 hover:bg-slate-600 text-slate-200"
                     >Cancel</button>
                   </div>
                 </div>
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}
