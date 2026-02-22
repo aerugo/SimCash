@@ -56,6 +56,26 @@
   --agent-4: #fb923c;
   --agent-5: #f472b6;
 
+  /* Badges */
+  --badge-static-bg: rgba(56, 189, 248, 0.15);
+  --badge-static-text: #7dd3fc;
+  --badge-dynamic-bg: rgba(251, 191, 36, 0.15);
+  --badge-dynamic-text: #fcd34d;
+
+  /* Alert banners */
+  --alert-warning-bg: rgba(251, 191, 36, 0.1);
+  --alert-warning-border: rgba(251, 191, 36, 0.25);
+  --alert-warning-title: #fcd34d;
+  --alert-warning-text: #fbbf24;
+  --alert-warning-btn-bg: rgba(251, 191, 36, 0.25);
+  --alert-warning-btn-text: #fef3c7;
+  --alert-info-bg: rgba(56, 189, 248, 0.1);
+  --alert-info-border: rgba(56, 189, 248, 0.25);
+  --alert-info-title: #7dd3fc;
+  --alert-info-text: #38bdf8;
+  --alert-info-btn-bg: rgba(56, 189, 248, 0.25);
+  --alert-info-btn-text: #e0f2fe;
+
   /* Legacy compat */
   --bg-primary: var(--bg-base);
   --bg-secondary: var(--bg-surface);
@@ -136,6 +156,26 @@
   --agent-3: #3D7A55;
   --agent-4: #B8854A;
   --agent-5: #A06070;
+
+  /* Badges */
+  --badge-static-bg: var(--tag-blue-bg);
+  --badge-static-text: var(--tag-blue-fg);
+  --badge-dynamic-bg: var(--tag-amber-bg);
+  --badge-dynamic-text: var(--tag-amber-fg);
+
+  /* Alert banners */
+  --alert-warning-bg: var(--color-warning-bg);
+  --alert-warning-border: #E4DCC4;
+  --alert-warning-title: #7A6320;
+  --alert-warning-text: var(--tag-amber-fg);
+  --alert-warning-btn-bg: #EDE5C8;
+  --alert-warning-btn-text: #7A6320;
+  --alert-info-bg: #EDF1F7;
+  --alert-info-border: #D4DFEF;
+  --alert-info-title: #3D5C8A;
+  --alert-info-text: var(--tag-blue-fg);
+  --alert-info-btn-bg: #D4DFEF;
+  --alert-info-btn-text: #3D5C8A;
 
   /* Legacy compat */
   --bg-primary: var(--bg-base);

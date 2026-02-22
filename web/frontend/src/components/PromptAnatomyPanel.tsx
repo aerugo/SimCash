@@ -301,34 +301,30 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
               {visibleSuggestions.map(s => (
                 <div
                   key={s.id}
-                  className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${
-                    s.severity === 'warning'
-                      ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700/50'
-                      : 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-700/50'
-                  }`}
+                  className="flex items-start gap-3 p-3 rounded-lg border text-sm"
+                  style={s.severity === 'warning'
+                    ? { backgroundColor: 'var(--alert-warning-bg, #fffbeb)', borderColor: 'var(--alert-warning-border, #fde68a)' }
+                    : { backgroundColor: 'var(--alert-info-bg, #eff6ff)', borderColor: 'var(--alert-info-border, #bfdbfe)' }
+                  }
                 >
                   <span className="text-lg flex-shrink-0">{s.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <div className={`font-medium text-xs ${
-                      s.severity === 'warning'
-                        ? 'text-amber-800 dark:text-amber-200'
-                        : 'text-blue-800 dark:text-blue-200'
-                    }`}>{s.title}</div>
-                    <div className={`text-[11px] mt-0.5 ${
-                      s.severity === 'warning'
-                        ? 'text-amber-700 dark:text-amber-300'
-                        : 'text-blue-700 dark:text-blue-300'
-                    }`}>{s.description}</div>
+                    <div className="font-medium text-xs"
+                      style={{ color: s.severity === 'warning' ? 'var(--alert-warning-title, #92400e)' : 'var(--alert-info-title, #1e40af)' }}
+                    >{s.title}</div>
+                    <div className="text-[11px] mt-0.5"
+                      style={{ color: s.severity === 'warning' ? 'var(--alert-warning-text, #a16207)' : 'var(--alert-info-text, #1d4ed8)' }}
+                    >{s.description}</div>
                   </div>
                   <div className="flex gap-1 flex-shrink-0">
                     {Object.keys(s.applyOverrides).length > 0 && (
                       <button
                         onClick={() => applySuggestion(s)}
-                        className={`px-2 py-1 rounded text-[10px] font-medium ${
-                          s.severity === 'warning'
-                            ? 'bg-amber-200 text-amber-800 hover:bg-amber-300 dark:bg-amber-700 dark:text-amber-100 dark:hover:bg-amber-600'
-                            : 'bg-blue-200 text-blue-800 hover:bg-blue-300 dark:bg-blue-700 dark:text-blue-100 dark:hover:bg-blue-600'
-                        } transition-colors`}
+                        className="px-2 py-1 rounded text-[10px] font-medium transition-colors"
+                      style={s.severity === 'warning'
+                        ? { backgroundColor: 'var(--alert-warning-btn-bg, #fde68a)', color: 'var(--alert-warning-btn-text, #92400e)' }
+                        : { backgroundColor: 'var(--alert-info-btn-bg, #bfdbfe)', color: 'var(--alert-info-btn-text, #1e40af)' }
+                      }
                       >
                         Apply
                       </button>
@@ -412,11 +408,11 @@ function BlockGroup({
                 <span className={`text-sm flex-1 ${enabled ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] line-through'}`}>
                   {block.name}
                 </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                  block.source === 'static'
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                }`}>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                  style={block.source === 'static'
+                    ? { backgroundColor: 'var(--badge-static-bg, #dbeafe)', color: 'var(--badge-static-text, #1d4ed8)' }
+                    : { backgroundColor: 'var(--badge-dynamic-bg, #fef3c7)', color: 'var(--badge-dynamic-text, #92400e)' }
+                  }>
                   {block.source}
                 </span>
                 <span className="text-[10px] text-[var(--text-muted)]">
