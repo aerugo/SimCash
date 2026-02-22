@@ -470,7 +470,10 @@ TABLE OF CONTENTS:
             sections.append("```")
 
             # Show what was proposed and rejected (so LLM can learn from failures)
-            if not record.was_accepted and record.rejected_policy:
+            # Check rejected_policy regardless of was_accepted — in temporal/web mode,
+            # was_accepted is always True (day outcome accepted) but proposals can still
+            # be rejected by bootstrap evaluation.
+            if record.rejected_policy:
                 rej_params = record.rejected_policy.get("parameters", {})
                 rej_tree = record.rejected_policy.get("payment_tree", {})
                 tree_type = rej_tree.get("type", "unknown")

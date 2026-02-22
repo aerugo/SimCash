@@ -859,6 +859,9 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_optional_user)):
             if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
                 reasoning = await game.optimize_policies()
                 day.optimized = True
+                # In intra-scenario mode, inject updated policies into the live Orchestrator
+                if game.optimization_schedule == "every_scenario_day":
+                    game._inject_policies_into_orch()
             days.append({"day": day.to_summary_dict(), "reasoning": reasoning})
             all_reasoning.append(reasoning)
 

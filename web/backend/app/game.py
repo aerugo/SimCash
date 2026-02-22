@@ -830,6 +830,14 @@ class Game:
 
         _bs_start = _time.monotonic()
 
+        # Phase 2: Log proposed vs current fraction
+        current_fraction = self.policies[aid].get("parameters", {}).get("initial_liquidity_fraction", 1.0)
+        proposed_fraction = result["new_policy"].get("parameters", {}).get("initial_liquidity_fraction", 1.0)
+        tree_changed = (json.dumps(self.policies[aid].get("payment_tree", {}), sort_keys=True) !=
+                        json.dumps(result["new_policy"].get("payment_tree", {}), sort_keys=True))
+        logger.info("Bootstrap for %s: fraction %.3f → %.3f (delta=%.3f), tree_changed=%s",
+                     aid, current_fraction, proposed_fraction, proposed_fraction - current_fraction, tree_changed)
+
         # Resolve per-agent bootstrap thresholds
         thresholds = _resolve_bootstrap_thresholds(agent_cfg)
         n_samples = thresholds["n_samples"]
@@ -910,9 +918,9 @@ class Game:
         if accepted and require_significance and ci_lower <= 0 and n >= 2:
             accepted = False
             rejection_reason = f"Not significant: 95% CI [{ci_lower:,}, {ci_upper:,}] includes zero"
-        if accepted and cv > cv_threshold:
-            accepted = False
-            rejection_reason = f"CV too high: {cv:.3f} > {cv_threshold}"
+        # CV check removed — the CI significance check (ci_lower > 0) is the
+        # statistically correct noise filter. CV was redundant and too strict for
+        # crisis scenarios with high cost variance. Paper's pipeline doesn't use CV.
 
         _bs_elapsed = _time.monotonic() - _bs_start
         logger.warning(
@@ -1353,19 +1361,25 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     # Build iteration history for LLM context (agent sees only own history)
     iteration_history: list[SingleAgentIterationRecord] = []
     best_cost = float("inf")
+    n_rejected = 0
     for i, day in enumerate(all_days):
         day_agent_cost = day.per_agent_costs.get(agent_id, 0)
         day_policy = day.policies.get(agent_id, current_policy)
         is_best = day_agent_cost < best_cost
         if is_best:
             best_cost = day_agent_cost
+        rejected_pol = day.rejected_policies.get(agent_id)
+        if rejected_pol:
+            n_rejected += 1
         iteration_history.append(SingleAgentIterationRecord(
             iteration=i + 1,
             metrics={"total_cost_mean": day_agent_cost},
             policy=day_policy,
             was_accepted=True,  # Temporal mode: always accepted
             is_best_so_far=is_best,
+            rejected_policy=rejected_pol,
         ))
+    logger.info("Optimizing %s: %d days in history, %d rejected policies", agent_id, len(all_days), n_rejected)
 
     # Filter events for agent isolation (agent sees ONLY their own events)
     filtered_events = filter_events_for_agent(agent_id, last_day.events)
