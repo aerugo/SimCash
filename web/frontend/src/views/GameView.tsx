@@ -925,7 +925,7 @@ export function GameView() {
                       {aid}
                     </span>
                     <span className="font-mono text-sm text-slate-300">
-                      fraction = {(pol?.initial_liquidity_fraction ?? 1.0).toFixed(3)}
+                      fraction = {(pol?.initial_liquidity_fraction ?? (pol as any)?.parameters?.initial_liquidity_fraction ?? 1.0).toFixed(3)}
                     </span>
                   </div>
                 );
