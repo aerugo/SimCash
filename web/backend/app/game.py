@@ -1,6 +1,7 @@
 """Multi-day policy optimization game."""
 from __future__ import annotations
 
+import math
 import sys
 import json
 import copy
@@ -436,81 +437,89 @@ class Game:
             policy_json = json.dumps(self.policies[aid])
             self._live_orch.update_agent_policy(aid, policy_json)
 
-    def run_day(self) -> GameDay:
-        """Run one day of simulation with current policies.
-        
-        If num_eval_samples > 1, runs multiple seeds and averages costs
-        for a more robust signal (bootstrap-lite). The representative run
-        (first seed) provides events and balance history for display.
+    def _run_with_samples(
+        self,
+        seed: int,
+        events: list[dict],
+        balance_history: dict[str, list],
+        costs: dict[str, dict],
+        per_agent_costs: dict[str, int],
+        total_cost: int,
+        tick_events: list[list[dict]],
+    ) -> tuple[dict[str, dict], dict[str, int], int, dict[str, int]]:
+        """Average costs over multiple seeds if num_eval_samples > 1.
+
+        Takes the representative run's results and optionally runs extra
+        cost-only seeds in parallel, averaging all costs and computing std dev.
+
+        Returns (costs, per_agent_costs, total_cost, cost_std_per_agent).
+        Mutates nothing — returns new dicts.
         """
+        if self.num_eval_samples <= 1:
+            return costs, per_agent_costs, total_cost, {aid: 0 for aid in self.agent_ids}
+
+        all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
+        all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
+
+        extra_seeds = [seed + i * 1000 for i in range(1, self.num_eval_samples)]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(extra_seeds), 8)) as pool:
+            futures = {s: pool.submit(self._run_cost_only, s) for s in extra_seeds}
+            extra_results = {s: futures[s].result() for s in extra_seeds}
+
+        for sample_seed in extra_seeds:
+            s_costs_json = extra_results[sample_seed]
+            for aid in self.agent_ids:
+                agent_c = s_costs_json.get(aid, {})
+                all_per_agent[aid].append(agent_c.get("total_cost", 0))
+                all_costs[aid].append({
+                    "liquidity_cost": agent_c.get("liquidity_cost", 0),
+                    "delay_cost": agent_c.get("delay_cost", 0),
+                    "penalty_cost": agent_c.get("penalty_cost", 0),
+                })
+
+        n = self.num_eval_samples
+        avg_costs: dict[str, dict] = {}
+        avg_per_agent: dict[str, int] = {}
+        avg_total = 0
+        cost_std_per_agent: dict[str, int] = {}
+        for aid in self.agent_ids:
+            at = sum(all_per_agent[aid]) // n
+            ad = sum(c["delay_cost"] for c in all_costs[aid]) // n
+            ap = sum(c["penalty_cost"] for c in all_costs[aid]) // n
+            al = sum(c["liquidity_cost"] for c in all_costs[aid]) // n
+            avg_costs[aid] = {
+                "liquidity_cost": al,
+                "delay_cost": ad,
+                "penalty_cost": ap,
+                "total": at,
+            }
+            avg_per_agent[aid] = at
+            avg_total += at
+            if n > 1:
+                mean = sum(all_per_agent[aid]) / n
+                variance = sum((x - mean) ** 2 for x in all_per_agent[aid]) / (n - 1)
+                cost_std_per_agent[aid] = int(math.sqrt(variance))
+            else:
+                cost_std_per_agent[aid] = 0
+
+        return avg_costs, avg_per_agent, avg_total, cost_std_per_agent
+
+    def run_day(self) -> GameDay:
+        """Run one day of simulation with current policies."""
         day_num = self.current_day
         seed = self._base_seed + day_num
 
-        # Run the representative simulation (always shown in UI)
         all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
-
-        # If multi-sample, run additional seeds in parallel and average costs
-        if self.num_eval_samples > 1:
-            all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
-            all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
-
-            extra_seeds = [seed + i * 1000 for i in range(1, self.num_eval_samples)]
-
-            # Use GIL-releasing FFI for thread-parallel extra samples
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(extra_seeds), 8)) as pool:
-                futures = {s: pool.submit(self._run_cost_only, s) for s in extra_seeds}
-                extra_results = {s: futures[s].result() for s in extra_seeds}
-
-            for sample_seed in extra_seeds:
-                s_costs_json = extra_results[sample_seed]
-                for aid in self.agent_ids:
-                    agent_c = s_costs_json.get(aid, {})
-                    all_per_agent[aid].append(agent_c.get("total_cost", 0))
-                    all_costs[aid].append({
-                        "liquidity_cost": agent_c.get("liquidity_cost", 0),
-                        "delay_cost": agent_c.get("delay_cost", 0),
-                        "penalty_cost": agent_c.get("penalty_cost", 0),
-                    })
-            
-            # Average costs across samples + compute std dev
-            import math
-            n = self.num_eval_samples
-            total_cost = 0
-            cost_std_per_agent: dict[str, int] = {}
-            for aid in self.agent_ids:
-                avg_total = sum(all_per_agent[aid]) // n
-                avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
-                avg_penalty = sum(c["penalty_cost"] for c in all_costs[aid]) // n
-                avg_liq = sum(c["liquidity_cost"] for c in all_costs[aid]) // n
-                costs[aid] = {
-                    "liquidity_cost": avg_liq,
-                    "delay_cost": avg_delay,
-                    "penalty_cost": avg_penalty,
-                    "total": avg_total,
-                }
-                per_agent_costs[aid] = avg_total
-                total_cost += avg_total
-                # Std dev of total cost across samples
-                if n > 1:
-                    mean = sum(all_per_agent[aid]) / n
-                    variance = sum((x - mean) ** 2 for x in all_per_agent[aid]) / (n - 1)
-                    cost_std_per_agent[aid] = int(math.sqrt(variance))
-                else:
-                    cost_std_per_agent[aid] = 0
-        else:
-            cost_std_per_agent = {aid: 0 for aid in self.agent_ids}
+        costs, per_agent_costs, total_cost, cost_std = self._run_with_samples(
+            seed, all_events, balance_history, costs, per_agent_costs, total_cost, tick_events,
+        )
 
         day = GameDay(
-            day_num=day_num,
-            seed=seed,
-            policies=copy.deepcopy(self.policies),
-            costs=costs,
-            events=all_events,
-            balance_history=balance_history,
-            total_cost=total_cost,
-            per_agent_costs=per_agent_costs,
-            tick_events=tick_events,
-            per_agent_cost_std=cost_std_per_agent,
+            day_num=day_num, seed=seed, policies=copy.deepcopy(self.policies),
+            costs=costs, events=all_events, balance_history=balance_history,
+            total_cost=total_cost, per_agent_costs=per_agent_costs,
+            tick_events=tick_events, per_agent_cost_std=cost_std,
         )
         self.days.append(day)
         return day
@@ -519,8 +528,7 @@ class Game:
         """Run simulation without committing to game state.
 
         Returns a GameDay that can be committed via commit_day().
-        Unlike run_day(), this does NOT append to self.days — the caller
-        must explicitly call commit_day() after confirming delivery.
+        Unlike run_day(), this does NOT append to self.days.
         """
         day_num = self.current_day
 
@@ -534,52 +542,9 @@ class Game:
             seed = self._base_seed + day_num
             all_events, balance_history, costs, per_agent_costs, total_cost, tick_events = self._run_single_sim(seed)
 
-        if self.num_eval_samples > 1:
-            all_per_agent: dict[str, list[int]] = {aid: [per_agent_costs[aid]] for aid in self.agent_ids}
-            all_costs: dict[str, list[dict]] = {aid: [costs[aid]] for aid in self.agent_ids}
-
-            extra_seeds = [seed + i * 1000 for i in range(1, self.num_eval_samples)]
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(extra_seeds), 8)) as pool:
-                futures = {s: pool.submit(self._run_cost_only, s) for s in extra_seeds}
-                extra_results = {s: futures[s].result() for s in extra_seeds}
-
-            for sample_seed in extra_seeds:
-                s_costs_json = extra_results[sample_seed]
-                for aid in self.agent_ids:
-                    agent_c = s_costs_json.get(aid, {})
-                    all_per_agent[aid].append(agent_c.get("total_cost", 0))
-                    all_costs[aid].append({
-                        "liquidity_cost": agent_c.get("liquidity_cost", 0),
-                        "delay_cost": agent_c.get("delay_cost", 0),
-                        "penalty_cost": agent_c.get("penalty_cost", 0),
-                    })
-
-            import math
-            n = self.num_eval_samples
-            total_cost = 0
-            cost_std_per_agent: dict[str, int] = {}
-            for aid in self.agent_ids:
-                avg_total = sum(all_per_agent[aid]) // n
-                avg_delay = sum(c["delay_cost"] for c in all_costs[aid]) // n
-                avg_penalty = sum(c["penalty_cost"] for c in all_costs[aid]) // n
-                avg_liq = sum(c["liquidity_cost"] for c in all_costs[aid]) // n
-                costs[aid] = {
-                    "liquidity_cost": avg_liq,
-                    "delay_cost": avg_delay,
-                    "penalty_cost": avg_penalty,
-                    "total": avg_total,
-                }
-                per_agent_costs[aid] = avg_total
-                total_cost += avg_total
-                if n > 1:
-                    mean = sum(all_per_agent[aid]) / n
-                    variance = sum((x - mean) ** 2 for x in all_per_agent[aid]) / (n - 1)
-                    cost_std_per_agent[aid] = int(math.sqrt(variance))
-                else:
-                    cost_std_per_agent[aid] = 0
-        else:
-            cost_std_per_agent = {aid: 0 for aid in self.agent_ids}
+        costs, per_agent_costs, total_cost, cost_std = self._run_with_samples(
+            seed, all_events, balance_history, costs, per_agent_costs, total_cost, tick_events,
+        )
 
         # Collect transaction histories for bootstrap evaluation
         collector = TransactionHistoryCollector()
@@ -588,20 +553,11 @@ class Game:
         agent_histories = {aid: collector.get_agent_history(aid) for aid in self.agent_ids}
 
         day = GameDay(
-            day_num=day_num,
-            seed=seed,
-            policies=copy.deepcopy(self.policies),
-            costs=costs,
-            events=all_events,
-            balance_history=balance_history,
-            total_cost=total_cost,
-            per_agent_costs=per_agent_costs,
-            per_agent_cost_std=cost_std_per_agent,
-            tick_events=tick_events,
-            # In intra-scenario mode, use cumulative settlement stats across the round
-            # (transactions can arrive on Day N and settle on Day N+k)
-            event_summary=cum_event_summary,
-            total_arrivals=cum_arrivals,
+            day_num=day_num, seed=seed, policies=copy.deepcopy(self.policies),
+            costs=costs, events=all_events, balance_history=balance_history,
+            total_cost=total_cost, per_agent_costs=per_agent_costs,
+            per_agent_cost_std=cost_std, tick_events=tick_events,
+            event_summary=cum_event_summary, total_arrivals=cum_arrivals,
             total_settled=cum_settled,
         )
         day.agent_histories = agent_histories
