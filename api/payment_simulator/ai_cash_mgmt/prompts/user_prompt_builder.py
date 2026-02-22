@@ -311,6 +311,8 @@ def _format_cost_components(breakdown: dict[str, Any], indent: str = "") -> list
         ("deadline_penalty", "Deadline Penalty"),
         ("eod_penalty", "EOD Penalty"),
         ("split_cost", "Split Cost"),
+        ("liquidity_opportunity_cost", "Liquidity Opportunity Cost"),
+        ("collateral_cost", "Collateral"),
     ]
 
     for key, label in component_names:

@@ -237,9 +237,9 @@ TABLE OF CONTENTS:
         # Analyze what's driving costs
         if cb:
             total = sum(cb.values()) or 1
-            delay_pct = (cb.get("delay", 0) / total) * 100
-            collateral_pct = (cb.get("collateral", 0) / total) * 100
-            overdraft_pct = (cb.get("overdraft", 0) / total) * 100
+            delay_pct = (cb.get("delay_cost", 0) / total) * 100
+            collateral_pct = (cb.get("collateral_cost", 0) / total) * 100
+            overdraft_pct = (cb.get("overdraft_cost", 0) / total) * 100
             liquidity_opp_pct = (cb.get("liquidity_opportunity_cost", 0) / total) * 100
             eod_pct = (cb.get("eod_penalty", 0) / total) * 100
 
