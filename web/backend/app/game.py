@@ -228,7 +228,14 @@ class Game:
         self.sim.inject_policies_into_orch()
 
     def run_day(self) -> GameDay:
-        """Run one day of simulation with current policies."""
+        """Run one day of simulation with current policies.
+
+        NOTE: Does not collect agent_histories (transaction records for bootstrap).
+        Only simulate_day() does that. This means bootstrap evaluation won't work
+        for games run via the HTTP path (POST /step, POST /auto). Use the WebSocket
+        path for full optimization with bootstrap. This is intentional — HTTP is
+        the simple/fast path.
+        """
         day_num = self.current_day
         seed = self._base_seed + day_num
 
