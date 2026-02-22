@@ -17,66 +17,10 @@ sys.path.insert(0, str(API_DIR))
 
 from payment_simulator._core import Orchestrator  # type: ignore (used in _apply_result validation)
 from payment_simulator.ai_cash_mgmt.bootstrap.history_collector import TransactionHistoryCollector  # type: ignore
-from payment_simulator.ai_cash_mgmt.bootstrap.sampler import BootstrapSampler  # type: ignore
-from payment_simulator.ai_cash_mgmt.bootstrap.evaluator import BootstrapPolicyEvaluator  # type: ignore
-
 from .sim_runner import SimulationRunner
+from .bootstrap_gate import BootstrapGate
 
 logger = logging.getLogger(__name__)
-
-# ── Bootstrap acceptance profiles ────────────────────────────────────
-# Per-agent risk profiles for the bootstrap evaluation gate.
-# Agents can set `bootstrap_profile: "conservative"` or provide custom
-# thresholds via `bootstrap_thresholds: {n_samples: 100, ...}` in the
-# scenario YAML.
-
-BOOTSTRAP_PROFILES: dict[str, dict[str, Any]] = {
-    "conservative": {
-        "n_samples": 100,
-        "cv_threshold": 0.3,
-        "require_significance": True,   # 95% CI lower > 0
-        "min_improvement_pct": 0.02,    # new cost must be ≥2% cheaper
-    },
-    "moderate": {
-        "n_samples": 50,
-        "cv_threshold": 0.5,
-        "require_significance": True,
-        "min_improvement_pct": 0.0,
-    },
-    "aggressive": {
-        "n_samples": 20,
-        "cv_threshold": 1.0,
-        "require_significance": False,  # accept if delta_sum > 0, skip CI
-        "min_improvement_pct": 0.0,
-    },
-}
-DEFAULT_BOOTSTRAP_PROFILE = "moderate"
-
-
-def _resolve_bootstrap_thresholds(agent_cfg: dict[str, Any]) -> dict[str, Any]:
-    """Resolve bootstrap thresholds for an agent from its scenario config.
-
-    Priority:
-    1. agent.bootstrap_thresholds (custom dict) — full override
-    2. agent.bootstrap_profile (str) — named profile lookup
-    3. DEFAULT_BOOTSTRAP_PROFILE fallback
-    """
-    # Custom thresholds take priority
-    custom = agent_cfg.get("bootstrap_thresholds")
-    if isinstance(custom, dict):
-        # Merge with moderate defaults so partial overrides work
-        base = dict(BOOTSTRAP_PROFILES["moderate"])
-        base.update(custom)
-        return base
-
-    # Named profile
-    profile_name = agent_cfg.get("bootstrap_profile", DEFAULT_BOOTSTRAP_PROFILE)
-    if profile_name in BOOTSTRAP_PROFILES:
-        return dict(BOOTSTRAP_PROFILES[profile_name])
-
-    logger.warning("Unknown bootstrap_profile '%s', using moderate", profile_name)
-    return dict(BOOTSTRAP_PROFILES["moderate"])
-
 
 DEFAULT_POLICY: dict[str, Any] = {
     "version": "2.0",
@@ -229,6 +173,15 @@ class Game:
         # Intra-scenario mode forces single eval sample (can't re-run mid-scenario)
         if self.optimization_schedule == "every_scenario_day":
             self.num_eval_samples = 1
+
+        # Bootstrap gate (shares policies dict by reference)
+        self.bootstrap_gate = BootstrapGate(
+            raw_yaml=self.raw_yaml,
+            agent_ids=self.agent_ids,
+            ticks_per_day=self._ticks_per_day,
+            base_seed=self._base_seed,
+            policies=self.policies,
+        )
 
         # Simulation runner (shares policies dict by reference)
         self.sim = SimulationRunner(
@@ -531,161 +484,8 @@ class Game:
         return results
 
     def _run_real_bootstrap(self, aid: str, day: 'GameDay', result: dict) -> dict:
-        """Run paper's bootstrap evaluation: resample → single-agent sandbox → paired comparison.
-
-        Uses TransactionHistoryCollector → BootstrapSampler → BootstrapPolicyEvaluator
-        from api/payment_simulator/ai_cash_mgmt/bootstrap/. This is the same statistical
-        method used in the paper (50 bootstrap samples, SOURCE→TARGET→SINK sandbox).
-
-        Delta convention: cost_a - cost_b (positive = new policy is cheaper = improvement).
-        """
-        import math
-        import statistics
-        import time as _time
-
-        history = day.agent_histories.get(aid)
-        if not history or (not history.outgoing and not history.incoming):
-            logger.warning("No transaction history for %s on day %d, skipping bootstrap", aid, day.day_num)
-            return result
-
-        # Extract agent config from scenario YAML
-        agent_cfg = next((a for a in self.raw_yaml.get("agents", []) if a.get("id") == aid), None)
-        if not agent_cfg:
-            logger.warning("Agent %s not found in scenario config, skipping bootstrap", aid)
-            return result
-
-        _bs_start = _time.monotonic()
-
-        # Phase 2: Log proposed vs current fraction
-        current_fraction = self.policies[aid].get("parameters", {}).get("initial_liquidity_fraction", 1.0)
-        proposed_fraction = result["new_policy"].get("parameters", {}).get("initial_liquidity_fraction", 1.0)
-        tree_changed = (json.dumps(self.policies[aid].get("payment_tree", {}), sort_keys=True) !=
-                        json.dumps(result["new_policy"].get("payment_tree", {}), sort_keys=True))
-        logger.info("Bootstrap for %s: fraction %.3f → %.3f (delta=%.3f), tree_changed=%s",
-                     aid, current_fraction, proposed_fraction, proposed_fraction - current_fraction, tree_changed)
-
-        # Resolve per-agent bootstrap thresholds
-        thresholds = _resolve_bootstrap_thresholds(agent_cfg)
-        n_samples = thresholds["n_samples"]
-        cv_threshold = thresholds["cv_threshold"]
-        require_significance = thresholds["require_significance"]
-        min_improvement_pct = thresholds.get("min_improvement_pct", 0.0)
-
-        # Step 1: Generate bootstrap samples (resampled transaction schedules)
-        sampler = BootstrapSampler(seed=self._base_seed + day.day_num * 100)
-        samples = sampler.generate_samples(
-            agent_id=aid,
-            n_samples=n_samples,
-            outgoing_records=history.outgoing,
-            incoming_records=history.incoming,
-            total_ticks=self._ticks_per_day,
-        )
-
-        # Step 2: Paired evaluation on single-agent sandboxes
-        # Pass cost_rates from scenario config directly — keys match CostRates pydantic fields
-        scenario_cost_rates = self.raw_yaml.get("cost_rates") or None
-
-        evaluator = BootstrapPolicyEvaluator(
-            opening_balance=agent_cfg.get("opening_balance", 0),
-            credit_limit=agent_cfg.get("unsecured_cap", 0),
-            liquidity_pool=agent_cfg.get("liquidity_pool"),
-            max_collateral_capacity=agent_cfg.get("max_collateral_capacity"),
-            cost_rates=scenario_cost_rates,
-        )
-        deltas = evaluator.compute_paired_deltas(
-            samples=samples,
-            policy_a=self.policies[aid],   # current/old
-            policy_b=result["new_policy"],  # proposed/new
-        )
-        # delta = cost_a - cost_b. Positive = new is cheaper = improvement.
-
-        # Diagnostic: log per-sample costs to detect zero-cost or identical-cost issues
-        if deltas:
-            costs_a = [d.cost_a for d in deltas]
-            costs_b = [d.cost_b for d in deltas]
-            logger.info("Bootstrap costs for %s: cost_a=[min=%d, max=%d, mean=%d], cost_b=[min=%d, max=%d, mean=%d]",
-                        aid, min(costs_a), max(costs_a), sum(costs_a)//len(costs_a),
-                        min(costs_b), max(costs_b), sum(costs_b)//len(costs_b))
-
-        # Step 3: Compute statistics
-        delta_values = [d.delta for d in deltas]
-        n = len(delta_values)
-        delta_sum = sum(delta_values)
-        mean_delta = delta_sum // n if n else 0
-
-        if n >= 2 and mean_delta != 0:
-            std = statistics.stdev(delta_values)
-            se = std / math.sqrt(n)
-            ci_lower = int(mean_delta - 1.96 * se)
-            ci_upper = int(mean_delta + 1.96 * se)
-            cv = abs(std / mean_delta)
-        else:
-            ci_lower = ci_upper = mean_delta
-            cv = 0.0
-
-        mean_old = sum(d.cost_a for d in deltas) // n if n else 0
-        mean_new = sum(d.cost_b for d in deltas) // n if n else 0
-
-        # Step 4: Acceptance criteria (per-agent thresholds)
-        accepted = True
-        rejection_reason = ""
-        profile_name = agent_cfg.get("bootstrap_profile", DEFAULT_BOOTSTRAP_PROFILE)
-        if "bootstrap_thresholds" in agent_cfg:
-            profile_name = "custom"
-
-        if delta_sum <= 0:
-            accepted = False
-            rejection_reason = f"No improvement: delta_sum={delta_sum} (old={mean_old:,}, new={mean_new:,})"
-        elif min_improvement_pct > 0 and mean_old > 0:
-            improvement_pct = delta_sum / (n * mean_old) if n else 0
-            if improvement_pct < min_improvement_pct:
-                accepted = False
-                rejection_reason = f"Improvement too small: {improvement_pct:.1%} < {min_improvement_pct:.0%} threshold"
-        if accepted and require_significance and ci_lower <= 0 and n >= 2:
-            accepted = False
-            rejection_reason = f"Not significant: 95% CI [{ci_lower:,}, {ci_upper:,}] includes zero"
-        # CV check removed — the CI significance check (ci_lower > 0) is the
-        # statistically correct noise filter. CV was redundant and too strict for
-        # crisis scenarios with high cost variance. Paper's pipeline doesn't use CV.
-
-        _bs_elapsed = _time.monotonic() - _bs_start
-        logger.warning(
-            "Bootstrap eval for %s [%s]: %.1fs, %d samples, delta_sum=%d, accepted=%s%s",
-            aid, profile_name, _bs_elapsed, n, delta_sum, accepted,
-            f" ({rejection_reason})" if rejection_reason else "",
-        )
-
-        # Annotate result with bootstrap details
-        result["bootstrap"] = {
-            "delta_sum": delta_sum,
-            "mean_delta": mean_delta,
-            "cv": round(cv, 4),
-            "ci_lower": ci_lower,
-            "ci_upper": ci_upper,
-            "num_samples": n,
-            "old_mean_cost": mean_old,
-            "new_mean_cost": mean_new,
-            "rejection_reason": rejection_reason,
-            "profile": profile_name,
-            "cv_threshold": cv_threshold,
-            "require_significance": require_significance,
-        }
-
-        if not accepted:
-            result["accepted"] = False
-            result["rejection_reason"] = rejection_reason
-            result["reasoning"] += f" [REJECTED: {rejection_reason}]"
-            # Preserve rejected policy so LLM can learn from failures
-            rejected_pol = result.get("new_policy")
-            result["rejected_policy"] = rejected_pol
-            result["rejected_fraction"] = result.get("new_fraction")
-            result["new_policy"] = None
-            result["new_fraction"] = None
-            # Store on the day for iteration history builder
-            if rejected_pol:
-                day.rejected_policies[aid] = rejected_pol
-
-        return result
+        """Run bootstrap evaluation via BootstrapGate."""
+        return self.bootstrap_gate.evaluate(aid, day, result)
 
     def _store_prompt(self, day: 'GameDay', aid: str, result: dict) -> None:
         """Store structured prompt data from optimization result on the day."""
@@ -830,13 +630,15 @@ class Game:
         )
         game._base_seed = config.get("base_seed", 42)
         game.sim.base_seed = game._base_seed
+        game.bootstrap_gate.base_seed = game._base_seed
         game._created_at = data.get("created_at", "")
         game._scenario_id = data.get("scenario_id", "")
         game._uid = data.get("uid", "")
 
-        # Restore policies (update sim reference too)
+        # Restore policies (update shared references)
         game.policies = copy.deepcopy(progress.get("policies", game.policies))
         game.sim.policies = game.policies
+        game.bootstrap_gate.policies = game.policies
 
         # Restore reasoning history
         game.reasoning_history = copy.deepcopy(progress.get("reasoning_history", game.reasoning_history))
