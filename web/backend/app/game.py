@@ -853,7 +853,7 @@ class Game:
         evaluator = BootstrapPolicyEvaluator(
             opening_balance=agent_cfg.get("opening_balance", 0),
             credit_limit=agent_cfg.get("unsecured_cap", 0),
-            liquidity_pool=agent_cfg.get("liquidity_pool") or agent_cfg.get("opening_balance", 0),
+            liquidity_pool=agent_cfg.get("liquidity_pool"),
             max_collateral_capacity=agent_cfg.get("max_collateral_capacity"),
             cost_rates=scenario_cost_rates,
         )
@@ -863,6 +863,14 @@ class Game:
             policy_b=result["new_policy"],  # proposed/new
         )
         # delta = cost_a - cost_b. Positive = new is cheaper = improvement.
+
+        # Diagnostic: log per-sample costs to detect zero-cost or identical-cost issues
+        if deltas:
+            costs_a = [d.cost_a for d in deltas]
+            costs_b = [d.cost_b for d in deltas]
+            logger.info("Bootstrap costs for %s: cost_a=[min=%d, max=%d, mean=%d], cost_b=[min=%d, max=%d, mean=%d]",
+                        aid, min(costs_a), max(costs_a), sum(costs_a)//len(costs_a),
+                        min(costs_b), max(costs_b), sum(costs_b)//len(costs_b))
 
         # Step 3: Compute statistics
         delta_values = [d.delta for d in deltas]
