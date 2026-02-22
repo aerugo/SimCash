@@ -8,6 +8,7 @@ Supports retry with exponential backoff for transient errors (429, 503).
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import re
 import sys
@@ -524,6 +525,65 @@ async def stream_optimize(
         validation_result = validator.validate(new_policy)
 
         if validation_result.is_valid:
+            # Engine-level validation: test-build an Orchestrator to catch hallucinated fields
+            # that pass constraint validation but fail in the Rust engine
+            try:
+                test_yaml = copy.deepcopy(raw_yaml)
+                for ag in test_yaml.get("agents", []):
+                    if ag.get("id") == agent_id:
+                        ag["policy"] = {"type": "InlineJson", "json_string": json.dumps(new_policy)}
+                        frac = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+                        if frac is not None:
+                            ag["liquidity_allocation_fraction"] = frac
+                from payment_simulator.config.simulation_config import SimulationConfig
+                from payment_simulator._core import Orchestrator
+                test_ffi = SimulationConfig.from_dict(test_yaml).to_ffi_dict()
+                Orchestrator.new(test_ffi)
+            except Exception as engine_err:
+                engine_error_str = str(engine_err)
+                logger.warning(
+                    "Engine validation failed for %s (attempt %d/%d): %s",
+                    agent_id, validation_attempt, MAX_VALIDATION_RETRIES, engine_error_str,
+                )
+                if validation_attempt < MAX_VALIDATION_RETRIES:
+                    error_feedback = (
+                        f"\n\n--- ENGINE VALIDATION ERROR (attempt {validation_attempt}/{MAX_VALIDATION_RETRIES}) ---\n"
+                        f"Your policy failed engine validation: {engine_error_str}\n\n"
+                        f"You likely referenced field names that don't exist in the simulation context. "
+                        f"Use ONLY the fields listed in the system prompt schema. "
+                        f"Do NOT invent field names — even if they sound plausible for a payment system.\n"
+                        f"Please fix and provide a corrected policy."
+                    )
+                    validation_user_prompt = user_prompt + error_feedback
+                    yield {"type": "chunk", "text": f"\n\n[Engine validation error: {engine_error_str} — retrying {validation_attempt + 1}/{MAX_VALIDATION_RETRIES}]\n"}
+                    full_text, thinking_text, usage_info, _llm_elapsed = await _rerun_llm(
+                        agent, validation_user_prompt, model_settings, agent_id,
+                    )
+                    continue
+                else:
+                    # Give up after max retries
+                    _attach_llm_response(structured_prompt, full_text)
+                    yield {
+                        "type": "result",
+                        "data": {
+                            "new_policy": None,
+                            "reasoning": f"Engine validation failed after {MAX_VALIDATION_RETRIES} attempts for {agent_id}: {engine_error_str}. Keeping fraction at {current_fraction:.3f}.",
+                            "old_fraction": current_fraction,
+                            "new_fraction": None,
+                            "accepted": False,
+                            "mock": False,
+                            "fallback_reason": f"Engine validation failed: {engine_error_str}",
+                            "raw_response": full_text,
+                            "thinking": thinking_text,
+                            "usage": usage_info,
+                            "latency_seconds": round(_llm_elapsed, 1),
+                            "model": llm_config.model,
+                            "validation_attempts": validation_attempt,
+                            "structured_prompt": structured_prompt.to_dict() if structured_prompt else None,
+                        },
+                    }
+                    return
+
             # Success — emit result
             new_fraction = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
             reasoning_text = (
