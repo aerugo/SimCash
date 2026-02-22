@@ -47,6 +47,7 @@ class SingleAgentIterationRecord:
     was_accepted: bool = True
     is_best_so_far: bool = False
     comparison_to_best: str = ""
+    rejected_policy: dict[str, Any] | None = None  # Proposed policy that was rejected (for learning)
 
 
 @dataclass

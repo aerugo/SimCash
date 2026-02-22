@@ -122,7 +122,7 @@ def _build_optimization_prompt(
     agent_costs = last_day.costs.get(agent_id, {})
     cost_breakdown = {
         "delay_cost": agent_costs.get("delay_cost", 0),
-        "overdraft_cost": agent_costs.get("liquidity_cost", 0),
+        "liquidity_opportunity_cost": agent_costs.get("liquidity_cost", 0),
         "deadline_penalty": agent_costs.get("penalty_cost", 0),
         "eod_penalty": 0,
     }
@@ -152,12 +152,19 @@ def _build_optimization_prompt(
         is_best = day_agent_cost < best_cost
         if is_best and was_accepted:
             best_cost = day_agent_cost
+
+        # Get rejected policy from the day (if optimization was rejected)
+        rejected_pol = None
+        if not was_accepted:
+            rejected_pol = getattr(day, "rejected_policies", {}).get(agent_id)
+
         iteration_history.append(SingleAgentIterationRecord(
             iteration=i + 1,
             metrics={"total_cost_mean": day_agent_cost, "total_cost_std": day_cost_std},
             policy=day_policy,
             was_accepted=was_accepted,
             is_best_so_far=is_best and was_accepted,
+            rejected_policy=rejected_pol,
         ))
 
     filtered_events = filter_events_for_agent(agent_id, last_day.events)

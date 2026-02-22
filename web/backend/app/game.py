@@ -111,6 +111,7 @@ class GameDay:
         self.tick_events = tick_events or []  # tick_events[i] = events for tick i
         self.optimized = optimized  # whether LLM optimization occurred after this day
         self.optimization_prompts: dict[str, dict] = {}  # agent_id → StructuredPrompt.to_dict()
+        self.rejected_policies: dict[str, dict] = {}  # agent_id → rejected policy (for learning)
         self.agent_histories: dict[str, Any] = {}  # agent_id → AgentTransactionHistory (for bootstrap)
 
         # Cache settlement stats — computed once from events, persisted in checkpoints
@@ -940,8 +941,15 @@ class Game:
             result["accepted"] = False
             result["rejection_reason"] = rejection_reason
             result["reasoning"] += f" [REJECTED: {rejection_reason}]"
+            # Preserve rejected policy so LLM can learn from failures
+            rejected_pol = result.get("new_policy")
+            result["rejected_policy"] = rejected_pol
+            result["rejected_fraction"] = result.get("new_fraction")
             result["new_policy"] = None
             result["new_fraction"] = None
+            # Store on the day for iteration history builder
+            if rejected_pol:
+                day.rejected_policies[aid] = rejected_pol
 
         return result
 
@@ -1109,6 +1117,7 @@ class Game:
             "per_agent_cost_std": day.per_agent_cost_std,
             "optimized": day.optimized,
             "optimization_prompts": day.optimization_prompts,
+            "rejected_policies": day.rejected_policies,
         }
 
     @classmethod
@@ -1161,6 +1170,7 @@ class Game:
                 per_agent_cost_std=day_data.get("per_agent_cost_std", {}),
             )
             day.optimization_prompts = day_data.get("optimization_prompts", {})
+            day.rejected_policies = day_data.get("rejected_policies", {})
             game.days.append(day)
 
         return game
@@ -1335,7 +1345,7 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
     agent_costs = last_day.costs.get(agent_id, {})
     cost_breakdown = {
         "delay_cost": agent_costs.get("delay_cost", 0),
-        "overdraft_cost": agent_costs.get("liquidity_cost", 0),
+        "liquidity_opportunity_cost": agent_costs.get("liquidity_cost", 0),
         "deadline_penalty": agent_costs.get("penalty_cost", 0),
         "eod_penalty": 0,
     }

@@ -240,8 +240,16 @@ TABLE OF CONTENTS:
             delay_pct = (cb.get("delay", 0) / total) * 100
             collateral_pct = (cb.get("collateral", 0) / total) * 100
             overdraft_pct = (cb.get("overdraft", 0) / total) * 100
+            liquidity_opp_pct = (cb.get("liquidity_opportunity_cost", 0) / total) * 100
             eod_pct = (cb.get("eod_penalty", 0) / total) * 100
 
+            if liquidity_opp_pct > 40:
+                guidance.append(
+                    "⚠️ **HIGH LIQUIDITY OPPORTUNITY COST** - Holding too much capital in the settlement system.\n"
+                    "   This cost comes from initial_liquidity_fraction being too high. "
+                    "Consider: Lower initial_liquidity_fraction to reduce idle capital, "
+                    "but watch for increased delay/deadline costs."
+                )
             if delay_pct > 40:
                 guidance.append(
                     "⚠️ **HIGH DELAY COSTS** - Payments are waiting too long in queue.\n"
@@ -460,6 +468,21 @@ TABLE OF CONTENTS:
             sections.append("```json")
             sections.append(json.dumps(record.policy.get("parameters", {}), indent=2))
             sections.append("```")
+
+            # Show what was proposed and rejected (so LLM can learn from failures)
+            if not record.was_accepted and record.rejected_policy:
+                rej_params = record.rejected_policy.get("parameters", {})
+                rej_tree = record.rejected_policy.get("payment_tree", {})
+                tree_type = rej_tree.get("type", "unknown")
+                tree_summary = f"type={tree_type}"
+                if tree_type == "condition":
+                    cond = rej_tree.get("condition", {})
+                    field = cond.get("left", {}).get("field", "?")
+                    tree_summary = f"condition on {field}"
+                sections.append(f"\n**Rejected proposal:**")
+                sections.append(f"  Parameters: {json.dumps(rej_params)}")
+                sections.append(f"  Payment tree: {tree_summary}")
+                sections.append(f"  *(Do not repeat this approach)*")
             sections.append("")
 
         return "\n".join(sections)
