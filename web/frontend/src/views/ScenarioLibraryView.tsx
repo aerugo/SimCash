@@ -392,7 +392,7 @@ export function ScenarioLibraryView() {
                 style={{ height: '6px' }}
               />
               <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                How much of their liquidity pool each bank commits at day start. Lower = less capital tied up but higher risk of payment failures.
+                How much of their liquidity pool each bank commits at the start of each business day. Liquidity is returned at end-of-day and reallocated fresh each morning — the AI optimizer can change this fraction between days.
               </p>
             </div>
             <button
@@ -617,7 +617,7 @@ export function ScenarioLibraryView() {
                 style={{ height: '6px' }}
               />
               <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                How much of their liquidity pool each bank commits at day start. Lower = less capital tied up but higher risk of payment failures.
+                How much of their liquidity pool each bank commits at the start of each business day. Liquidity is returned at end-of-day and reallocated fresh each morning — the AI optimizer can change this fraction between days.
               </p>
             </div>
             {isGuest ? (
