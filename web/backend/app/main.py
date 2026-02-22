@@ -689,6 +689,8 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             num_eval_samples=config.num_eval_samples,
             optimization_interval=config.optimization_interval,
             constraint_preset=config.constraint_preset,
+            include_groups=config.include_groups,
+            exclude_groups=config.exclude_groups,
             starting_policies=config.starting_policies,
             optimization_schedule=config.optimization_schedule,
             prompt_profile=prompt_profile,
@@ -1281,6 +1283,41 @@ def list_constraint_presets():
     """List available LLM optimization constraint presets."""
     from .constraint_presets import get_preset_metadata
     return {"presets": get_preset_metadata()}
+
+
+@app.post("/api/constraint-presets/detect")
+def detect_constraint_features(body: dict):
+    """Detect scenario features and return auto-selected field groups.
+    
+    POST body: {"scenario_config": {...}}  (raw scenario YAML dict)
+    
+    Returns:
+    {
+        "features": {"lsm_enabled": true, "collateral_configured": false, ...},
+        "auto_groups": ["core", "queue", "timing", "cost", "throughput"],
+        "available_groups": ["core", "queue", ..., "counterparty"],
+        "field_count": 42
+    }
+    """
+    from .constraint_presets import detect_features
+    config = body.get("scenario_config", {})
+    return detect_features(config)
+
+
+@app.get("/api/constraint-presets/groups")
+def list_field_groups():
+    """List all field groups and their fields."""
+    from .constraint_presets import get_field_groups, ALWAYS_GROUPS
+    groups = get_field_groups()
+    return {
+        "groups": {
+            name: {
+                "fields": fields,
+                "always_on": name in ALWAYS_GROUPS,
+            }
+            for name, fields in groups.items()
+        }
+    }
 
 
 # ---- Policy Library ----

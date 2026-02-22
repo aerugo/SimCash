@@ -155,6 +155,8 @@ class CreateGameRequest(BaseModel):
     num_eval_samples: int = Field(default=1, ge=1, le=50)
     optimization_interval: int = Field(default=1, ge=1, le=50)
     constraint_preset: str = Field(default="simple", pattern="^(simple|standard|full)$")
+    include_groups: list[str] | None = None  # Extra field groups to force-include
+    exclude_groups: list[str] | None = None  # Field groups to force-exclude
     starting_policies: dict[str, str] | None = None  # agent_id → policy JSON string
     optimization_schedule: str = Field(default="every_round", pattern="^(every_round|every_scenario_day)$")
     prompt_profile_id: str | None = None  # load saved profile by ID

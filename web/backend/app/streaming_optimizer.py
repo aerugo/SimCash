@@ -87,6 +87,8 @@ def _build_optimization_prompt(
     all_days: list[Any],
     raw_yaml: dict[str, Any],
     constraint_preset: str = "simple",
+    include_groups: list[str] | None = None,
+    exclude_groups: list[str] | None = None,
     prompt_profile: dict[str, dict] | None = None,
 ) -> tuple[str, str, dict[str, Any]]:
     """Build system prompt and user prompt for optimization.
@@ -109,7 +111,7 @@ def _build_optimization_prompt(
     from .constraint_presets import build_constraints
     from .prompt_blocks import PromptBlock, StructuredPrompt
 
-    constraints = build_constraints(constraint_preset, raw_yaml)
+    constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
     cost_rates = raw_yaml.get("cost_rates", {})
@@ -318,6 +320,8 @@ async def stream_optimize(
     all_days: list[Any],
     raw_yaml: dict[str, Any],
     constraint_preset: str = "simple",
+    include_groups: list[str] | None = None,
+    exclude_groups: list[str] | None = None,
     prompt_profile: dict[str, dict] | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream LLM optimization with retry on transient errors.
@@ -342,6 +346,7 @@ async def stream_optimize(
     # Build prompts (done once, not retried)
     system_prompt, user_prompt, ctx = _build_optimization_prompt(
         agent_id, current_policy, last_day, all_days, raw_yaml, constraint_preset,
+        include_groups=include_groups, exclude_groups=exclude_groups,
         prompt_profile=prompt_profile,
     )
     current_fraction = ctx["current_fraction"]
@@ -506,7 +511,7 @@ async def stream_optimize(
         # Validate against scenario constraints
         from .constraint_presets import build_constraints
         from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import ConstraintValidator
-        constraints = build_constraints(constraint_preset, raw_yaml)
+        constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
         validator = ConstraintValidator(constraints)
         validation_result = validator.validate(new_policy)
 

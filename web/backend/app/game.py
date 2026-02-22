@@ -134,6 +134,8 @@ class Game:
                  simulated_ai: bool = True, max_days: int = 1,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
+                 include_groups: list[str] | None = None,
+                 exclude_groups: list[str] | None = None,
                  starting_policies: dict[str, str] | None = None,
                  optimization_schedule: str = "every_round",
                  prompt_profile: dict[str, dict] | None = None):
@@ -145,6 +147,8 @@ class Game:
         self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
         self.optimization_interval = max(1, optimization_interval)
         self.constraint_preset = constraint_preset
+        self.include_groups = include_groups
+        self.exclude_groups = exclude_groups
         self.optimization_schedule = optimization_schedule  # "every_round" or "every_scenario_day"
         self.prompt_profile: dict[str, dict] = prompt_profile or {}  # block_id → {enabled, options}
         self.days: list[GameDay] = []
@@ -634,6 +638,8 @@ class Game:
                     async for event in stream_optimize(
                         aid, self.policies[aid], last_day, self.days, self.raw_yaml,
                         constraint_preset=self.constraint_preset,
+                        include_groups=self.include_groups,
+                        exclude_groups=self.exclude_groups,
                         prompt_profile=self.prompt_profile,
                     ):
                         if event["type"] == "chunk":
@@ -830,7 +836,9 @@ class Game:
                 # Real LLM mode — never fall back to mock. Fail hard.
                 result = await _real_optimize(aid, self.policies[aid], last_day,
                                               self.days, self.raw_yaml,
-                                              constraint_preset=self.constraint_preset)
+                                              constraint_preset=self.constraint_preset,
+                                              include_groups=self.include_groups,
+                                              exclude_groups=self.exclude_groups)
 
             if evaluator and result.get("new_policy"):
                 result = self._run_bootstrap(evaluator, aid, result)
@@ -863,6 +871,8 @@ class Game:
             "num_eval_samples": self.num_eval_samples,
             "optimization_interval": self.optimization_interval,
             "constraint_preset": self.constraint_preset,
+            "include_groups": self.include_groups,
+            "exclude_groups": self.exclude_groups,
             "optimization_schedule": self.optimization_schedule,
             "scenario_num_days": self._scenario_num_days,
             "agent_ids": self.agent_ids,
@@ -959,6 +969,8 @@ class Game:
             num_eval_samples=config.get("num_eval_samples", 1),
             optimization_interval=config.get("optimization_interval", 1),
             constraint_preset=config.get("constraint_preset", "simple"),
+            include_groups=config.get("include_groups"),
+            exclude_groups=config.get("exclude_groups"),
             optimization_schedule=config.get("optimization_schedule", "every_round"),
             prompt_profile=config.get("prompt_profile"),
         )
@@ -1085,7 +1097,9 @@ def _mock_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
 async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
                          all_days: list[GameDay], raw_yaml: dict,
-                         constraint_preset: str = "simple") -> dict[str, Any]:
+                         constraint_preset: str = "simple",
+                         include_groups: list[str] | None = None,
+                         exclude_groups: list[str] | None = None) -> dict[str, Any]:
     """Use the real LLM optimization infrastructure.
 
     Reuses the existing PolicyOptimizer + ExperimentLLMClient from the experiment
@@ -1110,7 +1124,7 @@ async def _real_optimize(agent_id: str, current_policy: dict, last_day: GameDay,
 
     # Build constraints from preset
     from .constraint_presets import build_constraints
-    constraints = build_constraints(constraint_preset, raw_yaml)
+    constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
 
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
