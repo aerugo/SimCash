@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authFetch } from '../api';
+import { authFetch, API_ORIGIN } from '../api';
 
 interface GameSummary {
   game_id: string;
@@ -23,7 +23,7 @@ export default function ExperimentsView() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await authFetch('/api/games');
+      const res = await authFetch(`${API_ORIGIN}/api/games`);
       if (res.ok) {
         const data = await res.json();
         setGames(data.games || []);
@@ -39,7 +39,7 @@ export default function ExperimentsView() {
 
   const handleDelete = async (gameId: string) => {
     if (!confirm('Delete this experiment? This cannot be undone.')) return;
-    await authFetch(`/api/games/${gameId}`, { method: 'DELETE' });
+    await authFetch(`${API_ORIGIN}/api/games/${gameId}`, { method: 'DELETE' });
     setGames(g => g.filter(x => x.game_id !== gameId));
   };
 
