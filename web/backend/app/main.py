@@ -185,12 +185,17 @@ def _save_game_checkpoint(game: Game):
         game_storage.update_index(uid, {
             "game_id": game.game_id,
             "scenario_id": scenario_id,
+            "scenario_name": getattr(game, '_scenario_name', ''),
+            "optimization_model": getattr(game, '_optimization_model', ''),
             "status": checkpoint["status"],
-            "days_completed": game.current_day,
+            "current_day": game.current_day,
             "max_days": game.max_days,
+            "created_at": checkpoint.get("created_at", ""),
             "updated_at": checkpoint["updated_at"],
+            "last_activity_at": getattr(game, 'last_activity_at', ''),
             "use_llm": game.use_llm,
-            "num_agents": len(game.agent_ids),
+            "simulated_ai": getattr(game, 'simulated_ai', True),
+            "agent_count": len(game.agent_ids),
             "uid": uid,
         })
     except Exception as e:
@@ -720,14 +725,16 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             "game_id": game_id,
             "scenario_id": config.scenario_id,
             "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
+            "optimization_model": getattr(game, '_optimization_model', ''),
             "created_at": game._created_at,
             "updated_at": game._created_at,
-            "days_completed": 0,
+            "last_activity_at": game.last_activity_at,
+            "current_day": 0,
             "max_days": config.max_days,
             "status": "created",
             "use_llm": config.use_llm,
-            "num_agents": len(game.agent_ids),
-            "ticks_per_day": raw_yaml.get("simulation", {}).get("ticks_per_day", 0),
+            "simulated_ai": getattr(game, 'simulated_ai', True),
+            "agent_count": len(game.agent_ids),
             "uid": uid,
         })
         _save_game_checkpoint(game)
@@ -855,9 +862,10 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
             games = game_storage.list_games(uid)
             meta = next((g for g in games if g["game_id"] == game_id), None)
             if meta:
-                meta["days_completed"] = game.current_day
+                meta["current_day"] = game.current_day
                 meta["updated_at"] = datetime.now(timezone.utc).isoformat()
-                meta["status"] = "complete" if game.is_complete else "in_progress"
+                meta["last_activity_at"] = game.last_activity_at
+                meta["status"] = "complete" if game.is_complete else "running"
                 game_storage.update_index(uid, meta)
 
         _save_game_checkpoint(game)
@@ -1184,21 +1192,24 @@ async def admin_list_users(email: str = Depends(get_admin_user)):
 @app.get("/api/admin/users/list-with-games")
 async def admin_list_users_with_games(email: str = Depends(get_admin_user)):
     """List all users with their game counts."""
+    import asyncio
     from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
     users = user_manager.list_users()
-    result = []
-    for u in users:
+    loop = asyncio.get_event_loop()
+
+    async def enrich(u: dict) -> dict:
         uid = u.get("uid", "")
-        # Resolve UID from Firebase Auth if not stored in Firestore
         if not uid and u.get("email"):
             try:
-                fb_user = fb_auth.get_user_by_email(u["email"])
+                fb_user = await loop.run_in_executor(None, fb_auth.get_user_by_email, u["email"])
                 uid = fb_user.uid
             except Exception:
                 uid = ""
-        game_count = len(game_storage.list_checkpoints(uid)) if uid else 0
-        result.append({**u, "uid": uid, "game_count": game_count})
-    return {"users": result}
+        game_count = len(await loop.run_in_executor(None, game_storage.list_checkpoints, uid)) if uid else 0
+        return {**u, "uid": uid, "game_count": game_count}
+
+    result = await asyncio.gather(*(enrich(u) for u in users))
+    return {"users": list(result)}
 
 
 @app.post("/api/admin/invite")

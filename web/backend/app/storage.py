@@ -242,7 +242,18 @@ class GameStorage:
         }
 
     def list_checkpoints(self, uid: str) -> list[dict]:
-        """List all checkpoints for a user (summary only: id, status, progress)."""
+        """List all checkpoints for a user (summary only: id, status, progress).
+
+        Uses the lightweight index file first (fast). Falls back to scanning
+        individual checkpoint files only if the index is empty/missing.
+        """
+        # Fast path: use the index (small JSON with summaries only)
+        index_entries = self._read_index(uid)
+        if index_entries:
+            return index_entries
+
+        # Slow fallback: scan individual checkpoint files (for legacy data)
+        logger.info("No index for user %s, falling back to checkpoint scan", uid)
         results = []
         seen_ids: set[str] = set()
 
@@ -277,5 +288,9 @@ class GameStorage:
                         continue
             except Exception as e:
                 logger.warning("GCS list_checkpoints failed for %s: %s", uid, e)
+
+        # Rebuild index from scan results so next call is fast
+        if results:
+            self._write_index(uid, results)
 
         return results
