@@ -12,6 +12,7 @@ export type ActivityEventType =
   | 'round_complete'
   | 'experiment_complete'
   | 'info'
+  | 'connection'
   | 'error';
 
 export type ActivitySeverity = 'info' | 'success' | 'warning' | 'error';
@@ -49,6 +50,7 @@ const ICONS: Record<ActivityEventType, string> = {
   round_complete: '🏁',
   experiment_complete: '🎉',
   info: 'ℹ️',
+  connection: '🔌',
   error: '❌',
 };
 
