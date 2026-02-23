@@ -109,7 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     tryConnect();
-    return () => { cancelled = true; };
+
+    // Safety net: never stay in loading state for more than 10s
+    const safetyTimeout = setTimeout(() => {
+      if (!cancelled) setLoading(false);
+    }, 10000);
+
+    return () => { cancelled = true; clearTimeout(safetyTimeout); };
   }, []);
 
   const handleSignIn = async () => {

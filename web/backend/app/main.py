@@ -904,7 +904,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
     """
     # Authenticate before accepting (guests allowed)
     try:
-        uid = await get_optional_ws_user(websocket)
+        uid = await get_effective_ws_user(websocket)
     except Exception:
         return
     logger.info("WS game connection from user %s for game %s", uid, game_id)

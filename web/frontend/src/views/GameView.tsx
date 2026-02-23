@@ -79,18 +79,39 @@ export function GameView() {
   const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
   const gameId = params.gameId ?? contextGameId ?? '';
   const [fetchedState, setFetchedState] = useState<GameState | null>(null);
-  const [, setFetchError] = useState(false);
+  const [fetchRetrying, setFetchRetrying] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
+  const fetchRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialState = contextGameState ?? fetchedState;
   const onReset = () => { handleReset(); nav('/'); };
 
   // Fetch game from API if not in context (e.g. direct navigation or from experiments list)
+  // Auto-retries every 5s on 404 (backend may be restarting / loading checkpoint)
   useEffect(() => {
     if (contextGameState || !gameId || fetchedState) return;
+    let cancelled = false;
     setFetchLoading(true);
-    import('../api').then(({ getGame }) => getGame(gameId))
-      .then(state => { setFetchedState(state); setFetchLoading(false); })
-      .catch(() => { setFetchError(true); setFetchLoading(false); });
+
+    const attempt = () => {
+      import('../api').then(({ getGame }) => getGame(gameId))
+        .then(state => {
+          if (cancelled) return;
+          setFetchedState(state);
+          setFetchLoading(false);
+          setFetchRetrying(false);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setFetchRetrying(true);
+          fetchRetryRef.current = setTimeout(attempt, 5000);
+        });
+    };
+    attempt();
+
+    return () => {
+      cancelled = true;
+      if (fetchRetryRef.current) clearTimeout(fetchRetryRef.current);
+    };
   }, [gameId, contextGameState, fetchedState]);
 
   // ALL hooks must be called before any conditional returns (React rules of hooks)
@@ -171,6 +192,8 @@ export function GameView() {
           actLog.push('experiment_complete', `All days complete!`, 'success');
           break;
         case 'error':
+          // Suppress "Game not found" — backend is restarting, WS will auto-reconnect
+          if (msg.message && /game not found/i.test(msg.message)) break;
           actLog.push('error', msg.message ?? 'Unknown error', 'error');
           break;
       }
@@ -255,7 +278,11 @@ export function GameView() {
     return (
       <div className="text-center py-20">
         <div className="text-4xl mb-4 animate-spin">⏳</div>
-        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading experiment {gameId}…</p>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {fetchRetrying
+            ? 'Server restarting — reloading from checkpoint…'
+            : `Loading experiment ${gameId}…`}
+        </p>
       </div>
     );
   }

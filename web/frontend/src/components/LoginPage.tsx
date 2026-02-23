@@ -119,8 +119,7 @@ export function LoginPage({ accessDenied }: { accessDenied?: boolean }) {
 
         <button
           onClick={signIn}
-          disabled={loading}
-          className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 mx-auto disabled:opacity-50"
+          className="px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-3 mx-auto"
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
