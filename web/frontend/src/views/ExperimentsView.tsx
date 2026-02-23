@@ -5,6 +5,7 @@ import { authFetch, API_ORIGIN } from '../api';
 interface GameSummary {
   game_id: string;
   scenario_id: string;
+  scenario_name: string;
   status: string;
   display_status: string;
   current_day: number;
@@ -176,7 +177,7 @@ export default function ExperimentsView() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {g.scenario_id || 'Custom Scenario'}
+                    {g.scenario_name || g.scenario_id || 'Custom Scenario'}
                   </span>
                   {statusBadge(g)}
                   {g.use_llm && !g.simulated_ai && (

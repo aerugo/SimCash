@@ -231,6 +231,8 @@ class GameStorage:
         return {
             "game_id": data.get("game_id", fallback_id),
             "scenario_id": data.get("scenario_id", ""),
+            "scenario_name": data.get("scenario_name", ""),
+            "optimization_model": data.get("optimization_model", ""),
             "status": data.get("status", "unknown"),
             "current_day": data.get("progress", {}).get("current_day", 0),
             "max_days": data.get("config", {}).get("max_days", 0),
@@ -239,6 +241,7 @@ class GameStorage:
             "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
             "created_at": data.get("created_at", ""),
             "updated_at": data.get("updated_at", ""),
+            "last_activity_at": data.get("last_activity_at", data.get("updated_at", "")),
         }
 
     def list_checkpoints(self, uid: str) -> list[dict]:
