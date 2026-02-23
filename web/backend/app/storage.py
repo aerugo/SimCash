@@ -253,7 +253,12 @@ class GameStorage:
         # Fast path: use the index (small JSON with summaries only)
         index_entries = self._read_index(uid)
         if index_entries:
-            return index_entries
+            # Check if index uses old field names (needs migration)
+            sample = index_entries[0]
+            if "current_day" not in sample and ("days_completed" in sample or "num_agents" in sample):
+                logger.info("Index for user %s uses old field names, forcing rebuild", uid)
+            else:
+                return index_entries
 
         # Slow fallback: scan individual checkpoint files (for legacy data)
         logger.info("No index for user %s, falling back to checkpoint scan", uid)

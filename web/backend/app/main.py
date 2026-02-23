@@ -786,13 +786,23 @@ def list_games(uid: str = Depends(get_effective_user)):
                 "last_activity_at": getattr(game, 'last_activity_at', ''),
             })
 
-    # Enrich all entries with live status
+    # Enrich all entries with live status + resolve missing fields
     for entry in checkpoints:
         gid = entry["game_id"]
         last_act = entry.get("last_activity_at") or entry.get("updated_at", "")
         entry["has_active_ws"] = gid in active_ws_connections and active_ws_connections[gid] > 0
         entry["last_activity_at"] = last_act
         entry["display_status"] = derive_status(entry.get("status", ""), gid, last_act)
+        # Normalize old field names
+        if "current_day" not in entry and "days_completed" in entry:
+            entry["current_day"] = entry.pop("days_completed")
+        if "agent_count" not in entry and "num_agents" in entry:
+            entry["agent_count"] = entry.pop("num_agents")
+        # Resolve scenario name from library if missing
+        if not entry.get("scenario_name") and entry.get("scenario_id"):
+            sc = get_scenario_by_id(entry["scenario_id"])
+            if sc and isinstance(sc, dict):
+                entry["scenario_name"] = sc.get("name", entry["scenario_id"])
 
     return {"games": checkpoints}
 
