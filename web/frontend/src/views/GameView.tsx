@@ -118,6 +118,30 @@ export function GameView() {
   const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop, onRawMessage } = useGameWebSocket(gameId, initialState);
   void _optimizingAgent; // kept for API compat
 
+  // Stall detection: track time since last WS message
+  const lastWsMsgRef = useRef<number>(Date.now());
+  const [stalled, setStalled] = useState(false);
+
+  useEffect(() => {
+    return onRawMessage(() => {
+      lastWsMsgRef.current = Date.now();
+      setStalled(false);
+    });
+  }, [onRawMessage]);
+
+  // Check for stall every 10s during auto-run
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (phase !== 'idle' && connectionStatus === 'connected') {
+        const age = Date.now() - lastWsMsgRef.current;
+        if (age > 60_000) setStalled(true);
+      } else {
+        setStalled(false);
+      }
+    }, 10_000);
+    return () => clearInterval(id);
+  }, [phase, connectionStatus]);
+
   // Activity feed
   const actLog = useActivityLog();
   const simStartTimeRef = useRef<number>(0);
@@ -200,6 +224,21 @@ export function GameView() {
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onRawMessage]);
+
+  // Log connection status changes to activity feed
+  const prevConnStatus = useRef<string>(connectionStatus);
+  useEffect(() => {
+    if (prevConnStatus.current === connectionStatus) return;
+    const prev = prevConnStatus.current;
+    prevConnStatus.current = connectionStatus;
+    if (connectionStatus === 'connected' && prev === 'reconnecting') {
+      actLog.push('connection', '🔄 Reconnected to server', 'success');
+    } else if (connectionStatus === 'disconnected') {
+      actLog.push('connection', '🔴 Connection lost — experiment paused', 'error');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus]);
+
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [experimentError, setExperimentError] = useState<string | null>(null);
@@ -306,6 +345,16 @@ export function GameView() {
       {/* Top Bar */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2" data-tour="top-bar">
+          <span className="relative flex h-2.5 w-2.5 mt-1" title={connectionStatus}>
+            {connectionStatus === 'connected' ? (
+              <span className="inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            ) : connectionStatus === 'reconnecting' ? (<>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500" />
+            </>) : (
+              <span className="inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            )}
+          </span>
           <h2 className="text-xl sm:text-2xl font-bold">{gameState.scenario_name || 'Policy Experiment'}</h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
             {gameState.optimization_schedule === 'every_scenario_day' && gameState.scenario_num_days
@@ -337,6 +386,18 @@ export function GameView() {
             <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
           )}
         </div>
+        {/* Stall warning */}
+        {stalled && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <span>⚠️ No response from server for 60s — simulation may have stalled.</span>
+            <button
+              onClick={() => { setStalled(false); window.location.reload(); }}
+              className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-xs font-medium"
+            >
+              Reload
+            </button>
+          </div>
+        )}
         {/* Action buttons — wrap on mobile */}
         <div className="flex flex-wrap items-center gap-2">
           <button

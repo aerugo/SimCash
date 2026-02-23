@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authFetch, API_ORIGIN } from '../api';
 
@@ -6,6 +6,7 @@ interface GameSummary {
   game_id: string;
   scenario_id: string;
   status: string;
+  display_status: string;
   current_day: number;
   max_days: number;
   use_llm: boolean;
@@ -13,6 +14,24 @@ interface GameSummary {
   agent_count: number;
   created_at: string;
   updated_at: string;
+  last_activity_at: string;
+  has_active_ws: boolean;
+}
+
+function timeAgo(iso: string): string {
+  if (!iso) return '';
+  try {
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 0) return 'just now';
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  } catch { return ''; }
 }
 
 export default function ExperimentsView() {
@@ -20,6 +39,7 @@ export default function ExperimentsView() {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'running' | 'complete'>('all');
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -35,7 +55,12 @@ export default function ExperimentsView() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    // Auto-refresh every 15s
+    intervalRef.current = setInterval(refresh, 15000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [refresh]);
 
   const handleDelete = async (gameId: string) => {
     if (!confirm('Delete this experiment? This cannot be undone.')) return;
@@ -44,8 +69,9 @@ export default function ExperimentsView() {
   };
 
   const filtered = games.filter(g => {
-    if (filter === 'running') return g.status !== 'complete';
-    if (filter === 'complete') return g.status === 'complete';
+    const ds = g.display_status || g.status;
+    if (filter === 'running') return ds !== 'complete';
+    if (filter === 'complete') return ds === 'complete';
     return true;
   });
 
@@ -57,18 +83,29 @@ export default function ExperimentsView() {
     } catch { return iso; }
   };
 
-  const statusBadge = (status: string) => {
-    const styles: Record<string, { bg: string; text: string; label: string }> = {
+  const statusBadge = (g: GameSummary) => {
+    const ds = g.display_status || g.status;
+    const styles: Record<string, { bg: string; text: string; label: string; pulse?: boolean }> = {
       created: { bg: 'var(--bg-inset)', text: 'var(--text-muted)', label: 'Created' },
-      running: { bg: 'var(--color-warning)', text: '#fff', label: 'Running' },
-      paused: { bg: 'var(--text-accent)', text: '#fff', label: 'Paused' },
+      running: { bg: 'var(--color-success)', text: '#fff', label: 'Running', pulse: true },
+      stalled: { bg: 'var(--color-warning)', text: '#fff', label: 'Stalled' },
+      paused: { bg: 'var(--bg-inset)', text: 'var(--text-secondary)', label: 'Paused' },
       complete: { bg: 'var(--color-success)', text: '#fff', label: 'Complete' },
     };
-    const s = styles[status] || styles.created;
+    const s = styles[ds] || styles.created;
+    const activity = g.last_activity_at || g.updated_at;
+    const ago = ds !== 'complete' && ds !== 'created' ? timeAgo(activity) : '';
     return (
-      <span className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+      <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full font-medium"
         style={{ background: s.bg, color: s.text }}>
+        {s.pulse && (
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: '#fff' }} />
+            <span className="relative inline-flex rounded-full h-2 w-2" style={{ background: '#fff' }} />
+          </span>
+        )}
         {s.label}
+        {ago && <span className="opacity-75 text-[10px]">· {ago}</span>}
       </span>
     );
   };
@@ -101,7 +138,10 @@ export default function ExperimentsView() {
               border: `1px solid ${filter === f ? 'var(--btn-primary-bg)' : 'var(--border-color)'}`,
             }}
           >
-            {f} {f === 'all' ? `(${games.length})` : `(${games.filter(g => f === 'running' ? g.status !== 'complete' : g.status === 'complete').length})`}
+            {f} {f === 'all' ? `(${games.length})` : `(${games.filter(g => {
+              const ds = g.display_status || g.status;
+              return f === 'running' ? ds !== 'complete' : ds === 'complete';
+            }).length})`}
           </button>
         ))}
       </div>
@@ -138,7 +178,7 @@ export default function ExperimentsView() {
                   <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
                     {g.scenario_id || 'Custom Scenario'}
                   </span>
-                  {statusBadge(g.status)}
+                  {statusBadge(g)}
                   {g.use_llm && !g.simulated_ai && (
                     <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-inset)', color: 'var(--text-accent)' }}>
                       🧠 AI
@@ -167,7 +207,7 @@ export default function ExperimentsView() {
                       className="h-full rounded-full transition-all"
                       style={{
                         width: `${g.max_days > 0 ? (g.current_day / g.max_days) * 100 : 0}%`,
-                        background: g.status === 'complete' ? 'var(--color-success)' : 'var(--text-accent)',
+                        background: (g.display_status || g.status) === 'complete' ? 'var(--color-success)' : 'var(--text-accent)',
                       }}
                     />
                   </div>

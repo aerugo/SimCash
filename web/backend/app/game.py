@@ -7,6 +7,7 @@ import json
 import copy
 import random
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -163,6 +164,8 @@ class Game:
         self.reasoning_history: dict[str, list[dict]] = {aid: [] for aid in self.agent_ids}
         self._scenario_name: str = ""
         self._optimization_model: str = ""
+        self._created_at: str = datetime.now(timezone.utc).isoformat()
+        self.last_activity_at: str = datetime.now(timezone.utc).isoformat()
         self._base_seed = raw_yaml.get("simulation", {}).get("rng_seed", 42)
 
         # Scenario configuration
@@ -209,6 +212,10 @@ class Game:
                 fraction = policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
                 policy.setdefault("parameters", {})["initial_liquidity_fraction"] = fraction
                 self.policies[agent_id] = policy
+
+    def touch_activity(self) -> None:
+        """Update last_activity_at to now."""
+        self.last_activity_at = datetime.now(timezone.utc).isoformat()
 
     @property
     def current_day(self) -> int:

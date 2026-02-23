@@ -73,6 +73,7 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         "scenario_id": scenario_id,
         "created_at": getattr(game, '_created_at', datetime.now(timezone.utc).isoformat()),
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "last_activity_at": getattr(game, 'last_activity_at', datetime.now(timezone.utc).isoformat()),
         "status": status,
         "scenario_name": getattr(game, '_scenario_name', ''),
         "optimization_model": getattr(game, '_optimization_model', ''),
@@ -123,6 +124,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game.sim.base_seed = game._base_seed
     game.bootstrap_gate.base_seed = game._base_seed
     game._created_at = data.get("created_at", "")
+    game.last_activity_at = data.get("last_activity_at", data.get("updated_at", ""))
     game._scenario_id = data.get("scenario_id", "")
     game._scenario_name = data.get("scenario_name", "")
     from .settings import DEFAULT_MODEL

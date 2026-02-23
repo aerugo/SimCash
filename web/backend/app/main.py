@@ -154,6 +154,8 @@ game_manager: dict[str, Game] = {}
 game_locks: dict[str, asyncio.Lock] = {}
 # Track active auto-run tasks per game for dedup across WS connections
 game_auto_tasks: dict[str, asyncio.Task] = {}
+# Track active WebSocket connections per game (for status visibility)
+active_ws_connections: dict[str, int] = {}
 
 
 def get_game_lock(game_id: str) -> asyncio.Lock:
@@ -736,6 +738,29 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
 @app.get("/api/games")
 def list_games(uid: str = Depends(get_effective_user)):
     """List all games for the current user (from checkpoints + in-memory)."""
+    from datetime import datetime, timezone
+
+    def derive_status(raw_status: str, gid: str, last_activity: str) -> str:
+        """Derive display status from raw status + live signals."""
+        if raw_status == "complete":
+            return "complete"
+        if raw_status == "created":
+            return "created"
+        has_ws = gid in active_ws_connections and active_ws_connections[gid] > 0
+        if has_ws:
+            return "running"
+        # No active WS — check how stale
+        if last_activity:
+            try:
+                last_dt = datetime.fromisoformat(last_activity.replace("Z", "+00:00"))
+                age_s = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                if age_s < 120:
+                    return "running"  # Recently active, WS may just be reconnecting
+                return "stalled"
+            except (ValueError, TypeError):
+                pass
+        return "paused"
+
     # Prefer checkpoint listing (richer data)
     checkpoints = game_storage.list_checkpoints(uid)
     checkpoint_ids = {c["game_id"] for c in checkpoints}
@@ -751,7 +776,17 @@ def list_games(uid: str = Depends(get_effective_user)):
                 "max_days": game.max_days,
                 "use_llm": game.use_llm,
                 "agent_count": len(game.agent_ids),
+                "last_activity_at": getattr(game, 'last_activity_at', ''),
             })
+
+    # Enrich all entries with live status
+    for entry in checkpoints:
+        gid = entry["game_id"]
+        last_act = entry.get("last_activity_at") or entry.get("updated_at", "")
+        entry["has_active_ws"] = gid in active_ws_connections and active_ws_connections[gid] > 0
+        entry["last_activity_at"] = last_act
+        entry["display_status"] = derive_status(entry.get("status", ""), gid, last_act)
+
     return {"games": checkpoints}
 
 
@@ -926,6 +961,10 @@ async def game_ws(websocket: WebSocket, game_id: str):
         await websocket.close()
         return
 
+    # Track WS connection
+    active_ws_connections[game_id] = active_ws_connections.get(game_id, 0) + 1
+    game.touch_activity()
+
     running = False
     speed_ms = 1000
 
@@ -977,6 +1016,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
 
             # Commit only after successful delivery
             game.commit_day(day)
+            game.touch_activity()
             _save_game_checkpoint(game)
 
             logger.info("Post-day check: is_complete=%s, should_optimize(%d)=%s, use_llm=%s",
@@ -991,6 +1031,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
                 if game.optimization_schedule == "every_scenario_day":
                     game._inject_policies_into_orch()
                 logger.info("Optimization complete for game %s day %d", game_id, day.day_num)
+                game.touch_activity()
                 _save_game_checkpoint(game)
 
             await websocket.send_json({"type": "game_state", "data": game.get_state()})
@@ -1113,6 +1154,12 @@ async def game_ws(websocket: WebSocket, game_id: str):
             pass
     finally:
         keepalive_task.cancel()
+        # Decrement WS connection count
+        count = active_ws_connections.get(game_id, 1) - 1
+        if count <= 0:
+            active_ws_connections.pop(game_id, None)
+        else:
+            active_ws_connections[game_id] = count
 
 
 # ---- Admin endpoints ----
