@@ -66,21 +66,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             return;
           }
-          handleRedirectResult().catch(() => {});
-          // Timeout: if Firebase Auth doesn't resolve in 3s, assume no user
-          const authTimeout = setTimeout(() => {
-            if (!cancelled) {
-              setUser(null);
-              setLoading(false);
-            }
-          }, 3000);
-          const unsub = onAuthStateChanged(auth, (u) => {
-            clearTimeout(authTimeout);
-            if (!cancelled) {
-              setUser(u);
-              setLoading(false);
-            }
-          });
+          // Await redirect result first — on mobile, getRedirectResult can take >3s
+          handleRedirectResult()
+            .catch(() => {})
+            .finally(() => {
+              // Only start the no-user timeout AFTER redirect processing completes
+              if (cancelled) return;
+              const authTimeout = setTimeout(() => {
+                if (!cancelled) {
+                  setUser(null);
+                  setLoading(false);
+                }
+              }, 3000);
+              const unsub = onAuthStateChanged(auth, (u) => {
+                clearTimeout(authTimeout);
+                if (!cancelled) {
+                  setUser(u);
+                  setLoading(false);
+                }
+              });
+              // Store unsub for cleanup — but onAuthStateChanged may have already fired
+              // synchronously if getRedirectResult resolved a user
+            });
           return unsub;
         })
         .catch(() => {
@@ -92,18 +99,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else {
             // Give up after ~30s, fall through to Firebase auth
             setBackendStatus('ready');
-            handleRedirectResult().catch(() => {});
-            const authTimeout2 = setTimeout(() => {
-              if (!cancelled) { setUser(null); setLoading(false); }
-            }, 3000);
-            const unsub = onAuthStateChanged(auth, (u) => {
-              clearTimeout(authTimeout2);
-              if (!cancelled) {
-                setUser(u);
-                setLoading(false);
-              }
-            });
-            return unsub;
+            handleRedirectResult()
+              .catch(() => {})
+              .finally(() => {
+                if (cancelled) return;
+                const authTimeout2 = setTimeout(() => {
+                  if (!cancelled) { setUser(null); setLoading(false); }
+                }, 3000);
+                onAuthStateChanged(auth, (u) => {
+                  clearTimeout(authTimeout2);
+                  if (!cancelled) {
+                    setUser(u);
+                    setLoading(false);
+                  }
+                });
+              });
           }
         });
     };
