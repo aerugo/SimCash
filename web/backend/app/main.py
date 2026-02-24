@@ -649,6 +649,40 @@ def list_game_scenarios(uid: str = Depends(get_effective_optional_user)):
     return {"scenarios": scenarios}
 
 
+def _derive_scenario_name(scenario_id: str, raw_yaml: Any) -> str:
+    """Derive a human-readable name for a scenario.
+
+    For preset scenarios, returns the pack name. For custom scenarios,
+    builds a descriptive name from the config (e.g. 'Custom · 6 banks · 12 ticks').
+    """
+    entry = get_scenario_by_id(scenario_id)
+    if entry and isinstance(entry, dict):
+        # Preset scenario — look up from pack metadata
+        for s in SCENARIO_PACK:
+            if s["id"] == scenario_id:
+                return s.get("name", scenario_id)
+        return entry.get("name", scenario_id)
+
+    # Custom scenario — derive from config
+    try:
+        import yaml as _yaml
+        parsed = _yaml.safe_load(raw_yaml) if isinstance(raw_yaml, str) else raw_yaml
+        if not isinstance(parsed, dict):
+            return scenario_id
+        sim = parsed.get("simulation", {})
+        agents = sim.get("agents", [])
+        n_banks = len(agents)
+        n_ticks = sim.get("num_ticks", "?")
+        parts = ["Custom"]
+        if n_banks:
+            parts.append(f"{n_banks} banks")
+        if n_ticks != "?":
+            parts.append(f"{n_ticks} ticks")
+        return " · ".join(parts)
+    except Exception:
+        return scenario_id
+
+
 @app.post("/api/games")
 async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str = Depends(get_effective_optional_user)):
     """Create a multi-day policy optimization game."""
@@ -709,8 +743,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     game._scenario_id = config.scenario_id
-    scenario_entry = get_scenario_by_id(config.scenario_id) or {}
-    game._scenario_name = scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id
+    game._scenario_name = _derive_scenario_name(config.scenario_id, raw_yaml)
     game._optimization_model = config.model_override or settings_manager.settings.optimization_model
     game._uid = uid
     from datetime import datetime, timezone
@@ -720,11 +753,10 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     # Persist: create DuckDB + update index + save checkpoint (skip for guests)
     if not uid.startswith("guest-"):
         game_storage.create_game_db(uid, game_id)
-        scenario_entry = get_scenario_by_id(config.scenario_id) or {}
         game_storage.update_index(uid, {
             "game_id": game_id,
             "scenario_id": config.scenario_id,
-            "scenario_name": scenario_entry.get("name", config.scenario_id) if isinstance(scenario_entry, dict) else config.scenario_id,
+            "scenario_name": game._scenario_name,
             "optimization_model": getattr(game, '_optimization_model', ''),
             "created_at": game._created_at,
             "updated_at": game._created_at,
@@ -798,11 +830,22 @@ def list_games(uid: str = Depends(get_effective_user)):
             entry["current_day"] = entry.pop("days_completed")
         if "agent_count" not in entry and "num_agents" in entry:
             entry["agent_count"] = entry.pop("num_agents")
-        # Resolve scenario name from library if missing
-        if not entry.get("scenario_name") and entry.get("scenario_id"):
-            sc = get_scenario_by_id(entry["scenario_id"])
-            if sc and isinstance(sc, dict):
-                entry["scenario_name"] = sc.get("name", entry["scenario_id"])
+        # Resolve scenario name from library if missing or still ugly (custom:hash)
+        sid = entry.get("scenario_id", "")
+        sname = entry.get("scenario_name", "")
+        if not sname or sname == sid or sname.startswith("custom:"):
+            # Try preset pack first
+            for s in SCENARIO_PACK:
+                if s["id"] == sid:
+                    entry["scenario_name"] = s.get("name", sid)
+                    break
+            else:
+                # Custom scenario — derive from agent_count if available
+                n_banks = entry.get("agent_count", 0)
+                if n_banks and sid.startswith("custom:"):
+                    entry["scenario_name"] = f"Custom · {n_banks} banks"
+                elif sid.startswith("custom:"):
+                    entry["scenario_name"] = "Custom Scenario"
 
     return {"games": checkpoints}
 
