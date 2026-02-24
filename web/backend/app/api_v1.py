@@ -127,7 +127,18 @@ async def create_experiment(
     config: CreateGameRequest = CreateGameRequest(),
     uid: str = Depends(get_api_or_firebase_user),
 ):
-    """Create a new experiment (game)."""
+    """Create a new experiment (game).
+
+    **max_days** = number of optimization rounds (not business days).
+    For multi-day scenarios (e.g. 25 business days), each round plays through
+    all business days with daily optimization. So max_days=1 on a 25-day
+    scenario = 25 optimization cycles. max_days=25 = 625 cycles.
+
+    **optimization_model** = which LLM to use (e.g. "openai:gpt-4o").
+    **constraint_preset** = "simple" (fraction only) or "full" (decision trees).
+    **starting_fraction** = initial liquidity fraction (0.0-1.0) for all agents.
+    **num_eval_samples** = bootstrap evaluation samples per optimization step.
+    """
     # Import from main module at runtime to avoid circular imports
     from .main import (
         game_manager, game_storage, _save_game_checkpoint, _derive_scenario_name,
