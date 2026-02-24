@@ -98,6 +98,7 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         "quality": game.quality,
         "stalled": game.stalled,
         "stall_reason": game.stall_reason,
+        "rate_limited": game._rate_limited,
         "progress": {
             "current_day": game.current_day,
             "agent_ids": game.agent_ids,
@@ -134,6 +135,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game.bootstrap_gate.base_seed = game._base_seed
     game.stalled = data.get("stalled", False)
     game.stall_reason = data.get("stall_reason", "")
+    game._rate_limited = data.get("rate_limited", False)
     game._created_at = data.get("created_at", "")
     game.last_activity_at = data.get("last_activity_at", data.get("updated_at", ""))
     game._scenario_id = data.get("scenario_id", "")
@@ -216,4 +218,5 @@ def get_game_state(game: 'Game') -> dict[str, Any]:
         "quality": game.quality,
         "stalled": game.stalled,
         "stall_reason": game.stall_reason,
+        "rate_limited": game._rate_limited,
     }

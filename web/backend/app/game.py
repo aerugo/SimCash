@@ -183,6 +183,9 @@ class Game:
         if self.optimization_schedule == "every_scenario_day":
             self.num_eval_samples = 1
 
+        # Rate limit tracking for dynamic concurrency throttling
+        self._rate_limited: bool = False
+
         # Bootstrap gate (shares policies dict by reference)
         self.bootstrap_gate = BootstrapGate(
             raw_yaml=self.raw_yaml,
@@ -386,15 +389,24 @@ class Game:
             return reasoning
 
         # --- Real LLM mode: parallel agent optimization ---
-        MAX_CONCURRENT = 3
-        semaphore = asyncio.Semaphore(min(len(self.agent_ids), MAX_CONCURRENT))
+        DEFAULT_MAX_CONCURRENT = 3
+        saw_rate_limit_this_round = False
 
-        async def _run_all_agents() -> tuple[bool, dict[str, dict]]:
+        async def _run_all_agents(max_concurrent: int) -> tuple[bool, dict[str, dict]]:
             """Run optimization for all agents. Returns (success, results_dict)."""
+            nonlocal saw_rate_limit_this_round
             _inner_results: dict[str, dict] = {}
+            sequential = max_concurrent <= 1
+            semaphore = asyncio.Semaphore(min(len(self.agent_ids), max_concurrent))
+            agent_index = 0
 
-            async def _optimize_one(aid: str) -> None:
+            async def _optimize_one(aid: str, idx: int) -> None:
+                nonlocal saw_rate_limit_this_round
                 async with semaphore:
+                    # Inter-agent delay in sequential mode
+                    if sequential and idx > 0:
+                        await _send({"type": "optimization_chunk", "text": "⏳ Rate limit mode — waiting 15s before next agent\n"})
+                        await asyncio.sleep(15)
                     await _send({"type": "optimization_start", "day": last_day.day_num, "agent_id": aid})
                     result = None
                     try:
@@ -408,6 +420,12 @@ class Game:
                         ):
                             if event["type"] == "chunk":
                                 await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": event["text"]})
+                            elif event["type"] == "rate_limited":
+                                saw_rate_limit_this_round = True
+                                if not self._rate_limited:
+                                    self._rate_limited = True
+                                    logger.warning("Rate limit detected for game %s — switching to sequential mode", self.game_id)
+                                    await _send({"type": "rate_limit_mode", "concurrent": 1, "message": "Switching to sequential optimization (rate limit detected)"})
                             elif event["type"] == "retry":
                                 await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n"})
                                 await _send({"type": "agent_retry", "day": last_day.day_num, "agent_id": aid, "reason": event["reason"][:120], "attempt": event["attempt"], "max_retries": event["max_retries"]})
@@ -432,20 +450,29 @@ class Game:
                     await _send({"type": "optimization_complete", "day": last_day.day_num, "agent_id": aid, "data": result})
                     _inner_results[aid] = result
 
-            tasks = [asyncio.create_task(_optimize_one(aid)) for aid in self.agent_ids]
-            gather_results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in gather_results:
-                if isinstance(r, Exception):
-                    return False, {}
+            if sequential:
+                # Run agents one by one to respect rate limits
+                for idx, aid in enumerate(self.agent_ids):
+                    try:
+                        await _optimize_one(aid, idx)
+                    except Exception:
+                        return False, {}
+            else:
+                tasks = [asyncio.create_task(_optimize_one(aid, idx)) for idx, aid in enumerate(self.agent_ids)]
+                gather_results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in gather_results:
+                    if isinstance(r, Exception):
+                        return False, {}
             return True, _inner_results
 
         _par_start = _time.monotonic()
 
-        # First attempt
-        success, results = await _run_all_agents()
+        # First attempt — use sequential if previously rate-limited
+        first_concurrent = 1 if self._rate_limited else DEFAULT_MAX_CONCURRENT
+        success, results = await _run_all_agents(first_concurrent)
 
         if not success:
-            # Retry after 120s cooldown
+            # Retry after 120s cooldown — ALWAYS sequential
             await _send({"type": "optimization_chunk", "text": "⏳ Rate limit cooldown — waiting 120s before retry..."})
             logger.warning("First optimization attempt failed for game %s, waiting 120s before retry", self.game_id)
             for countdown in range(120, 0, -30):
@@ -453,8 +480,8 @@ class Game:
                 if countdown > 30:
                     await _send({"type": "optimization_chunk", "text": f"⏳ Retry in {countdown - 30}s..."})
 
-            await _send({"type": "optimization_chunk", "text": "🔄 Retrying optimization for all agents..."})
-            success, results = await _run_all_agents()
+            await _send({"type": "optimization_chunk", "text": "🔄 Retrying optimization for all agents (sequential)..."})
+            success, results = await _run_all_agents(1)
 
             if not success:
                 # Second failure — stall
@@ -485,9 +512,16 @@ class Game:
 
         _par_elapsed = _time.monotonic() - _par_start
         logger.warning(
-            "Parallel optimization for %d agents completed in %.1fs",
-            len(self.agent_ids), _par_elapsed,
+            "Optimization for %d agents completed in %.1fs (concurrent=%d)",
+            len(self.agent_ids), _par_elapsed, first_concurrent,
         )
+
+        # Recover to parallel mode if a full round succeeded at MAX_CONCURRENT with no 429s
+        if success and first_concurrent == DEFAULT_MAX_CONCURRENT and not saw_rate_limit_this_round:
+            if self._rate_limited:
+                self._rate_limited = False
+                logger.info("No rate limits seen — recovering to parallel optimization for game %s", self.game_id)
+                await _send({"type": "rate_limit_mode", "concurrent": DEFAULT_MAX_CONCURRENT, "message": "Recovered to parallel optimization"})
 
         for aid in self.agent_ids:
             if aid in results:

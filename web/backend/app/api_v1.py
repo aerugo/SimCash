@@ -321,6 +321,7 @@ async def get_experiment(experiment_id: str, uid: str = Depends(get_api_or_fireb
         "status": status,
         "stalled": game.stalled,
         "stall_reason": game.stall_reason,
+        "rate_limited": game._rate_limited,
         "current_round": game.current_round,
         "rounds": game.max_rounds,
         "agent_ids": game.agent_ids,

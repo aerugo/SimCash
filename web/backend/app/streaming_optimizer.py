@@ -438,6 +438,10 @@ async def stream_optimize(
             if attempt < MAX_RETRIES and _is_retryable(e):
                 backoff = min(INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1)), MAX_BACKOFF_SECONDS)
                 reason = str(e)[:120]
+                # Signal rate limiting to caller if this is a 429
+                error_lower = str(e).lower()
+                if "429" in error_lower or "resource_exhausted" in error_lower:
+                    yield {"type": "rate_limited"}
                 logger.warning(
                     "LLM call for %s failed (attempt %d/%d, %.1fs): %s — retrying in %.1fs",
                     agent_id, attempt, MAX_RETRIES, _llm_elapsed, reason, backoff,
