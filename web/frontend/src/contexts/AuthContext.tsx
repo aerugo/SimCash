@@ -78,17 +78,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setLoading(false);
                 }
               }, 3000);
-              const unsub = onAuthStateChanged(auth, (u) => {
+              onAuthStateChanged(auth, (u) => {
                 clearTimeout(authTimeout);
                 if (!cancelled) {
                   setUser(u);
                   setLoading(false);
                 }
               });
-              // Store unsub for cleanup — but onAuthStateChanged may have already fired
-              // synchronously if getRedirectResult resolved a user
             });
-          return unsub;
         })
         .catch(() => {
           if (cancelled) return;
