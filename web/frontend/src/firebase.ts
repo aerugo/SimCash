@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   signInWithPopup,
-  signInWithRedirect,
+  // signInWithRedirect,
   getRedirectResult,
   signInWithEmailAndPassword as fbSignInWithEmailAndPassword,
   updatePassword as fbUpdatePassword,
@@ -28,17 +28,9 @@ export const auth = getAuth(app);
 
 const googleProvider = new GoogleAuthProvider();
 
-function isMobile(): boolean {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-}
-
 export async function signInWithGoogle(): Promise<User> {
-  if (isMobile()) {
-    // signInWithPopup is unreliable on mobile Safari — use redirect instead
-    await signInWithRedirect(auth, googleProvider);
-    // This won't return — page redirects to Google
-    throw new Error('Redirecting to Google sign-in...');
-  }
+  // Use popup everywhere — redirect flow has cross-domain issues with
+  // authDomain (firebaseapp.com) vs hosting domain (web.app)
   const result = await signInWithPopup(auth, googleProvider);
   return result.user;
 }
