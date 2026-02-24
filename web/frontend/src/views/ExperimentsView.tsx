@@ -18,6 +18,9 @@ interface GameSummary {
   updated_at: string;
   last_activity_at: string;
   has_active_ws: boolean;
+  quality?: string;
+  stalled?: boolean;
+  stall_reason?: string;
 }
 
 function timeAgo(iso: string): string {
@@ -101,6 +104,24 @@ export default function ExperimentsView() {
       paused: { bg: 'var(--bg-inset)', text: 'var(--text-secondary)', label: 'Paused' },
       complete: { bg: 'var(--color-success)', text: '#fff', label: 'Complete' },
     };
+    // Override for degraded complete
+    if (ds === 'complete' && g.quality === 'degraded') {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full font-medium"
+          style={{ background: 'var(--color-warning)', color: '#fff' }}>
+          Complete ⚠️
+        </span>
+      );
+    }
+    // Override for stalled
+    if (ds === 'stalled' || g.stalled) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full font-medium"
+          style={{ background: 'var(--color-warning)', color: '#fff' }}>
+          Stalled ⚠️
+        </span>
+      );
+    }
     const s = styles[ds] || styles.created;
     const activity = g.last_activity_at || g.updated_at;
     const ago = ds !== 'complete' && ds !== 'created' ? timeAgo(activity) : '';

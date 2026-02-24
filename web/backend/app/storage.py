@@ -252,6 +252,9 @@ class GameStorage:
             "created_at": data.get("created_at", ""),
             "updated_at": data.get("updated_at", ""),
             "last_activity_at": data.get("last_activity_at", data.get("updated_at", "")),
+            "quality": data.get("quality", "clean"),
+            "stalled": data.get("stalled", False),
+            "stall_reason": data.get("stall_reason", ""),
         }
 
     def list_checkpoints(self, uid: str) -> list[dict]:

@@ -308,6 +308,7 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
     autoRunState.current.active = false;
     send('stop');
   }, [send]);
+  const resume = useCallback(() => send('resume'), [send]);
 
-  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop, onRawMessage };
+  return { gameState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent, optimizingAgents, simulatingDay, lastDay, streamingText, step, rerun, autoRun, stop, resume, onRawMessage };
 }

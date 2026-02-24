@@ -159,6 +159,8 @@ class Game:
         self.optimization_schedule = optimization_schedule  # "every_round" or "every_scenario_day"
         self.prompt_profile: dict[str, dict] = prompt_profile or {}  # block_id → {enabled, options}
         self.days: list[GameDay] = []
+        self.stalled: bool = False
+        self.stall_reason: str = ""
         self.agent_ids: list[str] = [a["id"] for a in raw_yaml.get("agents", [])]
         self.policies: dict[str, dict] = {aid: copy.deepcopy(DEFAULT_POLICY) for aid in self.agent_ids}
         self.reasoning_history: dict[str, list[dict]] = {aid: [] for aid in self.agent_ids}
@@ -238,6 +240,28 @@ class Game:
     @property
     def is_complete(self) -> bool:
         return self.current_day >= self.total_days
+
+    @property
+    def optimization_summary(self) -> dict[str, Any]:
+        """Summary of optimization attempts and failures across all days."""
+        total = 0
+        failed = 0
+        failed_days: list[int] = []
+        for d in self.days:
+            if d.optimized:
+                total += 1
+                if d.optimization_failed:
+                    failed += 1
+                    failed_days.append(d.day_num)
+        return {"total": total, "optimized": total - failed, "failed": failed, "failed_days": failed_days}
+
+    @property
+    def quality(self) -> str:
+        """'clean' if no optimization failures, 'degraded' if any."""
+        for d in self.days:
+            if d.optimization_failed:
+                return "degraded"
+        return "clean"
 
     def should_optimize(self, day_num: int) -> bool:
         """Whether optimization should run after the given day number."""
@@ -365,119 +389,83 @@ class Game:
         MAX_CONCURRENT = 3
         semaphore = asyncio.Semaphore(min(len(self.agent_ids), MAX_CONCURRENT))
 
-        # Results collected per agent (order doesn't matter for policy application
-        # since agents are game-theoretically isolated — each only sees own results).
-        results: dict[str, dict] = {}
+        async def _run_all_agents() -> tuple[bool, dict[str, dict]]:
+            """Run optimization for all agents. Returns (success, results_dict)."""
+            _inner_results: dict[str, dict] = {}
 
-        async def optimize_one_agent(aid: str) -> None:
-            """Run LLM optimization for a single agent, streaming events."""
-            async with semaphore:
-                await _send({
-                    "type": "optimization_start",
-                    "day": last_day.day_num,
-                    "agent_id": aid,
-                })
+            async def _optimize_one(aid: str) -> None:
+                async with semaphore:
+                    await _send({"type": "optimization_start", "day": last_day.day_num, "agent_id": aid})
+                    result = None
+                    try:
+                        async for event in stream_optimize(
+                            aid, self.policies[aid], last_day, self.days, self.raw_yaml,
+                            constraint_preset=self.constraint_preset,
+                            include_groups=self.include_groups,
+                            exclude_groups=self.exclude_groups,
+                            prompt_profile=self.prompt_profile,
+                            model_override=self._optimization_model or None,
+                        ):
+                            if event["type"] == "chunk":
+                                await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": event["text"]})
+                            elif event["type"] == "retry":
+                                await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n"})
+                                await _send({"type": "agent_retry", "day": last_day.day_num, "agent_id": aid, "reason": event["reason"][:120], "attempt": event["attempt"], "max_retries": event["max_retries"]})
+                            elif event["type"] == "result":
+                                result = event["data"]
+                            elif event["type"] == "error":
+                                error_msg = event["message"]
+                                logger.error("LLM optimization failed permanently for %s: %s", aid, error_msg)
+                                await _send({"type": "agent_error", "day": last_day.day_num, "agent_id": aid, "message": error_msg, "fatal": True})
+                                raise RuntimeError(f"LLM optimization failed for {aid}: {error_msg}")
+                    except RuntimeError:
+                        raise
+                    except Exception as e:
+                        logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
+                        await _send({"type": "agent_error", "day": last_day.day_num, "agent_id": aid, "message": str(e)[:200], "fatal": True})
+                        raise RuntimeError(f"LLM optimization failed for {aid}: {e}")
+                    if result is None:
+                        await _send({"type": "agent_error", "day": last_day.day_num, "agent_id": aid, "message": "No result from LLM after all retries", "fatal": True})
+                        raise RuntimeError(f"LLM optimization produced no result for {aid}")
+                    if result.get("new_policy"):
+                        result = self._run_real_bootstrap(aid, last_day, result)
+                    await _send({"type": "optimization_complete", "day": last_day.day_num, "agent_id": aid, "data": result})
+                    _inner_results[aid] = result
 
-                result = None
-                try:
-                    async for event in stream_optimize(
-                        aid, self.policies[aid], last_day, self.days, self.raw_yaml,
-                        constraint_preset=self.constraint_preset,
-                        include_groups=self.include_groups,
-                        exclude_groups=self.exclude_groups,
-                        prompt_profile=self.prompt_profile,
-                        model_override=self._optimization_model or None,
-                    ):
-                        if event["type"] == "chunk":
-                            await _send({
-                                "type": "optimization_chunk",
-                                "day": last_day.day_num,
-                                "agent_id": aid,
-                                "text": event["text"],
-                            })
-                        elif event["type"] == "retry":
-                            await _send({
-                                "type": "optimization_chunk",
-                                "day": last_day.day_num,
-                                "agent_id": aid,
-                                "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n",
-                            })
-                            await _send({
-                                "type": "agent_retry",
-                                "day": last_day.day_num,
-                                "agent_id": aid,
-                                "reason": event["reason"][:120],
-                                "attempt": event["attempt"],
-                                "max_retries": event["max_retries"],
-                            })
-                        elif event["type"] == "result":
-                            result = event["data"]
-                        elif event["type"] == "error":
-                            error_msg = event["message"]
-                            logger.error("LLM optimization failed permanently for %s: %s", aid, error_msg)
-                            await _send({
-                                "type": "agent_error",
-                                "day": last_day.day_num,
-                                "agent_id": aid,
-                                "message": error_msg,
-                                "fatal": True,
-                            })
-                            raise RuntimeError(f"LLM optimization failed for {aid}: {error_msg}")
-                except RuntimeError:
-                    raise
-                except Exception as e:
-                    logger.error("Streaming optimization failed for %s: %s", aid, e, exc_info=True)
-                    await _send({
-                        "type": "agent_error",
-                        "day": last_day.day_num,
-                        "agent_id": aid,
-                        "message": str(e)[:200],
-                        "fatal": True,
-                    })
-                    raise RuntimeError(f"LLM optimization failed for {aid}: {e}")
-
-                if result is None:
-                    await _send({
-                        "type": "agent_error",
-                        "day": last_day.day_num,
-                        "agent_id": aid,
-                        "message": "No result from LLM after all retries",
-                        "fatal": True,
-                    })
-                    raise RuntimeError(f"LLM optimization produced no result for {aid}")
-
-                if result.get("new_policy"):
-                    result = self._run_real_bootstrap(aid, last_day, result)
-
-                await _send({
-                    "type": "optimization_complete",
-                    "day": last_day.day_num,
-                    "agent_id": aid,
-                    "data": result,
-                })
-                results[aid] = result
+            tasks = [asyncio.create_task(_optimize_one(aid)) for aid in self.agent_ids]
+            gather_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for r in gather_results:
+                if isinstance(r, Exception):
+                    return False, {}
+            return True, _inner_results
 
         _par_start = _time.monotonic()
-        tasks = [asyncio.create_task(optimize_one_agent(aid)) for aid in self.agent_ids]
-        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
-        _par_elapsed = _time.monotonic() - _par_start
-        logger.warning(
-            "Parallel optimization for %d agents completed in %.1fs",
-            len(self.agent_ids), _par_elapsed,
-        )
 
-        for i, r in enumerate(gather_results):
-            if isinstance(r, Exception):
-                failed_aid = self.agent_ids[i]
-                error_msg = str(r)
-                logger.error("Agent %s optimization failed fatally: %s", failed_aid, error_msg)
-                # Store failure records for all agents
+        # First attempt
+        success, results = await _run_all_agents()
+
+        if not success:
+            # Retry after 120s cooldown
+            await _send({"type": "optimization_chunk", "text": "⏳ Rate limit cooldown — waiting 120s before retry..."})
+            logger.warning("First optimization attempt failed for game %s, waiting 120s before retry", self.game_id)
+            for countdown in range(120, 0, -30):
+                await asyncio.sleep(30)
+                if countdown > 30:
+                    await _send({"type": "optimization_chunk", "text": f"⏳ Retry in {countdown - 30}s..."})
+
+            await _send({"type": "optimization_chunk", "text": "🔄 Retrying optimization for all agents..."})
+            success, results = await _run_all_agents()
+
+            if not success:
+                # Second failure — stall
+                self.stalled = True
+                self.stall_reason = "optimization_failed_after_retry"
                 for a in self.agent_ids:
                     failure_record = {
                         "day_num": last_day.day_num,
                         "failed": True,
-                        "failure_reason": f"Fatal LLM error for {failed_aid}: {error_msg}",
-                        "reasoning": f"Optimization failed: {error_msg}",
+                        "failure_reason": "Optimization failed after retry with 120s cooldown",
+                        "reasoning": "Optimization failed after retry",
                         "accepted": False,
                         "new_policy": None,
                         "old_policy": copy.deepcopy(self.policies[a]),
@@ -488,11 +476,18 @@ class Game:
                     self.reasoning_history[a].append(failure_record)
                 await _send({
                     "type": "experiment_error",
-                    "message": f"Experiment stopped: LLM optimization failed for {failed_aid} after all retries. {error_msg}",
+                    "message": "Experiment stalled: LLM optimization failed after retry with 120s cooldown. Use resume to continue.",
                     "fatal": True,
+                    "stalled": True,
+                    "stall_reason": self.stall_reason,
                 })
-                self.auto_run = False
                 return {}
+
+        _par_elapsed = _time.monotonic() - _par_start
+        logger.warning(
+            "Parallel optimization for %d agents completed in %.1fs",
+            len(self.agent_ids), _par_elapsed,
+        )
 
         for aid in self.agent_ids:
             if aid in results:

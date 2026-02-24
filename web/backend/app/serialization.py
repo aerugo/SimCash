@@ -65,7 +65,12 @@ def day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
 
 def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> dict[str, Any]:
     """Serialize full game state to a checkpoint dict."""
-    status = "complete" if game.is_complete else ("running" if game.days else "created")
+    if game.stalled:
+        status = "stalled"
+    elif game.is_complete:
+        status = "complete"
+    else:
+        status = "running" if game.days else "created"
     return {
         "version": 1,
         "game_id": game.game_id,
@@ -90,6 +95,9 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
             "base_seed": game._base_seed,
             "prompt_profile": game.prompt_profile,
         },
+        "quality": game.quality,
+        "stalled": game.stalled,
+        "stall_reason": game.stall_reason,
         "progress": {
             "current_day": game.current_day,
             "agent_ids": game.agent_ids,
@@ -124,6 +132,8 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game._base_seed = config.get("base_seed", 42)
     game.sim.base_seed = game._base_seed
     game.bootstrap_gate.base_seed = game._base_seed
+    game.stalled = data.get("stalled", False)
+    game.stall_reason = data.get("stall_reason", "")
     game._created_at = data.get("created_at", "")
     game.last_activity_at = data.get("last_activity_at", data.get("updated_at", ""))
     game._scenario_id = data.get("scenario_id", "")
@@ -202,4 +212,8 @@ def get_game_state(game: 'Game') -> dict[str, Any]:
         "reasoning_history": game.reasoning_history,
         "scenario_name": getattr(game, '_scenario_name', ''),
         "optimization_model": getattr(game, '_optimization_model', ''),
+        "optimization_summary": game.optimization_summary,
+        "quality": game.quality,
+        "stalled": game.stalled,
+        "stall_reason": game.stall_reason,
     }

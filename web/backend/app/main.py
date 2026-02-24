@@ -811,16 +811,20 @@ def list_games(uid: str = Depends(get_effective_user)):
     for gid, game in game_manager.items():
         game_uid = getattr(game, '_uid', '')
         if gid not in checkpoint_ids and game_uid == uid:
+            status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
             checkpoints.append({
                 "game_id": gid,
                 "scenario_id": getattr(game, '_scenario_id', ''),
-                "status": "complete" if game.is_complete else "running",
+                "status": status,
                 "current_day": game.current_day,
                 "rounds": game.max_rounds,
                 "total_days": game.total_days,
                 "use_llm": game.use_llm,
                 "agent_count": len(game.agent_ids),
                 "last_activity_at": getattr(game, 'last_activity_at', ''),
+                "quality": game.quality,
+                "stalled": game.stalled,
+                "stall_reason": game.stall_reason,
             })
 
     # Enrich all entries with live status + resolve missing fields
@@ -905,6 +909,8 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
         raise HTTPException(status_code=404, detail="Game not found")
     if game.is_complete:
         raise HTTPException(status_code=400, detail="Game is complete")
+    if game.stalled:
+        raise HTTPException(status_code=400, detail=f"Game is stalled: {game.stall_reason}")
 
     async with get_game_lock(game_id):
         # Run CPU-heavy simulation in a thread to avoid blocking the event loop
@@ -924,7 +930,8 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
                 meta["current_round"] = game.current_round
                 meta["updated_at"] = datetime.now(timezone.utc).isoformat()
                 meta["last_activity_at"] = game.last_activity_at
-                meta["status"] = "complete" if game.is_complete else "running"
+                meta["status"] = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
+                meta["quality"] = game.quality
                 game_storage.update_index(uid, meta)
 
         _save_game_checkpoint(game)
@@ -951,7 +958,7 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_effective_optional_
         loop = asyncio.get_event_loop()
         days = []
         all_reasoning = []
-        while not game.is_complete:
+        while not game.is_complete and not game.stalled:
             # Run CPU-heavy simulation in a thread to avoid blocking the event loop
             day = await loop.run_in_executor(None, game.run_day)
             reasoning = {}
@@ -965,6 +972,8 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_effective_optional_
                     game._inject_policies_into_orch()
             days.append({"day": day.to_summary_dict(), "reasoning": reasoning})
             all_reasoning.append(reasoning)
+            if game.stalled:
+                break
 
         return {"days": days, "game": game.get_state()}
 
@@ -1108,12 +1117,14 @@ async def game_ws(websocket: WebSocket, game_id: str):
         logger.info("Auto-run started for game %s (speed_ms=%d)", game_id, speed_ms)
         error_occurred = False
         try:
-            while running and not game.is_complete:
+            while running and not game.is_complete and not game.stalled:
                 logger.info("Auto-run: starting step for day %d/%d", game.current_day, game.total_days)
                 await run_one_step()
                 logger.info("Auto-run: step complete, day now %d/%d", game.current_day, game.total_days)
                 await asyncio.sleep(speed_ms / 1000.0)
-            if game.is_complete:
+            if game.stalled:
+                await websocket.send_json({"type": "game_stalled", "data": game.get_state(), "stall_reason": game.stall_reason})
+            elif game.is_complete:
                 await websocket.send_json({"type": "game_complete", "data": game.get_state()})
         except asyncio.CancelledError:
             logger.info("Auto-run cancelled for game %s (dedup or stop)", game_id)
@@ -1205,6 +1216,15 @@ async def game_ws(websocket: WebSocket, game_id: str):
                     run_task.cancel()
                     run_task = None
                 await websocket.send_json({"type": "game_state", "data": game.get_state()})
+
+            elif action == "resume":
+                if game.stalled:
+                    game.stalled = False
+                    game.stall_reason = ""
+                    _save_game_checkpoint(game)
+                    await websocket.send_json({"type": "game_state", "data": game.get_state()})
+                else:
+                    await websocket.send_json({"type": "error", "message": "Game is not stalled"})
 
             elif action == "state":
                 await websocket.send_json({"type": "game_state", "data": game.get_state()})

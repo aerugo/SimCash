@@ -286,14 +286,16 @@ async def list_experiments(
     checkpoint_ids = {c["game_id"] for c in checkpoints}
     for gid, game in game_manager.items():
         if gid not in checkpoint_ids and getattr(game, '_uid', '') == uid:
+            status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
             checkpoints.append({
                 "game_id": gid,
                 "scenario_id": getattr(game, '_scenario_id', ''),
-                "status": "complete" if game.is_complete else "running",
+                "status": status,
                 "current_round": game.current_round,
                 "rounds": game.max_rounds,
                 "use_llm": game.use_llm,
                 "agent_count": len(game.agent_ids),
+                "quality": game.quality,
             })
     # Filter
     if status:
@@ -313,14 +315,19 @@ async def get_experiment(experiment_id: str, uid: str = Depends(get_api_or_fireb
     if not game:
         raise HTTPException(status_code=404, detail="Experiment not found")
     state = game.get_state()
+    status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
     return {
         "experiment_id": experiment_id,
-        "status": "complete" if game.is_complete else "running",
+        "status": status,
+        "stalled": game.stalled,
+        "stall_reason": game.stall_reason,
         "current_round": game.current_round,
         "rounds": game.max_rounds,
         "agent_ids": game.agent_ids,
         "use_llm": game.use_llm,
         "costs_summary": state.get("costs", {}),
+        "optimization_summary": game.optimization_summary,
+        "quality": game.quality,
     }
 
 
@@ -358,15 +365,18 @@ async def get_experiment_results(experiment_id: str, uid: str = Depends(get_api_
             }
         day_dict["settlement"] = settlement
         days_out.append(day_dict)
+    status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
     return {
         "experiment_id": experiment_id,
-        "status": "complete" if game.is_complete else "running",
+        "status": status,
         "current_round": game.current_round,
         "rounds": game.max_rounds,
         "days": days_out,
         "policies": state.get("policies", {}),
         "policy_history": state.get("policy_history", []),
         "costs": state.get("costs", {}),
+        "optimization_summary": game.optimization_summary,
+        "quality": game.quality,
     }
 
 
@@ -383,6 +393,8 @@ async def step_experiment(experiment_id: str, uid: str = Depends(get_api_or_fire
         raise HTTPException(status_code=404, detail="Experiment not found")
     if game.is_complete:
         raise HTTPException(status_code=400, detail="Experiment is complete")
+    if game.stalled:
+        raise HTTPException(status_code=400, detail=f"Experiment is stalled: {game.stall_reason}. Use resume endpoint.")
 
     async with get_game_lock(experiment_id):
         loop = asyncio.get_event_loop()
@@ -413,7 +425,7 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
     async with get_game_lock(experiment_id):
         loop = asyncio.get_event_loop()
         days = []
-        while not game.is_complete:
+        while not game.is_complete and not game.stalled:
             day = await loop.run_in_executor(None, game.run_day)
             reasoning = {}
             if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
@@ -424,8 +436,27 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
                 if game.optimization_schedule == "every_scenario_day":
                     game._inject_policies_into_orch()
             days.append({"day": day.to_summary_dict(), "reasoning": reasoning})
+            if game.stalled:
+                break
         _save_game_checkpoint(game)
         return {"days": days, "game": game.get_state()}
+
+
+@router.post("/experiments/{experiment_id}/resume")
+async def resume_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
+    """Resume a stalled experiment."""
+    from .main import game_manager, _try_load_game, _save_game_checkpoint
+    game = game_manager.get(experiment_id)
+    if not game:
+        game = _try_load_game(experiment_id, uid)
+    if not game:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    if not game.stalled:
+        raise HTTPException(status_code=400, detail="Experiment is not stalled")
+    game.stalled = False
+    game.stall_reason = ""
+    _save_game_checkpoint(game)
+    return {"status": "resumed", "experiment_id": experiment_id}
 
 
 @router.post("/experiments/{experiment_id}/stop")

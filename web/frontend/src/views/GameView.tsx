@@ -125,7 +125,7 @@ export function GameView() {
   }, [gameId, relevantContextState, fetchedState]);
 
   // ALL hooks must be called before any conditional returns (React rules of hooks)
-  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop, onRawMessage } = useGameWebSocket(gameId, initialState);
+  const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop, resume, onRawMessage } = useGameWebSocket(gameId, initialState);
   void _optimizingAgent; // kept for API compat
 
   // Stall detection: track time since last WS message
@@ -379,8 +379,13 @@ export function GameView() {
               : `Round ${gameState.current_round}/${gameState.rounds}`
             }
           </span>
-          {gameState.is_complete && (
+          {gameState.is_complete && (gameState as any).quality === 'degraded' ? (
+            <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium">COMPLETE ⚠️</span>
+          ) : gameState.is_complete ? (
             <span className="px-2 py-1 rounded bg-green-500/20 text-green-400 text-xs font-medium">COMPLETE</span>
+          ) : null}
+          {(gameState as any).stalled && (
+            <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium">STALLED ⚠️</span>
           )}
           {gameState.use_llm && (
             <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">
@@ -406,6 +411,25 @@ export function GameView() {
             >
               Reload
             </button>
+          </div>
+        )}
+        {/* Stalled experiment banner */}
+        {(gameState as any).stalled && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-amber-500/10 border border-amber-500/30 text-amber-400">
+            <span>⚠️ Stalled — {(gameState as any).stall_reason || 'optimization failed after retry'}</span>
+            <button
+              onClick={() => { if (connected) resume(); }}
+              className="px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-xs font-medium"
+            >
+              Resume
+            </button>
+          </div>
+        )}
+        {/* Optimization summary */}
+        {(gameState as any).optimization_summary && (gameState as any).optimization_summary.total > 0 && (
+          <div className="text-xs" style={{ color: (gameState as any).optimization_summary.failed > 0 ? 'var(--color-warning)' : 'var(--text-muted)' }}>
+            Optimization: {(gameState as any).optimization_summary.optimized}/{(gameState as any).optimization_summary.total} rounds succeeded
+            {(gameState as any).optimization_summary.failed > 0 && ` (${(gameState as any).optimization_summary.failed} failed)`}
           </div>
         )}
         {/* Action buttons — wrap on mobile */}
