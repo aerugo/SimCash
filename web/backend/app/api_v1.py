@@ -415,32 +415,75 @@ async def step_experiment(experiment_id: str, uid: str = Depends(get_api_or_fire
 
 @router.post("/experiments/{experiment_id}/auto")
 async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
-    """Run all remaining days."""
-    from .main import game_manager, _try_load_game, _save_game_checkpoint, get_game_lock
+    """Run all remaining days in the background.
+
+    Returns immediately with status "running". Poll GET /experiments/{id}
+    to track progress. The experiment auto-saves after each day.
+    """
+    from .main import game_manager, game_auto_tasks, _try_load_game, _save_game_checkpoint, get_game_lock, game_storage
     game = game_manager.get(experiment_id)
     if not game:
         game = _try_load_game(experiment_id, uid)
     if not game:
         raise HTTPException(status_code=404, detail="Experiment not found")
+    if game.is_complete:
+        raise HTTPException(status_code=400, detail="Experiment is already complete")
+    if game.stalled:
+        raise HTTPException(status_code=400, detail=f"Experiment is stalled: {game.stall_reason}. Use resume endpoint first.")
 
-    async with get_game_lock(experiment_id):
-        loop = asyncio.get_event_loop()
-        days = []
-        while not game.is_complete and not game.stalled:
-            day = await loop.run_in_executor(None, game.run_day)
-            reasoning = {}
-            if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
-                reasoning = await game.optimize_all_agents()
-                day.optimized = True
-                if not reasoning:
-                    day.optimization_failed = True
-                if game.optimization_schedule == "every_scenario_day":
-                    game._inject_policies_into_orch()
-            days.append({"day": day.to_summary_dict(), "reasoning": reasoning})
-            if game.stalled:
-                break
-        _save_game_checkpoint(game)
-        return {"days": days, "game": game.get_state()}
+    # Don't start a second auto-run if one is already going
+    existing = game_auto_tasks.get(experiment_id)
+    if existing and not existing.done():
+        return {
+            "status": "already_running",
+            "experiment_id": experiment_id,
+            "current_round": game.current_round,
+            "rounds": game.max_rounds,
+        }
+
+    async def _background_auto_run():
+        try:
+            async with get_game_lock(experiment_id):
+                loop = asyncio.get_event_loop()
+                while not game.is_complete and not game.stalled:
+                    day = await loop.run_in_executor(None, game.run_day)
+                    reasoning = {}
+                    if game.use_llm and not game.is_complete and game.should_optimize(day.day_num):
+                        reasoning = await game.optimize_all_agents()
+                        day.optimized = True
+                        if not reasoning:
+                            day.optimization_failed = True
+                        if game.optimization_schedule == "every_scenario_day":
+                            game._inject_policies_into_orch()
+                    _save_game_checkpoint(game)
+                    # Update index with progress
+                    game_storage.update_index(getattr(game, '_uid', uid), {
+                        "game_id": experiment_id,
+                        "status": "stalled" if game.stalled else ("complete" if game.is_complete else "running"),
+                        "current_round": game.current_round,
+                        "rounds": game.max_rounds,
+                        "updated_at": game.last_activity_at,
+                        "last_activity_at": game.last_activity_at,
+                        "quality": game.quality,
+                        "rate_limited": getattr(game, '_rate_limited', False),
+                    })
+                    if game.stalled:
+                        break
+        except Exception as e:
+            logger.error("Background auto-run failed for %s: %s", experiment_id, e, exc_info=True)
+        finally:
+            game_auto_tasks.pop(experiment_id, None)
+
+    task = asyncio.create_task(_background_auto_run())
+    game_auto_tasks[experiment_id] = task
+
+    return {
+        "status": "running",
+        "experiment_id": experiment_id,
+        "current_round": game.current_round,
+        "rounds": game.max_rounds,
+        "message": "Auto-run started in background. Poll GET /experiments/{id} for progress.",
+    }
 
 
 @router.post("/experiments/{experiment_id}/resume")
