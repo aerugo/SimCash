@@ -78,17 +78,27 @@ export function GameView() {
   const nav = useNavigate();
   const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
   const gameId = params.gameId ?? contextGameId ?? '';
+  // Only use context state if it matches the current game (avoids stale state from previous game)
+  const useContextState = contextGameState && contextGameId === gameId;
+  const relevantContextState = useContextState ? contextGameState : null;
   const [fetchedState, setFetchedState] = useState<GameState | null>(null);
   const [fetchRetrying, setFetchRetrying] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(false);
   const fetchRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const initialState = contextGameState ?? fetchedState;
+  const initialState = relevantContextState ?? fetchedState;
+
+  // Reset fetched state when gameId changes (navigating between experiments)
+  useEffect(() => {
+    setFetchedState(null);
+    setFetchRetrying(false);
+    setFetchLoading(false);
+  }, [gameId]);
   const onReset = () => { handleReset(); nav('/'); };
 
   // Fetch game from API if not in context (e.g. direct navigation or from experiments list)
   // Auto-retries every 5s on 404 (backend may be restarting / loading checkpoint)
   useEffect(() => {
-    if (contextGameState || !gameId || fetchedState) return;
+    if (relevantContextState || !gameId || fetchedState) return;
     let cancelled = false;
     setFetchLoading(true);
 
@@ -112,7 +122,7 @@ export function GameView() {
       cancelled = true;
       if (fetchRetryRef.current) clearTimeout(fetchRetryRef.current);
     };
-  }, [gameId, contextGameState, fetchedState]);
+  }, [gameId, relevantContextState, fetchedState]);
 
   // ALL hooks must be called before any conditional returns (React rules of hooks)
   const { gameState: wsState, connected, connectionStatus, reconnectAttempt, phase, optimizingAgent: _optimizingAgent, optimizingAgents, simulatingDay, streamingText, step, rerun, autoRun, stop, onRawMessage } = useGameWebSocket(gameId, initialState);
