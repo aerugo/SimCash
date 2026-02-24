@@ -92,10 +92,10 @@ class TestPolicyInjection:
     def test_different_fractions_different_costs(self, stochastic_scenario: dict) -> None:
         """INV-GAME-1: Different fractions MUST produce different costs.
         fraction=1.0 (all liquidity) vs fraction=0.1 (minimal) on same seed."""
-        game_full = Game(game_id="full", raw_yaml=copy.deepcopy(stochastic_scenario), max_days=1)
+        game_full = Game(game_id="full", raw_yaml=copy.deepcopy(stochastic_scenario), total_days=1)
         # Default is 1.0
 
-        game_low = Game(game_id="low", raw_yaml=copy.deepcopy(stochastic_scenario), max_days=1)
+        game_low = Game(game_id="low", raw_yaml=copy.deepcopy(stochastic_scenario), total_days=1)
         for aid in game_low.agent_ids:
             game_low.policies[aid]["parameters"]["initial_liquidity_fraction"] = 0.1
 
@@ -110,8 +110,8 @@ class TestPolicyInjection:
 
     def test_determinism_same_config(self, stochastic_scenario: dict) -> None:
         """INV-2: Same seed + config = same output."""
-        g1 = Game(game_id="det1", raw_yaml=copy.deepcopy(stochastic_scenario), max_days=1)
-        g2 = Game(game_id="det2", raw_yaml=copy.deepcopy(stochastic_scenario), max_days=1)
+        g1 = Game(game_id="det1", raw_yaml=copy.deepcopy(stochastic_scenario), total_days=1)
+        g2 = Game(game_id="det2", raw_yaml=copy.deepcopy(stochastic_scenario), total_days=1)
         d1 = g1.run_day()
         d2 = g2.run_day()
         assert d1.total_cost == d2.total_cost
@@ -155,9 +155,9 @@ class TestMultiSample:
     def test_multi_sample_averages_costs(self, stochastic_scenario: dict) -> None:
         """Multi-sample should produce different (averaged) costs than single sample."""
         g1 = Game(game_id="single", raw_yaml=copy.deepcopy(stochastic_scenario),
-                  max_days=1, num_eval_samples=1)
+                  total_days=1, num_eval_samples=1)
         g5 = Game(game_id="multi", raw_yaml=copy.deepcopy(stochastic_scenario),
-                  max_days=1, num_eval_samples=5)
+                  total_days=1, num_eval_samples=5)
         d1 = g1.run_day()
         d5 = g5.run_day()
         # Multi-sample should have different costs (averaged across 5 seeds)
@@ -173,8 +173,8 @@ class TestMultiSample:
         for offset in range(5):
             sc = copy.deepcopy(stochastic_scenario)
             sc["simulation"]["rng_seed"] = 42 + offset * 100
-            g1 = Game(game_id=f"s{offset}", raw_yaml=copy.deepcopy(sc), max_days=1, num_eval_samples=1)
-            g5 = Game(game_id=f"m{offset}", raw_yaml=copy.deepcopy(sc), max_days=1, num_eval_samples=5)
+            g1 = Game(game_id=f"s{offset}", raw_yaml=copy.deepcopy(sc), total_days=1, num_eval_samples=1)
+            g5 = Game(game_id=f"m{offset}", raw_yaml=copy.deepcopy(sc), total_days=1, num_eval_samples=5)
             costs_single.append(g1.run_day().total_cost)
             costs_multi.append(g5.run_day().total_cost)
         # Multi-sample should have lower variance (or at least not higher)
@@ -188,11 +188,11 @@ class TestMultiSample:
 
 
 class TestGameCompletion:
-    def test_completes_after_max_days(self, game: Game) -> None:
-        for _ in range(game.max_days):
+    def test_completes_after_total_days(self, game: Game) -> None:
+        for _ in range(game.total_days):
             game.run_day()
         assert game.is_complete
-        assert game.current_day == game.max_days
+        assert game.current_day == game.total_days
 
 
 class TestGetState:

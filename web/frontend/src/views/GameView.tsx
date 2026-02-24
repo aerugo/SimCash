@@ -376,7 +376,7 @@ export function GameView() {
                   const round = Math.floor((displayDay - 1) / gameState.scenario_num_days) + 1;
                   return `Day ${scenDay}/${gameState.scenario_num_days} · Cycle ${round}`;
                 })()
-              : `Day ${gameState.current_day}/${gameState.max_days}`
+              : `Round ${gameState.current_round}/${gameState.rounds}`
             }
           </span>
           {gameState.is_complete && (
@@ -524,7 +524,7 @@ export function GameView() {
       <div className="w-full bg-slate-800 rounded-full h-2" data-tour="progress-bar">
         <div
           className="bg-gradient-to-r from-sky-500 to-violet-500 h-2 rounded-full transition-all"
-          style={{ width: `${(gameState.current_day / gameState.max_days) * 100}%` }}
+          style={{ width: `${(gameState.current_round / gameState.rounds) * 100}%` }}
         />
       </div>
 
@@ -582,7 +582,7 @@ export function GameView() {
         const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
         return (
           <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
-            <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.max_days} Days</h3>
+            <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.rounds} Rounds</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
                 <div className="text-xs text-slate-500">Day 1 Cost</div>

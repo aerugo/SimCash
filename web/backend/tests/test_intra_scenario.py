@@ -100,7 +100,7 @@ class TestCumulativeSettlementStats:
         game = Game(
             game_id="test-cum",
             raw_yaml=scenario,
-            max_days=2,
+            total_days=2,
             optimization_schedule="every_scenario_day",
         )
 
@@ -141,7 +141,7 @@ class TestCumulativeSettlementStats:
         game = Game(
             game_id="test-rate",
             raw_yaml=scenario,
-            max_days=2,
+            total_days=2,
             optimization_schedule="every_scenario_day",
         )
 
@@ -180,7 +180,7 @@ class TestDirectCostUsage:
         game = Game(
             game_id="test-cost",
             raw_yaml=scenario,
-            max_days=2,
+            total_days=2,
             optimization_schedule="every_scenario_day",
         )
 
@@ -222,7 +222,7 @@ class TestOrchestratorLifecycle:
         game = Game(
             game_id="test-lifecycle",
             raw_yaml=scenario,
-            max_days=6,  # 2 rounds of 3 days
+            total_days=6,  # 2 rounds of 3 days
             optimization_schedule="every_scenario_day",
         )
 
@@ -281,7 +281,7 @@ class TestSimulateDayCumulativeStats:
         game = Game(
             game_id="test-simday",
             raw_yaml=scenario,
-            max_days=2,
+            total_days=2,
             optimization_schedule="every_scenario_day",
         )
 
@@ -318,7 +318,7 @@ class TestSimulateDayCumulativeStats:
         game = Game(
             game_id="test-evround",
             raw_yaml=scenario,
-            max_days=3,
+            total_days=3,
             optimization_schedule="every_round",
         )
 

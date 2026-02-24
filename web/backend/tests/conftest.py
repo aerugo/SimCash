@@ -37,10 +37,10 @@ def stochastic_scenario() -> dict:
 @pytest.fixture
 def game(simple_scenario) -> Game:
     """A fresh game with default settings."""
-    return Game(game_id="test-001", raw_yaml=simple_scenario, max_days=5)
+    return Game(game_id="test-001", raw_yaml=simple_scenario, total_days=5)
 
 
 @pytest.fixture
 def game_stochastic(stochastic_scenario) -> Game:
     """A fresh game with stochastic scenario."""
-    return Game(game_id="test-002", raw_yaml=stochastic_scenario, max_days=5)
+    return Game(game_id="test-002", raw_yaml=stochastic_scenario, total_days=5)

@@ -8,8 +8,9 @@ interface GameSummary {
   scenario_name: string;
   status: string;
   display_status: string;
+  current_round: number;
+  rounds: number;
   current_day: number;
-  max_days: number;
   use_llm: boolean;
   simulated_ai: boolean;
   agent_count: number;
@@ -213,7 +214,7 @@ export default function ExperimentsView() {
               </div>
 
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                <span>Round {g.current_day}/{g.max_days}</span>
+                <span>Round {g.current_round ?? g.current_day}/{g.rounds ?? g.current_day}</span>
                 <span>{g.agent_count} {g.agent_count === 1 ? 'bank' : 'banks'}</span>
                 <span>{formatDate(g.updated_at || g.created_at)}</span>
 
@@ -223,7 +224,7 @@ export default function ExperimentsView() {
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
-                        width: `${g.max_days > 0 ? (g.current_day / g.max_days) * 100 : 0}%`,
+                        width: `${(g.rounds ?? 0) > 0 ? ((g.current_round ?? g.current_day) / (g.rounds ?? 1)) * 100 : 0}%`,
                         background: (g.display_status || g.status) === 'complete' ? 'var(--color-success)' : 'var(--text-accent)',
                       }}
                     />

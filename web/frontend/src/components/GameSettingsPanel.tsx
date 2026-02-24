@@ -4,7 +4,7 @@ import { getPolicyLibrary } from '../api';
 import { InfoTip } from './Tooltip';
 
 export interface GameSettings {
-  maxDays: number;
+  rounds: number;
   numEvalSamples: number;
   optimizationInterval: number;
   constraintPreset: 'simple' | 'full';
@@ -16,7 +16,7 @@ export interface GameSettings {
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
-  maxDays: 1,
+  rounds: 1,
   numEvalSamples: 10,
   optimizationInterval: 1,
   constraintPreset: 'full',
@@ -79,10 +79,10 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
       <div>
         <label className="text-xs text-slate-500 flex justify-between mb-1">
           <span>Rounds</span>
-          <span className="font-mono text-slate-300">{s.maxDays}</span>
+          <span className="font-mono text-slate-300">{s.rounds}</span>
         </label>
         <input
-          type="range" value={s.maxDays} onChange={e => update({ maxDays: Number(e.target.value) })}
+          type="range" value={s.rounds} onChange={e => update({ rounds: Number(e.target.value) })}
           min={1} max={50} className="w-full accent-violet-400"
         />
         <p className="text-[10px] text-slate-600 mt-1">How many times to run the scenario with AI optimization</p>
@@ -275,7 +275,7 @@ export function buildStartingPoliciesPayload(settings: GameSettings): Record<str
 export function gameSettingsToConfig(settings: GameSettings): {
   use_llm: boolean;
   simulated_ai: boolean;
-  max_days: number;
+  rounds: number;
   num_eval_samples: number;
   optimization_interval: number;
   constraint_preset: 'simple' | 'full';
@@ -284,7 +284,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
   return {
     use_llm: settings.useLlm,
     simulated_ai: settings.simulatedAi,
-    max_days: settings.maxDays,
+    rounds: settings.rounds,
     num_eval_samples: settings.numEvalSamples,
     optimization_interval: settings.optimizationInterval,
     constraint_preset: settings.constraintPreset,

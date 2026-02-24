@@ -138,7 +138,7 @@ class Game:
     """Multi-day policy optimization game."""
 
     def __init__(self, game_id: str, raw_yaml: dict, use_llm: bool = False,
-                 simulated_ai: bool = True, max_days: int = 1,
+                 simulated_ai: bool = True, total_days: int = 1,
                  num_eval_samples: int = 1, optimization_interval: int = 1,
                  constraint_preset: str = "simple",
                  include_groups: list[str] | None = None,
@@ -150,7 +150,7 @@ class Game:
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
         self.simulated_ai = simulated_ai
-        self.max_days = max_days
+        self.total_days = total_days
         self.num_eval_samples = num_eval_samples  # Bootstrap-lite: run N seeds, average costs
         self.optimization_interval = max(1, optimization_interval)
         self.constraint_preset = constraint_preset
@@ -222,8 +222,22 @@ class Game:
         return len(self.days)
 
     @property
+    def max_rounds(self) -> int:
+        """Number of optimization rounds (user-configured concept)."""
+        if self._scenario_num_days > 1:
+            return self.total_days // self._scenario_num_days
+        return self.total_days
+
+    @property
+    def current_round(self) -> int:
+        """Current optimization round (0-indexed)."""
+        if self._scenario_num_days > 1:
+            return self.current_day // self._scenario_num_days
+        return self.current_day
+
+    @property
     def is_complete(self) -> bool:
-        return self.current_day >= self.max_days
+        return self.current_day >= self.total_days
 
     def should_optimize(self, day_num: int) -> bool:
         """Whether optimization should run after the given day number."""

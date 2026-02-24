@@ -261,7 +261,7 @@ export function PolicyEditorView({ onGameLaunch, initialJsonText, onJsonTextChan
       // Create a quick 1-day game with this policy
       onGameLaunch({
         scenario_id: 'gridlock_risk',
-        max_days: 1,
+        rounds: 1,
         use_llm: false,
         simulated_ai: true,
         num_eval_samples: 1,

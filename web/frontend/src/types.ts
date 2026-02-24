@@ -195,8 +195,10 @@ export interface PolicyJson {
 
 export interface GameState {
   game_id: string;
+  current_round: number;
+  rounds: number;
   current_day: number;
-  max_days: number;
+  total_days: number;
   is_complete: boolean;
   use_llm: boolean;
   constraint_preset?: string;
@@ -301,7 +303,7 @@ export interface GameSetupConfig {
   inline_config?: Record<string, unknown>;
   use_llm: boolean;
   simulated_ai: boolean;
-  max_days: number;
+  rounds: number;
   num_eval_samples: number;
   optimization_interval?: number;
   constraint_preset?: 'simple' | 'full';

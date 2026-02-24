@@ -15,7 +15,7 @@ class TestCreateGameValidation:
         data = resp.json()
         assert "game_id" in data
         state = data["game"]
-        assert state["max_days"] == 10
+        assert state["rounds"] == 10
         assert state["use_llm"] is True
         assert state["num_eval_samples"] == 1
 
@@ -23,25 +23,25 @@ class TestCreateGameValidation:
         resp = client.post("/api/games", json={
             "scenario_id": "2bank_12tick",
             "num_eval_samples": 5,
-            "max_days": 3,
+            "rounds": 3,
             "use_llm": False,
             "simulated_ai": True,
         })
         assert resp.status_code == 200
         state = resp.json()["game"]
-        assert state["max_days"] == 3
+        assert state["rounds"] == 3
         assert state["num_eval_samples"] == 5
 
     def test_create_game_invalid_scenario(self):
         resp = client.post("/api/games", json={"scenario_id": "nonexistent"})
         assert resp.status_code == 400
 
-    def test_create_game_max_days_too_low(self):
-        resp = client.post("/api/games", json={"max_days": 0})
+    def test_create_game_rounds_too_low(self):
+        resp = client.post("/api/games", json={"rounds": 0})
         assert resp.status_code == 422
 
-    def test_create_game_max_days_too_high(self):
-        resp = client.post("/api/games", json={"max_days": 101})
+    def test_create_game_rounds_too_high(self):
+        resp = client.post("/api/games", json={"rounds": 101})
         assert resp.status_code == 422
 
     def test_create_game_num_eval_samples_too_low(self):
@@ -113,7 +113,7 @@ class TestCreateGameInlineConfig:
         """inline_config creates a game without scenario_id lookup."""
         resp = client.post("/api/games", json={
             "inline_config": self.INLINE_CONFIG,
-            "max_days": 5,
+            "rounds": 5,
         })
         assert resp.status_code == 200
         data = resp.json()
@@ -125,7 +125,7 @@ class TestCreateGameInlineConfig:
         resp = client.post("/api/games", json={
             "scenario_id": "nonexistent",
             "inline_config": self.INLINE_CONFIG,
-            "max_days": 3,
+            "rounds": 3,
         })
         assert resp.status_code == 200
 
@@ -133,7 +133,7 @@ class TestCreateGameInlineConfig:
         """A game created with inline config can be stepped and produces costs."""
         resp = client.post("/api/games", json={
             "inline_config": self.INLINE_CONFIG,
-            "max_days": 3,
+            "rounds": 3,
             "use_llm": False,
         })
         game_id = resp.json()["game_id"]

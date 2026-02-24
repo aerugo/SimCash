@@ -166,7 +166,7 @@ export function HomeView() {
               scenario_id: '2bank_12tick',
               use_llm: true,
               simulated_ai: true,
-              max_days: 5,
+              rounds: 5,
               num_eval_samples: 1,
               optimization_interval: 1,
               constraint_preset: 'full',

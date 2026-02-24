@@ -77,7 +77,7 @@ def test_create_game_with_preset():
         "scenario_id": "2bank_12tick",
         "use_llm": False,
         "mock_reasoning": True,
-        "max_days": 2,
+        "rounds": 2,
         "constraint_preset": "standard",
     })
     assert resp.status_code == 200

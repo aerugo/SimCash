@@ -66,7 +66,7 @@ class TestGameStep:
 
     def test_step_with_mock_reasoning(self, client: TestClient) -> None:
         gid = client.post("/api/games", json={
-            "use_llm": True, "simulated_ai": True, "max_days": 3
+            "use_llm": True, "simulated_ai": True, "rounds": 3
         }).json()["game_id"]
         resp = client.post(f"/api/games/{gid}/step")
         data = resp.json()
@@ -75,7 +75,7 @@ class TestGameStep:
         assert len(data["reasoning"]) > 0
 
     def test_step_after_complete(self, client: TestClient) -> None:
-        gid = client.post("/api/games", json={"max_days": 1}).json()["game_id"]
+        gid = client.post("/api/games", json={"rounds": 1}).json()["game_id"]
         client.post(f"/api/games/{gid}/step")  # day 0 → complete
         resp = client.post(f"/api/games/{gid}/step")
         assert resp.status_code == 400
@@ -83,7 +83,7 @@ class TestGameStep:
 
 class TestAutoRun:
     def test_auto_runs_to_completion(self, client: TestClient) -> None:
-        gid = client.post("/api/games", json={"max_days": 3}).json()["game_id"]
+        gid = client.post("/api/games", json={"rounds": 3}).json()["game_id"]
         resp = client.post(f"/api/games/{gid}/auto")
         assert resp.status_code == 200
         data = resp.json()
@@ -99,7 +99,7 @@ class TestScenarioPack:
 
     @pytest.mark.parametrize("scenario_id", SCENARIO_IDS)
     def test_scenario_creates_and_runs(self, client: TestClient, scenario_id: str) -> None:
-        resp = client.post("/api/games", json={"scenario_id": scenario_id, "max_days": 1})
+        resp = client.post("/api/games", json={"scenario_id": scenario_id, "rounds": 1})
         assert resp.status_code == 200, f"Failed to create {scenario_id}: {resp.text}"
         gid = resp.json()["game_id"]
         step = client.post(f"/api/games/{gid}/step")

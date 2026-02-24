@@ -57,7 +57,7 @@ export function ScenarioLibraryView() {
   const [selectedCustom, setSelectedCustom] = useState<CustomScenario | null>(null);
 
   // Game launch config
-  const [maxDays, setMaxDays] = useState(1);
+  const [rounds, setRounds] = useState(1);
   const [useLlm, setUseLlm] = useState(true);
   const [simulatedAi, setSimulatedAi] = useState(false);
   const [numEvalSamples, setNumEvalSamples] = useState(50);
@@ -183,7 +183,7 @@ export function ScenarioLibraryView() {
       inline_config: selectedScenario.raw_config,
       use_llm: useLlm,
       simulated_ai: simulatedAi,
-      max_days: maxDays,
+      rounds: rounds,
       num_eval_samples: numEvalSamples,
       optimization_interval: optimizationInterval,
       constraint_preset: constraintPreset,
@@ -237,7 +237,7 @@ export function ScenarioLibraryView() {
         inline_config: parsedConfig,
         use_llm: useLlm,
         simulated_ai: simulatedAi,
-        max_days: maxDays,
+        rounds: rounds,
         num_eval_samples: numEvalSamples,
         optimization_interval: optimizationInterval,
         optimization_schedule: customNumDays > 1 ? optimizationSchedule : undefined,
@@ -300,8 +300,8 @@ export function ScenarioLibraryView() {
                   type="number"
                   min={1}
                   max={50}
-                  value={maxDays}
-                  onChange={e => setMaxDays(Number(e.target.value))}
+                  value={rounds}
+                  onChange={e => setRounds(Number(e.target.value))}
                   className="w-full px-3 py-1.5 rounded text-sm"
                   style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 />
@@ -533,8 +533,8 @@ export function ScenarioLibraryView() {
                   type="number"
                   min={1}
                   max={50}
-                  value={maxDays}
-                  onChange={e => setMaxDays(Number(e.target.value))}
+                  value={rounds}
+                  onChange={e => setRounds(Number(e.target.value))}
                   className="w-full px-3 py-1.5 rounded text-sm"
                   style={{ backgroundColor: 'var(--input-bg, var(--card-bg))', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
                 />

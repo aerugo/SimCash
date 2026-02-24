@@ -191,7 +191,8 @@ def _save_game_checkpoint(game: Game):
             "optimization_model": getattr(game, '_optimization_model', ''),
             "status": checkpoint["status"],
             "current_day": game.current_day,
-            "max_days": game.max_days,
+            "rounds": game.max_rounds,
+            "total_days": game.total_days,
             "created_at": checkpoint.get("created_at", ""),
             "updated_at": checkpoint["updated_at"],
             "last_activity_at": getattr(game, 'last_activity_at', ''),
@@ -217,7 +218,7 @@ def _try_load_game(game_id: str, uid: str = "") -> Game | None:
                 game._scenario_id = data.get("scenario_id", "")
                 game_manager[game_id] = game
                 logger.info("Loaded game %s from checkpoint (uid=%s, day=%d/%d)",
-                            game_id, try_uid, game.current_day, game.max_days)
+                            game_id, try_uid, game.current_day, game.total_days)
                 return game
             except Exception as e:
                 logger.warning("Failed to restore game %s from checkpoint: %s", game_id, e)
@@ -717,22 +718,22 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     try:
         # For every_scenario_day mode, "Rounds" means full scenario passes.
         # Multiply by num_days so the game runs all days per round.
-        effective_max_days = config.max_days
+        total_days = config.rounds
         if config.optimization_schedule == "every_scenario_day":
             import yaml as _yaml
             try:
                 parsed = _yaml.safe_load(raw_yaml) if isinstance(raw_yaml, str) else raw_yaml
                 scenario_num_days = parsed.get("simulation", {}).get("num_days", 1)
-                effective_max_days = config.max_days * scenario_num_days
+                total_days = config.rounds * scenario_num_days
             except Exception:
-                pass  # Fall back to raw max_days
+                pass  # Fall back to raw rounds
 
         game = Game(
             game_id=game_id,
             raw_yaml=raw_yaml,
             use_llm=config.use_llm,
             simulated_ai=config.simulated_ai,
-            max_days=effective_max_days,
+            total_days=total_days,
             num_eval_samples=config.num_eval_samples,
             optimization_interval=config.optimization_interval,
             constraint_preset=config.constraint_preset,
@@ -764,7 +765,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             "updated_at": game._created_at,
             "last_activity_at": game.last_activity_at,
             "current_day": 0,
-            "max_days": config.max_days,
+            "rounds": config.rounds,
             "status": "created",
             "use_llm": config.use_llm,
             "simulated_ai": getattr(game, 'simulated_ai', True),
@@ -814,7 +815,8 @@ def list_games(uid: str = Depends(get_effective_user)):
                 "scenario_id": getattr(game, '_scenario_id', ''),
                 "status": "complete" if game.is_complete else "running",
                 "current_day": game.current_day,
-                "max_days": game.max_days,
+                "rounds": game.max_rounds,
+                "total_days": game.total_days,
                 "use_llm": game.use_llm,
                 "agent_count": len(game.agent_ids),
                 "last_activity_at": getattr(game, 'last_activity_at', ''),
@@ -1047,7 +1049,7 @@ async def game_ws(websocket: WebSocket, game_id: str):
             await websocket.send_json({
                 "type": "simulation_running",
                 "day": game.current_day,
-                "max_days": game.max_days,
+                "total_days": game.total_days,
             })
 
             try:
@@ -1105,9 +1107,9 @@ async def game_ws(websocket: WebSocket, game_id: str):
         error_occurred = False
         try:
             while running and not game.is_complete:
-                logger.info("Auto-run: starting step for day %d/%d", game.current_day, game.max_days)
+                logger.info("Auto-run: starting step for day %d/%d", game.current_day, game.total_days)
                 await run_one_step()
-                logger.info("Auto-run: step complete, day now %d/%d", game.current_day, game.max_days)
+                logger.info("Auto-run: step complete, day now %d/%d", game.current_day, game.total_days)
                 await asyncio.sleep(speed_ms / 1000.0)
             if game.is_complete:
                 await websocket.send_json({"type": "game_complete", "data": game.get_state()})

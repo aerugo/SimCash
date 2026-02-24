@@ -129,7 +129,7 @@ async def create_experiment(
 ):
     """Create a new experiment (game).
 
-    **rounds** (or max_days) = number of optimization rounds.
+    **rounds** = number of optimization rounds.
     Each round plays through all business days in the scenario. Business days
     are defined in the scenario config (num_days). For example, a scenario with
     25 business days and rounds=10 means the AI optimizes 10 times, playing
@@ -179,8 +179,6 @@ async def create_experiment(
         raw_yaml = copy.deepcopy(raw_yaml)
 
     # Resolve convenience aliases
-    if config.rounds is not None:
-        config.max_days = config.rounds
     if config.optimization_model and not config.model_override:
         config.model_override = config.optimization_model
 
@@ -209,13 +207,13 @@ async def create_experiment(
         if saved:
             prompt_profile = saved.blocks
 
-    effective_max_days = config.max_days
+    total_days = config.rounds
     if config.optimization_schedule == "every_scenario_day":
         import yaml as _yaml
         try:
             parsed = _yaml.safe_load(raw_yaml) if isinstance(raw_yaml, str) else raw_yaml
             scenario_num_days = parsed.get("simulation", {}).get("num_days", 1)
-            effective_max_days = config.max_days * scenario_num_days
+            total_days = config.rounds * scenario_num_days
         except Exception:
             pass
 
@@ -225,7 +223,7 @@ async def create_experiment(
             raw_yaml=raw_yaml,
             use_llm=config.use_llm,
             simulated_ai=config.simulated_ai,
-            max_days=effective_max_days,
+            total_days=total_days,
             num_eval_samples=config.num_eval_samples,
             optimization_interval=config.optimization_interval,
             constraint_preset=config.constraint_preset,
@@ -256,8 +254,8 @@ async def create_experiment(
         "created_at": game._created_at,
         "updated_at": game._created_at,
         "last_activity_at": game.last_activity_at,
-        "current_day": 0,
-        "max_days": config.max_days,
+        "current_round": 0,
+        "rounds": config.rounds,
         "status": "created",
         "use_llm": config.use_llm,
         "simulated_ai": getattr(game, 'simulated_ai', True),
@@ -270,7 +268,7 @@ async def create_experiment(
         "experiment_id": game_id,
         "status": "created",
         "scenario_id": config.scenario_id,
-        "max_days": config.max_days,
+        "rounds": config.rounds,
         "agent_ids": game.agent_ids,
     }
 
@@ -292,8 +290,8 @@ async def list_experiments(
                 "game_id": gid,
                 "scenario_id": getattr(game, '_scenario_id', ''),
                 "status": "complete" if game.is_complete else "running",
-                "current_day": game.current_day,
-                "max_days": game.max_days,
+                "current_round": game.current_round,
+                "rounds": game.max_rounds,
                 "use_llm": game.use_llm,
                 "agent_count": len(game.agent_ids),
             })
@@ -318,8 +316,8 @@ async def get_experiment(experiment_id: str, uid: str = Depends(get_api_or_fireb
     return {
         "experiment_id": experiment_id,
         "status": "complete" if game.is_complete else "running",
-        "current_day": game.current_day,
-        "max_days": game.max_days,
+        "current_round": game.current_round,
+        "rounds": game.max_rounds,
         "agent_ids": game.agent_ids,
         "use_llm": game.use_llm,
         "costs_summary": state.get("costs", {}),
@@ -363,8 +361,8 @@ async def get_experiment_results(experiment_id: str, uid: str = Depends(get_api_
     return {
         "experiment_id": experiment_id,
         "status": "complete" if game.is_complete else "running",
-        "current_day": game.current_day,
-        "max_days": game.max_days,
+        "current_round": game.current_round,
+        "rounds": game.max_rounds,
         "days": days_out,
         "policies": state.get("policies", {}),
         "policy_history": state.get("policy_history", []),

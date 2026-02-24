@@ -45,7 +45,7 @@ class TestRealLLMOptimization:
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
             simulated_ai=False,  # Real LLM!
-            max_days=2,
+            total_days=2,
         )
         # Run day 0
         day = game.run_day()
@@ -76,7 +76,7 @@ class TestRealLLMOptimization:
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
             simulated_ai=True,
-            max_days=2,
+            total_days=2,
         )
         game.run_day()
         reasoning = await game.optimize_all_agents()
@@ -92,7 +92,7 @@ class TestRealLLMOptimization:
             raw_yaml=copy.deepcopy(scenario),
             use_llm=True,
             simulated_ai=False,
-            max_days=2,
+            total_days=2,
         )
         # Day 0 with default fraction=1.0
         d0 = game.run_day()

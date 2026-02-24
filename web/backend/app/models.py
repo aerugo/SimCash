@@ -152,7 +152,7 @@ class CreateGameRequest(BaseModel):
     inline_config: dict[str, Any] | None = None
     use_llm: bool = True
     simulated_ai: bool = False
-    max_days: int = Field(default=10, ge=1, le=100)
+    rounds: int = Field(default=10, ge=1, le=100)
     num_eval_samples: int = Field(default=1, ge=1, le=50)
     optimization_interval: int = Field(default=1, ge=1, le=50)
     constraint_preset: str = Field(default="simple", pattern="^(simple|standard|full)$")
@@ -166,7 +166,6 @@ class CreateGameRequest(BaseModel):
     # Convenience aliases for API users
     optimization_model: str | None = None  # alias for model_override
     starting_fraction: float | None = None  # initial liquidity fraction (0.0-1.0) for all agents
-    rounds: int | None = None  # alias for max_days (clearer name: number of optimization rounds)
 
 
 class CompareRequest(BaseModel):

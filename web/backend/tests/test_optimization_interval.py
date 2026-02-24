@@ -36,7 +36,7 @@ class TestShouldOptimize:
 
 class TestOptimizationIntervalGameplay:
     def test_interval_1_all_days_run(self, raw_yaml):
-        game = Game("t4", raw_yaml, use_llm=True, simulated_ai=True, max_days=3, optimization_interval=1)
+        game = Game("t4", raw_yaml, use_llm=True, simulated_ai=True, total_days=3, optimization_interval=1)
         for _ in range(3):
             day = game.run_day()
         # All days should be runnable
@@ -53,7 +53,7 @@ class TestOptimizationIntervalGameplay:
 
     def test_policies_unchanged_on_non_optimization_days(self, raw_yaml):
         """Without optimization, policies should stay the same."""
-        game = Game("t7", raw_yaml, use_llm=True, simulated_ai=True, max_days=5, optimization_interval=3)
+        game = Game("t7", raw_yaml, use_llm=True, simulated_ai=True, total_days=5, optimization_interval=3)
         
         # Run day 0
         game.run_day()
@@ -70,12 +70,12 @@ class TestOptimizationIntervalGameplay:
             assert game.policies[aid]["parameters"]["initial_liquidity_fraction"] == policies_after_day0[aid]["parameters"]["initial_liquidity_fraction"]
 
     def test_optimized_field_default_false(self, raw_yaml):
-        game = Game("t8", raw_yaml, max_days=3)
+        game = Game("t8", raw_yaml, total_days=3)
         day = game.run_day()
         assert day.optimized is False
 
     def test_optimized_in_to_dict(self, raw_yaml):
-        game = Game("t9", raw_yaml, max_days=3)
+        game = Game("t9", raw_yaml, total_days=3)
         day = game.run_day()
         d = day.to_dict()
         assert "optimized" in d

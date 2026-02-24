@@ -66,14 +66,14 @@ function analyzeScenario(yaml: string | undefined, blocks: PromptBlockInfo[], cu
     });
   }
 
-  // 3. Many rounds (max_days > 15)
-  const maxDays = numDays;
+  // 3. Many rounds (rounds > 15)
+  const maxRounds = numDays;
   const historyFormat = currentOverrides['usr_iteration_history']?.options?.format;
-  if (maxDays > 15 && historyFormat !== 'last_n') {
+  if (maxRounds > 15 && historyFormat !== 'last_n') {
     suggestions.push({
       id: 'many_rounds',
       icon: '📚',
-      title: `Long experiment (${maxDays} days)`,
+      title: `Long experiment (${maxRounds} days)`,
       description: 'Full iteration history grows linearly and can dominate the prompt. Showing only the last 10 rounds is usually sufficient.',
       severity: 'info',
       applyOverrides: { usr_iteration_history: { enabled: true, options: { format: 'last_n', last_n: 10 } } },

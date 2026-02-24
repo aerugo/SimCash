@@ -10,7 +10,7 @@ class TestWSMessageTypes:
     """Verify WebSocket message protocol."""
 
     def test_step_emits_simulation_running_then_day_complete(self):
-        resp = client.post("/api/games", json={"max_days": 3, "use_llm": False})
+        resp = client.post("/api/games", json={"rounds": 3, "use_llm": False})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:
@@ -35,7 +35,7 @@ class TestWSMessageTypes:
                     break
 
     def test_auto_streams_all_days(self):
-        resp = client.post("/api/games", json={"max_days": 3, "use_llm": False})
+        resp = client.post("/api/games", json={"rounds": 3, "use_llm": False})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:
@@ -59,7 +59,7 @@ class TestWSMessageTypes:
             assert game_complete["data"]["is_complete"] is True
 
     def test_optimization_messages_per_agent(self):
-        resp = client.post("/api/games", json={"max_days": 2})
+        resp = client.post("/api/games", json={"rounds": 2})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:
@@ -80,7 +80,7 @@ class TestWSMessageTypes:
             assert "optimization_complete" in types
 
     def test_step_complete_game_sends_game_complete(self):
-        resp = client.post("/api/games", json={"max_days": 1})
+        resp = client.post("/api/games", json={"rounds": 1})
         game_id = resp.json()["game_id"]
 
         with client.websocket_connect(f"/ws/games/{game_id}") as ws:

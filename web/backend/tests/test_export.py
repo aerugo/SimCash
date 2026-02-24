@@ -18,7 +18,7 @@ def client():
 @pytest.fixture
 def game_with_days(client):
     """Create a game and run 2 days, return game_id."""
-    res = client.post("/api/games", json={"scenario_id": "2bank_2tick", "max_days": 5, "use_llm": False})
+    res = client.post("/api/games", json={"scenario_id": "2bank_2tick", "rounds": 5, "use_llm": False})
     assert res.status_code == 200
     game_id = res.json()["game_id"]
     # Run 2 days
@@ -67,7 +67,7 @@ def test_export_not_found(client):
 
 
 def test_export_no_days(client):
-    res = client.post("/api/games", json={"scenario_id": "2bank_2tick", "max_days": 5, "use_llm": False})
+    res = client.post("/api/games", json={"scenario_id": "2bank_2tick", "rounds": 5, "use_llm": False})
     game_id = res.json()["game_id"]
     res = client.get(f"/api/games/{game_id}/export?format=csv")
     assert res.status_code == 400

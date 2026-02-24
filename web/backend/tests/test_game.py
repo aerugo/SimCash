@@ -25,7 +25,7 @@ def scenario():
 def test_create_game_with_starting_policy(scenario):
     """Game uses custom policy on day 1."""
     starting_policies = {"BANK_A": json.dumps(SAMPLE_POLICY)}
-    game = Game(game_id="sp-1", raw_yaml=scenario, max_days=3,
+    game = Game(game_id="sp-1", raw_yaml=scenario, total_days=3,
                 starting_policies=starting_policies)
 
     assert game.policies["BANK_A"]["policy_id"] == "test_hold_policy"
@@ -40,7 +40,7 @@ def test_create_game_with_starting_policy(scenario):
 
 def test_create_game_default_policy(scenario):
     """Game without starting_policies uses fraction=0.5."""
-    game = Game(game_id="sp-2", raw_yaml=scenario, max_days=3)
+    game = Game(game_id="sp-2", raw_yaml=scenario, total_days=3)
     for aid in game.agent_ids:
         assert game.policies[aid]["parameters"]["initial_liquidity_fraction"] == 0.5
 
@@ -51,7 +51,7 @@ def test_create_game_default_policy(scenario):
 def test_create_game_partial_starting_policies(scenario):
     """Mix of custom + default."""
     starting_policies = {"BANK_A": json.dumps(SAMPLE_POLICY)}
-    game = Game(game_id="sp-3", raw_yaml=scenario, max_days=3,
+    game = Game(game_id="sp-3", raw_yaml=scenario, total_days=3,
                 starting_policies=starting_policies)
 
     assert game.policies["BANK_A"]["parameters"]["initial_liquidity_fraction"] == 0.5
@@ -61,21 +61,21 @@ def test_create_game_partial_starting_policies(scenario):
 def test_create_game_invalid_starting_policy_rejected(scenario):
     """Bad JSON returns error."""
     with pytest.raises(ValueError, match="Invalid policy JSON"):
-        Game(game_id="sp-4", raw_yaml=scenario, max_days=3,
+        Game(game_id="sp-4", raw_yaml=scenario, total_days=3,
              starting_policies={"BANK_A": "not valid json {{"})
 
 
 def test_create_game_unknown_agent_rejected(scenario):
     """Policy for non-existent agent returns error."""
     with pytest.raises(ValueError, match="Unknown agent ID"):
-        Game(game_id="sp-5", raw_yaml=scenario, max_days=3,
+        Game(game_id="sp-5", raw_yaml=scenario, total_days=3,
              starting_policies={"BANK_Z": json.dumps(SAMPLE_POLICY)})
 
 
 def test_starting_policy_affects_costs(scenario):
     """Day 1 with Hold policy produces different costs than default FIFO."""
     # Game with default (FIFO, fraction=0.5)
-    game_default = Game(game_id="sp-6a", raw_yaml=copy.deepcopy(scenario), max_days=1)
+    game_default = Game(game_id="sp-6a", raw_yaml=copy.deepcopy(scenario), total_days=1)
     day_default = game_default.run_day()
 
     # Game with Hold policy at fraction=0.5
@@ -83,7 +83,7 @@ def test_starting_policy_affects_costs(scenario):
         "BANK_A": json.dumps(SAMPLE_POLICY),
         "BANK_B": json.dumps(SAMPLE_POLICY),
     }
-    game_custom = Game(game_id="sp-6b", raw_yaml=copy.deepcopy(scenario), max_days=1,
+    game_custom = Game(game_id="sp-6b", raw_yaml=copy.deepcopy(scenario), total_days=1,
                        starting_policies=starting_policies)
     day_custom = game_custom.run_day()
 

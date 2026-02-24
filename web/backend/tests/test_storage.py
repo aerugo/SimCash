@@ -81,7 +81,7 @@ class TestIndex:
 
 class TestDuckDBPersistence:
     def test_save_day(self, storage, simple_scenario):
-        game = Game(game_id="g1", raw_yaml=simple_scenario, max_days=5)
+        game = Game(game_id="g1", raw_yaml=simple_scenario, total_days=5)
         db_path = storage.create_game_db("test-uid", "g1")
         day = game.run_day()
         game.save_day_to_duckdb(db_path, day)
@@ -93,7 +93,7 @@ class TestDuckDBPersistence:
         con.close()
 
     def test_save_multiple_days(self, storage, simple_scenario):
-        game = Game(game_id="g1", raw_yaml=simple_scenario, max_days=5)
+        game = Game(game_id="g1", raw_yaml=simple_scenario, total_days=5)
         db_path = storage.create_game_db("test-uid", "g1")
 
         for _ in range(3):
@@ -112,7 +112,7 @@ class TestGameLifecycle:
         game_id = "lifecycle-1"
 
         # Create
-        game = Game(game_id=game_id, raw_yaml=simple_scenario, max_days=3)
+        game = Game(game_id=game_id, raw_yaml=simple_scenario, total_days=3)
         db_path = storage.create_game_db(uid, game_id)
         storage.update_index(uid, {"game_id": game_id, "status": "created", "days_completed": 0})
 
