@@ -225,6 +225,26 @@ async def get_effective_ws_user(websocket: WebSocket) -> str:
     return caller_uid
 
 
+async def get_api_or_firebase_user(request: Request) -> str:
+    """FastAPI dependency: authenticate via API key first, then fall back to Firebase.
+
+    Checks if Authorization header starts with "Bearer sk_live_" and authenticates
+    via the API key store. Otherwise delegates to get_effective_user.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer sk_live_"):
+        raw_key = auth_header[len("Bearer "):]
+        from .api_keys import api_key_store
+        uid = api_key_store.authenticate(raw_key)
+        if uid is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
+        return uid
+    return await get_effective_user(request)
+
+
 async def get_optional_user(request: Request) -> str:
     """Returns uid if authenticated, else 'guest-{session_id}' from cookie."""
     try:

@@ -11,6 +11,7 @@ import { DashboardView } from './views/DashboardView';
 import { EventsView } from './views/EventsView';
 import { AgentsView } from './views/AgentsView';
 import ExperimentsView from './views/ExperimentsView';
+import ApiKeysView from './views/ApiKeysView';
 import { ConfigView } from './views/ConfigView';
 import { ReplayView } from './views/ReplayView';
 import { AnalysisView } from './views/AnalysisView';
@@ -86,6 +87,7 @@ export const router = createBrowserRouter([
       { path: 'library/policies/:policyId', element: <PolicyLibraryView /> },
       { path: 'create', element: <RequireAuth><CreateView /></RequireAuth> },
       { path: 'experiments', element: <RequireAuth><ExperimentsView /></RequireAuth> },
+      { path: 'api-keys', element: <RequireAuth><ApiKeysView /></RequireAuth> },
       { path: 'experiment/:gameId', element: <GameView /> },
       { path: 'docs', element: <DocsView /> },
       { path: 'docs/*', element: <DocsView /> },

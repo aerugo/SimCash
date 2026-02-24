@@ -42,6 +42,7 @@ from .policy_editor import router as policy_editor_router
 from .export import router as export_router
 from .docs_api import router as docs_router
 from .scenario_editor import router as scenario_editor_router
+from .api_v1 import router as api_v1_router
 from .admin import user_manager
 from .settings import settings_manager
 from . import config as app_config
@@ -148,6 +149,7 @@ app.include_router(scenario_editor_router)
 app.include_router(policy_editor_router)
 app.include_router(export_router)
 app.include_router(docs_router)
+app.include_router(api_v1_router)
 
 manager = SimulationManager()
 game_manager: dict[str, Game] = {}

@@ -12,6 +12,7 @@ const NAV_SECTIONS = [
   { to: '/library/scenarios', label: 'Library', icon: '📚', match: '/library' },
   { to: '/create', label: 'Create', icon: '✏️' },
   { to: '/docs', label: 'Docs', icon: '📖', match: '/docs' },
+  { to: '/api-keys', label: 'API', icon: '🔑', match: '/api-keys' },
 ];
 
 function LayoutInner() {
