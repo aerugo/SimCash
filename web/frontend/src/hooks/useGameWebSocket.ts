@@ -49,6 +49,7 @@ interface UseGameWebSocketReturn {
   rerun: (day?: number) => void;
   autoRun: (speedMs?: number) => void;
   stop: () => void;
+  resume: () => void;
   /** Register a callback to receive every raw WS message (for activity feed). */
   onRawMessage: (cb: (msg: WSMessage) => void) => () => void;
 }
