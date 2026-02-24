@@ -163,6 +163,9 @@ class CreateGameRequest(BaseModel):
     prompt_profile_id: str | None = None  # load saved profile by ID
     prompt_profile: dict[str, dict] | None = None  # inline block overrides {block_id: {enabled, options}}
     model_override: str | None = None  # per-game model override (e.g. "google-vertex:glm-4.7-maas")
+    # Convenience aliases for API users
+    optimization_model: str | None = None  # alias for model_override
+    starting_fraction: float | None = None  # initial liquidity fraction (0.0-1.0) for all agents
 
 
 class CompareRequest(BaseModel):

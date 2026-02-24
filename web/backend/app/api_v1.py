@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import logging
 import uuid
 from typing import Any, Optional
@@ -141,8 +142,51 @@ async def create_experiment(
     else:
         raw_yaml = get_scenario_by_id(config.scenario_id)
         if not raw_yaml:
+            # Try user's custom scenarios (by ID or custom:ID)
+            from .scenario_editor import _store as scenario_store
+            sid = config.scenario_id.removeprefix("custom:")
+            try:
+                custom = scenario_store.get(uid, sid)
+                if custom and "config" in custom:
+                    import yaml as _yaml
+                    raw_yaml = _yaml.safe_load(custom["config"]) if isinstance(custom["config"], str) else custom["config"]
+                    # Use the custom scenario name if not explicitly provided
+                    if not config.scenario_name and custom.get("name"):
+                        config.scenario_name = custom["name"]
+                    # Ensure scenario_id has custom: prefix
+                    config.scenario_id = f"custom:{sid}"
+                elif custom and "raw_config" in custom:
+                    raw_yaml = custom["raw_config"] if isinstance(custom["raw_config"], dict) else custom
+                    if not config.scenario_name and custom.get("name"):
+                        config.scenario_name = custom["name"]
+                    config.scenario_id = f"custom:{sid}"
+            except Exception:
+                pass
+        if not raw_yaml:
             raise HTTPException(status_code=400, detail=f"Unknown scenario: {config.scenario_id}")
         raw_yaml = copy.deepcopy(raw_yaml)
+
+    # Resolve convenience aliases
+    if config.optimization_model and not config.model_override:
+        config.model_override = config.optimization_model
+
+    # Convert starting_fraction to starting_policies for all agents
+    if config.starting_fraction is not None and not config.starting_policies:
+        import yaml as _yaml
+        try:
+            parsed = _yaml.safe_load(raw_yaml) if isinstance(raw_yaml, str) else raw_yaml
+            agents = parsed.get("simulation", parsed).get("agents", [])
+            frac = config.starting_fraction
+            policy_json = json.dumps({
+                "version": "2.0",
+                "policy_id": "api-default",
+                "parameters": {"initial_liquidity_fraction": frac},
+                "payment_tree": {"type": "action", "node_id": "root", "action": "Release"},
+                "bank_tree": {"type": "action", "node_id": "bank", "action": "NoAction"},
+            })
+            config.starting_policies = {a["id"]: policy_json for a in agents if "id" in a}
+        except Exception:
+            pass
 
     prompt_profile = config.prompt_profile
     if config.prompt_profile_id and not prompt_profile:
@@ -278,13 +322,36 @@ async def get_experiment_results(experiment_id: str, uid: str = Depends(get_api_
     if not game:
         raise HTTPException(status_code=404, detail="Experiment not found")
     state = game.get_state()
-    days = [d.to_summary_dict() for d in game.days]
+    days_out = []
+    for d in game.days:
+        day_dict = d.to_summary_dict()
+        # Add settlement object
+        total_arr = d._total_arrivals
+        total_set = d._total_settled
+        settlement: dict[str, Any] = {
+            "system": {
+                "settled": total_set,
+                "total": total_arr,
+                "rate": round(total_set / total_arr, 4) if total_arr else 0.0,
+            },
+            "per_bank": {},
+        }
+        for bank_id, stats in (d._event_summary or {}).items():
+            arr = stats.get("arrivals", 0)
+            stl = stats.get("settled", 0)
+            settlement["per_bank"][bank_id] = {
+                "settled": stl,
+                "total": arr,
+                "rate": round(stl / arr, 4) if arr else 0.0,
+            }
+        day_dict["settlement"] = settlement
+        days_out.append(day_dict)
     return {
         "experiment_id": experiment_id,
         "status": "complete" if game.is_complete else "running",
         "current_day": game.current_day,
         "max_days": game.max_days,
-        "days": days,
+        "days": days_out,
         "policies": state.get("policies", {}),
         "policy_history": state.get("policy_history", []),
         "costs": state.get("costs", {}),
