@@ -139,7 +139,16 @@ class GameStorage:
                 p.write_text(blob.download_as_text())
         if p.exists():
             try:
-                return json.loads(p.read_text())
+                entries = json.loads(p.read_text())
+                # Migrate old max_days → rounds
+                for e in entries:
+                    if "max_days" in e and "rounds" not in e:
+                        e["rounds"] = e.pop("max_days")
+                    if "total_days" not in e and "rounds" in e:
+                        e["total_days"] = e["rounds"]
+                    if "current_round" not in e:
+                        e["current_round"] = e.get("current_day", 0)
+                return entries
             except (json.JSONDecodeError, ValueError):
                 return []
         return []

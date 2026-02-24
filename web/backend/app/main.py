@@ -765,6 +765,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
             "updated_at": game._created_at,
             "last_activity_at": game.last_activity_at,
             "current_day": 0,
+            "current_round": 0,
             "rounds": config.rounds,
             "status": "created",
             "use_llm": config.use_llm,
@@ -920,6 +921,7 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
             meta = next((g for g in games if g["game_id"] == game_id), None)
             if meta:
                 meta["current_day"] = game.current_day
+                meta["current_round"] = game.current_round
                 meta["updated_at"] = datetime.now(timezone.utc).isoformat()
                 meta["last_activity_at"] = game.last_activity_at
                 meta["status"] = "complete" if game.is_complete else "running"
