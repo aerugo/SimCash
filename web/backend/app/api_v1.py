@@ -129,10 +129,11 @@ async def create_experiment(
 ):
     """Create a new experiment (game).
 
-    **max_days** = number of optimization rounds (not business days).
-    For multi-day scenarios (e.g. 25 business days), each round plays through
-    all business days with daily optimization. So max_days=1 on a 25-day
-    scenario = 25 optimization cycles. max_days=25 = 625 cycles.
+    **rounds** (or max_days) = number of optimization rounds.
+    Each round plays through all business days in the scenario. Business days
+    are defined in the scenario config (num_days). For example, a scenario with
+    25 business days and rounds=10 means the AI optimizes 10 times, playing
+    through all 25 days each round.
 
     **optimization_model** = which LLM to use (e.g. "openai:gpt-4o").
     **constraint_preset** = "simple" (fraction only) or "full" (decision trees).
@@ -178,6 +179,8 @@ async def create_experiment(
         raw_yaml = copy.deepcopy(raw_yaml)
 
     # Resolve convenience aliases
+    if config.rounds is not None:
+        config.max_days = config.rounds
     if config.optimization_model and not config.model_override:
         config.model_override = config.optimization_model
 

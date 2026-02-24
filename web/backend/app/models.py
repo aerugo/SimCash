@@ -166,6 +166,7 @@ class CreateGameRequest(BaseModel):
     # Convenience aliases for API users
     optimization_model: str | None = None  # alias for model_override
     starting_fraction: float | None = None  # initial liquidity fraction (0.0-1.0) for all agents
+    rounds: int | None = None  # alias for max_days (clearer name: number of optimization rounds)
 
 
 class CompareRequest(BaseModel):
