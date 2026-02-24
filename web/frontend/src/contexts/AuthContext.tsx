@@ -44,7 +44,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
     let attempt = 0;
+    let devResolved = false;
 
+    // Register auth state listener IMMEDIATELY — not gated behind backend fetch.
+    // Otherwise, if the user completes signInWithPopup before the backend responds,
+    // onAuthStateChanged fires with no listener registered → sign-in silently lost.
+    const authTimeout = setTimeout(() => {
+      if (!cancelled && !devResolved) {
+        setUser(null);
+        setLoading(false);
+      }
+    }, 5000);
+
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (cancelled || devResolved) return;
+      clearTimeout(authTimeout);
+      setUser(u);
+      setLoading(false);
+    });
+
+    // Also try to complete any pending redirect
+    handleRedirectResult().catch(() => {});
+
+    // Check backend for dev mode / auth-disabled
     const tryConnect = () => {
       attempt++;
       if (attempt > 1) setBackendStatus('cold-start');
@@ -61,68 +83,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (devToken) {
               sessionStorage.setItem('simcash_dev_token', devToken);
             }
+            devResolved = true;
+            clearTimeout(authTimeout);
             setDevMode(true);
             setUser(DEV_USER);
             setLoading(false);
-            return;
           }
-          // Await redirect result first — on mobile, getRedirectResult can take >3s
-          handleRedirectResult()
-            .catch(() => {})
-            .finally(() => {
-              // Only start the no-user timeout AFTER redirect processing completes
-              if (cancelled) return;
-              const authTimeout = setTimeout(() => {
-                if (!cancelled) {
-                  setUser(null);
-                  setLoading(false);
-                }
-              }, 3000);
-              onAuthStateChanged(auth, (u) => {
-                clearTimeout(authTimeout);
-                if (!cancelled) {
-                  setUser(u);
-                  setLoading(false);
-                }
-              });
-            });
         })
         .catch(() => {
           if (cancelled) return;
-          // Backend not ready — retry with backoff (cold start takes ~20s)
           if (attempt < 10) {
             const delay = Math.min(2000 * attempt, 5000);
             setTimeout(tryConnect, delay);
           } else {
-            // Give up after ~30s, fall through to Firebase auth
             setBackendStatus('ready');
-            handleRedirectResult()
-              .catch(() => {})
-              .finally(() => {
-                if (cancelled) return;
-                const authTimeout2 = setTimeout(() => {
-                  if (!cancelled) { setUser(null); setLoading(false); }
-                }, 3000);
-                onAuthStateChanged(auth, (u) => {
-                  clearTimeout(authTimeout2);
-                  if (!cancelled) {
-                    setUser(u);
-                    setLoading(false);
-                  }
-                });
-              });
           }
         });
     };
 
     tryConnect();
 
-    // Safety net: never stay in loading state for more than 10s
-    const safetyTimeout = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 10000);
-
-    return () => { cancelled = true; clearTimeout(safetyTimeout); };
+    return () => {
+      cancelled = true;
+      clearTimeout(authTimeout);
+      unsub();
+    };
   }, []);
 
   const handleSignIn = async () => {
