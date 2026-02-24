@@ -179,6 +179,7 @@ export function ScenarioLibraryView() {
       : [];
     onLaunchGame({
       scenario_id: selectedScenario.id,
+      scenario_name: selectedScenario.name,
       inline_config: selectedScenario.raw_config,
       use_llm: useLlm,
       simulated_ai: simulatedAi,
@@ -232,6 +233,7 @@ export function ScenarioLibraryView() {
       if (!parsedConfig) return;
       onLaunchGame({
         scenario_id: `custom:${selectedCustom.id}`,
+        scenario_name: selectedCustom.name,
         inline_config: parsedConfig,
         use_llm: useLlm,
         simulated_ai: simulatedAi,

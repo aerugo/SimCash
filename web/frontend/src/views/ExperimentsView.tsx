@@ -40,6 +40,7 @@ export default function ExperimentsView() {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'running' | 'complete'>('all');
+  const [sortAsc, setSortAsc] = useState(false); // false = newest first
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(async () => {
@@ -69,12 +70,18 @@ export default function ExperimentsView() {
     setGames(g => g.filter(x => x.game_id !== gameId));
   };
 
-  const filtered = games.filter(g => {
-    const ds = g.display_status || g.status;
-    if (filter === 'running') return ds !== 'complete';
-    if (filter === 'complete') return ds === 'complete';
-    return true;
-  });
+  const filtered = games
+    .filter(g => {
+      const ds = g.display_status || g.status;
+      if (filter === 'running') return ds !== 'complete';
+      if (filter === 'complete') return ds === 'complete';
+      return true;
+    })
+    .sort((a, b) => {
+      const ta = new Date(a.created_at || 0).getTime();
+      const tb = new Date(b.created_at || 0).getTime();
+      return sortAsc ? ta - tb : tb - ta;
+    });
 
   const formatDate = (iso: string) => {
     if (!iso) return '—';
@@ -126,8 +133,8 @@ export default function ExperimentsView() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-2 mb-4">
+      {/* Filter tabs + sort */}
+      <div className="flex items-center gap-2 mb-4">
         {(['all', 'running', 'complete'] as const).map(f => (
           <button
             key={f}
@@ -145,6 +152,15 @@ export default function ExperimentsView() {
             }).length})`}
           </button>
         ))}
+        <div className="flex-1" />
+        <button
+          onClick={() => setSortAsc(v => !v)}
+          className="text-xs px-3 py-1.5 rounded-md font-medium transition-all"
+          style={{ background: 'var(--bg-inset)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}
+          title={sortAsc ? 'Oldest first' : 'Newest first'}
+        >
+          {sortAsc ? '↑ Oldest' : '↓ Newest'}
+        </button>
       </div>
 
       {loading ? (

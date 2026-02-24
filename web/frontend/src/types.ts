@@ -297,6 +297,7 @@ export interface GameScenario {
 
 export interface GameSetupConfig {
   scenario_id?: string;
+  scenario_name?: string;
   inline_config?: Record<string, unknown>;
   use_llm: boolean;
   simulated_ai: boolean;
