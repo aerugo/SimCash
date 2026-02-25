@@ -2,6 +2,8 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'GIT_HASH=${_GIT_HASH}'
       - '-t'
       - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
       - '.'

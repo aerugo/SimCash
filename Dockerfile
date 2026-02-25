@@ -70,6 +70,11 @@ RUN SITE=$(python -c "import payment_simulator, os; print(os.path.dirname(paymen
     python -c "from payment_simulator.experiments.runner.llm_client import ExperimentLLMClient; print('OK: experiments')" && \
     python -c "from payment_simulator.ai_cash_mgmt.optimization.policy_optimizer import PolicyOptimizer; print('OK: ai_cash_mgmt')"
 
+# Copy version file and bake git hash
+COPY VERSION VERSION
+ARG GIT_HASH="unknown"
+ENV SIMCASH_GIT_HASH=$GIT_HASH
+
 # Copy backend
 COPY web/backend/ web/backend/
 

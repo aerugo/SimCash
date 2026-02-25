@@ -1,6 +1,7 @@
 """SimCash version info — single source of truth from repo root VERSION file."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -10,7 +11,10 @@ VERSION: str = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else 
 
 
 def _git_hash() -> str:
-    """Get short git commit hash, or 'unknown' if not in a git repo."""
+    """Get short git commit hash. Prefers SIMCASH_GIT_HASH env var (Docker builds)."""
+    env_hash = os.environ.get("SIMCASH_GIT_HASH", "").strip()
+    if env_hash and env_hash != "unknown":
+        return env_hash
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short=8", "HEAD"],
@@ -24,6 +28,8 @@ def _git_hash() -> str:
 
 def _git_dirty() -> bool:
     """Check if the working tree has uncommitted changes."""
+    if os.environ.get("SIMCASH_GIT_HASH"):
+        return False  # Docker builds are always from clean commits
     try:
         result = subprocess.run(
             ["git", "diff", "--quiet", "HEAD"],
