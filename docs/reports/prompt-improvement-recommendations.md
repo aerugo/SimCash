@@ -2,8 +2,8 @@
 
 **Author:** Nash  
 **Date:** 2026-02-25  
-**Revised:** 2026-02-25 (incorporating Dennis's feedback)  
-**Status:** Revised — for review by Stefan  
+**Revised:** 2026-02-25 (incorporating Dennis's and Stefan's feedback)  
+**Status:** Final draft  
 **Context:** Analysis of why LLM agents fail to discover effective strategies under liquidity crunch conditions, with concrete recommendations for prompt improvements.
 
 ---
@@ -105,7 +105,9 @@ Tick | Balance    | Avail Liq  | Outflows  | Inflows   | Queued | Notes
 
 **Critical: Include Available Liquidity (Dennis).** The `Avail Liq` column shows `balance + remaining credit headroom` — this is what `can_pay()` actually checks when deciding whether a payment can settle. A bank might show balance=$85k but with $200k of unsecured_cap, it can still settle a $250k payment. Without seeing available liquidity, the LLM might think the situation is worse (or better) than it actually is. Both `balance` and `available_liquidity` are already exposed via FFI — it's one extra column.
 
-**Implementation:** The engine tracks balance changes via `CostAccrual` and settlement events. A post-processing step could summarize per-tick balance, available liquidity, aggregate outflows/inflows, and count queued payments. This would be a new function in `event_filter.py` or a new module.
+**Settlement Feasibility Ratio (Stefan).** Go further: show `available_liquidity / largest_queued_payment` as a ratio. When this drops below 1.0, the agent physically cannot settle its next payment — that's the crunch moment in a single number. This is more actionable than raw balance because it answers the question the LLM actually needs answered: "can I settle anything right now?"
+
+**Implementation:** The engine tracks balance changes via `CostAccrual` and settlement events. A post-processing step could summarize per-tick balance, available liquidity, feasibility ratio, aggregate outflows/inflows, and count queued payments. This would be a new function in `event_filter.py` or a new module.
 
 ---
 
@@ -294,17 +296,29 @@ Stefan identified three key findings:
 ### Experimental Design
 
 **Phase 1: Fix information deficits (Gaps 1-3)**
-Implement balance context, balance trajectory (with available liquidity column), and deferred crediting emphasis. These are not "hints" — they're data the agent needs to reason about liquidity. Run baseline experiments with these fixes.
+Implement balance context, balance trajectory (with available liquidity column and settlement feasibility ratio), and deferred crediting emphasis. These are not "hints" — they're data the agent needs to reason about liquidity. Run baseline experiments with these fixes.
 
 **Phase 2: Test structural guidance (Gap 5 as variable)**
 Run the same experiments with Gap 5 enabled as a configurable prompt block. Compare bank tree usage, strategy diversity, and cost outcomes.
 
-**Three publishable outcomes:**
+**Phase 3: Test iteration depth (Stefan)**
+Run Gap 5 experiments at both 10 rounds and 25 rounds. Structural innovations may require more iterations — the LLM needs to exhaust parameter-space improvements before exploring structural alternatives. If bank tree strategies only emerge after round 15, that tells us something about search dynamics: LLMs optimize the easy lever first (fraction), then explore harder levers when returns diminish. This mirrors the mechanism design literature where firms first optimize prices (parameters), then eventually redesign contracts (structure).
+
+**Four outcomes (Stefan — the fourth is the most likely):**
 - *Emergent composition:* LLMs discover bank tree strategies with just balance context (Gaps 1-3). Finding: given adequate state information, LLMs can perform structural search.
 - *Guided composition:* LLMs discover bank tree strategies only with capability descriptions (Gap 5). Finding: LLMs can use tools they're told about but don't discover tools autonomously.
-- *No composition:* LLMs don't discover bank tree strategies even with Gap 5. Finding: confirms Stefan's observation — LLMs are parameter optimizers within templates, not strategy architects. This is the strongest result for the paper.
+- *Shallow composition:* LLMs use `SetReleaseBudget` or `PostCollateral` when told they exist, but in rigid, non-adaptive ways (e.g., "always set budget to 60% of balance" rather than conditioning on queue pressure or time-of-day). Finding: LLMs can invoke tools but can't reason about *when to deploy them* — a finer distinction than "parameter optimizer vs strategy architect."
+- *No composition:* LLMs don't discover bank tree strategies even with Gap 5. Finding: confirms Stefan's observation at the strongest level.
 
-All three outcomes support the paper's contribution. The experimental design makes the prompt improvements serve the research rather than just improve the product.
+**Evidence for shallow composition (Stefan):** Pro discovered `Split` in Large Network (the only model to do so). Flash found `PostCollateral` in Liquidity Squeeze (the only time any model used the collateral tree) — but only in run 2, only for one bank. These are single-lever, non-adaptive uses of structural tools, consistent with the shallow composition outcome.
+
+All four outcomes support the paper's contribution. The experimental design makes the prompt improvements serve the research rather than just improve the product.
+
+### Diagnostic Indicator: target_tick Scheduling
+
+**Missing from original analysis (Stefan):** The report didn't discuss `target_tick` scheduling — delaying a payment release to a specific future tick when inflows are expected. This is arguably the most natural strategic response to deferred crediting: "I know an incoming payment arrives at tick 5, so schedule my outgoing for tick 6."
+
+No model has ever used `target_tick`. If Gap 3 (deferred crediting emphasis) is implemented correctly, `target_tick` scheduling should be the *first* structural innovation we see — it's the direct mapping from "inflows are delayed one tick" to "schedule outflows one tick after expected inflows." If LLMs understand the deferred crediting constraint but still don't use `target_tick`, that's diagnostic: they grasp the constraint conceptually but can't map it to the available action. This would be evidence of the gap between understanding and tool use that the paper argues for.
 
 ---
 
