@@ -2,7 +2,8 @@
 
 **Author:** Nash  
 **Date:** 2026-02-25  
-**Status:** Draft — for review by Dennis  
+**Revised:** 2026-02-25 (incorporating Dennis's feedback)  
+**Status:** Revised — for review by Stefan  
 **Context:** Analysis of why LLM agents fail to discover effective strategies under liquidity crunch conditions, with concrete recommendations for prompt improvements.
 
 ---
@@ -88,21 +89,23 @@ Without this, the LLM tunes `initial_liquidity_fraction` by trial and error rath
 
 ```
 ### RTGS Balance Trajectory (Seed #42)
-Tick | Balance    | Outflows  | Inflows   | Queued | Notes
------|------------|-----------|-----------|--------|------
-  0  | $450,000   | $0        | $0        | 0      | Posted 45% of pool
-  1  | $380,000   | $70,000   | $0        | 0      | Deferred: no inflows yet
-  2  | $295,000   | $120,000  | $35,000   | 0      | 
-  3  | $245,000   | $85,000   | $35,000   | 0      | 
-  4  | $178,000   | $112,000  | $45,000   | 0      | 
-  5  | $120,000   | $98,000   | $40,000   | 1      | First queued payment
-  6  | $85,000    | $65,000   | $30,000   | 2      | ⚠️ Low balance
-  7  | $98,000    | $22,000   | $35,000   | 4      | ⚠️ CRUNCH: 4 payments queued
-  8  | $165,000   | $18,000   | $85,000   | 2      | Large incoming cleared queue
+Tick | Balance    | Avail Liq  | Outflows  | Inflows   | Queued | Notes
+-----|------------|------------|-----------|-----------|--------|------
+  0  | $450,000   | $650,000   | $0        | $0        | 0      | Posted 45% of pool
+  1  | $380,000   | $580,000   | $70,000   | $0        | 0      | Deferred: no inflows yet
+  2  | $295,000   | $495,000   | $120,000  | $35,000   | 0      | 
+  3  | $245,000   | $445,000   | $85,000   | $35,000   | 0      | 
+  4  | $178,000   | $378,000   | $112,000  | $45,000   | 0      | 
+  5  | $120,000   | $320,000   | $98,000   | $40,000   | 1      | First queued payment
+  6  | $85,000    | $285,000   | $65,000   | $30,000   | 2      | ⚠️ Low balance
+  7  | $98,000    | $298,000   | $22,000   | $35,000   | 4      | ⚠️ CRUNCH: 4 payments queued
+  8  | $165,000   | $365,000   | $18,000   | $85,000   | 2      | Large incoming cleared queue
   ...
 ```
 
-**Implementation:** The engine tracks balance changes via `CostAccrual` and settlement events. A post-processing step could summarize per-tick balance, aggregate outflows/inflows, and count queued payments. This would be a new function in `event_filter.py` or a new module.
+**Critical: Include Available Liquidity (Dennis).** The `Avail Liq` column shows `balance + remaining credit headroom` — this is what `can_pay()` actually checks when deciding whether a payment can settle. A bank might show balance=$85k but with $200k of unsecured_cap, it can still settle a $250k payment. Without seeing available liquidity, the LLM might think the situation is worse (or better) than it actually is. Both `balance` and `available_liquidity` are already exposed via FFI — it's one extra column.
+
+**Implementation:** The engine tracks balance changes via `CostAccrual` and settlement events. A post-processing step could summarize per-tick balance, available liquidity, aggregate outflows/inflows, and count queued payments. This would be a new function in `event_filter.py` or a new module.
 
 ---
 
@@ -174,38 +177,41 @@ It never explains how they *compose*. The bank tree can use `SetReleaseBudget` t
 
 **Impact:** As Stefan observed, LLMs treat the bank tree as irrelevant. They optimize the payment tree (per-transaction triage) and `initial_liquidity_fraction` (a single number). The bank tree → payment tree composition that would enable release budgeting, counterparty-targeted strategies, and state-based mode switching goes undiscovered.
 
-**Recommendation:** Add a "Tree Composition Patterns" section to the system prompt:
+**Recommendation:** Implement as a **configurable prompt block** (not a default). This gap is an experimental variable for the paper, not a bug to fix.
+
+The key distinction (Dennis): **teach the tool, not the solution.** Instead of giving specific patterns ("Set budget to 50% of balance"), describe the capability:
 
 ```
-### How Trees Work Together (Strategy Patterns)
+### Tree Interaction Capabilities
 
-Trees don't operate in isolation — they compose to form coherent strategies:
+The bank tree and payment tree interact through shared state:
 
-**Pattern: Release Budgeting**
-The bank tree evaluates ONCE per tick and can set a release budget. The payment tree
-then evaluates for EACH pending payment and can check the remaining budget.
+- The bank tree's `SetReleaseBudget` action sets a per-tick spending limit.
+  The payment tree can read `release_budget_remaining` to check how much budget
+  remains for the current tick. This enables the bank tree to pace outflows
+  based on the current RTGS balance.
 
-1. Bank tree → SetReleaseBudget based on current RTGS balance:
-   "Set budget to 50% of current balance" (preserves liquidity for later payments)
-2. Payment tree → Check release_budget_remaining before releasing:
-   "Only release if budget allows AND balance covers this payment"
+- The bank tree's `SetStateRegister` action stores values in `bank_state_*` fields
+  that the payment tree can read. This allows tick-level context to influence
+  per-transaction decisions.
 
-This prevents a common failure mode: the payment tree releasing all payments at once,
-draining the RTGS balance, and causing subsequent payments to queue.
-
-**Pattern: Balance-Gated Releasing**
-The payment tree conditions on the `balance` field to ensure the RTGS settlement
-account can actually cover the payment:
-- "Release if balance > amount × 1.5" (safety margin)
-- "Hold if balance < urgency_threshold" (preserve liquidity)
-
-**Pattern: Time-Based Caution**
-Early in the day, inflows haven't arrived (deferred crediting). Late in the day,
-deadlines loom. The payment tree can use `day_progress_fraction` and `ticks_to_deadline`
-to shift between conservative (early) and aggressive (late) release strategies.
+- The bank tree evaluates ONCE per tick (before any transactions). The payment tree
+  evaluates for EACH pending transaction. This means bank-level decisions set the
+  context that per-transaction decisions operate within.
 ```
 
-**Implementation:** Add to `_build_policy_architecture()` in `system_prompt_builder.py`, conditional on both bank_tree and payment_tree being enabled.
+Note: this describes *what the tools do*, not *how to use them strategically*. The LLM must discover the strategy.
+
+**Experimental Design (Dennis):** Run experiments in two configurations:
+1. **Baseline:** Gaps 1-3 implemented (balance context, trajectory, deferred crediting). Gap 5 OFF.
+2. **Enhanced:** Gaps 1-3 + Gap 5 (tree composition capabilities described).
+
+Three possible outcomes, all publishable:
+- LLM discovers bank tree strategies with just balance context → emergent strategic reasoning
+- LLM discovers them only with Gap 5 → LLMs need capability hints for structural search
+- LLM doesn't discover them even with Gap 5 → LLMs are parameter optimizers, not strategy architects (confirms Stefan's observation)
+
+**Implementation:** Add as a toggleable prompt block in `_build_policy_architecture()` in `system_prompt_builder.py`, controlled by experiment config. The prompt block infrastructure from the refactor already supports this.
 
 ---
 
@@ -261,15 +267,17 @@ balance drops below a safety threshold.
 
 ## Priority Matrix
 
-| # | Gap | Priority | Effort | Impact on Crunch Discovery |
-|---|-----|----------|--------|---------------------------|
-| 1 | RTGS balance context | 🔴 HIGH | Low | LLM can reason quantitatively about fraction vs demand |
-| 2 | Balance trajectory | 🔴 HIGH | Medium | LLM sees the crunch moment directly |
-| 3 | Deferred crediting emphasis | 🔴 HIGH | Low | Prevents naive "wait for inflows" strategies |
-| 4 | Crunch tradeoff guidance | 🟡 MED | Low | Better directional advice, points to bank tree |
-| 5 | Bank tree composition | 🟡 MED | Low | Enables multi-lever strategy discovery |
-| 6 | Worst-case analysis | 🟡 MED | Medium | Robustness across stochastic draws |
-| 7 | Reference cost bounds | 🟢 LOW | Medium | Calibration anchor for optimization |
+| # | Gap | Priority | Effort | Impact on Crunch Discovery | Implementation |
+|---|-----|----------|--------|---------------------------|----------------|
+| 1 | RTGS balance context | 🔴 HIGH | Low | LLM can reason quantitatively about fraction vs demand | Implement now |
+| 2 | Balance trajectory | 🔴 HIGH | Medium | LLM sees the crunch moment directly | Implement now |
+| 3 | Deferred crediting emphasis | 🔴 HIGH | Low | Prevents naive "wait for inflows" strategies | Implement now |
+| 5 | Bank tree composition | 🟡 MED | Low | Enables multi-lever strategy discovery | Configurable prompt block — experimental variable |
+| 4 | Crunch tradeoff guidance | 🟡 MED | Low | Better diagnostic messaging for oscillating costs | Implement after Gaps 1-3 |
+| 6 | Worst-case analysis | 🟡 MED | Medium | Robustness across stochastic draws | Implement after Gaps 1-3 |
+| 7 | Reference cost bounds | 🟢 LOW | Medium | Calibration anchor for optimization | Later |
+
+**Rationale for priority change (Dennis):** Gap 5 moved above Gap 4 because it addresses a structural problem (LLM doesn't know the bank tree is a strategic lever), while Gap 4 is better diagnostic messaging for a problem the LLM already sees. Gap 5 enables a *category of solutions* that currently can't be discovered.
 
 ---
 
@@ -281,9 +289,22 @@ Stefan identified three key findings:
 
 2. **Parameter-space vs structural-space exploration.** Gaps 4 and 5 directly address this. The current prompts present optimization as "adjust these numbers." The recommended changes frame it as "compose these levers" — bank tree budgeting + payment tree conditioning + liquidity fraction.
 
-3. **Bank tree as strategic gap.** Gap 5 is the direct fix. But Stefan may be right that this is a fundamental LLM limitation worth documenting rather than fixing. The prompts can explain composition patterns, but whether LLMs can execute multi-lever strategic planning is an empirical question.
+3. **Bank tree as strategic gap.** Gap 5 is the key experimental variable. Rather than simply fixing the prompts, we use the presence/absence of tree composition guidance as an independent variable to measure LLM strategic capability.
 
-**For the paper:** Consider running experiments with and without these prompt improvements to measure the delta. If improved prompts enable bank tree discovery, that's a finding about prompt engineering. If they don't, that strengthens the finding about LLM strategic limitations.
+### Experimental Design
+
+**Phase 1: Fix information deficits (Gaps 1-3)**
+Implement balance context, balance trajectory (with available liquidity column), and deferred crediting emphasis. These are not "hints" — they're data the agent needs to reason about liquidity. Run baseline experiments with these fixes.
+
+**Phase 2: Test structural guidance (Gap 5 as variable)**
+Run the same experiments with Gap 5 enabled as a configurable prompt block. Compare bank tree usage, strategy diversity, and cost outcomes.
+
+**Three publishable outcomes:**
+- *Emergent composition:* LLMs discover bank tree strategies with just balance context (Gaps 1-3). Finding: given adequate state information, LLMs can perform structural search.
+- *Guided composition:* LLMs discover bank tree strategies only with capability descriptions (Gap 5). Finding: LLMs can use tools they're told about but don't discover tools autonomously.
+- *No composition:* LLMs don't discover bank tree strategies even with Gap 5. Finding: confirms Stefan's observation — LLMs are parameter optimizers within templates, not strategy architects. This is the strongest result for the paper.
+
+All three outcomes support the paper's contribution. The experimental design makes the prompt improvements serve the research rather than just improve the product.
 
 ---
 
