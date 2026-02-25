@@ -291,6 +291,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
   optimization_interval: number;
   constraint_preset: 'simple' | 'full';
   starting_policies?: Record<string, string>;
+  starting_policy_ids?: Record<string, string>;
 } {
   return {
     use_llm: settings.useLlm,

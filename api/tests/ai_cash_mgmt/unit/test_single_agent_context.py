@@ -121,7 +121,7 @@ class TestSingleAgentContextBuilder:
         context = SingleAgentContext(
             agent_id="BANK_A",
             current_iteration=1,
-            cost_breakdown={"delay": 6000, "collateral": 2000},  # delay > 40%
+            cost_breakdown={"delay_cost": 6000},  # delay > 40%, no collateral
         )
         builder = SingleAgentContextBuilder(context)
 
@@ -141,7 +141,7 @@ class TestSingleAgentContextBuilder:
         context = SingleAgentContext(
             agent_id="BANK_A",
             current_iteration=1,
-            cost_breakdown={"delay": 2000, "collateral": 6000},  # collateral > 40%
+            cost_breakdown={"collateral_cost": 6000},  # collateral > 40%, no delay
         )
         builder = SingleAgentContextBuilder(context)
 
