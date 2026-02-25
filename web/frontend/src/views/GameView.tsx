@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { AuthInfoContext } from '../AuthInfoContext';
 import type { GameOptimizationResult, GameState } from '../types';
 import { useGameWebSocket } from '../hooks/useGameWebSocket';
 import { getGameDayReplay, downloadGameExport } from '../api';
@@ -76,6 +77,7 @@ function useGameNotes(gameId: string) {
 export function GameView() {
   const params = useParams<{ gameId: string }>();
   const nav = useNavigate();
+  const { isGuest } = useContext(AuthInfoContext);
   const { gameId: contextGameId, gameState: contextGameState, setGameState: onUpdate, handleReset } = useGameContext();
   const gameId = params.gameId ?? contextGameId ?? '';
   // Only use context state if it matches the current game (avoids stale state from previous game)
@@ -432,8 +434,14 @@ export function GameView() {
             {(gameState as any).optimization_summary.failed > 0 && ` (${(gameState as any).optimization_summary.failed} failed)`}
           </div>
         )}
-        {/* Action buttons — wrap on mobile */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Read-only banner for guests */}
+        {isGuest && (
+          <div className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--bg-inset)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>
+            👁 Viewing shared experiment (read-only)
+          </div>
+        )}
+        {/* Action buttons — wrap on mobile (hidden for guests) */}
+        {!isGuest && <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => { setExperimentError(null); step(); }}
             disabled={!connected || autoRunning || gameState.is_complete}
@@ -527,7 +535,7 @@ export function GameView() {
           >
             New
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Activity Feed */}

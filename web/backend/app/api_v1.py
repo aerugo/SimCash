@@ -11,7 +11,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from .auth import get_effective_user, get_api_or_firebase_user
+from .auth import get_effective_user, get_api_or_firebase_user, get_optional_api_or_firebase_user
 from .api_keys import api_key_store
 from .models import CreateGameRequest
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
@@ -55,8 +55,8 @@ async def revoke_api_key(key_id: str, uid: str = Depends(get_effective_user)):
 # ---- Scenarios (API key or Firebase auth) ----
 
 @router.get("/scenarios")
-async def list_scenarios(uid: str = Depends(get_api_or_firebase_user)):
-    """List all scenarios (built-in + user's custom)."""
+async def list_scenarios(uid: str | None = Depends(get_optional_api_or_firebase_user)):
+    """List all scenarios (built-in + user's custom if authenticated)."""
     scenarios = []
     for entry in SCENARIO_PACK:
         scenarios.append({
@@ -67,36 +67,38 @@ async def list_scenarios(uid: str = Depends(get_api_or_firebase_user)):
             "ticks_per_day": entry["ticks_per_day"],
             "type": "builtin",
         })
-    # Add user custom scenarios
-    from .scenario_editor import _store as scenario_store
-    try:
-        custom = scenario_store.list(uid)
-        for s in custom:
-            scenarios.append({
-                "id": s.get("id", ""),
-                "name": s.get("name", "Custom"),
-                "description": s.get("description", ""),
-                "type": "custom",
-            })
-    except Exception:
-        pass
+    # Add user custom scenarios only if authenticated
+    if uid:
+        from .scenario_editor import _store as scenario_store
+        try:
+            custom = scenario_store.list(uid)
+            for s in custom:
+                scenarios.append({
+                    "id": s.get("id", ""),
+                    "name": s.get("name", "Custom"),
+                    "description": s.get("description", ""),
+                    "type": "custom",
+                })
+        except Exception:
+            pass
     return {"scenarios": scenarios}
 
 
 @router.get("/scenarios/{scenario_id}")
-async def get_scenario(scenario_id: str, uid: str = Depends(get_api_or_firebase_user)):
+async def get_scenario(scenario_id: str, uid: str | None = Depends(get_optional_api_or_firebase_user)):
     """Get scenario detail with raw config."""
     item = get_scenario_by_id(scenario_id)
     if item:
         return item
-    # Try custom
-    from .scenario_editor import _store as scenario_store
-    try:
-        custom = scenario_store.get(uid, scenario_id)
-        if custom:
-            return custom
-    except Exception:
-        pass
+    # Try custom only if authenticated
+    if uid:
+        from .scenario_editor import _store as scenario_store
+        try:
+            custom = scenario_store.get(uid, scenario_id)
+            if custom:
+                return custom
+        except Exception:
+            pass
     raise HTTPException(status_code=404, detail="Scenario not found")
 
 
@@ -264,6 +266,17 @@ async def create_experiment(
     })
     _save_game_checkpoint(game)
 
+    # Register in global experiment registry for public access
+    game_storage.register_experiment(game_id, uid, {
+        "scenario_id": config.scenario_id,
+        "scenario_name": game._scenario_name,
+        "created_at": game._created_at,
+        "status": "created",
+        "rounds": config.rounds,
+        "use_llm": config.use_llm,
+        "agent_count": len(game.agent_ids),
+    })
+
     return {
         "experiment_id": game_id,
         "status": "created",
@@ -275,28 +288,32 @@ async def create_experiment(
 
 @router.get("/experiments")
 async def list_experiments(
-    status: Optional[str] = Query(None),
+    status: Optional[str] = Query(None, alias="status_filter"),
     scenario_id: Optional[str] = Query(None),
-    uid: str = Depends(get_api_or_firebase_user),
+    uid: str | None = Depends(get_optional_api_or_firebase_user),
 ):
-    """List experiments with optional filtering."""
+    """List experiments. Authenticated: user's experiments. Unauthenticated: all public experiments."""
     from .main import game_storage, game_manager
-    checkpoints = game_storage.list_checkpoints(uid)
-    # Add in-memory games not in checkpoints
-    checkpoint_ids = {c["game_id"] for c in checkpoints}
-    for gid, game in game_manager.items():
-        if gid not in checkpoint_ids and getattr(game, '_uid', '') == uid:
-            status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
-            checkpoints.append({
-                "game_id": gid,
-                "scenario_id": getattr(game, '_scenario_id', ''),
-                "status": status,
-                "current_round": game.current_round,
-                "rounds": game.max_rounds,
-                "use_llm": game.use_llm,
-                "agent_count": len(game.agent_ids),
-                "quality": game.quality,
-            })
+    if uid:
+        # Authenticated: show user's experiments
+        checkpoints = game_storage.list_checkpoints(uid)
+        checkpoint_ids = {c["game_id"] for c in checkpoints}
+        for gid, game in game_manager.items():
+            if gid not in checkpoint_ids and getattr(game, '_uid', '') == uid:
+                g_status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
+                checkpoints.append({
+                    "game_id": gid,
+                    "scenario_id": getattr(game, '_scenario_id', ''),
+                    "status": g_status,
+                    "current_round": game.current_round,
+                    "rounds": game.max_rounds,
+                    "use_llm": game.use_llm,
+                    "agent_count": len(game.agent_ids),
+                    "quality": game.quality,
+                })
+    else:
+        # Unauthenticated: show all public experiments from registry
+        checkpoints = game_storage.list_all_experiments()
     # Filter
     if status:
         checkpoints = [c for c in checkpoints if c.get("status") == status]
@@ -306,12 +323,17 @@ async def list_experiments(
 
 
 @router.get("/experiments/{experiment_id}")
-async def get_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
-    """Get experiment status and summary."""
-    from .main import game_manager, _try_load_game
+async def get_experiment(experiment_id: str, uid: str | None = Depends(get_optional_api_or_firebase_user)):
+    """Get experiment status and summary (public read)."""
+    from .main import game_manager, _try_load_game, game_storage
     game = game_manager.get(experiment_id)
     if not game:
-        game = _try_load_game(experiment_id, uid)
+        if uid:
+            game = _try_load_game(experiment_id, uid)
+        if not game:
+            owner_uid = game_storage.lookup_experiment_owner(experiment_id)
+            if owner_uid:
+                game = _try_load_game(experiment_id, owner_uid)
     if not game:
         raise HTTPException(status_code=404, detail="Experiment not found")
     state = game.get_state()
@@ -333,12 +355,17 @@ async def get_experiment(experiment_id: str, uid: str = Depends(get_api_or_fireb
 
 
 @router.get("/experiments/{experiment_id}/results")
-async def get_experiment_results(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
-    """Get full experiment results."""
-    from .main import game_manager, _try_load_game
+async def get_experiment_results(experiment_id: str, uid: str | None = Depends(get_optional_api_or_firebase_user)):
+    """Get full experiment results (public read)."""
+    from .main import game_manager, _try_load_game, game_storage
     game = game_manager.get(experiment_id)
     if not game:
-        game = _try_load_game(experiment_id, uid)
+        if uid:
+            game = _try_load_game(experiment_id, uid)
+        if not game:
+            owner_uid = game_storage.lookup_experiment_owner(experiment_id)
+            if owner_uid:
+                game = _try_load_game(experiment_id, owner_uid)
     if not game:
         raise HTTPException(status_code=404, detail="Experiment not found")
     state = game.get_state()
@@ -456,16 +483,24 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
                         if game.optimization_schedule == "every_scenario_day":
                             game._inject_policies_into_orch()
                     _save_game_checkpoint(game)
+                    exp_status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
                     # Update index with progress
                     game_storage.update_index(getattr(game, '_uid', uid), {
                         "game_id": experiment_id,
-                        "status": "stalled" if game.stalled else ("complete" if game.is_complete else "running"),
+                        "status": exp_status,
                         "current_round": game.current_round,
                         "rounds": game.max_rounds,
                         "updated_at": game.last_activity_at,
                         "last_activity_at": game.last_activity_at,
                         "quality": game.quality,
                         "rate_limited": getattr(game, '_rate_limited', False),
+                    })
+                    # Update global registry
+                    game_storage.register_experiment(experiment_id, getattr(game, '_uid', uid), {
+                        "status": exp_status,
+                        "current_round": game.current_round,
+                        "rounds": game.max_rounds,
+                        "updated_at": game.last_activity_at,
                     })
                     if game.stalled:
                         break
@@ -523,4 +558,5 @@ async def delete_experiment(experiment_id: str, uid: str = Depends(get_api_or_fi
     game_storage.delete_game(uid, experiment_id)
     game_storage.delete_checkpoint(uid, experiment_id)
     game_storage.remove_from_index(uid, experiment_id)
+    game_storage.unregister_experiment(experiment_id)
     return {"status": "deleted"}

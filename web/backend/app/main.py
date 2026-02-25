@@ -201,6 +201,15 @@ def _save_game_checkpoint(game: Game):
             "agent_count": len(game.agent_ids),
             "uid": uid,
         })
+        # Update global registry with current status
+        game_storage.register_experiment(game.game_id, uid, {
+            "scenario_id": scenario_id,
+            "scenario_name": getattr(game, '_scenario_name', ''),
+            "status": checkpoint["status"],
+            "current_round": getattr(game, 'current_round', 0),
+            "rounds": game.max_rounds,
+            "updated_at": checkpoint["updated_at"],
+        })
     except Exception as e:
         logger.warning("Failed to save checkpoint for %s: %s", game.game_id, e)
 
@@ -775,6 +784,17 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
         })
         _save_game_checkpoint(game)
 
+        # Register in global experiment registry for public access
+        game_storage.register_experiment(game_id, uid, {
+            "scenario_id": config.scenario_id,
+            "scenario_name": game._scenario_name,
+            "created_at": game._created_at,
+            "status": "created",
+            "rounds": config.rounds,
+            "use_llm": config.use_llm,
+            "agent_count": len(game.agent_ids),
+        })
+
     return {"game_id": game_id, "game": game.get_state()}
 
 
@@ -859,13 +879,25 @@ def list_games(uid: str = Depends(get_effective_user)):
     return {"games": checkpoints}
 
 
+@app.get("/api/games/public")
+def list_public_games(limit: int = Query(100, ge=1, le=500)):
+    """List all public experiments (no auth required)."""
+    experiments = game_storage.list_all_experiments(limit=limit)
+    return {"games": experiments}
+
+
 @app.get("/api/games/{game_id}")
 def get_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
-    """Get game state. Checks memory first, then storage."""
+    """Get game state. Checks memory first, then storage, then global registry."""
     game = game_manager.get(game_id)
     if not game:
-        # Try loading from checkpoint
+        # Try loading from checkpoint for this user
         game = _try_load_game(game_id, uid)
+    if not game:
+        # Fall back to global registry lookup
+        owner_uid = game_storage.lookup_experiment_owner(game_id)
+        if owner_uid:
+            game = _try_load_game(game_id, owner_uid)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     return game.get_state()
@@ -875,6 +907,12 @@ def get_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
 def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_effective_optional_user)):
     """Get tick-by-tick replay data for a specific game day."""
     game = game_manager.get(game_id)
+    if not game:
+        game = _try_load_game(game_id, uid)
+    if not game:
+        owner_uid = game_storage.lookup_experiment_owner(game_id)
+        if owner_uid:
+            game = _try_load_game(game_id, owner_uid)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
     if day_num < 0 or day_num >= len(game.days):
@@ -996,6 +1034,7 @@ def delete_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     game_storage.delete_game(uid, game_id)
     game_storage.delete_checkpoint(uid, game_id)
     game_storage.remove_from_index(uid, game_id)
+    game_storage.unregister_experiment(game_id)
     return {"status": "deleted"}
 
 

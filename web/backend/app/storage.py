@@ -257,6 +257,69 @@ class GameStorage:
             "stall_reason": data.get("stall_reason", ""),
         }
 
+    # ---- Global experiment registry ----
+
+    def _registry_path(self) -> Path:
+        d = DATA_DIR / "experiments"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "registry.json"
+
+    def _gcs_registry_key(self) -> str:
+        return "experiments/registry.json"
+
+    def _read_registry(self) -> dict[str, dict]:
+        """Read global experiment registry. Returns {game_id: metadata}."""
+        p = self._registry_path()
+        if self.storage_mode == "gcs" and not p.exists() and self._gcs_bucket:
+            blob = self._gcs_bucket.blob(self._gcs_registry_key())
+            if blob.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(blob.download_as_text())
+        if p.exists():
+            try:
+                return json.loads(p.read_text())
+            except (json.JSONDecodeError, ValueError):
+                return {}
+        return {}
+
+    def _write_registry(self, registry: dict[str, dict]):
+        p = self._registry_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(registry, indent=2))
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            blob = self._gcs_bucket.blob(self._gcs_registry_key())
+            blob.upload_from_string(json.dumps(registry, indent=2), content_type="application/json")
+
+    def register_experiment(self, game_id: str, uid: str, metadata: dict):
+        """Write to global experiments index so any user can find it."""
+        registry = self._read_registry()
+        entry = {"uid": uid, **metadata}
+        registry[game_id] = entry
+        self._write_registry(registry)
+
+    def lookup_experiment_owner(self, game_id: str) -> str | None:
+        """Look up the owner UID for a game_id from the global registry."""
+        registry = self._read_registry()
+        entry = registry.get(game_id)
+        return entry.get("uid") if entry else None
+
+    def list_all_experiments(self, limit: int = 100) -> list[dict]:
+        """List all experiments across all users (for public browse)."""
+        registry = self._read_registry()
+        experiments = []
+        for game_id, meta in registry.items():
+            experiments.append({"game_id": game_id, **meta})
+            if len(experiments) >= limit:
+                break
+        return experiments
+
+    def unregister_experiment(self, game_id: str):
+        """Remove an experiment from the global registry."""
+        registry = self._read_registry()
+        if game_id in registry:
+            del registry[game_id]
+            self._write_registry(registry)
+
     def list_checkpoints(self, uid: str) -> list[dict]:
         """List all checkpoints for a user (summary only: id, status, progress).
 

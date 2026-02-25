@@ -26,6 +26,20 @@ export async function authFetch(url: string, init?: RequestInit): Promise<Respon
   return fetch(url, { ...init, headers, credentials: 'include' });
 }
 
+/** Fetch that tries auth but falls back to unauthenticated if no token available */
+export async function publicFetch(url: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  const devToken = sessionStorage.getItem('simcash_dev_token');
+  const token = devToken || await getIdToken();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (_impersonateUid) {
+    headers.set('X-Impersonate-Uid', _impersonateUid);
+  }
+  return fetch(url, { ...init, headers, credentials: 'include' });
+}
+
 // ---- Admin API ----
 
 export interface AdminUser {
@@ -250,7 +264,7 @@ export async function createGame(config: GameSetupConfig): Promise<{ game_id: st
 }
 
 export async function getGame(gameId: string): Promise<GameState> {
-  const res = await authFetch(`${BASE}/games/${gameId}`);
+  const res = await publicFetch(`${BASE}/games/${gameId}`);
   if (!res.ok) throw new Error(`Game not found: ${res.status}`);
   return res.json();
 }

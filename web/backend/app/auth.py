@@ -245,6 +245,14 @@ async def get_api_or_firebase_user(request: Request) -> str:
     return await get_effective_user(request)
 
 
+async def get_optional_api_or_firebase_user(request: Request) -> str | None:
+    """Returns UID if authenticated (API key or Firebase), None if not."""
+    try:
+        return await get_api_or_firebase_user(request)
+    except HTTPException:
+        return None
+
+
 async def get_optional_user(request: Request) -> str:
     """Returns uid if authenticated, else 'guest-{session_id}' from cookie."""
     try:

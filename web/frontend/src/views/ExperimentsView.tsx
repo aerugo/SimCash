@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authFetch, API_ORIGIN } from '../api';
+import { authFetch, publicFetch, API_ORIGIN } from '../api';
+import { AuthInfoContext } from '../AuthInfoContext';
 
 interface GameSummary {
   game_id: string;
@@ -41,6 +42,7 @@ function timeAgo(iso: string): string {
 
 export default function ExperimentsView() {
   const navigate = useNavigate();
+  const { isGuest } = useContext(AuthInfoContext);
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'running' | 'complete'>('all');
@@ -49,7 +51,10 @@ export default function ExperimentsView() {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await authFetch(`${API_ORIGIN}/api/games`);
+      // Authenticated users see their own experiments; guests see public list
+      const url = isGuest ? `${API_ORIGIN}/api/games/public` : `${API_ORIGIN}/api/games`;
+      const fetcher = isGuest ? publicFetch : authFetch;
+      const res = await fetcher(url);
       if (res.ok) {
         const data = await res.json();
         setGames(data.games || []);
@@ -59,7 +64,7 @@ export default function ExperimentsView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useEffect(() => {
     refresh();
@@ -144,7 +149,7 @@ export default function ExperimentsView() {
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          📋 My Experiments
+          📋 {isGuest ? 'Public Experiments' : 'My Experiments'}
         </h2>
         <button
           onClick={() => navigate('/library/scenarios')}
@@ -252,13 +257,15 @@ export default function ExperimentsView() {
                   </div>
                 </div>
 
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(g.game_id); }}
-                  className="text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 transition-opacity"
-                  style={{ color: 'var(--color-danger)' }}
-                >
-                  🗑
-                </button>
+                {!isGuest && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(g.game_id); }}
+                    className="text-xs px-2 py-1 rounded opacity-50 hover:opacity-100 transition-opacity"
+                    style={{ color: 'var(--color-danger)' }}
+                  >
+                    🗑
+                  </button>
+                )}
               </div>
             </div>
           ))}
