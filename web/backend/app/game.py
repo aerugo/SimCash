@@ -145,7 +145,8 @@ class Game:
                  exclude_groups: list[str] | None = None,
                  starting_policies: dict[str, str] | None = None,
                  optimization_schedule: str = "every_scenario_day",
-                 prompt_profile: dict[str, dict] | None = None):
+                 prompt_profile: dict[str, dict] | None = None,
+                 max_policy_proposals: int = 1):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
@@ -158,6 +159,7 @@ class Game:
         self.exclude_groups = exclude_groups
         self.optimization_schedule = optimization_schedule  # "every_round" or "every_scenario_day"
         self.prompt_profile: dict[str, dict] = prompt_profile or {}  # block_id → {enabled, options}
+        self.max_policy_proposals: int = max(1, min(5, max_policy_proposals))
         self.days: list[GameDay] = []
         self.stalled: bool = False
         self.stall_reason: str = ""
@@ -355,7 +357,7 @@ class Game:
         """
         import asyncio
         import time as _time
-        from .streaming_optimizer import stream_optimize
+        from .streaming_optimizer import stream_optimize, stream_optimize_with_retries
 
         if not self.days:
             return {}
@@ -410,32 +412,52 @@ class Game:
                     await _send({"type": "optimization_start", "day": last_day.day_num, "agent_id": aid})
                     result = None
                     try:
-                        async for event in stream_optimize(
-                            aid, self.policies[aid], last_day, self.days, self.raw_yaml,
-                            constraint_preset=self.constraint_preset,
-                            include_groups=self.include_groups,
-                            exclude_groups=self.exclude_groups,
-                            prompt_profile=self.prompt_profile,
-                            model_override=self._optimization_model or None,
-                        ):
-                            if event["type"] == "chunk":
+                        # Use retry wrapper when max_policy_proposals > 1
+                        _use_retries = self.max_policy_proposals > 1
+                        if _use_retries:
+                            _optimizer = stream_optimize_with_retries(
+                                aid, self.policies[aid], last_day, self.days, self.raw_yaml,
+                                bootstrap_gate=self.bootstrap_gate,
+                                max_proposals=self.max_policy_proposals,
+                                constraint_preset=self.constraint_preset,
+                                include_groups=self.include_groups,
+                                exclude_groups=self.exclude_groups,
+                                prompt_profile=self.prompt_profile,
+                                model_override=self._optimization_model or None,
+                            )
+                        else:
+                            _optimizer = stream_optimize(
+                                aid, self.policies[aid], last_day, self.days, self.raw_yaml,
+                                constraint_preset=self.constraint_preset,
+                                include_groups=self.include_groups,
+                                exclude_groups=self.exclude_groups,
+                                prompt_profile=self.prompt_profile,
+                                model_override=self._optimization_model or None,
+                            )
+                        async for event in _optimizer:
+                            etype = event["type"]
+                            if etype == "chunk":
                                 await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": event["text"]})
-                            elif event["type"] == "rate_limited":
+                            elif etype == "rate_limited":
                                 saw_rate_limit_this_round = True
                                 if not self._rate_limited:
                                     self._rate_limited = True
                                     logger.warning("Rate limit detected for game %s — switching to sequential mode", self.game_id)
                                     await _send({"type": "rate_limit_mode", "concurrent": 1, "message": "Switching to sequential optimization (rate limit detected)"})
-                            elif event["type"] == "retry":
+                            elif etype == "retry":
                                 await _send({"type": "optimization_chunk", "day": last_day.day_num, "agent_id": aid, "text": f"\n⏳ Retrying ({event['attempt']}/{event['max_retries']}) in {event['delay']:.0f}s — {event['reason'][:80]}\n"})
                                 await _send({"type": "agent_retry", "day": last_day.day_num, "agent_id": aid, "reason": event["reason"][:120], "attempt": event["attempt"], "max_retries": event["max_retries"]})
-                            elif event["type"] == "result":
+                            elif etype == "result":
                                 result = event["data"]
-                            elif event["type"] == "error":
+                            elif etype == "error":
                                 error_msg = event["message"]
                                 logger.error("LLM optimization failed permanently for %s: %s", aid, error_msg)
                                 await _send({"type": "agent_error", "day": last_day.day_num, "agent_id": aid, "message": error_msg, "fatal": True})
                                 raise RuntimeError(f"LLM optimization failed for {aid}: {error_msg}")
+                            elif etype in ("bootstrap_evaluating", "bootstrap_accepted", "bootstrap_rejected", "bootstrap_retry"):
+                                await _send({**event, "day": last_day.day_num, "agent_id": aid})
+                            elif etype == "messages":
+                                pass  # Internal — not forwarded to client
                     except RuntimeError:
                         raise
                     except Exception as e:
@@ -445,7 +467,7 @@ class Game:
                     if result is None:
                         await _send({"type": "agent_error", "day": last_day.day_num, "agent_id": aid, "message": "No result from LLM after all retries", "fatal": True})
                         raise RuntimeError(f"LLM optimization produced no result for {aid}")
-                    if result.get("new_policy"):
+                    if not _use_retries and result.get("new_policy"):
                         result = self._run_real_bootstrap(aid, last_day, result)
                     await _send({"type": "optimization_complete", "day": last_day.day_num, "agent_id": aid, "data": result})
                     _inner_results[aid] = result

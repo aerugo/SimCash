@@ -13,6 +13,8 @@ export interface GameSettings {
   agentPolicies: Record<string, { policyId: string; fraction: number }>;
   /** Cached policy JSON strings keyed by policy ID (populated by the panel) */
   policyDetails: Record<string, string>;
+  /** Max bootstrap retry proposals per agent per day (1=no retry, 2-5=retry) */
+  maxPolicyProposals: number;
 }
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   simulatedAi: false,
   agentPolicies: {},
   policyDetails: {},
+  maxPolicyProposals: 2,
 };
 
 interface Props {
@@ -151,6 +154,22 @@ export function GameSettingsPanel({ agentIds, settings: settingsProp, onChange, 
           {s.simulatedAi ? 'Uses simulated AI responses (no API cost) — useful for testing scenarios quickly' : 'Uses a real LLM for policy optimization'}
         </p>
       </div>
+
+      {s.useLlm && !s.simulatedAi && (
+        <div>
+          <label className="text-xs text-slate-500 flex justify-between mb-1">
+            <span>Bootstrap Retry Proposals<InfoTip text="When bootstrap rejects a proposed policy, the AI can retry with feedback. 1 = no retry (current behavior), 2+ = AI gets another chance with bootstrap stats." /></span>
+            <span className="font-mono text-slate-300">{s.maxPolicyProposals}</span>
+          </label>
+          <input
+            type="range" value={s.maxPolicyProposals} onChange={e => update({ maxPolicyProposals: Number(e.target.value) })}
+            min={1} max={5} className="w-full accent-violet-400"
+          />
+          <p className="text-[10px] text-slate-600 mt-1">
+            {s.maxPolicyProposals === 1 ? '1 = no retry after bootstrap rejection' : `${s.maxPolicyProposals} proposals max — AI gets ${s.maxPolicyProposals - 1} retry attempt${s.maxPolicyProposals > 2 ? 's' : ''} with bootstrap feedback`}
+          </p>
+        </div>
+      )}
 
       {/* Starting Policies */}
       {agentIds.length > 0 && (
@@ -292,6 +311,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
   constraint_preset: 'simple' | 'full';
   starting_policies?: Record<string, string>;
   starting_policy_ids?: Record<string, string>;
+  max_policy_proposals?: number;
 } {
   return {
     use_llm: settings.useLlm,
@@ -302,6 +322,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
     constraint_preset: settings.constraintPreset,
     starting_policies: buildStartingPoliciesPayload(settings),
     starting_policy_ids: buildStartingPolicyIds(settings),
+    max_policy_proposals: settings.maxPolicyProposals,
   };
 }
 

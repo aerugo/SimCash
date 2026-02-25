@@ -16,6 +16,10 @@ export type WSMessageType =
   | 'experiment_error'
   | 'game_complete'
   | 'auto_run_ended'
+  | 'bootstrap_evaluating'
+  | 'bootstrap_accepted'
+  | 'bootstrap_rejected'
+  | 'bootstrap_retry'
   | 'error';
 
 export interface WSMessage {

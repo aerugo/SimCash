@@ -95,6 +95,7 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
             "optimization_schedule": game.optimization_schedule,
             "base_seed": game._base_seed,
             "prompt_profile": game.prompt_profile,
+            "max_policy_proposals": game.max_policy_proposals,
         },
         "quality": game.quality,
         "stalled": game.stalled,
@@ -130,6 +131,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
         exclude_groups=config.get("exclude_groups"),
         optimization_schedule=config.get("optimization_schedule", "every_scenario_day"),
         prompt_profile=config.get("prompt_profile"),
+        max_policy_proposals=config.get("max_policy_proposals", 1),
     )
     game._base_seed = config.get("base_seed", 42)
     game.sim.base_seed = game._base_seed
