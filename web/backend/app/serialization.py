@@ -60,6 +60,10 @@ def day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
         "optimization_failed": day.optimization_failed,
         "optimization_prompts": day.optimization_prompts,
         "rejected_policies": day.rejected_policies,
+        # Per-day cost deltas (immune to container restart)
+        "day_total_cost": getattr(day, "day_total_cost", day.total_cost),
+        "day_per_agent_costs": getattr(day, "day_per_agent_costs", day.per_agent_costs),
+        "day_costs": getattr(day, "day_costs", day.costs),
     }
 
 
@@ -176,6 +180,10 @@ def game_from_checkpoint(data: dict) -> 'Game':
         )
         day.optimization_failed = day_data.get("optimization_failed", False)
         day.optimization_prompts = day_data.get("optimization_prompts", {})
+        # Restore per-day cost deltas (backward compat: fall back to cumulative)
+        day.day_total_cost = day_data.get("day_total_cost", day_data.get("total_cost", 0))
+        day.day_per_agent_costs = day_data.get("day_per_agent_costs", day_data.get("per_agent_costs", {}))
+        day.day_costs = day_data.get("day_costs", day_data.get("costs", {}))
         day.rejected_policies = day_data.get("rejected_policies", {})
         game.days.append(day)
 
@@ -205,7 +213,7 @@ def get_game_state(game: 'Game') -> dict[str, Any]:
         },
         "days": [d.to_summary_dict() for d in game.days],
         "cost_history": {
-            aid: [d.per_agent_costs.get(aid, 0) for d in game.days]
+            aid: [getattr(d, "day_per_agent_costs", d.per_agent_costs).get(aid, 0) for d in game.days]
             for aid in game.agent_ids
         },
         "fraction_history": {

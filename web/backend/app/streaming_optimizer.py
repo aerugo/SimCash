@@ -133,8 +133,11 @@ def _build_optimization_prompt(
     )
 
     current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
-    agent_cost = last_day.per_agent_costs.get(agent_id, 0)
-    agent_costs = last_day.costs.get(agent_id, {})
+    # Use per-day deltas (not cumulative) for optimization prompts
+    _day_costs = getattr(last_day, "day_per_agent_costs", last_day.per_agent_costs)
+    _day_cost_breakdown = getattr(last_day, "day_costs", last_day.costs)
+    agent_cost = _day_costs.get(agent_id, 0)
+    agent_costs = _day_cost_breakdown.get(agent_id, {})
     cost_breakdown = {
         "delay_cost": agent_costs.get("delay_cost", 0),
         "liquidity_opportunity_cost": agent_costs.get("liquidity_cost", 0),
@@ -145,7 +148,7 @@ def _build_optimization_prompt(
     iteration_history: list[SingleAgentIterationRecord] = []
     best_cost = float("inf")
     for i, day in enumerate(all_days):
-        day_agent_cost = day.per_agent_costs.get(agent_id, 0)
+        day_agent_cost = getattr(day, "day_per_agent_costs", day.per_agent_costs).get(agent_id, 0)
         day_policy = day.policies.get(agent_id, current_policy)
         day_cost_std = getattr(day, "per_agent_cost_std", {}).get(agent_id, 0)
 

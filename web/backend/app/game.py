@@ -60,6 +60,12 @@ class GameDay:
         self.rejected_policies: dict[str, dict] = {}  # agent_id → rejected policy (for learning)
         self.agent_histories: dict[str, Any] = {}  # agent_id → AgentTransactionHistory (for bootstrap)
 
+        # Per-day cost deltas (not cumulative). Set by Game after computing delta.
+        # Default: same as cumulative (correct for first day or single-day rounds).
+        self.day_total_cost: int = total_cost
+        self.day_per_agent_costs: dict[str, int] = dict(per_agent_costs)
+        self.day_costs: dict[str, dict] = copy.deepcopy(costs)  # per-agent cost breakdown delta
+
         # Cache settlement stats — computed once from events, persisted in checkpoints
         if event_summary is not None:
             self._event_summary = event_summary
@@ -97,11 +103,11 @@ class GameDay:
             "day": self.day_num,
             "seed": self.seed,
             "policies": {aid: p for aid, p in self.policies.items()},
-            "costs": self.costs,
+            "costs": self.day_costs,
             "events": self.events,
             "balance_history": self.balance_history,
-            "total_cost": self.total_cost,
-            "per_agent_costs": self.per_agent_costs,
+            "total_cost": self.day_total_cost,
+            "per_agent_costs": self.day_per_agent_costs,
             "num_ticks": len(self.tick_events),
             "optimized": self.optimized,
             "optimization_failed": self.optimization_failed,
@@ -117,11 +123,11 @@ class GameDay:
             "day": self.day_num,
             "seed": self.seed,
             "policies": {aid: p for aid, p in self.policies.items()},
-            "costs": self.costs,
+            "costs": self.day_costs,
             "events": [],  # Empty — use event_summary or replay API for details
             "balance_history": self.balance_history,
-            "total_cost": self.total_cost,
-            "per_agent_costs": self.per_agent_costs,
+            "total_cost": self.day_total_cost,
+            "per_agent_costs": self.day_per_agent_costs,
             "num_ticks": len(self.tick_events),
             "optimized": self.optimized,
             "optimization_failed": self.optimization_failed,
@@ -330,7 +336,53 @@ class Game:
             total_settled=cum_settled,
         )
         day.agent_histories = agent_histories
+
+        # Compute per-day cost deltas (subtract previous day's cumulative costs)
+        # Within a round (same Orchestrator), costs are cumulative. We need deltas.
+        self._compute_cost_deltas(day)
+
         return day
+
+    def _compute_cost_deltas(self, day: GameDay) -> None:
+        """Compute per-day cost deltas from cumulative Orchestrator costs.
+
+        Within a multi-day round, the Orchestrator accumulates costs. We subtract
+        the previous day's cumulative to get this day's incremental cost.
+        This makes costs immune to container restarts (deltas are self-contained).
+        """
+        prev_day = self._get_previous_day_in_round(day.day_num)
+        if prev_day is None:
+            # First day in round — delta == cumulative
+            day.day_total_cost = day.total_cost
+            day.day_per_agent_costs = dict(day.per_agent_costs)
+            day.day_costs = copy.deepcopy(day.costs)
+        else:
+            # Subtract previous cumulative to get delta
+            day.day_total_cost = day.total_cost - prev_day.total_cost
+            day.day_per_agent_costs = {
+                aid: day.per_agent_costs.get(aid, 0) - prev_day.per_agent_costs.get(aid, 0)
+                for aid in day.per_agent_costs
+            }
+            day.day_costs = {}
+            for aid, cost_dict in day.costs.items():
+                prev_costs = prev_day.costs.get(aid, {})
+                day.day_costs[aid] = {
+                    k: v - prev_costs.get(k, 0)
+                    for k, v in cost_dict.items()
+                }
+
+    def _get_previous_day_in_round(self, day_num: int) -> GameDay | None:
+        """Get the previous day within the same round, if any."""
+        if self._scenario_num_days <= 1:
+            return None  # Single-day rounds — no previous day in round
+        scenario_day_index = day_num % self._scenario_num_days
+        if scenario_day_index == 0:
+            return None  # First day of a new round
+        # Find the previous day in self.days
+        for d in reversed(self.days):
+            if d.day_num == day_num - 1:
+                return d
+        return None
 
     def commit_day(self, day: GameDay):
         """Commit a previously simulated day to game state.
