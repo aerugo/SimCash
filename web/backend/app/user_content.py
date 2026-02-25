@@ -101,6 +101,30 @@ class UserContentStore:
         user_store[item_id] = data
         return data
 
+    def get_public(self, item_id: str) -> dict[str, Any] | None:
+        """Look up an item by ID across all users (public read).
+
+        Uses Firestore collection group query. Falls back to scanning in-memory store.
+        """
+        db = _get_fs_db()
+        if db is not None:
+            try:
+                from google.cloud.firestore_v1.base_query import FieldFilter
+                query = db.collection_group(self.collection_type).where(
+                    filter=FieldFilter("id", "==", item_id)
+                ).limit(1)
+                docs = list(query.stream())
+                if docs:
+                    return {"id": docs[0].id, **docs[0].to_dict()}
+            except Exception:
+                logger.debug("Firestore collection group query failed; falling back to memory")
+
+        # In-memory fallback: scan all users
+        for uid_items in self._memory.values():
+            if item_id in uid_items:
+                return uid_items[item_id]
+        return None
+
     def delete(self, uid: str, item_id: str) -> bool:
         col = self._col(uid)
         if col is not None:

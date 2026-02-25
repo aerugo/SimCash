@@ -185,6 +185,15 @@ def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: st
     return _store.save(uid, scenario_id, entry)
 
 
+@router.get("/custom/{scenario_id}/public")
+def get_custom_scenario_public(scenario_id: str):
+    """Get a custom scenario by ID (public read-only, no auth required)."""
+    item = _store.get_public(scenario_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Custom scenario not found")
+    return item
+
+
 @router.delete("/custom/{scenario_id}")
 def delete_custom_scenario(scenario_id: str, uid: str = Depends(get_effective_user)):
     """Delete a custom scenario."""

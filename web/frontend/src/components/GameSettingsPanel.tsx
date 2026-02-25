@@ -271,6 +271,17 @@ export function buildStartingPoliciesPayload(settings: GameSettings): Record<str
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
+/** Build starting_policy_ids from GameSettings (for linking back to library) */
+export function buildStartingPolicyIds(settings: GameSettings): Record<string, string> | undefined {
+  const result: Record<string, string> = {};
+  for (const [aid, ap] of Object.entries(settings.agentPolicies)) {
+    if (ap.policyId && ap.policyId !== 'default') {
+      result[aid] = ap.policyId;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 /** Convert GameSettings to the GameSetupConfig fields needed for launch */
 export function gameSettingsToConfig(settings: GameSettings): {
   use_llm: boolean;
@@ -289,6 +300,7 @@ export function gameSettingsToConfig(settings: GameSettings): {
     optimization_interval: settings.optimizationInterval,
     constraint_preset: settings.constraintPreset,
     starting_policies: buildStartingPoliciesPayload(settings),
+    starting_policy_ids: buildStartingPolicyIds(settings),
   };
 }
 

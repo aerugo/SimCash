@@ -5,7 +5,7 @@ import { AuthInfoContext } from '../AuthInfoContext';
 
 interface GameSummary {
   game_id: string;
-  scenario_id: string;
+  scenario_id?: string;
   scenario_name: string;
   status: string;
   display_status: string;
@@ -220,7 +220,22 @@ export default function ExperimentsView() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {g.scenario_name || g.scenario_id || 'Custom Scenario'}
+                    {g.scenario_id && !g.scenario_id.startsWith('custom:') ? (
+                      <a
+                        href={`/library/scenarios/${g.scenario_id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          navigate(`/library/scenarios/${g.scenario_id}`);
+                        }}
+                        className="hover:underline"
+                        style={{ color: 'var(--text-accent)' }}
+                      >
+                        {g.scenario_name || g.scenario_id || 'Scenario'}
+                      </a>
+                    ) : (
+                      g.scenario_name || g.scenario_id || 'Custom Scenario'
+                    )}
                   </span>
                   {statusBadge(g)}
                   {g.use_llm && !g.simulated_ai && (

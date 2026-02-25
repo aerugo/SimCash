@@ -259,6 +259,15 @@ def update_custom_policy(policy_id: str, req: SavePolicyRequest, uid: str = Depe
     return _store.save(uid, policy_id, entry)
 
 
+@router.get("/custom/{policy_id}/public")
+def get_custom_policy_public(policy_id: str):
+    """Get a custom policy by ID (public read-only, no auth required)."""
+    item = _store.get_public(policy_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Custom policy not found")
+    return item
+
+
 @router.delete("/custom/{policy_id}")
 def delete_custom_policy(policy_id: str, uid: str = Depends(get_effective_user)):
     """Delete a custom policy."""

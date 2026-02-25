@@ -367,7 +367,20 @@ export function GameView() {
               <span className="inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
             )}
           </span>
-          <h2 className="text-xl sm:text-2xl font-bold">{gameState.scenario_name || 'Policy Experiment'}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">
+            {gameState.scenario_id && !gameState.scenario_id.startsWith('custom:') ? (
+              <a
+                href={`/library/scenarios/${gameState.scenario_id}`}
+                onClick={(e) => { e.preventDefault(); nav(`/library/scenarios/${gameState.scenario_id}`); }}
+                className="hover:underline"
+                style={{ color: 'var(--text-accent)' }}
+              >
+                {gameState.scenario_name || 'Policy Experiment'}
+              </a>
+            ) : (
+              gameState.scenario_name || 'Policy Experiment'
+            )}
+          </h2>
           <span className="text-base sm:text-lg font-mono text-sky-400">
             {gameState.optimization_schedule === 'every_scenario_day' && gameState.scenario_num_days
               ? (() => {
@@ -401,6 +414,25 @@ export function GameView() {
           )}
           {connectionStatus === 'disconnected' && (
             <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
+          )}
+          {/* Starting policy links */}
+          {gameState.starting_policy_ids && Object.keys(gameState.starting_policy_ids).length > 0 && (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              📋 Starting {Object.keys(gameState.starting_policy_ids).length > 1 ? 'policies' : 'policy'}:{' '}
+              {[...new Set(Object.values(gameState.starting_policy_ids))].map((pid, i, arr) => (
+                <span key={pid}>
+                  <a
+                    href={`/library/policies/${pid}`}
+                    onClick={(e) => { e.preventDefault(); nav(`/library/policies/${pid}`); }}
+                    className="hover:underline"
+                    style={{ color: 'var(--text-accent)' }}
+                  >
+                    {pid}
+                  </a>
+                  {i < arr.length - 1 ? ', ' : ''}
+                </span>
+              ))}
+            </span>
           )}
         </div>
         {/* Stall warning */}

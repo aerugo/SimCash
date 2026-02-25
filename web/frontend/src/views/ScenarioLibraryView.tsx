@@ -159,7 +159,14 @@ export function ScenarioLibraryView() {
   const handleSelectScenario = async (id: string) => {
     setDetailLoading(true);
     try {
-      const detail = await getScenarioLibraryDetail(id);
+      let detail: LibraryScenarioDetail;
+      try {
+        detail = await getScenarioLibraryDetail(id);
+      } catch {
+        // Fallback: try with preset_ prefix (experiment scenario IDs omit it)
+        detail = await getScenarioLibraryDetail(`preset_${id}`);
+        id = `preset_${id}`;
+      }
       setSelectedScenario(detail);
       // Update URL without full navigation
       if (!urlScenarioId || urlScenarioId !== id) {

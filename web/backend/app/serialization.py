@@ -81,6 +81,7 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         "last_activity_at": getattr(game, 'last_activity_at', datetime.now(timezone.utc).isoformat()),
         "status": status,
         "scenario_name": getattr(game, '_scenario_name', ''),
+        "starting_policy_ids": getattr(game, '_starting_policy_ids', {}),
         "optimization_model": getattr(game, '_optimization_model', ''),
         "config": {
             "raw_yaml": game.raw_yaml,
@@ -140,6 +141,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
     game.last_activity_at = data.get("last_activity_at", data.get("updated_at", ""))
     game._scenario_id = data.get("scenario_id", "")
     game._scenario_name = data.get("scenario_name", "")
+    game._starting_policy_ids = data.get("starting_policy_ids", {})
     from .settings import DEFAULT_MODEL
     game._optimization_model = data.get("optimization_model", "") or DEFAULT_MODEL
     game._uid = data.get("uid", "")
@@ -212,7 +214,9 @@ def get_game_state(game: 'Game') -> dict[str, Any]:
             for aid in game.agent_ids
         },
         "reasoning_history": game.reasoning_history,
+        "scenario_id": getattr(game, '_scenario_id', ''),
         "scenario_name": getattr(game, '_scenario_name', ''),
+        "starting_policy_ids": getattr(game, '_starting_policy_ids', {}),
         "optimization_model": getattr(game, '_optimization_model', ''),
         "optimization_summary": game.optimization_summary,
         "quality": game.quality,

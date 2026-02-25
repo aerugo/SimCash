@@ -210,7 +210,9 @@ export interface GameState {
   cost_history: Record<string, number[]>;
   fraction_history: Record<string, number[]>;
   reasoning_history: Record<string, GameOptimizationResult[]>;
+  scenario_id?: string;
   scenario_name?: string;
+  starting_policy_ids?: Record<string, string>;
   optimization_model?: string;
 }
 
@@ -308,6 +310,7 @@ export interface GameSetupConfig {
   optimization_interval?: number;
   constraint_preset?: 'simple' | 'full';
   starting_policies?: Record<string, string>;  // agent_id → policy JSON string
+  starting_policy_ids?: Record<string, string>;  // agent_id → policy library ID
   optimization_schedule?: 'every_round' | 'every_scenario_day';
   prompt_profile_id?: string;
   prompt_profile?: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;

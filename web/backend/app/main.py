@@ -757,6 +757,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     game._scenario_id = config.scenario_id
     game._scenario_name = config.scenario_name or _derive_scenario_name(config.scenario_id, raw_yaml)
     game._optimization_model = config.model_override or settings_manager.get_settings().optimization_model
+    game._starting_policy_ids = config.starting_policy_ids or {}
     game._uid = uid
     from datetime import datetime, timezone
     game._created_at = datetime.now(timezone.utc).isoformat()

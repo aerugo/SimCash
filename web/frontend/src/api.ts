@@ -658,3 +658,19 @@ export async function deleteCustomPolicy(id: string): Promise<void> {
   const res = await authFetch(`${BASE}/policies/custom/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(await res.text());
 }
+
+// ---- Public read endpoints (no auth required) ----
+
+export async function getCustomScenarioPublic(id: string): Promise<CustomScenario | null> {
+  const res = await fetch(`${BASE}/scenarios/custom/${id}/public`);
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function getCustomPolicyPublic(id: string): Promise<CustomPolicy | null> {
+  const res = await fetch(`${BASE}/policies/custom/${id}/public`);
+  if (res.status === 404) return null;
+  if (!res.ok) return null;
+  return res.json();
+}
