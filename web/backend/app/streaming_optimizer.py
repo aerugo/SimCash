@@ -804,6 +804,49 @@ def _parse_policy_response(text: str) -> dict[str, Any]:
     return policy
 
 
+def _validate_retry_policy(
+    new_policy: dict[str, Any],
+    agent_id: str,
+    raw_yaml: dict[str, Any],
+    constraint_preset: str,
+    include_groups: list[str] | None,
+    exclude_groups: list[str] | None,
+) -> str | None:
+    """Validate a retry policy against constraints and engine.
+
+    Returns None if valid, or an error string if invalid.
+    """
+    # Constraint validation
+    try:
+        from .constraint_presets import build_constraints
+        from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import ConstraintValidator
+        constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
+        validator = ConstraintValidator(constraints)
+        validation_result = validator.validate(new_policy)
+        if not validation_result.is_valid:
+            return "; ".join(validation_result.errors)
+    except Exception as e:
+        return f"Constraint validation error: {e}"
+
+    # Engine validation: test-build Orchestrator
+    try:
+        test_yaml = copy.deepcopy(raw_yaml)
+        for ag in test_yaml.get("agents", []):
+            if ag.get("id") == agent_id:
+                ag["policy"] = {"type": "InlineJson", "json_string": json.dumps(new_policy)}
+                frac = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
+                if frac is not None:
+                    ag["liquidity_allocation_fraction"] = frac
+        from payment_simulator.config import SimulationConfig
+        from payment_simulator._core import Orchestrator
+        test_ffi = SimulationConfig.from_dict(test_yaml).to_ffi_dict()
+        Orchestrator.new(test_ffi)
+    except Exception as e:
+        return f"Engine validation failed: {e}"
+
+    return None
+
+
 def _is_retry_decline(text: str) -> bool:
     """Check if the LLM declined to retry (responded with 'False' or no JSON)."""
     stripped = text.strip().strip('`').strip()
@@ -967,48 +1010,20 @@ async def stream_optimize_with_retries(
                     }
                     return
 
-                # Validate against scenario constraints
-                from .constraint_presets import build_constraints
-                from payment_simulator.ai_cash_mgmt.optimization.constraint_validator import ConstraintValidator
-                constraints = build_constraints(constraint_preset, raw_yaml, include_groups, exclude_groups)
-                validator = ConstraintValidator(constraints)
-                validation_result = validator.validate(new_policy)
-                if not validation_result.is_valid:
-                    errors_str = "; ".join(validation_result.errors)
-                    logger.warning("Retry policy constraint validation failed for %s: %s", agent_id, errors_str)
-                    yield {"type": "chunk", "text": f"\n[Retry policy invalid: {errors_str}]\n"}
+                # Validate retry policy (constraints + engine)
+                validation_error = _validate_retry_policy(
+                    new_policy, agent_id, raw_yaml, constraint_preset,
+                    include_groups, exclude_groups,
+                )
+                if validation_error:
+                    logger.warning("Retry policy validation failed for %s: %s", agent_id, validation_error)
+                    yield {"type": "chunk", "text": f"\n[Retry policy invalid: {validation_error}]\n"}
                     yield {
                         "type": "result",
                         "data": {
                             **last_bootstrap_result,
                             "retry_validation_failed": True,
-                            "retry_validation_errors": errors_str,
-                        },
-                    }
-                    return
-
-                # Engine-level validation: test-build Orchestrator to catch hallucinated fields
-                try:
-                    test_yaml = copy.deepcopy(raw_yaml)
-                    for ag in test_yaml.get("agents", []):
-                        if ag.get("id") == agent_id:
-                            ag["policy"] = {"type": "InlineJson", "json_string": json.dumps(new_policy)}
-                            frac = new_policy.get("parameters", {}).get("initial_liquidity_fraction")
-                            if frac is not None:
-                                ag["liquidity_allocation_fraction"] = frac
-                    from payment_simulator.config import SimulationConfig
-                    from payment_simulator._core import Orchestrator
-                    test_ffi = SimulationConfig.from_dict(test_yaml).to_ffi_dict()
-                    Orchestrator.new(test_ffi)
-                except Exception as engine_err:
-                    logger.warning("Retry policy engine validation failed for %s: %s", agent_id, engine_err)
-                    yield {"type": "chunk", "text": f"\n[Retry policy failed engine validation: {engine_err}]\n"}
-                    yield {
-                        "type": "result",
-                        "data": {
-                            **last_bootstrap_result,
-                            "retry_validation_failed": True,
-                            "retry_validation_errors": str(engine_err),
+                            "retry_validation_errors": validation_error,
                         },
                     }
                     return

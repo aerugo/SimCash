@@ -286,7 +286,8 @@ class TestStreamOptimizeWithRetries:
 
         with patch("app.streaming_optimizer.stream_optimize", _mock_stream_optimize_events(result_data)), \
              patch("app.streaming_optimizer._parse_policy_response", return_value=REVISED_POLICY), \
-             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent):
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent), \
+             patch("app.streaming_optimizer._validate_retry_policy", return_value=None):
             events = await _collect_events(
                 stream_optimize_with_retries(
                     AGENT_ID, CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
@@ -367,7 +368,8 @@ class TestStreamOptimizeWithRetries:
 
         with patch("app.streaming_optimizer.stream_optimize", _mock_stream_optimize_events(result_data)), \
              patch("app.streaming_optimizer._parse_policy_response", return_value=REVISED_POLICY), \
-             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent):
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent), \
+             patch("app.streaming_optimizer._validate_retry_policy", return_value=None):
             events = await _collect_events(
                 stream_optimize_with_retries(
                     AGENT_ID, CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
@@ -443,7 +445,8 @@ class TestStreamOptimizeWithRetries:
 
         with patch("app.streaming_optimizer.stream_optimize", _gen_with_messages), \
              patch("app.streaming_optimizer._parse_policy_response", return_value=REVISED_POLICY), \
-             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent):
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent), \
+             patch("app.streaming_optimizer._validate_retry_policy", return_value=None):
             events = await _collect_events(
                 stream_optimize_with_retries(
                     AGENT_ID, CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
@@ -564,3 +567,133 @@ class TestGameIntegration:
             cp["settings"].pop("max_policy_proposals", None)
         restored = Game.from_checkpoint(cp)
         assert restored.max_policy_proposals == 1
+
+
+class TestIsRetryDecline:
+    """Tests for _is_retry_decline()."""
+
+    def test_explicit_false(self):
+        from app.streaming_optimizer import _is_retry_decline
+        assert _is_retry_decline("False") is True
+        assert _is_retry_decline("false") is True
+        assert _is_retry_decline('"False"') is True
+        assert _is_retry_decline("false.") is True
+
+    def test_no_json(self):
+        from app.streaming_optimizer import _is_retry_decline
+        assert _is_retry_decline("I don't think I can improve further.") is True
+        assert _is_retry_decline("No changes needed.") is True
+
+    def test_has_json(self):
+        from app.streaming_optimizer import _is_retry_decline
+        assert _is_retry_decline('Here is my revised policy: {"version": "2.0"}') is False
+
+    def test_whitespace_and_backticks(self):
+        from app.streaming_optimizer import _is_retry_decline
+        assert _is_retry_decline("  `False`  ") is True
+        assert _is_retry_decline("  ``` false ```  ") is True
+
+    def test_decline_keywords(self):
+        from app.streaming_optimizer import _is_retry_decline
+        assert _is_retry_decline("no") is True
+        assert _is_retry_decline("decline") is True
+        assert _is_retry_decline("pass") is True
+
+
+class TestRetryValidation:
+    """Tests for constraint and engine validation on retry proposals."""
+
+    @pytest.mark.asyncio
+    async def test_retry_constraint_validation_failure(self):
+        """Retry proposal that fails constraint validation is rejected gracefully."""
+        from app.streaming_optimizer import stream_optimize_with_retries
+
+        result_data = _make_accepted_result()
+
+        bootstrap_gate = MagicMock()
+        bootstrap_gate.evaluate.return_value = _make_bootstrap_reject_result()
+
+        mock_run_result = MagicMock()
+        mock_run_result.output = json.dumps(REVISED_POLICY)
+        mock_run_result.data = mock_run_result.output
+        mock_run_result.all_messages.return_value = []
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_run_result)
+
+        with patch("app.streaming_optimizer.stream_optimize", _mock_stream_optimize_events(result_data)), \
+             patch("app.streaming_optimizer._parse_policy_response", return_value=REVISED_POLICY), \
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent), \
+             patch("app.streaming_optimizer._validate_retry_policy", return_value="fraction must be between 0.01 and 1.0"):
+            events = await _collect_events(stream_optimize_with_retries(
+                AGENT_ID, CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
+                {}, bootstrap_gate, max_proposals=2,
+            ))
+
+        results = [e for e in events if e["type"] == "result"]
+        assert len(results) == 1
+        assert results[0]["data"].get("retry_validation_failed") is True
+        assert "fraction" in results[0]["data"].get("retry_validation_errors", "")
+
+    @pytest.mark.asyncio
+    async def test_retry_decline_no_json(self):
+        """Agent responds with text but no JSON — treated as decline."""
+        from app.streaming_optimizer import stream_optimize_with_retries
+
+        result_data = _make_accepted_result()
+
+        bootstrap_gate = MagicMock()
+        bootstrap_gate.evaluate.return_value = _make_bootstrap_reject_result()
+
+        mock_run_result = MagicMock()
+        mock_run_result.output = "I don't think I can improve the policy further given these constraints."
+        mock_run_result.data = mock_run_result.output
+        mock_run_result.all_messages.return_value = []
+
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_run_result)
+
+        with patch("app.streaming_optimizer.stream_optimize", _mock_stream_optimize_events(result_data)), \
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent):
+            events = await _collect_events(stream_optimize_with_retries(
+                AGENT_ID, CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
+                {}, bootstrap_gate, max_proposals=2,
+            ))
+
+        results = [e for e in events if e["type"] == "result"]
+        assert len(results) == 1
+        assert results[0]["data"].get("retry_declined") is True
+
+
+class TestValidateRetryPolicy:
+    """Tests for _validate_retry_policy()."""
+
+    def test_valid_policy_returns_none(self):
+        from app.streaming_optimizer import _validate_retry_policy
+        with patch("app.constraint_presets.build_constraints", return_value=[]), \
+             patch("payment_simulator.ai_cash_mgmt.optimization.constraint_validator.ConstraintValidator") as mock_cv, \
+             patch("payment_simulator.config.SimulationConfig") as mock_sc, \
+             patch("payment_simulator._core.Orchestrator"):
+            mock_cv.return_value.validate.return_value = MagicMock(is_valid=True)
+            mock_sc.from_dict.return_value.to_ffi_dict.return_value = {}
+            result = _validate_retry_policy(VALID_POLICY, AGENT_ID, {"agents": [{"id": AGENT_ID}]}, "simple", None, None)
+        assert result is None
+
+    def test_constraint_failure_returns_error(self):
+        from app.streaming_optimizer import _validate_retry_policy
+        with patch("app.constraint_presets.build_constraints", return_value=[]), \
+             patch("payment_simulator.ai_cash_mgmt.optimization.constraint_validator.ConstraintValidator") as mock_cv:
+            mock_cv.return_value.validate.return_value = MagicMock(is_valid=False, errors=["bad field"])
+            result = _validate_retry_policy(VALID_POLICY, AGENT_ID, {"agents": [{"id": AGENT_ID}]}, "simple", None, None)
+        assert result == "bad field"
+
+    def test_engine_failure_returns_error(self):
+        from app.streaming_optimizer import _validate_retry_policy
+        with patch("app.constraint_presets.build_constraints", return_value=[]), \
+             patch("payment_simulator.ai_cash_mgmt.optimization.constraint_validator.ConstraintValidator") as mock_cv, \
+             patch("payment_simulator.config.SimulationConfig") as mock_sc:
+            mock_cv.return_value.validate.return_value = MagicMock(is_valid=True)
+            mock_sc.from_dict.side_effect = ValueError("invalid config")
+            result = _validate_retry_policy(VALID_POLICY, AGENT_ID, {"agents": [{"id": AGENT_ID}]}, "simple", None, None)
+        assert "Engine validation failed" in result
+        assert "invalid config" in result
