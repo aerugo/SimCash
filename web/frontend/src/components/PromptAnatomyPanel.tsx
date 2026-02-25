@@ -342,8 +342,8 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
           )}
 
           {/* Block groups */}
-          <BlockGroup title="System Prompt" blocks={systemBlocks} getEnabled={getBlockEnabled} onToggle={toggleBlock} expandedOptions={expandedOptions} setExpandedOptions={setExpandedOptions} getOption={getBlockOption} setOption={setOption} />
-          <BlockGroup title="User Prompt" blocks={userBlocks} getEnabled={getBlockEnabled} onToggle={toggleBlock} expandedOptions={expandedOptions} setExpandedOptions={setExpandedOptions} getOption={getBlockOption} setOption={setOption} />
+          <BlockGroup title="System Prompt" blocks={systemBlocks} getEnabled={getBlockEnabled} onToggle={toggleBlock} expandedOptions={expandedOptions} setExpandedOptions={setExpandedOptions} getOption={getBlockOption} setOption={setOption} overrides={overrides} setOverrides={setOverrides} emitChanges={emitChanges} />
+          <BlockGroup title="User Prompt" blocks={userBlocks} getEnabled={getBlockEnabled} onToggle={toggleBlock} expandedOptions={expandedOptions} setExpandedOptions={setExpandedOptions} getOption={getBlockOption} setOption={setOption} overrides={overrides} setOverrides={setOverrides} emitChanges={emitChanges} />
 
           {/* Token estimate */}
           <div className="text-right text-xs text-[var(--text-muted)]">
@@ -375,6 +375,7 @@ export function PromptAnatomyPanel({ onChange, collapsible = true, defaultOpen =
 
 function BlockGroup({
   title, blocks, getEnabled, onToggle, expandedOptions, setExpandedOptions, getOption, setOption,
+  overrides, setOverrides, emitChanges,
 }: {
   title: string;
   blocks: PromptBlockInfo[];
@@ -384,6 +385,9 @@ function BlockGroup({
   setExpandedOptions: (s: Set<string>) => void;
   getOption: (blockId: string, key: string, defaultVal: unknown) => unknown;
   setOption: (blockId: string, key: string, value: unknown) => void;
+  overrides: Record<string, { enabled: boolean; options: Record<string, unknown> }>;
+  setOverrides: (o: Record<string, { enabled: boolean; options: Record<string, unknown> }>) => void;
+  emitChanges: (o: Record<string, { enabled: boolean; options: Record<string, unknown> }>) => void;
 }) {
   if (!blocks.length) return null;
 
@@ -435,6 +439,38 @@ function BlockGroup({
 
               {/* Block description */}
               <div className="px-3 pb-1 text-[10px] text-[var(--text-muted)]">{block.description}</div>
+
+              {/* Sub-sections (e.g., settlement constraint, tree composition inside system prompt) */}
+              {block.sub_sections && enabled && block.sub_sections.filter(s => s.configurable).length > 0 && (
+                <div className="px-3 pb-2 pt-1 space-y-1">
+                  {block.sub_sections.filter(s => s.configurable).map(sub => {
+                    const subOverride = overrides[sub.id];
+                    const subEnabled = subOverride ? subOverride.enabled : sub.enabled;
+                    return (
+                      <div key={sub.id} className="flex items-start gap-2 pl-4">
+                        <input
+                          type="checkbox"
+                          checked={subEnabled}
+                          onChange={() => {
+                            // Store sub-section toggle as a block-level override with its own id
+                            const next = { ...overrides };
+                            next[sub.id] = { enabled: !subEnabled, options: {} };
+                            setOverrides(next);
+                            emitChanges(next);
+                          }}
+                          className="rounded accent-[var(--accent-primary)] mt-0.5"
+                        />
+                        <div>
+                          <span className={`text-xs ${subEnabled ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)] line-through'}`}>
+                            {sub.name}
+                          </span>
+                          <div className="text-[10px] text-[var(--text-muted)]">{sub.description}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Options panel */}
               {hasOptions && optionsExpanded && enabled && block.available_options && (

@@ -469,6 +469,14 @@ export async function connectGameWebSocket(gameId: string): Promise<WebSocket> {
 
 // ---- Prompt Blocks & Profiles ----
 
+export interface PromptSubSection {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  configurable: boolean;
+}
+
 export interface PromptBlockInfo {
   id: string;
   name: string;
@@ -479,6 +487,7 @@ export interface PromptBlockInfo {
   enabled: boolean;
   options: Record<string, unknown>;
   available_options?: Record<string, { type: string; values?: string[]; default?: unknown; description?: string }>;
+  sub_sections?: PromptSubSection[];
 }
 
 export interface PromptProfileSummary {

@@ -1725,17 +1725,39 @@ def list_prompts(
 
 # Default block registry: describes all available blocks with defaults
 BLOCK_REGISTRY = [
+    # --- System Prompt ---
     {"id": "sys_full", "name": "System Prompt", "category": "system", "source": "static",
      "description": "Complete system prompt with expert intro, domain explanation, schemas, and instructions.",
-     "token_estimate": 3000, "enabled": True, "options": {}},
+     "token_estimate": 3000, "enabled": True, "options": {},
+     "sub_sections": [
+         {"id": "sys_settlement_constraint", "name": "Settlement Constraint",
+          "description": "Adds minimum settlement rate requirement (e.g., ≥95%) to system prompt. Part of Phase 2 settlement optimization.",
+          "enabled": True, "configurable": True},
+         {"id": "sys_tree_composition", "name": "Tree Composition Guidance",
+          "description": "Adds structural guidance for decision tree design (condition types, nesting patterns). Phase 4 — experimental variable, defaults OFF.",
+          "enabled": False, "configurable": True},
+     ]},
+    # --- User Prompt: Core ---
     {"id": "usr_header", "name": "Header", "category": "user", "source": "dynamic",
      "description": "Agent ID and iteration number.", "token_estimate": 150, "enabled": True, "options": {}},
+    # --- User Prompt: Settlement Optimization (Phase 1) ---
+    {"id": "usr_liquidity_context", "name": "Liquidity Context", "category": "user", "source": "dynamic",
+     "description": "Per-tick balance trajectory with available liquidity and settlement feasibility ratio. Phase 1 settlement optimization — helps agents see when they're liquidity-constrained.",
+     "token_estimate": 400, "enabled": True, "options": {}},
     {"id": "usr_current_state", "name": "Current State", "category": "user", "source": "dynamic",
      "description": "Current metrics and policy parameters.", "token_estimate": 250, "enabled": True, "options": {}},
     {"id": "usr_cost_analysis", "name": "Cost Analysis", "category": "user", "source": "dynamic",
      "description": "Cost breakdown with rates.", "token_estimate": 500, "enabled": True, "options": {}},
     {"id": "usr_optimization_guidance", "name": "Optimization Guidance", "category": "user", "source": "dynamic",
      "description": "Heuristic guidance based on cost structure.", "token_estimate": 200, "enabled": True, "options": {}},
+    # --- User Prompt: Settlement Optimization (Phase 1) ---
+    {"id": "usr_balance_trajectory", "name": "Balance Trajectory", "category": "user", "source": "dynamic",
+     "description": "Per-tick balance with available_liquidity column and settlement feasibility ratio. Phase 1 — shows agents exactly when liquidity runs out.",
+     "token_estimate": 300, "enabled": True, "options": {}},
+    # --- User Prompt: Settlement Optimization (Phase 3) ---
+    {"id": "usr_worst_case", "name": "Worst Case Analysis", "category": "user", "source": "dynamic",
+     "description": "Crunch tradeoff detection and worst-seed summary. Phase 3 — highlights ticks where queued payments exceeded available liquidity.",
+     "token_estimate": 200, "enabled": True, "options": {}},
     {"id": "usr_simulation_trace", "name": "Simulation Trace", "category": "user", "source": "dynamic",
      "description": "Tick-by-tick simulation events. Dominates token count (5k-150k tokens).",
      "token_estimate": 20000, "enabled": True,
