@@ -50,7 +50,8 @@ from pydantic import BaseModel as PydanticBaseModel
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="SimCash Web Sandbox", version="0.2.0")
+from .version import VERSION
+app = FastAPI(title="SimCash Web Sandbox", version=VERSION)
 
 
 @app.on_event("startup")
@@ -239,6 +240,12 @@ def _try_load_game(game_id: str, uid: str = "") -> Game | None:
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/version")
+def get_version():
+    from .version import version_info
+    return version_info()
 
 
 @app.get("/api/auth-mode")

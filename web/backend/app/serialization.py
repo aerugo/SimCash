@@ -67,6 +67,50 @@ def day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
     }
 
 
+def _build_prompt_manifest(game: 'Game') -> dict[str, Any]:
+    """Build a snapshot of the prompt configuration for this experiment.
+
+    Captures which prompt blocks are enabled/disabled and their options,
+    plus high-level settings like constraint_preset and prompt_profile.
+    This is stored once per experiment for reproducibility.
+    """
+    manifest: dict[str, Any] = {
+        "constraint_preset": game.constraint_preset,
+        "include_groups": game.include_groups,
+        "exclude_groups": game.exclude_groups,
+        "prompt_profile": game.prompt_profile,
+        "optimization_schedule": game.optimization_schedule,
+        "max_policy_proposals": game.max_policy_proposals,
+    }
+
+    # If any day has optimization_prompts, extract the block manifest
+    # from the most recent one (block list is the same across agents/days
+    # unless prompt_profile changed mid-game, which doesn't happen).
+    for day in reversed(game.days):
+        if day.optimization_prompts:
+            # Pick any agent's prompt data
+            agent_prompt = next(iter(day.optimization_prompts.values()), None)
+            if agent_prompt and isinstance(agent_prompt, dict):
+                blocks = agent_prompt.get("blocks", [])
+                manifest["blocks"] = [
+                    {
+                        "id": b.get("id", ""),
+                        "name": b.get("name", ""),
+                        "category": b.get("category", ""),
+                        "source": b.get("source", ""),
+                        "enabled": b.get("enabled", True),
+                        "options": b.get("options", {}),
+                        "token_estimate": b.get("token_estimate", 0),
+                    }
+                    for b in blocks
+                ]
+                manifest["profile_hash"] = agent_prompt.get("profile_hash", "")
+                manifest["total_prompt_tokens"] = agent_prompt.get("total_tokens", 0)
+            break
+
+    return manifest
+
+
 def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> dict[str, Any]:
     """Serialize full game state to a checkpoint dict."""
     if game.stalled:
@@ -75,8 +119,11 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         status = "complete"
     else:
         status = "running" if game.days else "created"
+    from .version import version_info
     return {
-        "version": 1,
+        "version": 2,
+        "simcash_version": version_info(),
+        "prompt_manifest": _build_prompt_manifest(game),
         "game_id": game.game_id,
         "uid": uid,
         "scenario_id": scenario_id,
@@ -192,8 +239,11 @@ def game_from_checkpoint(data: dict) -> 'Game':
 
 def get_game_state(game: 'Game') -> dict[str, Any]:
     """Build the full game state dict for API responses."""
+    from .version import version_info
     return {
         "game_id": game.game_id,
+        "simcash_version": version_info(),
+        "prompt_manifest": _build_prompt_manifest(game),
         "current_round": game.current_round,
         "rounds": game.max_rounds,
         "current_day": game.current_day,
