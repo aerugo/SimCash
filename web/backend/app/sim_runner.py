@@ -37,6 +37,9 @@ class SimulationRunner:
         self.scenario_num_days = scenario_num_days
         self.base_seed = base_seed
 
+        # Reference to completed days (set by Game for fast-forward replay)
+        self._completed_days: list[Any] = []
+
         # Intra-scenario state
         self._live_orch: Any = None
         self._day_tick_offset: int = 0
@@ -99,11 +102,34 @@ class SimulationRunner:
         if self._live_orch is None:
             round_num = current_day // self.scenario_num_days
             seed = self.base_seed + round_num
-            ffi_config = self.build_ffi_config(seed)
+            scenario_day_index = current_day % self.scenario_num_days
+            needs_replay = scenario_day_index > 0 and self._completed_days
+
+            if needs_replay:
+                # Build FFI config with round's FIRST day's policies (not current)
+                round_start_day = current_day - scenario_day_index
+                first_day_policies = None
+                for d in self._completed_days:
+                    if d.day_num == round_start_day:
+                        first_day_policies = d.policies
+                        break
+                if first_day_policies:
+                    saved_policies = self.policies
+                    self.policies = first_day_policies
+                    ffi_config = self.build_ffi_config(seed)
+                    self.policies = saved_policies
+                else:
+                    ffi_config = self.build_ffi_config(seed)
+            else:
+                ffi_config = self.build_ffi_config(seed)
+
             self._live_orch = Orchestrator.new(ffi_config)
             self._day_tick_offset = 0
             self._round_cumulative_arrivals = {}
             self._round_cumulative_settled = {}
+
+            if needs_replay:
+                self._fast_forward_replay(current_day, scenario_day_index)
 
         all_events: list[dict] = []
         tick_events: list[list[dict]] = []
@@ -218,6 +244,77 @@ class SimulationRunner:
                 cost_std_per_agent[aid] = 0
 
         return avg_costs, avg_per_agent, avg_total, cost_std_per_agent
+
+    def _fast_forward_replay(self, current_day: int, scenario_day_index: int) -> None:
+        """Replay completed days in the current round to rebuild Orchestrator state.
+
+        When a container dies mid-round and the game is restored from checkpoint,
+        the Orchestrator is fresh. We replay all completed days in this round
+        (ticking and injecting policies between days) so the Orchestrator reaches
+        the correct state for the next day.
+
+        Args:
+            current_day: The day about to be simulated.
+            scenario_day_index: How many days into the current round we are (1-based offset).
+        """
+        round_start_day = current_day - scenario_day_index
+        logger.info(
+            "Fast-forward replay: replaying %d days (days %d-%d) for round starting at day %d",
+            scenario_day_index, round_start_day, current_day - 1, round_start_day,
+        )
+
+        # The Orchestrator was initialized with day 0's policies via build_ffi_config.
+        # We tick through each completed day, then inject the NEXT day's policies
+        # (the result of optimization after that day).
+        for replay_offset in range(scenario_day_index):
+            replay_day_num = round_start_day + replay_offset
+            completed_day = None
+            for d in self._completed_days:
+                if d.day_num == replay_day_num:
+                    completed_day = d
+                    break
+
+            if completed_day is None:
+                logger.warning("Fast-forward: no completed day data for day %d, cannot replay", replay_day_num)
+                break
+
+            # Tick through this day (discard events — we only need the state change)
+            for t in range(self.ticks_per_day):
+                self._live_orch.tick()
+
+            self._day_tick_offset += self.ticks_per_day
+
+            # Rebuild cumulative settlement stats from the completed day
+            if hasattr(completed_day, '_event_summary') and completed_day._event_summary:
+                for aid, stats in completed_day._event_summary.items():
+                    self._round_cumulative_arrivals[aid] = (
+                        self._round_cumulative_arrivals.get(aid, 0) + stats.get("arrivals", 0)
+                    )
+                    self._round_cumulative_settled[aid] = (
+                        self._round_cumulative_settled.get(aid, 0) + stats.get("settled", 0)
+                    )
+
+            # Inject the NEXT day's policies (optimization result after this day).
+            # For the last replayed day, the next day is the one about to be
+            # simulated — inject current self.policies for that.
+            next_day_num = replay_day_num + 1
+            if next_day_num < current_day:
+                next_completed = None
+                for d in self._completed_days:
+                    if d.day_num == next_day_num:
+                        next_completed = d
+                        break
+                if next_completed:
+                    for aid in self.agent_ids:
+                        next_policy = next_completed.policies.get(aid)
+                        if next_policy:
+                            self._live_orch.update_agent_policy(aid, json.dumps(next_policy))
+            else:
+                # Last replayed day — inject current policies for upcoming simulation
+                for aid in self.agent_ids:
+                    self._live_orch.update_agent_policy(aid, json.dumps(self.policies[aid]))
+
+        logger.info("Fast-forward replay complete: tick_offset=%d", self._day_tick_offset)
 
     def inject_policies_into_orch(self) -> None:
         """Update all agent policies in the live Orchestrator after optimization."""

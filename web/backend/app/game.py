@@ -212,6 +212,8 @@ class Game:
             scenario_num_days=self._scenario_num_days,
             base_seed=self._base_seed,
         )
+        # Share days list for fast-forward replay after checkpoint restore
+        self.sim._completed_days = self.days
 
         # Apply starting policies (agent_id → policy JSON string)
         if starting_policies:
