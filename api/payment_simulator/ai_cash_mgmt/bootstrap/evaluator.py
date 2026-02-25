@@ -152,8 +152,11 @@ class BootstrapPolicyEvaluator:
         for _ in range(total_ticks):
             orchestrator.tick()
 
-        # Extract metrics for target agent
+        # Extract metrics for target agent then release Rust memory immediately.
+        # Without explicit deletion, hundreds of Orchestrators accumulate during
+        # bootstrap evaluation and can OOM the Cloud Run container.
         metrics = self._extract_agent_metrics(orchestrator, sample.agent_id)
+        del orchestrator
 
         # Extract cost breakdown - type is guaranteed by _extract_agent_metrics
         cost_breakdown = metrics["cost_breakdown"]
