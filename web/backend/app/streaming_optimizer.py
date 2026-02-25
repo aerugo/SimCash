@@ -119,7 +119,18 @@ def _build_optimization_prompt(
     optimizer = PolicyOptimizer(constraints=constraints, max_retries=2)
 
     cost_rates = raw_yaml.get("cost_rates", {})
-    system_prompt = optimizer.get_system_prompt(cost_rates=cost_rates)
+    # Phase 1c/2c/4b: Pass scenario flags to system prompt
+    _deferred_crediting = raw_yaml.get("simulation", {}).get("deferred_crediting", False)
+    _game_settings = raw_yaml.get("game_settings", {})
+    _prompt_config = _game_settings.get("prompt_config", {})
+    _include_tree_composition = _prompt_config.get("tree_composition", False)
+
+    system_prompt = optimizer.get_system_prompt(
+        cost_rates=cost_rates,
+        deferred_crediting=_deferred_crediting,
+        include_tree_composition=_include_tree_composition,
+        min_settlement_rate=_min_settlement_rate,
+    )
 
     current_fraction = current_policy.get("parameters", {}).get("initial_liquidity_fraction", 1.0)
     agent_cost = last_day.per_agent_costs.get(agent_id, 0)
@@ -185,6 +196,26 @@ def _build_optimization_prompt(
 
     last_day_cost_std = getattr(last_day, "per_agent_cost_std", {}).get(agent_id, 0)
 
+    # Phase 1a: Extract liquidity pool and expected demand from scenario config
+    _agent_cfg = next((a for a in raw_yaml.get("agents", []) if a.get("id") == agent_id), {})
+    _liquidity_pool = _agent_cfg.get("liquidity_pool", 0) or _agent_cfg.get("max_collateral_capacity", 0)
+    _expected_daily_demand = 0
+    _arrival_cfg = _agent_cfg.get("arrival_config", {})
+    if _arrival_cfg:
+        _rate = _arrival_cfg.get("rate_per_tick", 0)
+        _mean_amount = _arrival_cfg.get("mean_amount", 0)
+        _ticks_per_day = raw_yaml.get("simulation", {}).get("ticks_per_day", 100)
+        _expected_daily_demand = int(_rate * _mean_amount * _ticks_per_day)
+
+    # Phase 1b: Extract balance trajectory from simulation events
+    from payment_simulator.ai_cash_mgmt.prompts.event_filter import extract_balance_trajectory
+    _balance_trajectory = None
+    if filtered_events:
+        _balance_trajectory = extract_balance_trajectory(agent_id, last_day.events)
+
+    # Phase 2c / 4b: Get settlement floor and tree composition config
+    _min_settlement_rate = _agent_cfg.get("bootstrap_thresholds", {}).get("min_settlement_rate", 0.95)
+
     prompt = build_single_agent_context(
         current_iteration=len(all_days),
         current_policy=current_policy,
@@ -198,6 +229,10 @@ def _build_optimization_prompt(
         cost_breakdown=cost_breakdown,
         cost_rates=cost_rates,
         agent_id=agent_id,
+        liquidity_pool=_liquidity_pool,
+        expected_daily_demand=_expected_daily_demand,
+        balance_trajectory=_balance_trajectory or None,
+        min_settlement_rate=_min_settlement_rate,
     )
 
     user_prompt_builder = UserPromptBuilder(agent_id, current_policy)
@@ -236,6 +271,10 @@ Output ONLY the JSON policy, no explanation."""
         cost_std=last_day_cost_std,
         cost_breakdown=cost_breakdown,
         cost_rates=cost_rates,
+        liquidity_pool=_liquidity_pool,
+        expected_daily_demand=_expected_daily_demand,
+        balance_trajectory=_balance_trajectory or None,
+        min_settlement_rate=_min_settlement_rate,
     )
     builder = SingleAgentContextBuilder(sa_context)
     user_blocks = builder.build_blocks()

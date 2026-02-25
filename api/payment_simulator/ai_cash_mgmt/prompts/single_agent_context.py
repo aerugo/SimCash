@@ -64,6 +64,52 @@ class SingleAgentContextBuilder:
         """
         self.context = context
 
+    def _build_liquidity_context(self) -> str:
+        """Build RTGS settlement account liquidity context (Phase 1a)."""
+        ctx = self.context
+        if ctx.liquidity_pool <= 0:
+            return ""
+
+        params = ctx.current_policy.get("parameters", {})
+        fraction = params.get("initial_liquidity_fraction", 1.0)
+        committed = int(ctx.liquidity_pool * fraction)
+        demand = ctx.expected_daily_demand
+
+        lines = [
+            "## RTGS SETTLEMENT ACCOUNT CONTEXT",
+            "",
+            f"| Metric | Value |",
+            f"|--------|-------|",
+            f"| Liquidity pool (max committable) | ${ctx.liquidity_pool / 100:,.2f} |",
+            f"| Committed to RTGS (fraction={fraction:.3f}) | ${committed / 100:,.2f} |",
+        ]
+        if demand > 0:
+            lines.append(f"| Expected daily payment demand | ${demand / 100:,.2f} |")
+            ratio = demand / committed if committed > 0 else float("inf")
+            lines.append(f"| Demand / committed ratio | {ratio:.1%} |")
+
+        return "\n".join(lines)
+
+    def _build_balance_trajectory(self) -> str:
+        """Build RTGS balance trajectory section (Phase 1b)."""
+        if not self.context.balance_trajectory:
+            return ""
+        return (
+            "## RTGS BALANCE TRAJECTORY\n\n"
+            "Per-tick balance evolution from the representative simulation sample.\n"
+            "Feasibility < 1.0× means the RTGS balance cannot cover the largest queued payment.\n\n"
+            f"{self.context.balance_trajectory}"
+        )
+
+    def _build_worst_case_section(self) -> str:
+        """Build worst-case seed summary section (Phase 3b)."""
+        if not self.context.worst_seed_summary:
+            return ""
+        return (
+            "## WORST-CASE ANALYSIS\n\n"
+            f"{self.context.worst_seed_summary}"
+        )
+
     def build_blocks(self) -> list:
         """Build individual prompt blocks instead of a single string.
 
@@ -92,9 +138,12 @@ class SingleAgentContextBuilder:
 
         section_map = [
             ("usr_header", "Header", "dynamic", self._build_header),
+            ("usr_liquidity_context", "Liquidity Context", "dynamic", self._build_liquidity_context),
             ("usr_current_state", "Current State", "dynamic", self._build_current_state_summary),
             ("usr_cost_analysis", "Cost Analysis", "dynamic", self._build_cost_analysis),
             ("usr_optimization_guidance", "Optimization Guidance", "dynamic", self._build_optimization_guidance),
+            ("usr_balance_trajectory", "Balance Trajectory", "dynamic", self._build_balance_trajectory),
+            ("usr_worst_case", "Worst Case Analysis", "dynamic", self._build_worst_case_section),
             ("usr_simulation_trace", "Simulation Trace", "dynamic", self._build_bootstrap_samples_section),
             ("usr_iteration_history", "Iteration History", "dynamic", self._build_iteration_history_section),
             ("usr_parameter_trajectories", "Parameter Trajectories", "dynamic", self._build_parameter_trajectory_section),
@@ -122,10 +171,13 @@ class SingleAgentContextBuilder:
         """
         sections = [
             self._build_header(),
+            self._build_liquidity_context(),
             self._build_current_state_summary(),
             self._build_cost_analysis(),
             self._build_optimization_guidance(),
-            self._build_bootstrap_samples_section(),  # Now builds simulation output section
+            self._build_balance_trajectory(),
+            self._build_worst_case_section(),
+            self._build_bootstrap_samples_section(),
             self._build_iteration_history_section(),
             self._build_parameter_trajectory_section(),
             self._build_final_instructions(),
@@ -302,10 +354,37 @@ TABLE OF CONTENTS:
                     "Try smaller parameter adjustments."
                 )
 
-        # Settlement rate warning
-        if m.get("settlement_rate_mean", 1.0) < 1.0:
+        # Phase 3a: Crunch tradeoff detection
+        if cb:
+            if delay_pct > 20 and liquidity_opp_pct > 20:
+                guidance.append(
+                    "⚡ **RTGS BALANCE TRADEOFF**\n"
+                    "   You're paying for both idle liquidity AND payment delays. "
+                    "This means your initial_liquidity_fraction is in the critical zone — "
+                    "small changes cause large cost swings.\n\n"
+                    "   The root cause: your RTGS settlement account balance runs low mid-day, "
+                    "causing payments to queue, but your committed amount includes capital "
+                    "that sits idle early/late in the day.\n\n"
+                    "   Approaches:\n"
+                    "   - Condition payment releases on current RTGS balance (balance field)\n"
+                    "   - Pace outflows: don't release everything at once when balance is high\n"
+                    "   - Accept slightly higher liquidity cost to avoid deadline penalties"
+                )
+
+        # Phase 2c: Settlement floor warning
+        settlement_rate = m.get("settlement_rate_mean", 1.0)
+        min_rate = self.context.min_settlement_rate
+        if settlement_rate < min_rate:
             guidance.append(
-                f"🚨 **INCOMPLETE SETTLEMENT** - Only {m.get('settlement_rate_mean', 0) * 100:.1f}% "
+                f"🚨 **SETTLEMENT BELOW MINIMUM** — Current: {settlement_rate * 100:.1f}%, "
+                f"Required: {min_rate * 100:.0f}%\n"
+                "   Your next policy proposal WILL BE REJECTED unless settlement improves.\n"
+                "   The most direct fix: increase initial_liquidity_fraction to ensure your RTGS\n"
+                "   balance can cover more payments. Then optimize costs within that constraint."
+            )
+        elif settlement_rate < 1.0:
+            guidance.append(
+                f"🚨 **INCOMPLETE SETTLEMENT** - Only {settlement_rate * 100:.1f}% "
                 "of payments settled. This should be 100%. Priority fix needed."
             )
 
@@ -622,6 +701,11 @@ def build_single_agent_context(
     cost_breakdown: dict[str, int] | None = None,
     cost_rates: dict[str, Any] | None = None,
     agent_id: str | None = None,
+    liquidity_pool: int = 0,
+    expected_daily_demand: int = 0,
+    balance_trajectory: str | None = None,
+    worst_seed_summary: str | None = None,
+    min_settlement_rate: float = 0.95,
 ) -> str:
     """Build an extended context prompt for SINGLE AGENT policy optimization.
 
@@ -676,6 +760,11 @@ def build_single_agent_context(
         cost_std=cost_std,
         cost_breakdown=cost_breakdown or {},
         cost_rates=cost_rates or {},
+        liquidity_pool=liquidity_pool,
+        expected_daily_demand=expected_daily_demand,
+        balance_trajectory=balance_trajectory,
+        worst_seed_summary=worst_seed_summary,
+        min_settlement_rate=min_settlement_rate,
     )
 
     builder = SingleAgentContextBuilder(context)

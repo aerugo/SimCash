@@ -223,6 +223,9 @@ class PolicyOptimizer:
         self,
         cost_rates: dict[str, Any] | None = None,
         customization: str | None = None,
+        deferred_crediting: bool = False,
+        include_tree_composition: bool = False,
+        min_settlement_rate: float = 0.95,
     ) -> str:
         """Get or build the system prompt with optional customization.
 
@@ -248,6 +251,9 @@ class PolicyOptimizer:
                 constraints=self._constraints,
                 cost_rates=cost_rates or self._cost_rates,
                 customization=customization,
+                deferred_crediting=deferred_crediting,
+                include_tree_composition=include_tree_composition,
+                min_settlement_rate=min_settlement_rate,
             )
             self._current_customization = customization
 

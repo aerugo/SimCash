@@ -3028,6 +3028,25 @@ Your goal is to minimize total cost while ensuring payments are settled on time.
         # Get acceptance criteria config
         acceptance_config = self._config.evaluation.acceptance
 
+        # Phase 2b: Settlement floor check
+        min_settlement = getattr(self._config, 'min_settlement_rate', None)
+        if min_settlement is None:
+            min_settlement = 0.95  # Default
+        if evaluation.settlement_rate is not None and evaluation.settlement_rate < min_settlement:
+            reason = (
+                f"Settlement rate {evaluation.settlement_rate:.1%} below minimum "
+                f"{min_settlement:.0%}. Policy rejected."
+            )
+            return (
+                False,
+                evaluation.mean_old_cost,
+                evaluation.mean_new_cost,
+                evaluation.deltas,
+                evaluation.delta_sum,
+                evaluation,
+                reason,
+            )
+
         # Baseline check: mean improvement must be positive
         if evaluation.delta_sum <= 0:
             # No improvement on average - reject

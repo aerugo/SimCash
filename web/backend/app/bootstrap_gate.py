@@ -184,7 +184,25 @@ class BootstrapGate:
         if "bootstrap_thresholds" in agent_cfg:
             profile_name = "custom"
 
-        if delta_sum <= 0:
+        # Phase 2a: Settlement floor check
+        min_settlement = thresholds.get("min_settlement_rate", 0.95)
+        # Compute settlement rate from bootstrap evaluation
+        # Use settlement rates from individual deltas if available
+        settlement_rates = [getattr(d, "settlement_rate", None) for d in deltas]
+        settlement_rates = [r for r in settlement_rates if r is not None]
+        if settlement_rates:
+            mean_settlement = sum(settlement_rates) / len(settlement_rates)
+        else:
+            # Fallback: check result dict for settlement_rate from full simulation
+            mean_settlement = result.get("settlement_rate", 1.0)
+
+        if mean_settlement < min_settlement:
+            accepted = False
+            rejection_reason = (
+                f"Settlement rate {mean_settlement:.1%} below minimum {min_settlement:.0%}. "
+                f"A policy that reduces cost by failing to settle payments is not acceptable."
+            )
+        elif delta_sum <= 0:
             accepted = False
             rejection_reason = f"No improvement: delta_sum={delta_sum} (old={mean_old:,}, new={mean_new:,})"
         elif min_improvement_pct > 0 and mean_old > 0:

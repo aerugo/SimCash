@@ -31,6 +31,136 @@ def _get_str_list(event: dict[str, Any], key: str) -> list[str]:
     return []
 
 
+def extract_balance_trajectory(
+    agent_id: str,
+    events: list[dict[str, Any]],
+) -> str:
+    """Extract per-tick RTGS balance trajectory for an agent.
+
+    Post-processes simulation events to build a table showing:
+    - Balance after each tick
+    - Available liquidity
+    - Outflows and inflows per tick
+    - Queue count
+    - Feasibility ratio (balance / largest queued payment)
+
+    Args:
+        agent_id: Target agent ID.
+        events: Full (unfiltered) simulation events.
+
+    Returns:
+        Formatted markdown table string, or empty string if no data.
+    """
+    # Track per-tick data
+    tick_data: dict[int, dict[str, Any]] = defaultdict(lambda: {
+        "balance": None,
+        "outflows": 0,
+        "inflows": 0,
+        "queued_count": 0,
+        "largest_queued": 0,
+    })
+
+    # Active queue tracking
+    queued_payments: dict[str, int] = {}  # tx_id -> amount
+
+    last_known_balance: int | None = None
+
+    for event in events:
+        tick = event.get("tick", 0)
+        event_type = event.get("event_type", "")
+        td = tick_data[tick]
+
+        if event_type == "RtgsImmediateSettlement":
+            sender = event.get("sender", "")
+            receiver = event.get("receiver", "")
+            amount = event.get("amount", 0)
+
+            if sender == agent_id:
+                td["outflows"] += amount
+                balance_after = event.get("sender_balance_after")
+                if balance_after is not None:
+                    td["balance"] = balance_after
+                    last_known_balance = balance_after
+            elif receiver == agent_id:
+                td["inflows"] += amount
+
+        elif event_type == "Queue2LiquidityRelease":
+            sender = event.get("sender", "")
+            receiver = event.get("receiver", "")
+            amount = event.get("amount", 0)
+            tx_id = event.get("tx_id", "")
+
+            if sender == agent_id:
+                td["outflows"] += amount
+            elif receiver == agent_id:
+                td["inflows"] += amount
+
+            # Remove from queue tracking
+            queued_payments.pop(tx_id, None)
+
+        elif event_type == "QueuedRtgs":
+            if _get_str(event, "sender_id") == agent_id:
+                tx_id = event.get("tx_id", "")
+                amount = event.get("amount", 0)
+                queued_payments[tx_id] = amount
+
+        elif event_type == "CostAccrual":
+            if _get_str(event, "agent_id") == agent_id:
+                # CostAccrual may carry balance info
+                pass
+
+        # Update queue count for this tick
+        td["queued_count"] = len(queued_payments)
+        td["largest_queued"] = max(queued_payments.values()) if queued_payments else 0
+
+    if not tick_data:
+        return ""
+
+    # Only show ticks with activity (balance changes or flows)
+    active_ticks = sorted(
+        t for t, d in tick_data.items()
+        if d["balance"] is not None or d["outflows"] > 0 or d["inflows"] > 0 or d["queued_count"] > 0
+    )
+
+    if not active_ticks:
+        return ""
+
+    # Build table
+    lines = [
+        "| Tick | Balance | Outflows | Inflows | Queued | Feasibility |",
+        "|------|---------|----------|---------|--------|-------------|",
+    ]
+
+    # Limit to ~30 rows to avoid prompt bloat
+    if len(active_ticks) > 30:
+        # Sample: first 10, middle 10, last 10
+        step = max(1, len(active_ticks) // 30)
+        active_ticks = active_ticks[::step][:30]
+
+    for tick in active_ticks:
+        d = tick_data[tick]
+        bal = d["balance"]
+        bal_str = f"${bal / 100:,.2f}" if bal is not None else "—"
+        out_str = f"${d['outflows'] / 100:,.2f}" if d["outflows"] else "—"
+        in_str = f"${d['inflows'] / 100:,.2f}" if d["inflows"] else "—"
+        queued = d["queued_count"]
+        largest = d["largest_queued"]
+
+        if bal is not None and largest > 0:
+            feasibility = bal / largest
+            feas_str = f"{feasibility:.1f}×"
+            if feasibility < 1.0:
+                feas_str += " ⚠️"
+        else:
+            feas_str = "—"
+
+        lines.append(
+            f"| {tick:4d} | {bal_str} | {out_str} | {in_str} | {queued} | {feas_str} |"
+        )
+
+    return "\n".join(lines)
+
+
 def filter_events_for_agent(
     agent_id: str,
     events: list[dict[str, Any]],

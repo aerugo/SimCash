@@ -97,6 +97,19 @@ class SingleAgentContext:
     cost_rates: dict[str, Any] = field(default_factory=dict)
     ticks_per_day: int = 100
 
+    # Phase 1a: RTGS Balance Context
+    liquidity_pool: int = 0  # Maximum committable liquidity (integer cents)
+    expected_daily_demand: int = 0  # Expected daily payment demand (integer cents)
+
+    # Phase 1b: Balance trajectory (pre-formatted string)
+    balance_trajectory: str | None = None
+
+    # Phase 3b: Worst-case seed summary
+    worst_seed_summary: str | None = None
+
+    # Phase 2c: Settlement floor for LLM communication
+    min_settlement_rate: float = 0.95
+
     # Deprecated aliases for backward compatibility
     @property
     def best_seed_output(self) -> str | None:

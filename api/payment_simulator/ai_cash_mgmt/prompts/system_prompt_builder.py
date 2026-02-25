@@ -33,6 +33,9 @@ def build_system_prompt(
     castro_mode: bool = False,
     include_examples: bool = True,
     customization: str | None = None,
+    deferred_crediting: bool = False,
+    include_tree_composition: bool = False,
+    min_settlement_rate: float = 0.95,
 ) -> str:
     """Build the complete system prompt for policy optimization.
 
@@ -52,6 +55,9 @@ def build_system_prompt(
     builder.with_examples(include_examples)
     if customization:
         builder.with_customization(customization)
+    builder.with_deferred_crediting(deferred_crediting)
+    builder.with_tree_composition(include_tree_composition)
+    builder.with_min_settlement_rate(min_settlement_rate)
     return builder.build()
 
 
@@ -78,6 +84,9 @@ class SystemPromptBuilder:
         self._cost_rates: dict[str, Any] | None = None
         self._include_examples = True
         self._customization: str | None = None
+        self._deferred_crediting: bool = False
+        self._include_tree_composition: bool = False
+        self._min_settlement_rate: float = 0.95
 
     def with_cost_rates(self, rates: dict[str, Any]) -> SystemPromptBuilder:
         """Set cost rates to include in the prompt.
@@ -101,6 +110,42 @@ class SystemPromptBuilder:
             Self for method chaining.
         """
         self._include_examples = enabled
+        return self
+
+    def with_deferred_crediting(self, enabled: bool = True) -> SystemPromptBuilder:
+        """Set whether deferred crediting is active in the scenario.
+
+        Args:
+            enabled: Whether deferred crediting is enabled.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._deferred_crediting = enabled
+        return self
+
+    def with_tree_composition(self, enabled: bool = False) -> SystemPromptBuilder:
+        """Enable/disable tree composition capabilities block (Phase 4).
+
+        Args:
+            enabled: Whether to include tree composition guidance.
+
+        Returns:
+            Self for method chaining.
+        """
+        self._include_tree_composition = enabled
+        return self
+
+    def with_min_settlement_rate(self, rate: float = 0.95) -> SystemPromptBuilder:
+        """Set minimum settlement rate for constraint communication (Phase 2c).
+
+        Args:
+            rate: Minimum settlement rate (0.0 to 1.0).
+
+        Returns:
+            Self for method chaining.
+        """
+        self._min_settlement_rate = rate
         return self
 
     def with_customization(self, customization: str | None) -> SystemPromptBuilder:
@@ -141,8 +186,15 @@ class SystemPromptBuilder:
         # Section 5: Cost structure and objectives
         sections.append(_build_cost_objectives())
 
+        # Section 5b: Settlement constraint (Phase 2c)
+        sections.append(_build_settlement_constraint(self._min_settlement_rate))
+
         # Section 6: Policy tree architecture (filtered by constraints)
         sections.append(self._build_policy_architecture())
+
+        # Section 6b: Tree composition capabilities (Phase 4a, configurable)
+        if self._include_tree_composition:
+            sections.append(_build_tree_composition_block())
 
         # Section 7: Optimization process explanation
         sections.append(_build_optimization_process())
@@ -178,9 +230,11 @@ class SystemPromptBuilder:
 
         Conditionally includes the LSM (Liquidity-Saving Mechanism) section
         based on whether LSM is enabled in the scenario constraints.
+        Also includes deferred crediting emphasis if enabled.
         """
         return _build_domain_explanation_base(
-            lsm_enabled=self._constraints.lsm_enabled
+            lsm_enabled=self._constraints.lsm_enabled,
+            deferred_crediting=self._deferred_crediting,
         )
 
     def _build_policy_architecture(self) -> str:
@@ -409,6 +463,51 @@ Do not invent field names that don't exist in the simulation.""")
 # =============================================================================
 
 
+def _build_settlement_constraint(min_rate: float = 0.95) -> str:
+    """Build the settlement constraint section (Phase 2c)."""
+    pct = min_rate * 100
+    return f"""
+## Settlement Constraint
+
+Your policy MUST maintain a settlement rate above **{pct:.0f}%**.
+Policies that reduce cost by failing to settle payments will be **REJECTED** by the
+evaluation gate, regardless of cost improvement.
+
+This reflects real-world regulatory requirements: banks in RTGS systems must meet
+minimum throughput targets. The cost optimization must occur WITHIN this constraint.
+"""
+
+
+def _build_tree_composition_block() -> str:
+    """Build tree composition capabilities block (Phase 4a).
+
+    Describes what bank tree + payment tree interaction capabilities exist,
+    without prescribing specific strategies.
+    """
+    return """
+## Tree Interaction Capabilities
+
+The bank tree and payment tree can interact through shared state:
+
+- **SetReleaseBudget**: The bank tree's `SetReleaseBudget` action sets a per-tick
+  spending limit. The payment tree reads `release_budget_remaining` to check
+  how much budget is left for this tick.
+
+- **SetStateRegister**: The bank tree's `SetStateRegister` action stores values
+  in `bank_state_0` through `bank_state_3` fields that the payment tree can read.
+  These are general-purpose registers for inter-tree communication.
+
+- **Evaluation order**: The bank tree evaluates ONCE per tick (before transactions).
+  The payment tree evaluates for EACH pending transaction within that tick.
+
+- **Balance fields**: Both trees can read `balance` (current RTGS settlement
+  account balance) and `available_liquidity` (balance + credit headroom).
+
+These capabilities allow the bank tree to set tick-level policy that the
+payment tree respects on a per-transaction basis.
+"""
+
+
 def _build_expert_introduction() -> str:
     """Build the expert role introduction."""
     return """You are an expert in payment system optimization.
@@ -492,12 +591,14 @@ REQUIRED strategic_collateral_tree STRUCTURE:
 """
 
 
-def _build_domain_explanation_base(lsm_enabled: bool = True) -> str:
+def _build_domain_explanation_base(lsm_enabled: bool = True, deferred_crediting: bool = False) -> str:
     """Build the domain explanation section.
 
     Args:
         lsm_enabled: Whether LSM is enabled in the scenario. If False,
                      the LSM section is omitted from the explanation.
+        deferred_crediting: Whether deferred crediting is active. If True,
+                           adds a critical warning about the one-tick lag.
 
     Returns:
         Domain explanation string.
@@ -528,6 +629,22 @@ The system provides netting opportunities:
 - **Multilateral Cycles**: Multiple banks form a cycle where debts cancel out
 
 LSM reduces liquidity requirements but depends on counterparty behavior.""")
+
+    # Phase 1c: Deferred crediting emphasis
+    if deferred_crediting:
+        sections.append("""
+### ⚠️ DEFERRED CREDITING (Critical for RTGS Balance Management)
+
+Incoming payments that settle at tick T do NOT increase your RTGS settlement
+account balance until tick T+1.
+
+Your RTGS balance at any tick = opening balance - cumulative outflows + inflows
+from PREVIOUS ticks only. You cannot rely on same-tick inflows to fund releases.
+
+In tight liquidity, this one-tick lag is the primary cause of payment queuing.
+A payment released at tick 5 drains your balance immediately, but the incoming
+payment you expect at tick 5 won't replenish it until tick 6.
+""")
 
     sections.append("""
 ### Key Concepts
