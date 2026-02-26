@@ -648,6 +648,8 @@ async def get_optimization_threads(
                     "retry_error": result_data.get("retry_error"),
                     "retry_declined": result_data.get("retry_declined"),
                     "bootstrap_proposal": result_data.get("bootstrap_proposal"),
+                    "bootstrap_proposals": result_data.get("bootstrap_proposals"),
+                    "total_proposals": result_data.get("total_proposals"),
                 }
 
             threads.append({

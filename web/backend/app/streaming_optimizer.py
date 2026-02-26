@@ -951,6 +951,7 @@ async def stream_optimize_with_retries(
     """
     message_history = None
     result = None
+    bootstrap_proposals: list[dict] = []  # audit trail of all proposals
 
     for proposal_num in range(1, max_proposals + 1):
         if proposal_num == 1:
@@ -1008,6 +1009,8 @@ async def stream_optimize_with_retries(
                         "data": {
                             **last_bootstrap_result,
                             "retry_declined": True,
+                            "bootstrap_proposals": bootstrap_proposals,
+                            "total_proposals": len(bootstrap_proposals),
                         },
                     }
                     return
@@ -1023,6 +1026,8 @@ async def stream_optimize_with_retries(
                         "data": {
                             **last_bootstrap_result,
                             "retry_parse_failed": True,
+                            "bootstrap_proposals": bootstrap_proposals,
+                            "total_proposals": len(bootstrap_proposals),
                         },
                     }
                     return
@@ -1041,6 +1046,8 @@ async def stream_optimize_with_retries(
                             **last_bootstrap_result,
                             "retry_validation_failed": True,
                             "retry_validation_errors": validation_error,
+                            "bootstrap_proposals": bootstrap_proposals,
+                            "total_proposals": len(bootstrap_proposals),
                         },
                     }
                     return
@@ -1071,25 +1078,46 @@ async def stream_optimize_with_retries(
                     **last_bootstrap_result,
                     "retry_failed": True,
                     "retry_error": str(e)[:500],
+                    "bootstrap_proposals": bootstrap_proposals,
+                    "total_proposals": len(bootstrap_proposals),
                 }}
                 return
 
         # No policy produced → done (no bootstrap needed)
         if not result or not result.get("new_policy"):
-            yield {"type": "result", "data": result or {}}
+            final = result or {}
+            final["bootstrap_proposals"] = bootstrap_proposals
+            final["total_proposals"] = len(bootstrap_proposals)
+            yield {"type": "result", "data": final}
             return
 
         # Run bootstrap evaluation
         yield {"type": "bootstrap_evaluating", "proposal": proposal_num}
         bootstrap_result = bootstrap_gate.evaluate(agent_id, last_day, copy.deepcopy(result))
 
+        # Record this proposal for audit trail
+        bs = bootstrap_result.get("bootstrap", {})
+        proposal_record = {
+            "proposal_number": proposal_num,
+            "suggested_fraction": result.get("new_fraction"),
+            "old_mean_cost": bs.get("old_mean_cost"),
+            "new_mean_cost": bs.get("new_mean_cost"),
+            "delta_sum": bs.get("delta_sum"),
+            "accepted": bootstrap_result.get("accepted", False) and bootstrap_result.get("new_policy") is not None,
+            "llm_latency_seconds": result.get("latency_seconds"),
+            "validation_attempts": result.get("validation_attempts", 0),
+        }
+        bootstrap_proposals.append(proposal_record)
+
         if bootstrap_result.get("accepted", True) and bootstrap_result.get("new_policy"):
             # Accepted
             yield {
                 "type": "bootstrap_accepted",
                 "proposal": proposal_num,
-                "bootstrap": bootstrap_result.get("bootstrap", {}),
+                "bootstrap": bs,
             }
+            bootstrap_result["bootstrap_proposals"] = bootstrap_proposals
+            bootstrap_result["total_proposals"] = len(bootstrap_proposals)
             yield {"type": "result", "data": bootstrap_result}
             return
 
@@ -1099,12 +1127,14 @@ async def stream_optimize_with_retries(
             "type": "bootstrap_rejected",
             "proposal": proposal_num,
             "max_proposals": max_proposals,
-            "bootstrap": bootstrap_result.get("bootstrap", {}),
+            "bootstrap": bs,
             "reason": bootstrap_result.get("rejection_reason", ""),
         }
 
         if proposal_num >= max_proposals:
             # No more retries
+            bootstrap_result["bootstrap_proposals"] = bootstrap_proposals
+            bootstrap_result["total_proposals"] = len(bootstrap_proposals)
             yield {"type": "result", "data": bootstrap_result}
             return
 
