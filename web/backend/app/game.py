@@ -153,7 +153,7 @@ class Game:
                  starting_policies: dict[str, str] | None = None,
                  optimization_schedule: str = "every_scenario_day",
                  prompt_profile: dict[str, dict] | None = None,
-                 max_policy_proposals: int = 1):
+                 max_policy_proposals: int = 2):
         self.game_id = game_id
         self.raw_yaml = raw_yaml
         self.use_llm = use_llm
