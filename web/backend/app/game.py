@@ -194,6 +194,7 @@ class Game:
 
         # Rate limit tracking for dynamic concurrency throttling
         self._rate_limited: bool = False
+        self._rate_limited_since: str | None = None
 
         # Bootstrap gate (shares policies dict by reference)
         self.bootstrap_gate = BootstrapGate(
@@ -533,6 +534,7 @@ class Game:
                                 saw_rate_limit_this_round = True
                                 if not self._rate_limited:
                                     self._rate_limited = True
+                                    self._rate_limited_since = datetime.now(timezone.utc).isoformat()
                                     logger.warning("Rate limit detected for game %s — switching to sequential mode", self.game_id)
                                     await _send({"type": "rate_limit_mode", "concurrent": 1, "message": "Switching to sequential optimization (rate limit detected)"})
                             elif etype == "retry":
@@ -633,6 +635,7 @@ class Game:
         if success and not saw_rate_limit_this_round:
             if self._rate_limited:
                 self._rate_limited = False
+                self._rate_limited_since = None
                 logger.info("No rate limits seen — recovering to parallel optimization for game %s", self.game_id)
                 await _send({"type": "rate_limit_mode", "concurrent": DEFAULT_MAX_CONCURRENT, "message": "Recovered to parallel optimization"})
 

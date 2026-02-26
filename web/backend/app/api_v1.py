@@ -344,6 +344,8 @@ async def get_experiment(experiment_id: str, uid: str | None = Depends(get_optio
         "stalled": game.stalled,
         "stall_reason": game.stall_reason,
         "rate_limited": game._rate_limited,
+        "rate_limited_since": getattr(game, '_rate_limited_since', None),
+        "last_activity_at": getattr(game, 'last_activity_at', None),
         "current_round": game.current_round,
         "rounds": game.max_rounds,
         "agent_ids": game.agent_ids,
