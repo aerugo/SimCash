@@ -183,7 +183,7 @@ def game_from_checkpoint(data: dict) -> 'Game':
         exclude_groups=config.get("exclude_groups"),
         optimization_schedule=config.get("optimization_schedule", "every_scenario_day"),
         prompt_profile=config.get("prompt_profile"),
-        max_policy_proposals=config.get("max_policy_proposals", 1),
+        max_policy_proposals=config.get("max_policy_proposals", 2),
     )
     game._base_seed = config.get("base_seed", 42)
     game.sim.base_seed = game._base_seed

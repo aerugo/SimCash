@@ -167,6 +167,7 @@ class CreateGameRequest(BaseModel):
     # Convenience aliases for API users
     optimization_model: str | None = None  # alias for model_override
     starting_fraction: float | None = None  # initial liquidity fraction (0.0-1.0) for all agents
+    max_policy_proposals: int = Field(default=2, ge=1, le=5)  # bootstrap retry attempts per agent per day
 
 
 class CompareRequest(BaseModel):

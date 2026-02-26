@@ -234,6 +234,7 @@ async def create_experiment(
             starting_policies=config.starting_policies,
             optimization_schedule=config.optimization_schedule,
             prompt_profile=prompt_profile,
+            max_policy_proposals=config.max_policy_proposals,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
