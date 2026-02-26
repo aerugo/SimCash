@@ -506,6 +506,8 @@ class Game:
                     try:
                         # Use retry wrapper when max_policy_proposals > 1
                         _use_retries = self.max_policy_proposals > 1
+                        logger.warning("Optimization for %s: max_policy_proposals=%d, _use_retries=%s, bootstrap_gate=%s",
+                                       aid, self.max_policy_proposals, _use_retries, self.bootstrap_gate is not None)
                         if _use_retries:
                             _optimizer = stream_optimize_with_retries(
                                 aid, self.policies[aid], last_day, self.days, self.raw_yaml,
