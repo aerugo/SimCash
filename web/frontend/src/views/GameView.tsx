@@ -641,8 +641,8 @@ export function GameView() {
       {gameState.is_complete && gameState.days.length > 0 && (() => {
         const firstDay = gameState.days[0];
         const lastDay = gameState.days[gameState.days.length - 1];
-        const firstTotal = firstDay.total_cost;
-        const lastTotal = lastDay.total_cost;
+        const firstTotal = firstDay.total_cost ?? 0;
+        const lastTotal = lastDay.total_cost ?? 0;
         const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
         return (
           <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
@@ -949,19 +949,19 @@ export function GameView() {
                         <div className="grid grid-cols-4 gap-2 text-xs">
                           <div>
                             <div className="text-slate-500">Liquidity<InfoTip text="Cost of holding committed liquidity idle. Charged per tick based on committed amount × liquidity rate (bps)." /></div>
-                            <div className="font-mono">{Math.round(costs.liquidity_cost).toLocaleString()}</div>
+                            <div className="font-mono">{Math.round(costs.liquidity_cost ?? 0).toLocaleString()}</div>
                           </div>
                           <div>
                             <div className="text-slate-500">Delay<InfoTip text="Cost of unsettled payments waiting in queue. Charged per tick based on payment amount × delay rate." /></div>
-                            <div className="font-mono">{Math.round(costs.delay_cost).toLocaleString()}</div>
+                            <div className="font-mono">{Math.round(costs.delay_cost ?? 0).toLocaleString()}</div>
                           </div>
                           <div>
                             <div className="text-slate-500">Penalty<InfoTip text="Flat fee for each payment that missed its deadline or remained unsettled at end of day." /></div>
-                            <div className="font-mono text-red-400">{Math.round(costs.penalty_cost).toLocaleString()}</div>
+                            <div className="font-mono text-red-400">{Math.round(costs.penalty_cost ?? 0).toLocaleString()}</div>
                           </div>
                           <div>
                             <div className="text-slate-500">Total</div>
-                            <div className="font-mono font-bold">{Math.round(costs.total).toLocaleString()}</div>
+                            <div className="font-mono font-bold">{Math.round(costs.total ?? 0).toLocaleString()}</div>
                           </div>
                         </div>
                       )}
@@ -969,7 +969,7 @@ export function GameView() {
                   );
                 })}
                 <div className="text-right text-sm font-mono text-slate-300">
-                  System total: <span className="font-bold text-white">{day.total_cost.toLocaleString()}</span>
+                  System total: <span className="font-bold text-white">{(day.total_cost ?? 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
