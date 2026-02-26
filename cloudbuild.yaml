@@ -3,18 +3,33 @@ steps:
     args:
       - 'build'
       - '--build-arg'
-      - 'GIT_HASH=${_GIT_HASH}'
+      - 'GIT_HASH=$SHORT_SHA'
       - '-t'
-      - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
+      - 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:$SHORT_SHA'
+      - '-t'
+      - 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:latest'
       - '.'
-    id: build
+
   - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:$SHORT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:latest']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
     args:
-      - 'push'
-      - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
-    id: push
+      - 'run'
+      - 'deploy'
+      - 'simcash'
+      - '--image'
+      - 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:$SHORT_SHA'
+      - '--region'
+      - 'europe-north1'
+      - '--platform'
+      - 'managed'
+
+timeout: '1200s'
 images:
-  - 'europe-north1-docker.pkg.dev/simcash-487714/cloud-run-source-deploy/simcash:latest'
-timeout: 1800s
-options:
-  machineType: 'E2_HIGHCPU_8'
+  - 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:$SHORT_SHA'
+  - 'europe-north1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/simcash:latest'
