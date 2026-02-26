@@ -1,10 +1,12 @@
 /** Format integer cents as dollar string */
 export function fmtDollars(cents: number): string {
+  if (cents == null) return '—';
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** Format a cost value (already in dollars) */
 export function fmtCost(v: number): string {
+  if (v == null) return '—';
   if (v === 0) return '$0.00';
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
