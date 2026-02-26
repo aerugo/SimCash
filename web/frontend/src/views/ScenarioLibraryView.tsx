@@ -170,7 +170,7 @@ export function ScenarioLibraryView() {
         } catch {
           // Fallback: try custom scenario public endpoint
           const customId = id.startsWith('custom:') ? id.slice(7) : id;
-          const res = await authFetch(`${API_ORIGIN}/api/scenarios/editor/custom/${customId}/public`);
+          const res = await authFetch(`${API_ORIGIN}/api/scenarios/custom/${customId}/public`);
           if (!res.ok) throw new Error('Scenario not found');
           const custom = await res.json();
           setSelectedCustom(custom);
