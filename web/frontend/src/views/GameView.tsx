@@ -1376,12 +1376,12 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
       {(result.latency_seconds || result.usage || result.model) && (
         <div className="flex flex-wrap gap-3 text-[11px] font-mono mb-2" style={{ color: 'var(--text-muted)' }}>
           {result.model && <span>{result.model.split(':').pop()}</span>}
-          {result.latency_seconds != null && <span>{result.latency_seconds.toFixed(1)}s</span>}
+          {result.latency_seconds != null && <span>{Number(result.latency_seconds).toFixed(1)}s</span>}
           {result.usage && (
             <>
-              <span>{result.usage.input_tokens.toLocaleString()} in</span>
-              <span>{result.usage.output_tokens.toLocaleString()} out</span>
-              {result.usage.thinking_tokens > 0 && (
+              {result.usage.input_tokens != null && <span>{result.usage.input_tokens.toLocaleString()} in</span>}
+              {result.usage.output_tokens != null && <span>{result.usage.output_tokens.toLocaleString()} out</span>}
+              {result.usage.thinking_tokens != null && result.usage.thinking_tokens > 0 && (
                 <span>{result.usage.thinking_tokens.toLocaleString()} thinking</span>
               )}
             </>
