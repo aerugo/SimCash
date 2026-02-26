@@ -629,8 +629,8 @@ class Game:
             len(self.agent_ids), _par_elapsed, first_concurrent,
         )
 
-        # Recover to parallel mode if a full round succeeded at MAX_CONCURRENT with no 429s
-        if success and first_concurrent == DEFAULT_MAX_CONCURRENT and not saw_rate_limit_this_round:
+        # Recover to parallel mode if a full round succeeded with no 429s
+        if success and not saw_rate_limit_this_round:
             if self._rate_limited:
                 self._rate_limited = False
                 logger.info("No rate limits seen — recovering to parallel optimization for game %s", self.game_id)

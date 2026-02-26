@@ -40,9 +40,19 @@ class GameManager:
 
         Returns list of evicted game IDs.
         """
+        # Import here to avoid circular imports
+        try:
+            from .main import game_auto_tasks
+        except ImportError:
+            game_auto_tasks = {}
+
         now = datetime.now(timezone.utc)
         to_evict = []
         for gid, game in self._games.items():
+            # Never evict games with active auto-run tasks
+            task = game_auto_tasks.get(gid)
+            if task and not task.done():
+                continue
             try:
                 last = datetime.fromisoformat(game.last_activity_at.replace("Z", "+00:00"))
                 idle_secs = (now - last).total_seconds()
