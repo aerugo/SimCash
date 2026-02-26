@@ -90,7 +90,7 @@ async def get_scenario(scenario_id: str, uid: str | None = Depends(get_effective
     item = get_scenario_by_id(scenario_id)
     if item:
         return item
-    # Try custom: first under current user, then public lookup
+    # Try custom: first under current user, then registry lookup
     from .scenario_editor import _store as scenario_store
     if uid:
         try:
@@ -99,13 +99,16 @@ async def get_scenario(scenario_id: str, uid: str | None = Depends(get_effective
                 return custom
         except Exception:
             pass
-    # Public fallback: search across all users
-    try:
-        custom = scenario_store.get_public(scenario_id)
-        if custom:
-            return custom
-    except Exception:
-        pass
+    # Public fallback: look up owner from global scenario registry
+    from .scenario_registry import lookup_scenario_owner
+    owner_uid = lookup_scenario_owner(scenario_id)
+    if owner_uid:
+        try:
+            custom = scenario_store.get(owner_uid, scenario_id)
+            if custom:
+                return custom
+        except Exception:
+            pass
     raise HTTPException(status_code=404, detail="Scenario not found")
 
 

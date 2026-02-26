@@ -82,6 +82,18 @@ def _seed_admin():
         except Exception as e:
             logger.warning("Failed to seed admin: %s", e)
 
+
+@app.on_event("startup")
+def _backfill_scenario_registry():
+    """Backfill global scenario registry from Firestore on startup."""
+    try:
+        from .scenario_registry import backfill_from_firestore
+        added = backfill_from_firestore()
+        if added:
+            logger.info("Scenario registry: backfilled %d entries", added)
+    except Exception as e:
+        logger.warning("Scenario registry backfill failed: %s", e)
+
 ALLOWED_ORIGINS = {
     "https://simcash-487714.web.app",
     "https://simcash-487714.firebaseapp.com",

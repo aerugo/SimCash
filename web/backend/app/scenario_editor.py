@@ -146,7 +146,11 @@ def save_custom_scenario(req: CustomScenarioRequest, uid: str = Depends(get_effe
         "config": config_dict,
         "summary": summary,
     }
-    return _store.save(uid, scenario_id, entry)
+    saved = _store.save(uid, scenario_id, entry)
+    # Register in global scenario registry (public lookup by ID)
+    from .scenario_registry import register_scenario
+    register_scenario(scenario_id, uid, {"name": req.name, "description": req.description})
+    return saved
 
 
 @router.get("/custom")
@@ -182,12 +186,24 @@ def update_custom_scenario(scenario_id: str, req: CustomScenarioRequest, uid: st
         "config": config_dict,
         "summary": summary,
     }
-    return _store.save(uid, scenario_id, entry)
+    saved = _store.save(uid, scenario_id, entry)
+    # Update global registry
+    from .scenario_registry import register_scenario
+    register_scenario(scenario_id, uid, {"name": req.name, "description": req.description})
+    return saved
 
 
 @router.get("/custom/{scenario_id}/public")
 def get_custom_scenario_public(scenario_id: str):
     """Get a custom scenario by ID (public read-only, no auth required)."""
+    # Try global registry first, then fall back to collection group query
+    from .scenario_registry import lookup_scenario_owner
+    owner_uid = lookup_scenario_owner(scenario_id)
+    if owner_uid:
+        item = _store.get(owner_uid, scenario_id)
+        if item:
+            return item
+    # Fallback: collection group query
     item = _store.get_public(scenario_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Custom scenario not found")
@@ -199,4 +215,6 @@ def delete_custom_scenario(scenario_id: str, uid: str = Depends(get_effective_us
     """Delete a custom scenario."""
     if not _store.delete(uid, scenario_id):
         raise HTTPException(status_code=404, detail="Custom scenario not found")
+    from .scenario_registry import unregister_scenario
+    unregister_scenario(scenario_id)
     return {"status": "deleted"}
