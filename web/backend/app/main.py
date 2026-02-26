@@ -1642,12 +1642,23 @@ def get_policy_history(game_id: str, uid: str = Depends(get_effective_optional_u
                 accepted[aid] = True
                 reasoning_text[aid] = ""
 
+        # Collect bootstrap proposal data from optimization_results
+        proposals_data: dict[str, list] = {}
+        total_proposals_data: dict[str, int] = {}
+        opt_results = getattr(day, "optimization_results", {})
+        for aid in game.agent_ids:
+            r = opt_results.get(aid, {})
+            proposals_data[aid] = r.get("bootstrap_proposals", [])
+            total_proposals_data[aid] = r.get("total_proposals", 0)
+
         days_data.append({
             "day": day_num,
             "policies": policies,
             "costs": costs,
             "accepted": accepted,
             "reasoning": reasoning_text,
+            "bootstrap_proposals": proposals_data,
+            "total_proposals": total_proposals_data,
         })
 
     # Build parameter trajectories

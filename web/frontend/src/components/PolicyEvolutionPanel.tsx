@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import type { PolicyHistoryResponse, PolicyDiffResponse } from '../types';
+import type { PolicyHistoryResponse, PolicyDiffResponse, BootstrapProposal } from '../types';
 import { getPolicyHistory, getPolicyDiff } from '../api';
 import { PolicyVisualization } from './PolicyVisualization';
 
@@ -80,7 +80,10 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
     for (const aid of agentIds) {
       const frac = history.parameter_trajectories[aid]?.initial_liquidity_fraction?.[i];
       point[aid] = frac ?? null;
-      point[`${aid}_accepted`] = d.accepted[aid] ?? true;
+      const accepted = d.accepted[aid] ?? true;
+      const totalProps = d.total_proposals?.[aid] ?? 0;
+      // 'accepted' | 'retry' | 'rejected'
+      point[`${aid}_status`] = accepted ? (totalProps > 1 ? 'retry' : 'accepted') : 'rejected';
     }
     return point;
   });
@@ -112,14 +115,17 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
                   const cy = props.cy as number | undefined;
                   const payload = props.payload as Record<string, unknown> | undefined;
                   if (cx == null || cy == null || !payload) return <circle r={0} />;
-                  const accepted = payload[`${aid}_accepted`];
+                  const status = payload[`${aid}_status`];
+                  const fill = status === 'accepted' ? 'var(--color-success)'
+                    : status === 'retry' ? '#EAB308'
+                    : 'var(--color-danger)';
                   return (
                     <circle
                       key={`${aid}-${String(payload.day)}`}
                       cx={cx}
                       cy={cy}
                       r={4}
-                      fill={accepted ? 'var(--color-success)' : 'var(--color-danger)'}
+                      fill={fill}
                       stroke={AGENT_COLORS[i % AGENT_COLORS.length]}
                       strokeWidth={1.5}
                     />
@@ -132,6 +138,7 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
         </ResponsiveContainer>
         <div className="flex items-center gap-4 mt-2 text-[10px] text-slate-500 justify-center">
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-green-500" /> Accepted</span>
+          <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-yellow-500" /> Accepted on retry</span>
           <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-full bg-red-500" /> Rejected</span>
         </div>
       </div>
@@ -176,15 +183,26 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
               const d = history.days[selectedDay];
               const policy = d.policies[aid];
               const params = (policy as Record<string, unknown>)?.parameters as Record<string, number> | undefined;
+              const proposals = d.bootstrap_proposals?.[aid] ?? [];
+              const totalProps = d.total_proposals?.[aid] ?? 0;
+              const accepted = d.accepted[aid];
+              // Color: green=accepted first try, yellow=accepted on retry, red=all rejected
+              const acceptedOnRetry = accepted && totalProps > 1;
+              const borderColor = accepted
+                ? (acceptedOnRetry ? 'border-yellow-500' : 'border-green-500')
+                : 'border-red-500';
               return (
-                <div key={aid} className={`bg-slate-900/50 rounded-lg p-2 border-l-2 ${
-                  d.accepted[aid] ? 'border-green-500' : 'border-red-500'
-                }`}>
+                <div key={aid} className={`bg-slate-900/50 rounded-lg p-2 border-l-2 ${borderColor}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-xs" style={{ color: AGENT_COLORS[i % AGENT_COLORS.length] }}>{aid}</span>
-                    <span className={`text-[10px] ${d.accepted[aid] ? 'text-green-400' : 'text-red-400'}`}>
-                      {d.accepted[aid] ? '✓' : '✗'}
+                    <span className={`text-[10px] ${accepted ? (acceptedOnRetry ? 'text-yellow-400' : 'text-green-400') : 'text-red-400'}`}>
+                      {accepted ? (acceptedOnRetry ? '✓ retry' : '✓') : '✗'}
                     </span>
+                    {totalProps > 1 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-300 font-mono">
+                        {totalProps} proposals
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-500 font-mono">
                       cost={d.costs[aid]?.toLocaleString()}
                     </span>
@@ -198,6 +216,44 @@ export function PolicyEvolutionPanel({ gameId, agentIds, currentDay }: Props) {
                   )}
                   {d.reasoning[aid] && (
                     <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{d.reasoning[aid]}</p>
+                  )}
+                  {/* Bootstrap proposals detail */}
+                  {proposals.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">
+                        {proposals.length} bootstrap proposal{proposals.length > 1 ? 's' : ''}
+                      </summary>
+                      <div className="mt-1 space-y-1">
+                        {proposals.map((p: BootstrapProposal) => (
+                          <div
+                            key={p.proposal_number}
+                            className={`text-[10px] font-mono rounded px-2 py-1 ${
+                              p.accepted
+                                ? 'bg-green-900/30 border border-green-800/50 text-green-300'
+                                : 'bg-red-900/30 border border-red-800/50 text-red-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">#{p.proposal_number}</span>
+                              <span>{p.accepted ? '✓ accepted' : '✗ rejected'}</span>
+                              {p.suggested_fraction != null && (
+                                <span className="text-slate-400">fraction={p.suggested_fraction.toFixed(3)}</span>
+                              )}
+                            </div>
+                            {p.old_mean_cost != null && p.new_mean_cost != null && (
+                              <div className="text-slate-500 mt-0.5">
+                                cost: {p.old_mean_cost.toLocaleString()} → {p.new_mean_cost.toLocaleString()}
+                                {p.delta_sum != null && (
+                                  <span className={p.delta_sum > 0 ? 'text-green-400' : 'text-red-400'}>
+                                    {' '}(Δ={p.delta_sum > 0 ? '+' : ''}{p.delta_sum.toLocaleString()})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   )}
                   {policy && typeof (policy as Record<string, unknown>).payment_tree === 'object' && (
                     <details className="mt-2">

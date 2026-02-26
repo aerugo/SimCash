@@ -405,12 +405,25 @@ export interface PolicyHistoryResponse {
   parameter_trajectories: Record<string, Record<string, number[]>>;
 }
 
+export interface BootstrapProposal {
+  proposal_number: number;
+  suggested_fraction: number | null;
+  old_mean_cost: number | null;
+  new_mean_cost: number | null;
+  delta_sum: number | null;
+  accepted: boolean;
+  llm_latency_seconds: number | null;
+  validation_attempts: number | null;
+}
+
 export interface PolicyHistoryDay {
   day: number;
   policies: Record<string, Record<string, unknown>>;
   costs: Record<string, number>;
   accepted: Record<string, boolean>;
   reasoning: Record<string, string>;
+  bootstrap_proposals?: Record<string, BootstrapProposal[]>;
+  total_proposals?: Record<string, number>;
 }
 
 export interface PolicyDiffResponse {
