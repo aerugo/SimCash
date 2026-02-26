@@ -196,6 +196,12 @@ export function useGameWebSocket(gameId: string, initialState: GameState | null)
   const connect = useCallback(async () => {
     if (!mountedRef.current) return;
     if (!gameId || !initialStateRef.current) return;  // Don't connect without a game
+    // Don't open a WebSocket for completed experiments — nothing to stream
+    if (initialStateRef.current.is_complete || gameCompleteRef.current) {
+      setConnectionStatus('disconnected');
+      setPhase('complete');
+      return;
+    }
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
     // Determine WS host — use API_ORIGIN if set (Firebase Hosting), else same origin

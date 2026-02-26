@@ -245,7 +245,7 @@ export function GameView() {
     prevConnStatus.current = connectionStatus;
     if (connectionStatus === 'connected' && prev === 'reconnecting') {
       actLog.push('connection', '🔄 Reconnected to server', 'success');
-    } else if (connectionStatus === 'disconnected') {
+    } else if (connectionStatus === 'disconnected' && !wsState?.is_complete) {
       actLog.push('connection', '🔴 Connection lost — experiment paused', 'error');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,12 +407,12 @@ export function GameView() {
               🧠 {gameState.optimization_model ? gameState.optimization_model.split(':').pop() : 'glm-4.7-maas'}
             </span>
           )}
-          {connectionStatus === 'reconnecting' && (
+          {connectionStatus === 'reconnecting' && !gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium animate-pulse">
               🔄 Reconnecting{reconnectAttempt > 0 ? ` (${reconnectAttempt}/10)` : ''}…
             </span>
           )}
-          {connectionStatus === 'disconnected' && (
+          {connectionStatus === 'disconnected' && !gameState.is_complete && (
             <span className="px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs font-medium">⚠ Disconnected</span>
           )}
           {/* Starting policy links */}
