@@ -11,7 +11,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from .auth import get_effective_user, get_api_or_firebase_user, get_optional_api_or_firebase_user
+from .auth import get_effective_user, get_api_or_firebase_user, get_optional_api_or_firebase_user, get_effective_optional_user
 from .api_keys import api_key_store
 from .models import CreateGameRequest
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
@@ -291,7 +291,7 @@ async def create_experiment(
 async def list_experiments(
     status: Optional[str] = Query(None, alias="status_filter"),
     scenario_id: Optional[str] = Query(None),
-    uid: str | None = Depends(get_optional_api_or_firebase_user),
+    uid: str | None = Depends(get_effective_optional_user),
 ):
     """List experiments. Authenticated: user's experiments. Unauthenticated: all public experiments."""
     from .main import game_storage, game_manager
