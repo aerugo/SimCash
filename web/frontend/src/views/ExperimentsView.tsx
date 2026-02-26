@@ -224,7 +224,7 @@ export default function ExperimentsView() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                    {g.scenario_id && !g.scenario_id.startsWith('custom:') ? (
+                    {g.scenario_id ? (
                       <a
                         href={`/library/scenarios/${g.scenario_id}`}
                         onClick={(e) => {
@@ -238,7 +238,7 @@ export default function ExperimentsView() {
                         {g.scenario_name || g.scenario_id || 'Scenario'}
                       </a>
                     ) : (
-                      g.scenario_name || g.scenario_id || 'Custom Scenario'
+                      g.scenario_name || 'Custom Scenario'
                     )}
                   </span>
                   {statusBadge(g)}
