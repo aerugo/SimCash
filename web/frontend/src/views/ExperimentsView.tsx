@@ -265,7 +265,7 @@ export default function ExperimentsView() {
                     <div
                       className="h-full rounded-full transition-all"
                       style={{
-                        width: `${(g.rounds ?? 0) > 0 ? ((g.current_round ?? g.current_day) / (g.rounds ?? 1)) * 100 : 0}%`,
+                        width: `${Math.min(100, (g.rounds ?? 0) > 0 ? ((g.current_round ?? g.current_day) / (g.rounds ?? 1)) * 100 : 0)}%`,
                         background: (g.display_status || g.status) === 'complete' ? 'var(--color-success)' : 'var(--text-accent)',
                       }}
                     />
