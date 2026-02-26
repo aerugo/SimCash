@@ -201,14 +201,19 @@ class GameStorage:
                 logger.warning("GCS checkpoint upload failed for %s: %s", game_id, e)
 
     def load_checkpoint(self, uid: str, game_id: str) -> dict | None:
-        """Load game checkpoint. Tries local first, then GCS."""
+        """Load game checkpoint. Tries local first, then GCS.
+
+        Auto-registers the experiment in the global registry if not already
+        registered, so it's accessible by direct URL regardless of viewer.
+        """
         p = self._local_checkpoint_path(uid, game_id)
+        data = None
         if p.exists():
             try:
-                return json.loads(p.read_text())
+                data = json.loads(p.read_text())
             except (json.JSONDecodeError, ValueError):
                 return None
-        if self.storage_mode == "gcs" and self._gcs_bucket:
+        elif self.storage_mode == "gcs" and self._gcs_bucket:
             blob = self._gcs_bucket.blob(self._gcs_checkpoint_key(uid, game_id))
             if blob.exists():
                 try:
@@ -217,10 +222,23 @@ class GameStorage:
                     # Cache locally
                     p.parent.mkdir(parents=True, exist_ok=True)
                     p.write_text(text)
-                    return data
                 except Exception as e:
                     logger.warning("GCS checkpoint load failed for %s: %s", game_id, e)
-        return None
+
+        if data is not None:
+            # Auto-register in global registry if missing
+            if self.lookup_experiment_owner(game_id) is None:
+                self.register_experiment(game_id, uid, {
+                    "scenario_id": data.get("scenario_id", ""),
+                    "scenario_name": data.get("scenario_name", ""),
+                    "status": data.get("status", "unknown"),
+                    "created_at": data.get("created_at", ""),
+                    "rounds": data.get("config", {}).get("rounds", 0),
+                    "use_llm": data.get("config", {}).get("use_llm", False),
+                    "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
+                })
+
+        return data
 
     def delete_checkpoint(self, uid: str, game_id: str):
         """Delete checkpoint from local and GCS."""
@@ -320,11 +338,79 @@ class GameStorage:
             del registry[game_id]
             self._write_registry(registry)
 
+    def backfill_registry(self, uid: str) -> int:
+        """Register all of a user's checkpoints that aren't in the global registry.
+
+        Returns the number of newly registered experiments.
+        """
+        registry = self._read_registry()
+        registered = 0
+
+        # Scan local checkpoints
+        d = self._local_dir(uid)
+        if d.exists():
+            for p in d.glob("*.json"):
+                if p.name == "index.json":
+                    continue
+                game_id = p.stem
+                if game_id in registry:
+                    continue
+                try:
+                    data = json.loads(p.read_text())
+                    registry[game_id] = {
+                        "uid": uid,
+                        "scenario_id": data.get("scenario_id", ""),
+                        "scenario_name": data.get("scenario_name", ""),
+                        "status": data.get("status", "unknown"),
+                        "created_at": data.get("created_at", ""),
+                        "rounds": data.get("config", {}).get("rounds", 0),
+                        "use_llm": data.get("config", {}).get("use_llm", False),
+                        "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
+                    }
+                    registered += 1
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+        # GCS scan for any not found locally
+        if self.storage_mode == "gcs" and self._gcs_bucket:
+            prefix = f"users/{uid}/games/"
+            try:
+                for blob in self._gcs_bucket.list_blobs(prefix=prefix):
+                    if not blob.name.endswith(".json") or blob.name.endswith("index.json"):
+                        continue
+                    game_id = blob.name.rsplit("/", 1)[-1].replace(".json", "")
+                    if game_id in registry:
+                        continue
+                    try:
+                        data = json.loads(blob.download_as_text())
+                        registry[game_id] = {
+                            "uid": uid,
+                            "scenario_id": data.get("scenario_id", ""),
+                            "scenario_name": data.get("scenario_name", ""),
+                            "status": data.get("status", "unknown"),
+                            "created_at": data.get("created_at", ""),
+                            "rounds": data.get("config", {}).get("rounds", 0),
+                            "use_llm": data.get("config", {}).get("use_llm", False),
+                            "agent_count": len(data.get("progress", {}).get("agent_ids", [])),
+                        }
+                        registered += 1
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.warning("GCS backfill_registry failed for %s: %s", uid, e)
+
+        if registered > 0:
+            self._write_registry(registry)
+            logger.info("Backfilled %d experiments into registry for user %s", registered, uid)
+
+        return registered
+
     def list_checkpoints(self, uid: str) -> list[dict]:
         """List all checkpoints for a user (summary only: id, status, progress).
 
         Uses the lightweight index file first (fast). Falls back to scanning
         individual checkpoint files only if the index is empty/missing.
+        Also backfills the global registry for any unregistered experiments.
         """
         # Fast path: use the index (small JSON with summaries only)
         index_entries = self._read_index(uid)
@@ -376,5 +462,8 @@ class GameStorage:
         # Rebuild index from scan results so next call is fast
         if results:
             self._write_index(uid, results)
+
+        # Backfill global registry for any unregistered experiments
+        self.backfill_registry(uid)
 
         return results
