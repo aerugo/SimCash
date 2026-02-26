@@ -393,6 +393,42 @@ class Game:
         to the client (e.g. WS send succeeded).
         """
         self.days.append(day)
+        self._trim_old_day_events()
+
+    def _trim_old_day_events(self) -> None:
+        """Trim events/tick_events from all but the last day to free memory.
+
+        Preserves cached settlement stats (_event_summary, _total_arrivals,
+        _total_settled) so summary endpoints still work.
+        """
+        if len(self.days) < 2:
+            return
+        for d in self.days[:-1]:
+            d.events = []
+            d.tick_events = []
+
+    def recompute_day_events(self, day_num: int) -> list[list[dict]]:
+        """Recompute tick_events for a day from its seed and stored policy.
+
+        Uses the policy recorded on the day (not current policy) to ensure
+        deterministic replay matches the original simulation.
+        Returns list of tick event lists (same shape as GameDay.tick_events).
+        """
+        if day_num < 0 or day_num >= len(self.days):
+            raise ValueError(f"Day {day_num} not found (have {len(self.days)} days)")
+        day = self.days[day_num]
+
+        # Temporarily swap policies to the ones used on that day
+        saved_policies = self.policies
+        self.policies = copy.deepcopy(day.policies)
+        self.sim.policies = self.policies
+        try:
+            seed = day.seed
+            _all_events, _balance_history, _costs, _per_agent_costs, _total_cost, tick_events = self.sim.run_single(seed)
+            return tick_events
+        finally:
+            self.policies = saved_policies
+            self.sim.policies = saved_policies
 
     def save_day_to_duckdb(self, db_path: Path, day: GameDay):
         """Write a day's results to the DuckDB file."""
@@ -637,6 +673,14 @@ class Game:
                 result["new_policy"] = None
         if result:
             self.reasoning_history[aid].append(result)
+            self._cap_reasoning_history()
+
+    def _cap_reasoning_history(self, max_entries: int = 10) -> None:
+        """Keep only the last max_entries reasoning records per agent."""
+        for aid in self.agent_ids:
+            hist = self.reasoning_history.get(aid, [])
+            if len(hist) > max_entries:
+                self.reasoning_history[aid] = hist[-max_entries:]
 
     def get_state(self) -> dict[str, Any]:
         return _ser.get_game_state(self)

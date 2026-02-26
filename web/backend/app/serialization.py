@@ -41,7 +41,7 @@ def day_to_checkpoint(day: 'GameDay') -> dict[str, Any]:
     return {
         "day_num": day.day_num,
         "seed": day.seed,
-        "policies": copy.deepcopy(day.policies),
+        "policies": json.loads(json.dumps(day.policies)),
         "costs": day.costs,
         "events_summary": {
             "total": len(day.events) or (day._total_arrivals + day._total_settled),
@@ -155,8 +155,8 @@ def game_to_checkpoint(game: 'Game', scenario_id: str = "", uid: str = "") -> di
         "progress": {
             "current_day": game.current_day,
             "agent_ids": game.agent_ids,
-            "policies": copy.deepcopy(game.policies),
-            "reasoning_history": copy.deepcopy(game.reasoning_history),
+            "policies": json.loads(json.dumps(game.policies)),
+            "reasoning_history": json.loads(json.dumps(game.reasoning_history)),
             "days": [day_to_checkpoint(d) for d in game.days],
         },
     }
