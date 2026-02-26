@@ -1062,7 +1062,11 @@ async def stream_optimize_with_retries(
             except Exception as e:
                 logger.error("Bootstrap retry LLM call failed for %s: %s", agent_id, e)
                 yield {"type": "chunk", "text": f"\n[Retry failed: {e}]\n"}
-                yield {"type": "result", "data": last_bootstrap_result}
+                yield {"type": "result", "data": {
+                    **last_bootstrap_result,
+                    "retry_failed": True,
+                    "retry_error": str(e)[:500],
+                }}
                 return
 
         # No policy produced → done (no bootstrap needed)

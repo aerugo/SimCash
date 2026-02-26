@@ -513,14 +513,13 @@ class TestGameIntegration:
     """Test that GameSession passes max_policy_proposals through."""
 
     def test_game_default_max_policy_proposals(self):
-        """New games default to max_policy_proposals=1 (backward compat until explicitly set)."""
+        """New games default to max_policy_proposals=2."""
         from app.game import Game
         from app.scenario_pack import get_scenario_by_id
 
         scenario = get_scenario_by_id("2bank_2tick")
         game = Game(game_id="test", raw_yaml=scenario, total_days=5)
-        # Default is 1 for backward compat (existing behavior)
-        assert game.max_policy_proposals == 1
+        assert game.max_policy_proposals == 2
 
     def test_game_custom_max_policy_proposals(self):
         """max_policy_proposals can be set on game creation."""
@@ -553,8 +552,8 @@ class TestGameIntegration:
         restored = Game.from_checkpoint(cp)
         assert restored.max_policy_proposals == 3
 
-    def test_checkpoint_without_field_defaults_to_1(self):
-        """Old checkpoints without max_policy_proposals default to 1."""
+    def test_checkpoint_without_field_defaults_to_2(self):
+        """Old checkpoints without max_policy_proposals default to 2."""
         from app.game import Game
         from app.scenario_pack import get_scenario_by_id
 
@@ -566,7 +565,7 @@ class TestGameIntegration:
         if "settings" in cp:
             cp["settings"].pop("max_policy_proposals", None)
         restored = Game.from_checkpoint(cp)
-        assert restored.max_policy_proposals == 1
+        assert restored.max_policy_proposals == 2
 
 
 class TestIsRetryDecline:
