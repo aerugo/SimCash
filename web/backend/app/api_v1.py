@@ -90,15 +90,22 @@ async def get_scenario(scenario_id: str, uid: str | None = Depends(get_effective
     item = get_scenario_by_id(scenario_id)
     if item:
         return item
-    # Try custom only if authenticated
+    # Try custom: first under current user, then public lookup
+    from .scenario_editor import _store as scenario_store
     if uid:
-        from .scenario_editor import _store as scenario_store
         try:
             custom = scenario_store.get(uid, scenario_id)
             if custom:
                 return custom
         except Exception:
             pass
+    # Public fallback: search across all users
+    try:
+        custom = scenario_store.get_public(scenario_id)
+        if custom:
+            return custom
+    except Exception:
+        pass
     raise HTTPException(status_code=404, detail="Scenario not found")
 
 
