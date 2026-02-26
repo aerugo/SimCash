@@ -560,3 +560,122 @@ async def delete_experiment(experiment_id: str, uid: str = Depends(get_api_or_fi
     game_storage.remove_from_index(uid, experiment_id)
     game_storage.unregister_experiment(experiment_id)
     return {"status": "deleted"}
+
+
+# ---- Helper to resolve a game by experiment_id ----
+
+def _resolve_game(experiment_id: str, uid: str | None = None):
+    """Look up a game from manager or storage. Raises 404 if not found."""
+    from .main import game_manager, _try_load_game, game_storage
+    game = game_manager.get(experiment_id)
+    if not game:
+        if uid:
+            game = _try_load_game(experiment_id, uid)
+        if not game:
+            owner_uid = game_storage.lookup_experiment_owner(experiment_id)
+            if owner_uid:
+                game = _try_load_game(experiment_id, owner_uid)
+    if not game:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    return game
+
+
+# ---- Optimization Threads (prompt + response inspection) ----
+
+@router.get("/experiments/{experiment_id}/optimization-threads")
+async def get_optimization_threads(
+    experiment_id: str,
+    day_start: int = Query(0, ge=0),
+    day_end: Optional[int] = Query(None, ge=0),
+    agent_id: Optional[str] = Query(None),
+    uid: str | None = Depends(get_optional_api_or_firebase_user),
+):
+    """Get optimization prompt/response threads for an experiment."""
+    game = _resolve_game(experiment_id, uid)
+
+    last_day = len(game.days) - 1
+    if day_end is None:
+        day_end = last_day
+
+    threads = []
+    for day in game.days:
+        if day.day_num < day_start or day.day_num > day_end:
+            continue
+        # Collect agent ids from both prompts and results
+        opt_results = getattr(day, "optimization_results", {})
+        agent_ids = set(day.optimization_prompts.keys()) | set(opt_results.keys())
+        for aid in sorted(agent_ids):
+            if agent_id and aid != agent_id:
+                continue
+            prompt_data = day.optimization_prompts.get(aid)
+            result_data = opt_results.get(aid)
+
+            prompt = None
+            if prompt_data:
+                prompt = {
+                    "system_prompt": prompt_data.get("system_prompt", ""),
+                    "user_prompt": prompt_data.get("user_prompt", ""),
+                    "blocks": prompt_data.get("blocks", []),
+                    "total_tokens": prompt_data.get("total_tokens", 0),
+                    "profile_hash": prompt_data.get("profile_hash", ""),
+                }
+
+            response = None
+            result = None
+            if result_data:
+                response = {
+                    "raw_response": result_data.get("raw_response", ""),
+                    "thinking": result_data.get("thinking", ""),
+                    "reasoning": result_data.get("reasoning", ""),
+                    "usage": result_data.get("usage", {}),
+                    "latency_seconds": result_data.get("latency_seconds"),
+                    "model": result_data.get("model", ""),
+                    "validation_attempts": result_data.get("validation_attempts", 0),
+                }
+                result = {
+                    "old_policy": result_data.get("old_policy"),
+                    "new_policy": result_data.get("new_policy"),
+                    "old_fraction": result_data.get("old_fraction"),
+                    "new_fraction": result_data.get("new_fraction"),
+                    "accepted": result_data.get("accepted"),
+                    "mock": result_data.get("mock"),
+                }
+
+            threads.append({
+                "day": day.day_num,
+                "agent_id": aid,
+                "prompt": prompt,
+                "response": response,
+                "result": result,
+            })
+
+    return {"experiment_id": experiment_id, "threads": threads}
+
+
+# ---- Prompts (lightweight, no responses) ----
+
+@router.get("/experiments/{experiment_id}/prompts")
+async def get_prompts(
+    experiment_id: str,
+    uid: str | None = Depends(get_optional_api_or_firebase_user),
+):
+    """Get prompt manifest and per-day prompt data (without responses)."""
+    game = _resolve_game(experiment_id, uid)
+    from .serialization import _build_prompt_manifest
+    manifest = _build_prompt_manifest(game)
+
+    days_out = []
+    for day in game.days:
+        if day.optimization_prompts:
+            prompts = {}
+            for aid, p in day.optimization_prompts.items():
+                prompts[aid] = {
+                    "system_prompt": p.get("system_prompt", ""),
+                    "user_prompt": p.get("user_prompt", ""),
+                    "blocks": p.get("blocks", []),
+                    "total_tokens": p.get("total_tokens", 0),
+                    "profile_hash": p.get("profile_hash", ""),
+                }
+            days_out.append({"day": day.day_num, "prompts": prompts})
+
+    return {"experiment_id": experiment_id, "manifest": manifest, "days": days_out}

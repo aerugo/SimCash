@@ -57,6 +57,7 @@ class GameDay:
         self.optimized = optimized  # whether LLM optimization occurred after this day
         self.optimization_failed: bool = False  # whether optimization failed fatally
         self.optimization_prompts: dict[str, dict] = {}  # agent_id → StructuredPrompt.to_dict()
+        self.optimization_results: dict[str, dict] = {}  # agent_id → full result dict
         self.rejected_policies: dict[str, dict] = {}  # agent_id → rejected policy (for learning)
         self.agent_histories: dict[str, Any] = {}  # agent_id → AgentTransactionHistory (for bootstrap)
 
@@ -652,6 +653,8 @@ class Game:
         sp = result.get("structured_prompt")
         if sp:
             day.optimization_prompts[aid] = sp
+        # Store full result for inspection API
+        day.optimization_results[aid] = result
 
     def _apply_result(self, aid: str, result: dict) -> None:
         """Apply an optimization result: update policy and record history.
