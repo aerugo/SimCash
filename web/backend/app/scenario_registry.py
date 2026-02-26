@@ -122,22 +122,22 @@ def backfill_from_firestore() -> int:
     added = 0
 
     try:
-        # Iterate all user documents
-        for user_doc in db.collection("users").stream():
-            uid = user_doc.id
-            scenarios_col = db.collection("users").document(uid).collection("custom_scenarios")
-            for sc_doc in scenarios_col.stream():
-                sc_id = sc_doc.id
-                if sc_id not in registry:
-                    data = sc_doc.to_dict()
-                    registry[sc_id] = {
-                        "uid": uid,
-                        "name": data.get("name", ""),
-                        "description": data.get("description", ""),
-                    }
-                    added += 1
-    except Exception:
-        logger.warning("Failed to backfill scenario registry from Firestore")
+        # Use collection group query to find ALL custom_scenarios across all users
+        for sc_doc in db.collection_group("custom_scenarios").stream():
+            sc_id = sc_doc.id
+            if sc_id not in registry:
+                data = sc_doc.to_dict()
+                # Extract uid from doc path: users/{uid}/custom_scenarios/{id}
+                path_parts = sc_doc.reference.path.split("/")
+                uid = path_parts[1] if len(path_parts) >= 4 else "unknown"
+                registry[sc_id] = {
+                    "uid": uid,
+                    "name": data.get("name", ""),
+                    "description": data.get("description", ""),
+                }
+                added += 1
+    except Exception as e:
+        logger.warning("Failed to backfill scenario registry from Firestore: %s", e)
 
     if added > 0:
         _write_registry(registry)
