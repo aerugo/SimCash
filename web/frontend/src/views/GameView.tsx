@@ -1359,9 +1359,9 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
       {/* Bootstrap stats — clean horizontal layout */}
       {bs && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono mb-2" style={{ color: 'var(--text-muted)' }}>
-          <span>Δ {bs.delta_sum.toLocaleString()}<InfoTip text="Cost change (negative = improvement)" /></span>
-          <span>CV {bs.cv.toFixed(2)}<InfoTip text="Coefficient of variation — lower = more reliable" /></span>
-          <span>CI [{bs.ci_lower.toLocaleString()}, {bs.ci_upper.toLocaleString()}]<InfoTip text="95% confidence interval" /></span>
+          <span>Δ {(bs.delta_sum ?? 0).toLocaleString()}<InfoTip text="Cost change (negative = improvement)" /></span>
+          <span>CV {(bs.cv ?? 0).toFixed(2)}<InfoTip text="Coefficient of variation — lower = more reliable" /></span>
+          <span>CI [{(bs.ci_lower ?? 0).toLocaleString()}, {(bs.ci_upper ?? 0).toLocaleString()}]<InfoTip text="95% confidence interval" /></span>
           <span>n={bs.num_samples}<InfoTip text="Bootstrap samples" /></span>
         </div>
       )}

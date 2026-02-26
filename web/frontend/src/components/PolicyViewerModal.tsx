@@ -94,9 +94,9 @@ export function PolicyViewerModal({ policy, onClose, title, rejected, rejectionR
             marginBottom: '1rem', padding: '0.5rem 0.75rem',
             background: 'var(--bg-inset)', borderRadius: '6px',
           }}>
-            <span>Δ {bootstrap.delta_sum.toLocaleString()}</span>
-            <span>CV {bootstrap.cv.toFixed(2)}</span>
-            <span>CI [{bootstrap.ci_lower.toLocaleString()}, {bootstrap.ci_upper.toLocaleString()}]</span>
+            <span>Δ {(bootstrap.delta_sum ?? 0).toLocaleString()}</span>
+            <span>CV {(bootstrap.cv ?? 0).toFixed(2)}</span>
+            <span>CI [{(bootstrap.ci_lower ?? 0).toLocaleString()}, {(bootstrap.ci_upper ?? 0).toLocaleString()}]</span>
             <span>n={bootstrap.num_samples}</span>
           </div>
         )}
