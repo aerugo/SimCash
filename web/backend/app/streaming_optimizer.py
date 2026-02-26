@@ -982,13 +982,15 @@ async def stream_optimize_with_retries(
 
                 yield {"type": "chunk", "text": f"\n\n[Bootstrap retry {proposal_num}/{max_proposals}]\n"}
 
+                # Increase timeout for retry — message_history is large (50k+ tokens)
+                retry_model_settings = {**model_settings, "timeout": 300}
                 retry_result_obj = await asyncio.wait_for(
                     retry_agent.run(
                         retry_prompt,
                         message_history=message_history,
-                        model_settings=model_settings,
+                        model_settings=retry_model_settings,
                     ),
-                    timeout=120,  # 2 min timeout for retry (shorter than initial)
+                    timeout=300,  # 5 min — retry carries full conversation history
                 )
                 retry_text = retry_result_obj.output if hasattr(retry_result_obj, 'output') else str(retry_result_obj.data)
 
