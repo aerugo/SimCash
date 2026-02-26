@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { LibraryScenario, LibraryScenarioDetail, GameSetupConfig } from '../types';
-import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario, fetchModels, type ModelOption } from '../api';
+import { getScenarioLibrary, getScenarioLibraryDetail, fetchCollections, type Collection, listCustomScenarios, deleteCustomScenario, saveCustomScenario, type CustomScenario, fetchModels, type ModelOption, authFetch, API_ORIGIN } from '../api';
 import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
 import yaml from 'js-yaml';
@@ -163,9 +163,20 @@ export function ScenarioLibraryView() {
       try {
         detail = await getScenarioLibraryDetail(id);
       } catch {
-        // Fallback: try with preset_ prefix (experiment scenario IDs omit it)
-        detail = await getScenarioLibraryDetail(`preset_${id}`);
-        id = `preset_${id}`;
+        try {
+          // Fallback: try with preset_ prefix (experiment scenario IDs omit it)
+          detail = await getScenarioLibraryDetail(`preset_${id}`);
+          id = `preset_${id}`;
+        } catch {
+          // Fallback: try custom scenario public endpoint
+          const customId = id.startsWith('custom:') ? id.slice(7) : id;
+          const res = await authFetch(`${API_ORIGIN}/api/scenarios/editor/custom/${customId}/public`);
+          if (!res.ok) throw new Error('Scenario not found');
+          const custom = await res.json();
+          setSelectedCustom(custom);
+          setDetailLoading(false);
+          return;
+        }
       }
       setSelectedScenario(detail);
       // Update URL without full navigation

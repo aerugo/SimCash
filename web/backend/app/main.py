@@ -516,10 +516,19 @@ def list_scenario_library(include_archived: bool = False):
     return {"scenarios": get_library(include_archived=include_archived)}
 
 
-@app.get("/api/scenarios/library/{scenario_id}")
+@app.get("/api/scenarios/library/{scenario_id:path}")
 def get_scenario_library_item(scenario_id: str):
-    """Get full scenario detail (metadata + raw config)."""
+    """Get full scenario detail (metadata + raw config). Falls back to custom scenarios."""
     detail = get_scenario_detail(scenario_id)
+    if not detail:
+        # Fall back to custom scenarios (public read)
+        # Custom scenario IDs are stored without the 'custom:' prefix
+        lookup_id = scenario_id.removeprefix("custom:")
+        from .scenario_editor import _store as scenario_store
+        try:
+            detail = scenario_store.get_public(lookup_id)
+        except Exception:
+            pass
     if not detail:
         raise HTTPException(status_code=404, detail="Scenario not found")
     return detail
