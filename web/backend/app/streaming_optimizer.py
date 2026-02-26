@@ -124,6 +124,7 @@ def _build_optimization_prompt(
     _game_settings = raw_yaml.get("game_settings", {})
     _prompt_config = _game_settings.get("prompt_config", {})
     _include_tree_composition = _prompt_config.get("tree_composition", False)
+    _min_settlement_rate = 0.95  # default settlement constraint
     # Prompt profile can also toggle tree composition and settlement constraint
     if prompt_profile:
         tc_override = prompt_profile.get("sys_tree_composition", {})
