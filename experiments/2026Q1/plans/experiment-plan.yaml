@@ -1,0 +1,2289 @@
+settings:
+  max_parallel: 2
+  poll_interval_seconds: 60
+  api_base: https://simcash-997004209370.europe-north1.run.app/api/v1
+completed_prior:
+- id: 82d30b0f
+  scenario: Lehman Month
+  model: glm-4.7
+  final_cost: 257252107
+  settlement: 0.566
+- id: 865236c5
+  scenario: Lehman Month
+  model: flash
+  final_cost: 233471790
+  settlement: 0.601
+- id: afdf2cfe
+  scenario: Lehman Month
+  model: pro
+  final_cost: null
+  settlement: null
+  note: results not extractable
+- id: 997f1141
+  scenario: Liquidity Squeeze
+  model: glm-4.7
+  final_cost: 16238
+  settlement: 1.0
+- id: d64cfe49
+  scenario: Liquidity Squeeze
+  model: flash
+  final_cost: 18222
+  settlement: 1.0
+- id: 7eb22778
+  scenario: Liquidity Squeeze
+  model: pro
+  final_cost: 20437
+  settlement: 1.0
+- id: c8bcbc79
+  scenario: Periodic Shocks
+  model: glm-4.7
+  final_cost: 82860910
+  settlement: 0.706
+- id: 1f83ebfb
+  scenario: Periodic Shocks
+  model: flash
+  final_cost: 80673346
+  settlement: 0.724
+- id: 70377092
+  scenario: Periodic Shocks
+  model: pro
+  final_cost: 56391141
+  settlement: 0.664
+- id: 84ef6b87
+  scenario: Large Network
+  model: glm-4.7
+  final_cost: null
+  settlement: null
+  note: results saved to api-results/large_network_glm.json
+experiments:
+- name: Large Network — Flash
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 298704f4
+  started_at: '2026-02-24T13:06:59.403504+00:00'
+  completed_at: '2026-02-24T13:35:18.117893+00:00'
+  final_cost: 192578912
+  settlement_rate: 0.5644
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_flash.json
+- name: Large Network — Pro
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 6f6f3afb
+  started_at: '2026-02-24T18:16:16.506595+00:00'
+  completed_at: '2026-02-24T19:38:58.924561+00:00'
+  final_cost: 202038573
+  settlement_rate: 0.5565
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_pro.json
+  exclusive: true
+- name: Lynx Day — GLM
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 6571ce38
+  started_at: '2026-02-24T13:35:24.537589+00:00'
+  completed_at: '2026-02-24T13:35:25.262051+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_glm.json
+- name: Lynx Day — Flash
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 3245ee30
+  started_at: '2026-02-24T13:35:36.723782+00:00'
+  completed_at: '2026-02-24T13:35:37.437345+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_flash.json
+- name: Lynx Day — Pro
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: '73672186'
+  started_at: '2026-02-24T13:35:48.909164+00:00'
+  completed_at: '2026-02-24T13:35:49.700257+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_pro.json
+- name: 2B 3T — GLM
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: b9042cb0
+  started_at: '2026-02-24T13:36:01.195340+00:00'
+  completed_at: '2026-02-24T13:36:33.644720+00:00'
+  final_cost: 100909
+  settlement_rate: 0.3529
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_glm.json
+- name: 2B 3T — Flash
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: eaf07a54
+  started_at: '2026-02-24T13:36:43.429458+00:00'
+  completed_at: '2026-02-24T13:40:04.704259+00:00'
+  final_cost: 13660
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_flash.json
+- name: 2B 3T — Pro
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 4206630b
+  started_at: '2026-02-24T16:19:09.667822+00:00'
+  completed_at: '2026-02-24T16:27:54.165679+00:00'
+  final_cost: 75886
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_pro.json
+- name: 3B 6T — GLM
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: e28f8c05
+  started_at: '2026-02-24T13:48:04.098548+00:00'
+  completed_at: '2026-02-24T13:48:32.915376+00:00'
+  final_cost: 19631
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_glm.json
+- name: 3B 6T — Flash
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: be9df7e0
+  started_at: '2026-02-24T13:48:36.457217+00:00'
+  completed_at: '2026-02-24T13:54:34.769741+00:00'
+  final_cost: 18017
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_flash.json
+- name: 3B 6T — Pro
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 5f3e5661
+  started_at: '2026-02-24T13:54:41.924789+00:00'
+  completed_at: '2026-02-24T14:03:05.229375+00:00'
+  final_cost: 19678
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_pro.json
+- name: 4B 8T — GLM
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: b74c5f0d
+  started_at: '2026-02-24T13:57:45.362473+00:00'
+  completed_at: '2026-02-24T13:58:46.879190+00:00'
+  final_cost: 40178
+  settlement_rate: 0.9683
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_glm.json
+- name: 4B 8T — Flash
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 1c3114b7
+  started_at: '2026-02-24T13:58:48.301626+00:00'
+  completed_at: '2026-02-24T14:04:19.084231+00:00'
+  final_cost: 59123
+  settlement_rate: 0.9524
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_flash.json
+- name: 4B 8T — Pro
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 760cdc06
+  started_at: null
+  completed_at: '2026-02-24T14:52:21.308324+00:00'
+  final_cost: 41233
+  settlement_rate: 0.9683
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_pro.json
+- name: 2B Stress — GLM
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: b1fe6b96
+  started_at: '2026-02-24T14:04:25.711713+00:00'
+  completed_at: '2026-02-24T14:04:55.691436+00:00'
+  final_cost: 194897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_glm.json
+- name: 2B Stress — Flash
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 55d8de6f
+  started_at: '2026-02-24T14:04:57.967109+00:00'
+  completed_at: '2026-02-24T14:08:34.731949+00:00'
+  final_cost: 164585
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_flash.json
+- name: 2B Stress — Pro
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: fd2b74ad
+  started_at: '2026-02-24T14:08:42.223977+00:00'
+  completed_at: '2026-02-24T14:15:24.461374+00:00'
+  final_cost: 68086
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_pro.json
+- name: Lehman Month — GLM
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 161d71d5
+  started_at: '2026-02-24T14:13:16.965083+00:00'
+  completed_at: '2026-02-24T14:21:00.020568+00:00'
+  final_cost: 246700276
+  settlement_rate: 0.5894
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_glm.json
+  exclusive: true
+- name: Lehman Month — Flash
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 79785ad6
+  started_at: '2026-02-24T15:33:48.123850+00:00'
+  completed_at: '2026-02-24T16:18:52.082714+00:00'
+  final_cost: 233402769
+  settlement_rate: 0.5856
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_flash.json
+  exclusive: true
+- name: Lehman Month — Pro
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  experiment_id: 9f279e14
+  started_at: '2026-02-24T19:39:09.036576+00:00'
+  completed_at: '2026-02-24T22:50:05.786606+00:00'
+  final_cost: 252529888
+  settlement_rate: 0.5715
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_pro.json
+  exclusive: true
+- name: Large Network — Flash (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: '92040487'
+  started_at: '2026-02-24T23:35:29.642979+00:00'
+  final_cost: 203565074
+  settlement_rate: 0.569
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_flash_(r2).json
+  completed_at: '2026-02-25T00:36:51.765241+00:00'
+- name: Large Network — Baseline
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 524fc873
+  started_at: '2026-02-25T00:37:00.799719+00:00'
+  final_cost: 182875980
+  settlement_rate: 0.5879
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_baseline.json
+  completed_at: '2026-02-25T00:44:16.524284+00:00'
+- name: Lynx Day — Baseline
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 9eaf71b4
+  started_at: '2026-02-25T00:44:26.716812+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_baseline.json
+  completed_at: '2026-02-25T00:44:27.719842+00:00'
+- name: 2B 3T — Baseline
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 5c59f15f
+  started_at: '2026-02-25T00:44:38.790499+00:00'
+  final_cost: 99900
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_baseline.json
+  completed_at: '2026-02-25T00:44:39.776386+00:00'
+- name: 3B 6T — Baseline
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: c2994509
+  started_at: '2026-02-25T00:44:50.873633+00:00'
+  final_cost: 74700
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_baseline.json
+  completed_at: '2026-02-25T00:44:51.937219+00:00'
+- name: 4B 8T — Baseline
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 73e5990a
+  started_at: '2026-02-25T00:45:03.061230+00:00'
+  final_cost: 132800
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_baseline.json
+  completed_at: '2026-02-25T00:45:04.067456+00:00'
+- name: 2B Stress — Baseline
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: a36fe08d
+  started_at: '2026-02-25T00:45:15.350565+00:00'
+  final_cost: 99600
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_baseline.json
+  completed_at: '2026-02-25T00:45:16.246269+00:00'
+- name: Lehman Month — Baseline
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: b140728c
+  started_at: '2026-02-25T00:45:27.636984+00:00'
+  final_cost: 199111725
+  settlement_rate: 0.6867
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_baseline.json
+  completed_at: '2026-02-25T00:55:28.878745+00:00'
+- name: Liquidity Squeeze — Baseline
+  scenario_id: '46403784'
+  scenario_name: Liquidity Squeeze — Reserve Scarcity
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 8a46d6e0
+  started_at: '2026-02-25T00:55:40.925662+00:00'
+  final_cost: 72000
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_baseline.json
+  completed_at: '2026-02-25T00:55:41.932217+00:00'
+- name: Periodic Shocks — Baseline
+  scenario_id: 3250dc0f
+  scenario_name: Periodic Liquidity Shocks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 747025f3
+  started_at: '2026-02-25T00:55:47.785653+00:00'
+  final_cost: 66287854
+  settlement_rate: 0.7664
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_baseline.json
+  completed_at: '2026-02-25T01:01:10.165345+00:00'
+- name: Castro Exp2 — Baseline
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: baseline
+  experiment_id: 17bdd52c
+  started_at: '2026-02-25T01:01:12.165589+00:00'
+  final_cost: 99600
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_baseline.json
+  completed_at: '2026-02-25T01:01:13.420633+00:00'
+- name: Castro Exp2 — GLM
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 1
+  experiment_id: 9caf5c9a
+  started_at: '2026-02-25T01:01:24.382808+00:00'
+  final_cost: 70889
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm.json
+  completed_at: '2026-02-25T01:08:54.665720+00:00'
+- name: Castro Exp2 — Flash
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 1
+  experiment_id: 4b01f402
+  started_at: '2026-02-25T01:09:00.586264+00:00'
+  final_cost: 39393
+  settlement_rate: 0.92
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash.json
+  completed_at: '2026-02-25T01:19:25.299691+00:00'
+- name: Castro Exp2 — Pro
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 1
+  experiment_id: cb000a9e
+  started_at: '2026-02-25T01:19:27.905650+00:00'
+  final_cost: 108910
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro.json
+  completed_at: '2026-02-25T01:32:11.374820+00:00'
+- name: Castro Exp2 — GLM (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 0089e7a2
+  started_at: '2026-02-25T01:24:02.390174+00:00'
+  final_cost: 70823
+  settlement_rate: 0.7162
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(r2).json
+  completed_at: '2026-02-25T01:34:14.340376+00:00'
+- name: Castro Exp2 — Flash (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 0a51534d
+  started_at: '2026-02-25T01:32:18.612162+00:00'
+  final_cost: 65976
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(r2).json
+  completed_at: '2026-02-25T01:43:35.004075+00:00'
+- name: Castro Exp2 — Pro (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 79f3e5de
+  started_at: '2026-02-25T01:34:21.913803+00:00'
+  final_cost: 68765
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(r2).json
+  completed_at: '2026-02-25T01:51:46.744348+00:00'
+- name: Castro Exp2 — GLM (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: d76909ce
+  started_at: '2026-02-25T01:43:39.177406+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(r3).json
+  completed_at: '2026-02-25T01:48:46.427385+00:00'
+- name: Castro Exp2 — Flash (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 1ef8c68d
+  started_at: '2026-02-25T01:48:54.165588+00:00'
+  final_cost: 48899
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(r3).json
+  completed_at: '2026-02-25T01:58:02.115395+00:00'
+- name: Castro Exp2 — Pro (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 66c90ab5
+  started_at: '2026-02-25T01:51:47.633148+00:00'
+  final_cost: 105130
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(r3).json
+  completed_at: '2026-02-25T02:02:01.211668+00:00'
+- name: Large Network — Pro (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  exclusive: true
+  run: 2
+  experiment_id: d8aba24e
+  started_at: '2026-02-25T02:02:04.702983+00:00'
+  final_cost: 206845519
+  settlement_rate: 0.5662
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_pro_(r2).json
+  completed_at: '2026-02-25T04:11:56.757624+00:00'
+- name: Lynx Day — GLM (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 47adfb62
+  started_at: '2026-02-25T02:02:14.840657+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_glm_(r2).json
+  completed_at: '2026-02-25T02:02:15.870906+00:00'
+- name: Lynx Day — Flash (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 19b88106
+  started_at: '2026-02-25T02:02:27.232187+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_flash_(r2).json
+  completed_at: '2026-02-25T02:02:28.502577+00:00'
+- name: Lynx Day — Pro (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 46da91ae
+  started_at: '2026-02-25T02:02:39.107995+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_pro_(r2).json
+  completed_at: '2026-02-25T02:02:40.055604+00:00'
+- name: 2B 3T — GLM (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 1f0b3de6
+  started_at: '2026-02-25T02:02:51.601618+00:00'
+  final_cost: 65618
+  settlement_rate: 0.5556
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_glm_(r2).json
+  completed_at: '2026-02-25T02:10:02.112833+00:00'
+- name: 2B 3T — Flash (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 62023a9c
+  started_at: '2026-02-25T02:10:07.830156+00:00'
+  final_cost: 18213
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_flash_(r2).json
+  completed_at: '2026-02-25T02:22:23.513454+00:00'
+- name: 2B 3T — Pro (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 98cee358
+  started_at: '2026-02-25T02:22:27.096102+00:00'
+  final_cost: 17090
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_pro_(r2).json
+  completed_at: '2026-02-25T02:34:35.271358+00:00'
+- name: 3B 6T — GLM (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: a438ae19
+  started_at: '2026-02-25T02:34:45.788695+00:00'
+  final_cost: 19631
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_glm_(r2).json
+  completed_at: '2026-02-25T02:41:57.305563+00:00'
+- name: 3B 6T — Flash (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: a38f96de
+  started_at: '2026-02-25T02:42:01.393253+00:00'
+  final_cost: 18017
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_flash_(r2).json
+  completed_at: '2026-02-25T02:52:24.810328+00:00'
+- name: 3B 6T — Pro (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: '95372913'
+  started_at: '2026-02-25T02:52:29.723856+00:00'
+  final_cost: 16929
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_pro_(r2).json
+  completed_at: '2026-02-25T03:19:47.219331+00:00'
+- name: 4B 8T — GLM (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: ffe5ebcd
+  started_at: '2026-02-25T03:19:56.730714+00:00'
+  final_cost: 35720
+  settlement_rate: 0.9841
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_glm_(r2).json
+  completed_at: '2026-02-25T03:30:07.806648+00:00'
+- name: 4B 8T — Flash (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 65e2a56e
+  started_at: '2026-02-25T03:30:13.900777+00:00'
+  final_cost: 38543
+  settlement_rate: 0.9683
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_flash_(r2).json
+  completed_at: '2026-02-25T03:47:58.046397+00:00'
+- name: 4B 8T — Pro (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 9e94be0c
+  started_at: '2026-02-25T03:48:05.757360+00:00'
+  final_cost: 45952
+  settlement_rate: 0.9841
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_pro_(r2).json
+  completed_at: '2026-02-25T04:06:22.431664+00:00'
+- name: 2B Stress — GLM (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 12b795dc
+  started_at: '2026-02-25T04:06:27.977433+00:00'
+  final_cost: 140565
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_glm_(r2).json
+  completed_at: '2026-02-25T04:15:02.348278+00:00'
+- name: 2B Stress — Flash (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: '73461842'
+  started_at: '2026-02-25T04:12:03.544753+00:00'
+  final_cost: 167035
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_flash_(r2).json
+  completed_at: '2026-02-25T04:24:19.385905+00:00'
+- name: 2B Stress — Pro (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 7da0d68e
+  started_at: '2026-02-25T04:15:07.029231+00:00'
+  final_cost: 69837
+  settlement_rate: 0.86
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_pro_(r2).json
+  completed_at: '2026-02-25T04:28:27.145539+00:00'
+- name: Lehman Month — GLM (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: '95361864'
+  started_at: '2026-02-25T04:24:24.660885+00:00'
+  final_cost: 256934597
+  settlement_rate: 0.5641
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_glm_(r2).json
+  completed_at: '2026-02-25T05:28:31.206563+00:00'
+- name: Lehman Month — Flash (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 9f5ebd66
+  started_at: '2026-02-25T04:28:28.743253+00:00'
+  final_cost: 225512260
+  settlement_rate: 0.6157
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_flash_(r2).json
+  completed_at: '2026-02-25T07:50:02.859679+00:00'
+- name: Lehman Month — Pro (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  exclusive: true
+  run: 2
+  experiment_id: ce84d3e7
+  started_at: '2026-02-25T07:50:13.053282+00:00'
+  final_cost: 251317441
+  settlement_rate: 0.5731
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_pro_(r2).json
+  completed_at: '2026-02-25T10:12:10.769002+00:00'
+- name: Liquidity Squeeze — GLM (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 5ba7ddab
+  started_at: '2026-02-25T07:50:23.020972+00:00'
+  final_cost: 16174
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_glm_(r2).json
+  completed_at: '2026-02-25T08:05:42.954564+00:00'
+- name: Liquidity Squeeze — Flash (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 6406580a
+  started_at: '2026-02-25T08:05:52.659681+00:00'
+  final_cost: 20635
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_flash_(r2).json
+  completed_at: '2026-02-25T08:24:30.153688+00:00'
+- name: Liquidity Squeeze — Pro (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: bdf0fa24
+  started_at: '2026-02-25T08:24:35.370899+00:00'
+  final_cost: 15705
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_pro_(r2).json
+  completed_at: '2026-02-25T08:45:12.153750+00:00'
+- name: Periodic Shocks — GLM (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: c3092a1e
+  started_at: '2026-02-25T08:45:18.820402+00:00'
+  final_cost: 72123748
+  settlement_rate: 0.664
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_glm_(r2).json
+  completed_at: '2026-02-25T09:23:23.842164+00:00'
+- name: Periodic Shocks — Flash (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: ea0794a3
+  started_at: '2026-02-25T09:23:30.988047+00:00'
+  final_cost: 79987827
+  settlement_rate: 0.7159
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_flash_(r2).json
+  completed_at: '2026-02-25T11:08:00.479982+00:00'
+- name: Periodic Shocks — Pro (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: 0496e8bc
+  started_at: '2026-02-25T10:12:17.395325+00:00'
+  final_cost: 83698877
+  settlement_rate: 0.686
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_pro_(r2).json
+  completed_at: '2026-02-25T11:12:22.255316+00:00'
+- name: Large Network — GLM (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: daafc265
+  started_at: '2026-02-25T11:08:10.213520+00:00'
+  final_cost: 198665659
+  settlement_rate: 0.5656
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_glm_(r3).json
+  completed_at: '2026-02-25T12:12:55.522450+00:00'
+- name: Large Network — Flash (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: a1521a92
+  started_at: '2026-02-25T11:12:24.786433+00:00'
+  final_cost: 195608486
+  settlement_rate: 0.5668
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_flash_(r3).json
+  completed_at: '2026-02-25T13:19:55.592928+00:00'
+- name: Lynx Day — GLM (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 873c7fa4
+  started_at: '2026-02-25T13:20:15.728974+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_glm_(r3).json
+  completed_at: '2026-02-25T13:20:17.187334+00:00'
+- name: Lynx Day — Flash (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 27c63568
+  started_at: '2026-02-25T13:20:27.913202+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_flash_(r3).json
+  completed_at: '2026-02-25T13:20:29.244758+00:00'
+- name: Lynx Day — Pro (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 0e8044b7
+  started_at: '2026-02-25T13:20:40.098997+00:00'
+  final_cost: 3
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lynx_day_-_pro_(r3).json
+  completed_at: '2026-02-25T13:20:41.426590+00:00'
+- name: 2B 3T — GLM (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: d53b0bb5
+  started_at: '2026-02-25T13:20:51.976568+00:00'
+  final_cost: 13513
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_glm_(r3).json
+  completed_at: '2026-02-25T13:28:05.269999+00:00'
+- name: 2B 3T — Flash (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 8bbca064
+  started_at: '2026-02-25T13:28:07.888543+00:00'
+  final_cost: 15140
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_flash_(r3).json
+  completed_at: '2026-02-25T13:50:48.707019+00:00'
+- name: 2B 3T — Pro (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: cbf39377
+  started_at: '2026-02-25T13:50:56.366817+00:00'
+  final_cost: 16497
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_3t_-_pro_(r3).json
+  completed_at: '2026-02-25T14:02:18.392975+00:00'
+- name: 3B 6T — GLM (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: e240fb7d
+  started_at: '2026-02-25T14:02:20.721691+00:00'
+  final_cost: 20618
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_glm_(r3).json
+  completed_at: '2026-02-25T15:41:48.991279+00:00'
+- name: 3B 6T — Flash (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 3f2f8515
+  started_at: '2026-02-25T15:41:59.114989+00:00'
+  final_cost: 71792
+  settlement_rate: 0.8837
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_flash_(r3).json
+  completed_at: '2026-02-25T16:09:24.004836+00:00'
+- name: 3B 6T — Pro (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: '59133371'
+  started_at: '2026-02-25T16:02:12.975425+00:00'
+  final_cost: 19670
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/3b_6t_-_pro_(r3).json
+  completed_at: '2026-02-25T16:12:26.279940+00:00'
+- name: 4B 8T — GLM (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: d58d1a6a
+  started_at: '2026-02-25T16:09:28.075169+00:00'
+  final_cost: 35720
+  settlement_rate: 0.9841
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_glm_(r3).json
+  completed_at: '2026-02-25T16:26:54.320898+00:00'
+- name: 4B 8T — Flash (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 17391de1
+  started_at: '2026-02-25T16:12:31.871947+00:00'
+  final_cost: 33689
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_flash_(r3).json
+  completed_at: '2026-02-25T16:56:30.859905+00:00'
+- name: 4B 8T — Pro (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 200dfb32
+  started_at: '2026-02-25T16:27:01.676632+00:00'
+  final_cost: 81514
+  settlement_rate: 0.9206
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/4b_8t_-_pro_(r3).json
+  completed_at: '2026-02-25T16:45:16.880901+00:00'
+- name: 2B Stress — GLM (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 628ff51e
+  started_at: '2026-02-25T16:45:23.610423+00:00'
+  final_cost: 194897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_glm_(r3).json
+  completed_at: '2026-02-25T16:51:32.267161+00:00'
+- name: 2B Stress — Flash (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: b3995a2f
+  started_at: '2026-02-25T16:51:39.525620+00:00'
+  final_cost: 32249
+  settlement_rate: 0.94
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_flash_(r3).json
+  completed_at: '2026-02-25T17:00:46.750406+00:00'
+- name: 2B Stress — Pro (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: ef9dbacb
+  started_at: '2026-02-25T16:56:33.925939+00:00'
+  final_cost: 186543
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/2b_stress_-_pro_(r3).json
+  completed_at: '2026-02-25T17:08:56.361779+00:00'
+- name: Lehman Month — Flash (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: ff26b685
+  started_at: '2026-02-25T17:09:05.856613+00:00'
+  final_cost: 240697872
+  settlement_rate: 0.5872
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_flash_(r3).json
+  completed_at: '2026-02-25T18:06:54.348782+00:00'
+- name: Lehman Month — Pro (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  exclusive: true
+  run: 3
+  experiment_id: a54b3f8a
+  started_at: '2026-02-25T19:36:27.043725+00:00'
+  final_cost: 249230628
+  settlement_rate: 0.5806
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_pro_(r3).json
+  completed_at: '2026-02-25T20:45:26.353755+00:00'
+- name: Liquidity Squeeze — GLM (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 7c557b1d
+  started_at: '2026-02-25T19:36:37.256345+00:00'
+  final_cost: 17460
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_glm_(r3).json
+  completed_at: '2026-02-25T20:09:30.674764+00:00'
+- name: Liquidity Squeeze — Flash (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 248e336d
+  started_at: '2026-02-25T20:09:31.330286+00:00'
+  final_cost: 22863
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_flash_(r3).json
+  completed_at: '2026-02-25T20:28:50.330337+00:00'
+- name: Liquidity Squeeze — Pro (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: af979444
+  started_at: '2026-02-25T20:28:53.393695+00:00'
+  final_cost: 13306
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/liquidity_squeeze_-_pro_(r3).json
+  completed_at: '2026-02-25T20:53:37.980480+00:00'
+- name: Periodic Shocks — GLM (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: f0eb80e9
+  started_at: '2026-02-25T20:45:34.241661+00:00'
+  final_cost: 56820486
+  settlement_rate: 0.6675
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_glm_(r3).json
+  completed_at: '2026-02-25T22:03:33.701924+00:00'
+- name: Periodic Shocks — Flash (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: e68d887d
+  started_at: '2026-02-25T20:53:40.126985+00:00'
+  final_cost: 64023599
+  settlement_rate: 0.6765
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_flash_(r3).json
+  completed_at: '2026-02-25T21:46:13.680219+00:00'
+- name: Periodic Shocks — Pro (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: f7f91666
+  started_at: '2026-02-25T21:46:20.255530+00:00'
+  final_cost: 59321439
+  settlement_rate: 0.6975
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/periodic_shocks_-_pro_(r3).json
+  completed_at: '2026-02-25T22:37:35.338650+00:00'
+- name: Large Network — GLM (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 2
+  experiment_id: bb6ea1d2
+  started_at: '2026-02-25T23:27:30.902119+00:00'
+  final_cost: 12329123
+  settlement_rate: 0.8642
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_glm_(r2).json
+  completed_at: '2026-02-26T09:53:19.086599+00:00'
+- name: Castro Exp2 — GLM (C1-info)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: &id001
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  experiment_id: bed58722
+  started_at: '2026-02-26T09:10:30.662212+00:00'
+  completed_at: '2026-02-26T09:14:34.049382+00:00'
+  final_cost: 70823
+  settlement_rate: 0.7162
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c1-info).json
+- name: Castro Exp2 — Flash (C1-info)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id001
+  status: complete
+  experiment_id: 956c8c95
+  started_at: '2026-02-26T09:14:34.783566+00:00'
+  completed_at: '2026-02-26T09:19:38.632361+00:00'
+  final_cost: 52610
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c1-info).json
+- name: Castro Exp2 — Pro (C1-info)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id001
+  status: complete
+  experiment_id: 64cff625
+  started_at: '2026-02-26T09:19:39.769606+00:00'
+  completed_at: '2026-02-26T09:27:46.035292+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c1-info).json
+- name: Castro Exp2 — GLM (C2-floor)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: &id002
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  experiment_id: 9b22fd81
+  started_at: '2026-02-26T09:27:46.807463+00:00'
+  completed_at: '2026-02-26T09:30:49.192166+00:00'
+  final_cost: 42800
+  settlement_rate: 0.7778
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c2-floor).json
+- name: Castro Exp2 — Flash (C2-floor)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id002
+  status: complete
+  experiment_id: 12f2f32b
+  started_at: '2026-02-26T09:30:50.621189+00:00'
+  completed_at: '2026-02-26T09:37:55.524874+00:00'
+  final_cost: 43863
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c2-floor).json
+- name: Castro Exp2 — Pro (C2-floor)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id002
+  status: complete
+  experiment_id: 351bffb8
+  started_at: '2026-02-26T09:37:56.718870+00:00'
+  completed_at: '2026-02-26T09:46:01.931937+00:00'
+  final_cost: 60474
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c2-floor).json
+- name: Castro Exp2 — GLM (C3-guidance)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: &id003
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  experiment_id: 1c231272
+  started_at: '2026-02-26T09:46:03.750022+00:00'
+  completed_at: '2026-02-26T09:47:21.521494+00:00'
+  final_cost: 68712
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c3-guidance).json
+- name: Castro Exp2 — Flash (C3-guidance)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id003
+  status: complete
+  experiment_id: b71eba21
+  started_at: '2026-02-26T09:47:26.570971+00:00'
+  completed_at: '2026-02-26T09:54:30.974768+00:00'
+  final_cost: 38066
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c3-guidance).json
+- name: Castro Exp2 — Pro (C3-guidance)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id003
+  status: complete
+  experiment_id: 495d9495
+  started_at: '2026-02-26T09:53:22.222213+00:00'
+  completed_at: '2026-02-26T10:03:31.090801+00:00'
+  final_cost: 67781
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c3-guidance).json
+- name: Castro Exp2 — GLM (C4-composition)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: &id004
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  experiment_id: e3b943df
+  started_at: '2026-02-26T09:54:35.075315+00:00'
+  completed_at: '2026-02-26T09:57:37.841488+00:00'
+  final_cost: 73541
+  settlement_rate: 0.6977
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c4-composition).json
+- name: Castro Exp2 — Flash (C4-composition)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id004
+  status: complete
+  experiment_id: 02f3c81e
+  started_at: '2026-02-26T09:57:38.929946+00:00'
+  completed_at: '2026-02-26T10:03:44.622171+00:00'
+  final_cost: 37995
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c4-composition).json
+- name: Castro Exp2 — Pro (C4-composition)
+  scenario_id: 2bank_12tick
+  scenario_name: 2 Banks, 12 Ticks (Castro Exp2)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  prompt_profile: *id004
+  status: complete
+  experiment_id: d21b94e7
+  started_at: '2026-02-26T10:03:34.263254+00:00'
+  completed_at: '2026-02-26T10:13:40.795199+00:00'
+  final_cost: 63984
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c4-composition).json
+- name: Large Network — Pro (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  exclusive: true
+  run: 3
+  experiment_id: c084839a
+  started_at: '2026-02-26T10:13:51.465079+00:00'
+  final_cost: 13522998
+  settlement_rate: 0.6565
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/large_network_-_pro_(r3).json
+  completed_at: '2026-02-26T12:56:45.281538+00:00'
+- name: Lehman Month — GLM (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  status: complete
+  run: 3
+  experiment_id: 45e8aa95
+  started_at: '2026-02-26T10:14:01.761973+00:00'
+  final_cost: 12428850
+  settlement_rate: 0.5649
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/lehman_month_-_glm_(r3).json
+  completed_at: '2026-02-26T10:53:53.865169+00:00'
+- name: Castro Exp2 — GLM (C1-info r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 27727cce
+  started_at: '2026-02-26T14:20:59.990499+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c1-info_r2).json
+  completed_at: '2026-02-26T14:24:04.104015+00:00'
+- name: Castro Exp2 — GLM (C1-info r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: eeeef415
+  started_at: '2026-02-26T14:21:01.826629+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c1-info_r3).json
+  completed_at: '2026-02-26T14:24:06.080661+00:00'
+- name: Castro Exp2 — Flash (C1-info r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: a11d95d4
+  started_at: '2026-02-26T14:24:14.963967+00:00'
+  final_cost: 46784
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c1-info_r2).json
+  completed_at: '2026-02-26T14:28:18.410326+00:00'
+- name: Castro Exp2 — Flash (C1-info r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: '40684679'
+  started_at: '2026-02-26T14:24:16.909665+00:00'
+  final_cost: 66750
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c1-info_r3).json
+  completed_at: '2026-02-26T14:29:20.862390+00:00'
+- name: Castro Exp2 — Pro (C1-info r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: fdff3c28
+  started_at: '2026-02-26T14:28:21.445471+00:00'
+  final_cost: 33116
+  settlement_rate: 0.92
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c1-info_r2).json
+  completed_at: '2026-02-26T14:37:27.682889+00:00'
+- name: Castro Exp2 — Pro (C1-info r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 233946f6
+  started_at: '2026-02-26T14:29:23.915049+00:00'
+  final_cost: 67781
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c1-info_r3).json
+  completed_at: '2026-02-26T14:39:30.509919+00:00'
+- name: Castro Exp2 — GLM (C2-floor r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 4cb7a172
+  started_at: '2026-02-26T14:37:29.810261+00:00'
+  final_cost: 70889
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c2-floor_r2).json
+  completed_at: '2026-02-26T14:38:31.596058+00:00'
+- name: Castro Exp2 — GLM (C2-floor r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: c8d02c22
+  started_at: '2026-02-26T14:38:32.478378+00:00'
+  final_cost: 70823
+  settlement_rate: 0.7162
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c2-floor_r3).json
+  completed_at: '2026-02-26T14:41:36.081742+00:00'
+- name: Castro Exp2 — Flash (C2-floor r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: a88868ac
+  started_at: '2026-02-26T14:39:35.043431+00:00'
+  final_cost: 51735
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c2-floor_r2).json
+  completed_at: '2026-02-26T14:47:40.620197+00:00'
+- name: Castro Exp2 — Flash (C2-floor r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 31fe4d63
+  started_at: '2026-02-26T14:41:38.389127+00:00'
+  final_cost: 35606
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c2-floor_r3).json
+  completed_at: '2026-02-26T14:48:42.866240+00:00'
+- name: Castro Exp2 — Pro (C2-floor r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 9af6fa02
+  started_at: '2026-02-26T14:47:44.032326+00:00'
+  final_cost: 39028
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c2-floor_r2).json
+  completed_at: '2026-02-26T14:55:50.096267+00:00'
+- name: Castro Exp2 — Pro (C2-floor r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 0d3393b9
+  started_at: '2026-02-26T14:48:46.803963+00:00'
+  final_cost: 34014
+  settlement_rate: 0.94
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c2-floor_r3).json
+  completed_at: '2026-02-26T14:58:53.027222+00:00'
+- name: Castro Exp2 — GLM (C3-guidance r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 6fe57db3
+  started_at: '2026-02-26T14:55:52.986586+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c3-guidance_r2).json
+  completed_at: '2026-02-26T14:56:54.535901+00:00'
+- name: Castro Exp2 — GLM (C3-guidance r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: ce2c6f41
+  started_at: '2026-02-26T14:56:55.825512+00:00'
+  final_cost: 67467
+  settlement_rate: 0.7051
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c3-guidance_r3).json
+  completed_at: '2026-02-26T14:57:57.289680+00:00'
+- name: Castro Exp2 — Flash (C3-guidance r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: c193d19c
+  started_at: '2026-02-26T14:57:58.529828+00:00'
+  final_cost: 33587
+  settlement_rate: 0.94
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c3-guidance_r2).json
+  completed_at: '2026-02-26T15:12:08.277409+00:00'
+- name: Castro Exp2 — Flash (C3-guidance r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: ad1beaaa
+  started_at: '2026-02-26T14:59:01.189444+00:00'
+  final_cost: 46655
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c3-guidance_r3).json
+  completed_at: '2026-02-26T15:11:08.808794+00:00'
+- name: Castro Exp2 — Pro (C3-guidance r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 7bc7ef1c
+  started_at: '2026-02-26T15:11:09.658122+00:00'
+  final_cost: 68487
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c3-guidance_r2).json
+  completed_at: '2026-02-26T15:20:17.186766+00:00'
+- name: Castro Exp2 — Pro (C3-guidance r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 4ce0829c
+  started_at: '2026-02-26T15:12:12.121563+00:00'
+  final_cost: 68712
+  settlement_rate: 0.82
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c3-guidance_r3).json
+  completed_at: '2026-02-26T15:22:21.306232+00:00'
+- name: Castro Exp2 — GLM (C4-comp r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: fb59f8c7
+  started_at: '2026-02-26T15:20:18.821495+00:00'
+  final_cost: 73467
+  settlement_rate: 0.6455
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c4-comp_r2).json
+  completed_at: '2026-02-26T15:21:21.499699+00:00'
+- name: Castro Exp2 — GLM (C4-comp r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:glm-4.7-maas
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:glm-4.7-maas
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 0456053a
+  started_at: '2026-02-26T15:21:31.832391+00:00'
+  final_cost: 70897
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_glm_(c4-comp_r3).json
+  completed_at: '2026-02-26T15:22:33.748918+00:00'
+- name: Castro Exp2 — Flash (C4-comp r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 9039b61c
+  started_at: '2026-02-26T15:22:24.157390+00:00'
+  final_cost: 67354
+  settlement_rate: 0.84
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c4-comp_r2).json
+  completed_at: '2026-02-26T15:32:30.806864+00:00'
+- name: Castro Exp2 — Flash (C4-comp r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 3054c041
+  started_at: '2026-02-26T15:22:36.240120+00:00'
+  final_cost: 34179
+  settlement_rate: 0.9
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c4-comp_r3).json
+  completed_at: '2026-02-26T15:32:42.976699+00:00'
+- name: Castro Exp2 — Pro (C4-comp r2)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 3ccc425c
+  started_at: '2026-02-26T15:32:34.146991+00:00'
+  final_cost: 50917
+  settlement_rate: 1.0
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c4-comp_r2).json
+  completed_at: '2026-02-26T15:41:41.358140+00:00'
+- name: Castro Exp2 — Pro (C4-comp r3)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 1
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+    usr_worst_case:
+      enabled: true
+    sys_tree_composition:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-pro
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 7cb4d495
+  started_at: '2026-02-26T15:32:46.125697+00:00'
+  final_cost: 125683
+  settlement_rate: 0.76
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_pro_(c4-comp_r3).json
+  completed_at: '2026-02-26T15:42:52.705147+00:00'
+- name: Castro Exp2 — Flash (C2-floor retry-canary)
+  scenario_id: 2bank_12tick
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  starting_fraction: 0.5
+  max_policy_proposals: 2
+  prompt_profile:
+    usr_liquidity_context:
+      enabled: true
+    usr_balance_trajectory:
+      enabled: true
+    sys_settlement_constraint:
+      enabled: true
+  status: complete
+  optimization_model: google-vertex:gemini-2.5-flash
+  constraint_preset: full
+  num_eval_samples: 50
+  experiment_id: 71707fd1
+  started_at: '2026-02-26T15:41:43.270465+00:00'
+  final_cost: 36187
+  settlement_rate: 0.94
+  result_file: /Users/ned/.openclaw/workspace-stefan/api-results/castro_exp2_-_flash_(c2-floor_retry-canary).json
+  completed_at: '2026-02-26T15:55:53.027613+00:00'

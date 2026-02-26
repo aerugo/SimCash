@@ -1,0 +1,819 @@
+settings:
+  max_parallel: 2
+  poll_interval_seconds: 60
+  api_base: https://simcash-997004209370.europe-north1.run.app/api/v1
+completed_prior:
+- id: 82d30b0f
+  scenario: Lehman Month
+  model: glm-4.7
+  final_cost: 257252107
+  settlement: 0.566
+- id: 865236c5
+  scenario: Lehman Month
+  model: flash
+  final_cost: 233471790
+  settlement: 0.601
+- id: afdf2cfe
+  scenario: Lehman Month
+  model: pro
+  final_cost: null
+  settlement: null
+  note: results not extractable
+- id: 997f1141
+  scenario: Liquidity Squeeze
+  model: glm-4.7
+  final_cost: 16238
+  settlement: 1.0
+- id: d64cfe49
+  scenario: Liquidity Squeeze
+  model: flash
+  final_cost: 18222
+  settlement: 1.0
+- id: 7eb22778
+  scenario: Liquidity Squeeze
+  model: pro
+  final_cost: 20437
+  settlement: 1.0
+- id: c8bcbc79
+  scenario: Periodic Shocks
+  model: glm-4.7
+  final_cost: 82860910
+  settlement: 0.706
+- id: 1f83ebfb
+  scenario: Periodic Shocks
+  model: flash
+  final_cost: 80673346
+  settlement: 0.724
+- id: 70377092
+  scenario: Periodic Shocks
+  model: pro
+  final_cost: 56391141
+  settlement: 0.664
+- id: 84ef6b87
+  scenario: Large Network
+  model: glm-4.7
+  final_cost: null
+  settlement: null
+  note: results saved to api-results/large_network_glm.json
+experiments:
+- name: Large Network — Flash
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: Large Network — Pro
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+- name: Lynx Day — GLM
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: Lynx Day — Flash
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: Lynx Day — Pro
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B 3T — GLM
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B 3T — Flash
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B 3T — Pro
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 3B 6T — GLM
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 3B 6T — Flash
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 3B 6T — Pro
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 4B 8T — GLM
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 4B 8T — Flash
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 4B 8T — Pro
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B Stress — GLM
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B Stress — Flash
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: 2B Stress — Pro
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+- name: Lehman Month — GLM
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+- name: Lehman Month — Flash
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+- name: Lehman Month — Pro
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+- name: Large Network — GLM (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Large Network — Flash (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Large Network — Baseline
+  scenario_id: b7257977
+  scenario_name: Large Network — 25-Day Steady State
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Lynx Day — Baseline
+  scenario_id: 41bdc072
+  scenario_name: Lynx Day — Intraday Flow Patterns
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: 2B 3T — Baseline
+  scenario_id: 2bank_3tick
+  scenario_name: 2 Banks, 3 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: 3B 6T — Baseline
+  scenario_id: 3bank_6tick
+  scenario_name: 3 Banks, 6 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: 4B 8T — Baseline
+  scenario_id: 4bank_8tick
+  scenario_name: 4 Banks, 8 Ticks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: 2B Stress — Baseline
+  scenario_id: 2bank_stress
+  scenario_name: 2 Banks, High Stress
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Lehman Month — Baseline
+  scenario_id: 504c65d9
+  scenario_name: Lehman Month — 6-Bank Crisis & Recovery
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Liquidity Squeeze — Baseline
+  scenario_id: '46403784'
+  scenario_name: Liquidity Squeeze — Reserve Scarcity
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Periodic Shocks — Baseline
+  scenario_id: 3250dc0f
+  scenario_name: Periodic Liquidity Shocks
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Castro Exp2 — Baseline
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  use_llm: false
+  rounds: 1
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: baseline
+- name: Castro Exp2 — GLM
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 1
+- name: Castro Exp2 — Flash
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 1
+- name: Castro Exp2 — Pro
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 1
+- name: Castro Exp2 — GLM (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Castro Exp2 — Flash (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Castro Exp2 — Pro (r2)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Castro Exp2 — GLM (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Castro Exp2 — Flash (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Castro Exp2 — Pro (r3)
+  scenario_id: 2bank_12tick
+  scenario_name: Castro Exp2 — 2 Banks, 12 Ticks (Paper Replication)
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Large Network — Pro (r2)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+  run: 2
+- name: Lynx Day — GLM (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Lynx Day — Flash (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Lynx Day — Pro (r2)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B 3T — GLM (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B 3T — Flash (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B 3T — Pro (r2)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 3B 6T — GLM (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 3B 6T — Flash (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 3B 6T — Pro (r2)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 4B 8T — GLM (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 4B 8T — Flash (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 4B 8T — Pro (r2)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B Stress — GLM (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B Stress — Flash (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: 2B Stress — Pro (r2)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Lehman Month — GLM (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Lehman Month — Flash (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Lehman Month — Pro (r2)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+  run: 2
+- name: Liquidity Squeeze — GLM (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Liquidity Squeeze — Flash (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Liquidity Squeeze — Pro (r2)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 2
+- name: Periodic Shocks — GLM (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 2
+- name: Periodic Shocks — Flash (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 2
+- name: Periodic Shocks — Pro (r2)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 2
+- name: Large Network — GLM (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Large Network — Flash (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Large Network — Pro (r3)
+  scenario_id: b7257977
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+  run: 3
+- name: Lynx Day — GLM (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Lynx Day — Flash (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Lynx Day — Pro (r3)
+  scenario_id: 41bdc072
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B 3T — GLM (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B 3T — Flash (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B 3T — Pro (r3)
+  scenario_id: 2bank_3tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 3B 6T — GLM (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 3B 6T — Flash (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 3B 6T — Pro (r3)
+  scenario_id: 3bank_6tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 4B 8T — GLM (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 4B 8T — Flash (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 4B 8T — Pro (r3)
+  scenario_id: 4bank_8tick
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B Stress — GLM (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B Stress — Flash (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: 2B Stress — Pro (r3)
+  scenario_id: 2bank_stress
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Lehman Month — GLM (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Lehman Month — Flash (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Lehman Month — Pro (r3)
+  scenario_id: 504c65d9
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  exclusive: true
+  run: 3
+- name: Liquidity Squeeze — GLM (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Liquidity Squeeze — Flash (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Liquidity Squeeze — Pro (r3)
+  scenario_id: '46403784'
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  constraint_preset: full
+  starting_fraction: 0.5
+  num_eval_samples: 50
+  run: 3
+- name: Periodic Shocks — GLM (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:glm-4.7-maas
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 3
+- name: Periodic Shocks — Flash (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 3
+- name: Periodic Shocks — Pro (r3)
+  scenario_id: 3250dc0f
+  optimization_model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  constraint_preset: full
+  starting_fraction: 0.35
+  num_eval_samples: 50
+  run: 3
