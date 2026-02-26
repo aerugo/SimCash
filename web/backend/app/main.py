@@ -31,6 +31,7 @@ from .models import (
 )
 from .simulation import SimulationManager
 from .game import Game
+from .game_manager import GameManager
 from .storage import GameStorage
 from .scenario_pack import get_scenario_pack, get_scenario_by_id, SCENARIO_PACK
 from .scenario_library import get_library, get_scenario_detail
@@ -52,6 +53,24 @@ logger = logging.getLogger(__name__)
 
 from .version import VERSION
 app = FastAPI(title="SimCash Web Sandbox", version=VERSION)
+
+
+async def _eviction_loop():
+    """Periodically evict idle games (every 5 minutes)."""
+    while True:
+        await asyncio.sleep(300)
+        try:
+            evicted = game_manager.evict_idle(3600)
+            if evicted:
+                logger.info("Evicted %d idle game(s): %s", len(evicted), evicted)
+        except Exception as e:
+            logger.warning("Eviction loop error: %s", e)
+
+
+@app.on_event("startup")
+async def _start_eviction():
+    """Start the background eviction task."""
+    asyncio.create_task(_eviction_loop())
 
 
 @app.on_event("startup")
@@ -153,7 +172,7 @@ app.include_router(docs_router)
 app.include_router(api_v1_router)
 
 manager = SimulationManager()
-game_manager: dict[str, Game] = {}
+game_manager = GameManager()
 game_locks: dict[str, asyncio.Lock] = {}
 # Track active auto-run tasks per game for dedup across WS connections
 game_auto_tasks: dict[str, asyncio.Task] = {}
@@ -226,7 +245,7 @@ def _try_load_game(game_id: str, uid: str = "") -> Game | None:
                 game = Game.from_checkpoint(data)
                 game._uid = data.get("uid", try_uid)
                 game._scenario_id = data.get("scenario_id", "")
-                game_manager[game_id] = game
+                game_manager.add(game)
                 logger.info("Loaded game %s from checkpoint (uid=%s, day=%d/%d)",
                             game_id, try_uid, game.current_day, game.total_days)
                 return game
@@ -768,7 +787,7 @@ async def create_game(config: CreateGameRequest = CreateGameRequest(), uid: str 
     game._uid = uid
     from datetime import datetime, timezone
     game._created_at = datetime.now(timezone.utc).isoformat()
-    game_manager[game_id] = game
+    game_manager.add(game)
 
     # Persist: create DuckDB + update index + save checkpoint (skip for guests)
     if not uid.startswith("guest-"):
@@ -927,17 +946,20 @@ def game_day_replay(game_id: str, day_num: int, uid: str = Depends(get_effective
         raise HTTPException(status_code=404, detail=f"Day {day_num} not found")
 
     day = game.days[day_num]
+    tick_events = day.tick_events
+    if not tick_events:
+        tick_events = game.recompute_day_events(day_num)
     return {
         "day": day_num,
         "seed": day.seed,
-        "num_ticks": len(day.tick_events),
+        "num_ticks": len(tick_events),
         "ticks": [
             {
                 "tick": i,
                 "events": tick_evts,
                 "balances": {aid: day.balance_history[aid][i] if i < len(day.balance_history.get(aid, [])) else 0 for aid in game.agent_ids},
             }
-            for i, tick_evts in enumerate(day.tick_events)
+            for i, tick_evts in enumerate(tick_events)
         ],
         "policies": {
             aid: {"initial_liquidity_fraction": p["parameters"].get("initial_liquidity_fraction", 1.0)}
@@ -1038,7 +1060,7 @@ def download_game(game_id: str, uid: str = Depends(get_effective_optional_user))
 def delete_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Delete a game."""
     if game_id in game_manager:
-        del game_manager[game_id]
+        game_manager.remove(game_id)
     game_storage.delete_game(uid, game_id)
     game_storage.delete_checkpoint(uid, game_id)
     game_storage.remove_from_index(uid, game_id)
@@ -1581,7 +1603,11 @@ def get_payment_traces(game_id: str, day_num: int, uid: str = Depends(get_effect
         raise HTTPException(status_code=404, detail=f"Day {day_num} not found")
 
     day = game.days[day_num]
-    payments = build_payment_traces(day.events)
+    events = day.events
+    if not events:
+        tick_events = game.recompute_day_events(day_num)
+        events = [e for tick in tick_events for e in tick]
+    payments = build_payment_traces(events)
     return {
         "day": day_num,
         "total_payments": len(payments),

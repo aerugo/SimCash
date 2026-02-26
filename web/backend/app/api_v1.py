@@ -245,7 +245,7 @@ async def create_experiment(
 
     from datetime import datetime, timezone
     game._created_at = datetime.now(timezone.utc).isoformat()
-    game_manager[game_id] = game
+    game_manager.add(game)
 
     game_storage.create_game_db(uid, game_id)
     game_storage.update_index(uid, {
