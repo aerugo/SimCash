@@ -255,11 +255,27 @@ class GameStorage:
 
     def _parse_checkpoint_summary(self, data: dict, fallback_id: str = "") -> dict:
         """Extract summary fields from a checkpoint dict."""
+        # Extract final cost and settlement rate from last completed day
+        days = data.get("progress", {}).get("days", [])
+        final_cost = None
+        final_settlement_rate = None
+        prompt_profile = data.get("config", {}).get("prompt_profile", "")
+        if days:
+            last_day = days[-1] if isinstance(days, list) else None
+            if last_day:
+                final_cost = last_day.get("total_cost") or last_day.get("day_total_cost")
+                stats = last_day.get("settlement_stats", {})
+                if stats and stats.get("total_payments"):
+                    final_settlement_rate = round(
+                        stats.get("settled_payments", 0) / stats["total_payments"] * 100, 1
+                    )
+
         return {
             "game_id": data.get("game_id", fallback_id),
             "scenario_id": data.get("scenario_id", ""),
             "scenario_name": data.get("scenario_name", ""),
             "optimization_model": data.get("optimization_model", ""),
+            "prompt_profile": prompt_profile,
             "status": data.get("status", "unknown"),
             "current_day": data.get("progress", {}).get("current_day", 0),
             "rounds": data.get("config", {}).get("rounds", data.get("config", {}).get("max_days", 0)),
@@ -273,6 +289,8 @@ class GameStorage:
             "quality": data.get("quality", "clean"),
             "stalled": data.get("stalled", False),
             "stall_reason": data.get("stall_reason", ""),
+            "final_cost": final_cost,
+            "final_settlement_rate": final_settlement_rate,
         }
 
     # ---- Global experiment registry ----

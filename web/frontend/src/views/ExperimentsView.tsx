@@ -22,6 +22,10 @@ interface GameSummary {
   quality?: string;
   stalled?: boolean;
   stall_reason?: string;
+  optimization_model?: string;
+  prompt_profile?: string;
+  final_cost?: number;
+  final_settlement_rate?: number;
 }
 
 function timeAgo(iso: string): string {
@@ -248,10 +252,32 @@ export default function ExperimentsView() {
                       sim
                     </span>
                   )}
+                  {g.optimization_model && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ background: 'var(--bg-inset)', color: 'var(--text-accent)' }}>
+                      🧠 {g.optimization_model.split(':').pop()}
+                    </span>
+                  )}
+                  {g.prompt_profile && (
+                    <span className="text-[11px] px-1.5 py-0.5 rounded font-mono" style={{ background: 'var(--bg-inset)', color: 'var(--text-muted)' }}>
+                      {g.prompt_profile}
+                    </span>
+                  )}
                 </div>
-                <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                  {g.game_id}
-                </span>
+                <div className="flex items-center gap-2">
+                  {g.final_cost != null && (g.display_status || g.status) === 'complete' && (
+                    <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                      cost: {Math.round(g.final_cost).toLocaleString()}
+                    </span>
+                  )}
+                  {g.final_settlement_rate != null && (g.display_status || g.status) === 'complete' && (
+                    <span className="text-[11px] font-mono" style={{ color: g.final_settlement_rate >= 99 ? 'var(--color-success)' : 'var(--text-secondary)' }}>
+                      SR: {g.final_settlement_rate}%
+                    </span>
+                  )}
+                  <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+                    {g.game_id}
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
