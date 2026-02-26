@@ -55,7 +55,7 @@ async def revoke_api_key(key_id: str, uid: str = Depends(get_effective_user)):
 # ---- Scenarios (API key or Firebase auth) ----
 
 @router.get("/scenarios")
-async def list_scenarios(uid: str | None = Depends(get_optional_api_or_firebase_user)):
+async def list_scenarios(uid: str | None = Depends(get_effective_optional_user)):
     """List all scenarios (built-in + user's custom if authenticated)."""
     scenarios = []
     for entry in SCENARIO_PACK:
@@ -85,7 +85,7 @@ async def list_scenarios(uid: str | None = Depends(get_optional_api_or_firebase_
 
 
 @router.get("/scenarios/{scenario_id}")
-async def get_scenario(scenario_id: str, uid: str | None = Depends(get_optional_api_or_firebase_user)):
+async def get_scenario(scenario_id: str, uid: str | None = Depends(get_effective_optional_user)):
     """Get scenario detail with raw config."""
     item = get_scenario_by_id(scenario_id)
     if item:
