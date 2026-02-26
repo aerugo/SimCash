@@ -302,6 +302,42 @@ class TestGameDefaultsV2:
 # ═══════════════════════════════════════════════════════════════════════
 
 
+class TestRetryTimeout:
+    """Retry LLM call should timeout after 120s."""
+
+    @pytest.mark.asyncio
+    async def test_retry_timeout_yields_retry_failed(self):
+        """If retry LLM takes >120s, it should timeout and yield retry_failed."""
+        from app.streaming_optimizer import stream_optimize_with_retries
+
+        result_data = _make_accepted_result()
+        bootstrap_gate = MagicMock()
+        bootstrap_gate.evaluate.return_value = _make_bootstrap_reject_result(result_data)
+
+        mock_agent = MagicMock()
+
+        async def _slow_run(*args, **kwargs):
+            await asyncio.sleep(999)  # Will be cancelled by timeout
+
+        mock_agent.run = _slow_run
+
+        with patch("app.streaming_optimizer.stream_optimize", _mock_stream_optimize_events(result_data)), \
+             patch("app.streaming_optimizer._get_or_create_retry_agent", return_value=mock_agent), \
+             patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+            events = await _collect_events(
+                stream_optimize_with_retries(
+                    "BANK_A", CURRENT_POLICY, _make_mock_day(), [_make_mock_day()],
+                    {}, bootstrap_gate=bootstrap_gate, max_proposals=2,
+                )
+            )
+
+        results = [e for e in events if e["type"] == "result"]
+        assert len(results) == 1
+        result = results[0]["data"]
+        assert result.get("retry_failed") is True
+        assert result["accepted"] is False
+
+
 class TestBootstrapGatePreservesMetadata:
     """BootstrapGate.evaluate() should preserve LLM call metadata."""
 

@@ -642,6 +642,12 @@ async def get_optimization_threads(
                     "new_fraction": result_data.get("new_fraction"),
                     "accepted": result_data.get("accepted"),
                     "mock": result_data.get("mock"),
+                    "rejection_reason": result_data.get("rejection_reason"),
+                    "bootstrap": result_data.get("bootstrap"),
+                    "retry_failed": result_data.get("retry_failed"),
+                    "retry_error": result_data.get("retry_error"),
+                    "retry_declined": result_data.get("retry_declined"),
+                    "bootstrap_proposal": result_data.get("bootstrap_proposal"),
                 }
 
             threads.append({
