@@ -72,11 +72,24 @@ function getTooltipStyle(rect: Rect, pos: Position, tooltipW: number, tooltipH: 
 }
 
 /** Render text with **bold** and *italic* markdown */
-function renderBold(text: string): React.ReactNode[] {
+function renderBoldCinematic(text: string): React.ReactNode[] {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} style={{ color: '#ffffff', fontWeight: 600 }}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i} className="italic">{part.slice(1, -1)}</em>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
+function renderBold(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*')) {
       return <em key={i} className="italic">{part.slice(1, -1)}</em>;
@@ -180,7 +193,7 @@ export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, 
 
           {/* Content */}
           <p className="text-xl leading-relaxed font-light" style={{ color: 'rgba(255,255,255,0.85)' }}>
-            {renderBold(currentStep.content)}
+            {renderBoldCinematic(currentStep.content)}
           </p>
 
           {/* Navigation */}
