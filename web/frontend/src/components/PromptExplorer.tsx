@@ -30,6 +30,8 @@ export function PromptExplorer({ gameId, agentIds }: Props) {
   const [prevPrompt, setPrevPrompt] = useState<PromptDetail | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const [retryCount, setRetryCount] = useState(0);
+
   // Load prompt list
   useEffect(() => {
     setLoading(true);
@@ -46,10 +48,10 @@ export function PromptExplorer({ gameId, agentIds }: Props) {
           }
         }
       })
-      .catch(() => setError('Failed to load prompt data'))
+      .catch((e) => setError(`Failed to load prompt data${e?.message ? `: ${e.message}` : ''}`))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId]);
+  }, [gameId, retryCount]);
 
   // Available days and agents
   const availableDays = useMemo(() => {
@@ -150,6 +152,15 @@ export function PromptExplorer({ gameId, agentIds }: Props) {
         <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
           Prompt data is recorded during AI optimization rounds.
         </div>
+        {error && (
+          <button
+            onClick={() => setRetryCount(c => c + 1)}
+            className="mt-3 px-3 py-1.5 text-xs rounded-lg transition-colors"
+            style={{ background: 'var(--bg-inset)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+          >
+            🔄 Retry
+          </button>
+        )}
       </div>
     );
   }
