@@ -41,7 +41,7 @@ export function HomeView() {
         >
           ▶ Start Tutorial
         </button>
-        <p className="text-xs text-slate-500 mt-3">Real experiment · 24 interactive steps · No setup needed</p>
+        <p className="text-xs text-slate-500 mt-3">Real experiment · 25 interactive steps · No setup needed</p>
       </div>
 
       {/* Why SimCash — Research Motivations */}

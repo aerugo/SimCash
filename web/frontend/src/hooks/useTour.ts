@@ -27,12 +27,18 @@ export interface TourStep {
 // ── 25-beat script ─────────────────────────────────────────────────
 
 export const TOUR_STEPS: TourStep[] = [
-  // ACT I — "The Setup" (4 beats)
+  // ACT I — "The Setup" (5 beats)
   {
     id: 'welcome',
     act: 1,
     target: 'top-bar',
-    content: 'This is a completed experiment. Two AI agents played a **10-round payment game** and optimized their strategy over 10 rounds. Let\'s see what they learned.',
+    content: 'Banks in real-time payment systems face a coordination dilemma: **holding liquidity is expensive, but delaying payments risks gridlock.** SimCash asks: can AI agents learn to navigate this tradeoff — and will they find equilibrium?',
+  },
+  {
+    id: 'the-experiment',
+    act: 1,
+    target: 'top-bar',
+    content: 'You\'re looking at a completed experiment. Two AI agents each built a **decision-tree policy** — not free-form decisions, but auditable rules — and refined it over 10 rounds by analyzing their own results. Let\'s see what they learned.',
   },
   {
     id: 'the-players',
