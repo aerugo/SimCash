@@ -162,15 +162,20 @@ export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, 
 
   // ── Cinematic full-screen slide ──
   if (currentStep.cinematic) {
+    const labels = ['The Problem', 'The Insight', 'The Experiment'];
     return (
       <div
-        className="fixed inset-0 z-[10001] flex items-center justify-center animate-fade-in"
+        className="fixed inset-0 z-[10001] flex items-center justify-center"
         style={{ backgroundColor: 'rgba(2, 6, 24, 0.95)' }}
       >
-        <div className="max-w-xl px-8 text-center space-y-6">
+        <div
+          key={currentStep.id}
+          className="max-w-xl px-8 text-center space-y-6"
+          style={{ animation: 'cinematic-fade 0.6s ease-out' }}
+        >
           {/* Act label */}
           <div className="text-sm font-semibold tracking-[0.35em] uppercase" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            {step === 0 ? 'The Problem' : step === 1 ? 'The Insight' : 'The Experiment'}
+            {labels[step] ?? ''}
           </div>
 
           {/* Content */}
