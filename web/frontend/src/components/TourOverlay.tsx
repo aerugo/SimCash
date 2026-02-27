@@ -158,8 +158,74 @@ export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, 
   // Last step is the completion card — don't show tooltip
   if (currentStep.id === 'whats-next') return null;
 
-  const spotPad = 8;
   const totalSteps = TOUR_STEPS.length - 1; // exclude completion card step
+
+  // ── Cinematic full-screen slide ──
+  if (currentStep.cinematic) {
+    return (
+      <div
+        className="fixed inset-0 z-[10001] flex items-center justify-center animate-fade-in"
+        style={{ backgroundColor: 'rgba(2, 6, 24, 0.95)' }}
+      >
+        <div className="max-w-xl px-8 text-center space-y-6">
+          {/* Act label */}
+          <div className="text-sm font-semibold tracking-[0.35em] uppercase" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {step === 0 ? 'The Problem' : step === 1 ? 'The Insight' : 'The Experiment'}
+          </div>
+
+          {/* Content */}
+          <p className="text-xl leading-relaxed font-light" style={{ color: 'rgba(255,255,255,0.85)' }}>
+            {renderBold(currentStep.content)}
+          </p>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-center gap-4 pt-4">
+            {step > 0 && (
+              <button
+                onClick={onBack}
+                className="w-10 h-10 flex items-center justify-center rounded-full text-slate-500 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Back"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+            )}
+            <button
+              onClick={onNext}
+              className="px-6 py-2.5 rounded-xl text-sm font-medium bg-sky-500 hover:bg-sky-400 text-white transition-colors"
+            >
+              {step === 2 ? 'Let\'s go →' : 'Next'}
+            </button>
+          </div>
+
+          {/* Progress dots */}
+          <div className="flex items-center justify-center gap-2 pt-2">
+            {[0, 1, 2].map(i => (
+              <div
+                key={i}
+                className="rounded-full transition-all duration-300"
+                style={{
+                  width: i === step ? 24 : 6,
+                  height: 6,
+                  backgroundColor: i === step ? 'rgb(14, 165, 233)' : 'rgba(255,255,255,0.2)',
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Skip */}
+          <button
+            onClick={onSkip}
+            className="text-xs transition-colors"
+            style={{ color: 'rgba(255,255,255,0.3)' }}
+          >
+            Skip tour
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const spotPad = 8;
   const pos = rect ? pickPosition(rect, tooltipSize.w, tooltipSize.h) : 'bottom';
   const tooltipStyle = rect
     ? getTooltipStyle(rect, pos, tooltipSize.w, tooltipSize.h)
