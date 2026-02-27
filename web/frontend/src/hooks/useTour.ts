@@ -38,7 +38,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'the-approach',
     act: 1,
     target: 'top-bar',
-    content: 'Letting an AI make every payment decision in real time is a non-starter — **you can\'t audit a neural network forward pass, and you can\'t guarantee consistency.** What if instead, the AI optimizes a structured decision tree once per day, and the system executes those rules deterministically?',
+    content: 'Letting an AI make every individual payment decision raises hard questions — **how do you audit it? How do you ensure consistency?** SimCash takes a different approach: the AI optimizes a structured decision tree once per day, and the system executes those rules deterministically.',
   },
   {
     id: 'the-experiment',
