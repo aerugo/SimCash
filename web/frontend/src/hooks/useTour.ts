@@ -61,7 +61,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'the-question',
     act: 1,
     target: 'policy-display',
-    content: 'Each bank controls two things: **how much liquidity to commit** (the fraction) and **a decision tree** that decides when to release or hold payments. Both started at fraction 0.5 with a trivial tree that releases everything.',
+    content: 'Each bank controls three things: **how much liquidity to commit** (the fraction), **a payment decision tree** that decides when to release or hold individual payments, and **a bank decision tree** for broader strategy. All started with trivial defaults.',
   },
   {
     id: 'explore-timeline',
