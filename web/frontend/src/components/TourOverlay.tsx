@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { TourStep } from '../hooks/useTour';
-import { TOUR_STEPS } from '../hooks/useTour';
+import { TOUR_STEPS, ACT_TRANSITIONS } from '../hooks/useTour';
+
+// ── TourOverlay (main tooltip) ─────────────────────────────────────
 
 interface TourOverlayProps {
   step: number;
   currentStep: TourStep;
-  waitingForRound: boolean;
-  waitingForAuto: boolean;
+  waitingForInteraction: boolean;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
@@ -32,21 +33,15 @@ function pickPosition(rect: Rect, tooltipW: number, tooltipH: number): Position 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const pad = 16;
-
-  // Prefer bottom if space
   if (rect.top + rect.height + tooltipH + pad < vh) return 'bottom';
-  // Then top
   if (rect.top - tooltipH - pad > 0) return 'top';
-  // Then right
   if (rect.left + rect.width + tooltipW + pad < vw) return 'right';
-  // Left
   return 'left';
 }
 
 function getTooltipStyle(rect: Rect, pos: Position, tooltipW: number, tooltipH: number): React.CSSProperties {
   const pad = 12;
   const vw = window.innerWidth;
-
   let top = 0;
   let left = 0;
 
@@ -69,41 +64,50 @@ function getTooltipStyle(rect: Rect, pos: Position, tooltipW: number, tooltipH: 
       break;
   }
 
-  // Clamp horizontal
   if (left < 8) left = 8;
   if (left + tooltipW > vw - 8) left = vw - tooltipW - 8;
-  // Clamp vertical
   if (top < 8) top = 8;
 
   return { position: 'absolute', top, left, width: tooltipW };
 }
 
-/** Render text with **bold** markdown */
+/** Render text with **bold** and *italic* markdown */
 function renderBold(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={i} className="italic">{part.slice(1, -1)}</em>;
     }
     return <span key={i}>{part}</span>;
   });
 }
 
-export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto, onNext, onBack, onSkip }: TourOverlayProps) {
+const ACT_NAMES: Record<number, string> = {
+  1: 'The Setup',
+  2: 'The Disaster',
+  3: 'The Recovery',
+  4: 'The Deep Dive',
+  5: 'The Payoff',
+};
+
+export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, onBack, onSkip }: TourOverlayProps) {
+  const allowClickThrough = waitingForInteraction;
   const [rect, setRect] = useState<Rect | null>(null);
+  const [visible, setVisible] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [tooltipSize, setTooltipSize] = useState({ w: 340, h: 200 });
 
   const updateRect = useCallback(() => {
     const r = getTargetRect(currentStep.target);
     if (r) {
-      // Scroll into view if needed
       const el = document.querySelector(`[data-tour="${currentStep.target}"]`);
       if (el) {
         const elRect = el.getBoundingClientRect();
         if (elRect.top < 0 || elRect.bottom > window.innerHeight) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Re-measure after scroll
           setTimeout(() => {
             const newR = getTargetRect(currentStep.target);
             if (newR) setRect(newR);
@@ -116,12 +120,22 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
     }
   }, [currentStep.target]);
 
+  // Handle delay and visibility
   useEffect(() => {
-    updateRect();
+    setVisible(false);
+    const delay = currentStep.delay ?? 0;
+    const timer = setTimeout(() => {
+      updateRect();
+      setVisible(true);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [currentStep, updateRect]);
+
+  useEffect(() => {
+    if (!visible) return;
     const handleResize = () => updateRect();
     window.addEventListener('resize', handleResize);
     window.addEventListener('scroll', handleResize, true);
-    // Poll briefly for elements that render async
     const timer = setInterval(updateRect, 500);
     const cleanup = setTimeout(() => clearInterval(timer), 5000);
     return () => {
@@ -130,7 +144,7 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
       clearInterval(timer);
       clearTimeout(cleanup);
     };
-  }, [updateRect, step]);
+  }, [visible, updateRect]);
 
   useEffect(() => {
     if (tooltipRef.current) {
@@ -139,19 +153,27 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
     }
   });
 
-  // If waiting for user action, hide overlay
-  if (waitingForRound || waitingForAuto) return null;
+  if (!visible) return null;
+
+  // Last step is the completion card — don't show tooltip
+  if (currentStep.id === 'whats-next') return null;
 
   const spotPad = 8;
-  const totalSteps = TOUR_STEPS.length;
+  const totalSteps = TOUR_STEPS.length - 1; // exclude completion card step
   const pos = rect ? pickPosition(rect, tooltipSize.w, tooltipSize.h) : 'bottom';
-  const tooltipStyle = rect ? getTooltipStyle(rect, pos, tooltipSize.w, tooltipSize.h) : { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 340 };
+  const tooltipStyle = rect
+    ? getTooltipStyle(rect, pos, tooltipSize.w, tooltipSize.h)
+    : { position: 'fixed' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 340 };
+
+  const isInteractive = currentStep.interaction && currentStep.interaction.type !== 'none';
+  const showNextButton = !waitingForInteraction;
+  const actName = ACT_NAMES[currentStep.act];
 
   return (
     <>
       {/* Backdrop with cutout */}
       <div className="fixed inset-0 z-[9998]" style={{ pointerEvents: 'none' }}>
-        <svg width="100%" height="100%" style={{ position: 'fixed', inset: 0, pointerEvents: 'auto' }}>
+        <svg width="100%" height="100%" style={{ position: 'fixed', inset: 0, pointerEvents: allowClickThrough ? 'none' : 'auto' }}>
           <defs>
             <mask id="tour-mask">
               <rect width="100%" height="100%" fill="white" />
@@ -192,12 +214,16 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="z-[10000] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-sky-500/10 p-4"
+        className="z-[10000] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-sky-500/10 p-4 animate-fade-in"
         style={tooltipStyle}
       >
-        {/* Step counter */}
+        {/* Header: act label + step counter + skip */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] text-slate-500 font-mono">{step + 1} of {totalSteps}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-sky-400 font-medium">Act {currentStep.act}: {actName}</span>
+            <span className="text-[10px] text-slate-600">·</span>
+            <span className="text-[10px] text-slate-500 font-mono">{step + 1}/{totalSteps}</span>
+          </div>
           <button
             onClick={onSkip}
             className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
@@ -210,6 +236,20 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
         <p className="text-sm text-slate-300 leading-relaxed mb-4">
           {renderBold(currentStep.content)}
         </p>
+
+        {/* Interaction hint */}
+        {waitingForInteraction && isInteractive && (
+          <div className="text-xs text-sky-400/80 mb-3 flex items-center gap-1.5 animate-pulse">
+            <span>👆</span>
+            <span>
+              {currentStep.interaction!.type === 'click-day' && `Click Day ${(currentStep.interaction as { day: number }).day + 1} to continue`}
+              {currentStep.interaction!.type === 'open-modal' && 'Click the button to continue'}
+              {currentStep.interaction!.type === 'close-modal' && 'Close the modal to continue'}
+              {currentStep.interaction!.type === 'expand' && 'Expand the section to continue'}
+              {currentStep.interaction!.type === 'click-pill' && 'Click a pill to continue'}
+            </span>
+          </div>
+        )}
 
         {/* Navigation */}
         <div className="flex items-center justify-between">
@@ -230,38 +270,91 @@ export function TourOverlay({ step, currentStep, waitingForRound, waitingForAuto
             />
           </div>
 
-          <button
-            onClick={onNext}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500 hover:bg-sky-400 text-white transition-colors"
-          >
-            {currentStep.waitForRound ? 'OK' :
-             currentStep.waitForAuto ? 'OK' :
-             step === totalSteps - 1 ? 'Finish' : 'Next'}
-          </button>
+          {showNextButton && (
+            <button
+              onClick={onNext}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-sky-500 hover:bg-sky-400 text-white transition-colors"
+            >
+              {step === totalSteps - 1 ? 'Finish' : 'Next'}
+            </button>
+          )}
         </div>
       </div>
     </>
   );
 }
 
-/** Post-tour completion note about simulated vs real AI */
-export function TourCompletionNote({ onDismiss }: { onDismiss: () => void }) {
+// ── Act Transition Interstitial ────────────────────────────────────
+
+interface ActTransitionProps {
+  actNumber: number;
+  onDismiss: () => void;
+}
+
+export function ActTransition({ actNumber, onDismiss }: ActTransitionProps) {
+  const text = ACT_TRANSITIONS[actNumber] ?? '';
+  const actName = ACT_NAMES[actNumber] ?? '';
+
+  // Auto-advance after 2s
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 2000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/60">
-      <div className="bg-slate-900 border border-violet-500/30 rounded-xl shadow-2xl shadow-violet-500/10 p-6 max-w-md mx-4">
-        <div className="text-2xl mb-3 text-center">💡</div>
-        <p className="text-sm text-slate-300 leading-relaxed text-center mb-4">
-          This experiment used <strong className="text-white">simulated AI</strong> for instant results. Real experiments use an LLM (like Gemini) which takes 10–40 seconds per optimization round — but produces genuinely novel strategies.
-        </p>
+    <div
+      className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 cursor-pointer animate-fade-in"
+      onClick={onDismiss}
+    >
+      <div className="text-center space-y-3">
+        <div className="text-xs text-sky-400 font-medium tracking-widest uppercase">Act {actNumber}</div>
+        <div className="text-2xl font-semibold text-white">{actName}</div>
+        <div className="text-sm text-slate-400 italic">{text}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Tour Completion Card (v2) ──────────────────────────────────────
+
+export function TourCompletionCard({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/60 animate-fade-in">
+      <div className="bg-slate-900 border border-sky-500/30 rounded-xl shadow-2xl shadow-sky-500/10 p-6 max-w-md mx-4">
+        <h3 className="text-lg font-semibold text-white text-center mb-4">You've seen the full lifecycle.</h3>
+        <div className="space-y-3 text-sm text-slate-300 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="text-lg">🎬</span>
+            <span><strong className="text-white">Browse scenarios</strong> in the Library — or create your own</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-lg">🧠</span>
+            <span><strong className="text-white">Bring your API key</strong> (Settings) to run with GPT, Claude, or Gemini</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-lg">🔬</span>
+            <span><strong className="text-white">Change the constraint preset</strong> — try "simple" (fraction only) vs "full" (fraction + decision trees)</span>
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="text-lg">📊</span>
+            <span><strong className="text-white">Compare runs</strong> — same scenario, different models. See who learns faster.</span>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 text-center mb-4">Every run produces different strategies. See what emerges.</p>
         <div className="text-center">
           <button
             onClick={onDismiss}
-            className="px-6 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+            className="px-6 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-sm font-medium transition-colors"
           >
-            Got it!
+            Start Exploring
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+/** @deprecated kept for backwards compat — replaced by TourCompletionCard */
+export function TourCompletionNote({ onDismiss }: { onDismiss: () => void }) {
+  return <TourCompletionCard onDismiss={onDismiss} />;
 }

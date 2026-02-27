@@ -13,6 +13,7 @@ const NAV_SECTIONS = [
   { to: '/create', label: 'Create', icon: '✏️' },
   { to: '/docs', label: 'Docs', icon: '📖', match: '/docs' },
   { to: '/api-keys', label: 'API', icon: '🔑', match: '/api-keys' },
+  { to: '/experiment/9af6fa02?tour=1', label: 'Tutorial', icon: '🎓' },
 ];
 
 function LayoutInner() {
@@ -112,6 +113,7 @@ function LayoutInner() {
                 key={section.to}
                 to={section.to}
                 end={section.exact}
+                onClick={section.label === 'Tutorial' ? () => { localStorage.removeItem('simcash_tour_done'); } : undefined}
                 className={() =>
                   `px-3 py-2 text-xs sm:text-sm font-medium whitespace-nowrap border-b-2 transition-colors`
                 }

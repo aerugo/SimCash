@@ -1,17 +1,10 @@
 import { Link, useNavigate } from 'react-router-dom';
-import type { GameSetupConfig } from '../types';
 import { HowItWorks } from '../components/HowItWorks';
-import { useGameContext } from '../GameContext';
 import { useAuthInfo } from '../AuthInfoContext';
 
 export function HomeView() {
-  const { handleGameLaunch } = useGameContext();
   const { isGuest, onSignIn } = useAuthInfo();
   const navigate = useNavigate();
-  const onGameLaunch = async (config: GameSetupConfig, tour = false) => {
-    const gid = await handleGameLaunch(config);
-    if (gid) navigate(`/experiment/${gid}${tour ? '?tour=1' : ''}`);
-  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -152,31 +145,23 @@ export function HomeView() {
         </Link>
       </div>
 
-      {/* Quick Tutorial Card */}
-      <div className="bg-gradient-to-r from-violet-500/10 to-pink-500/10 border border-violet-500/30 rounded-xl p-6 text-center mb-8">
-        <h3 className="text-lg font-semibold text-white mb-2">Quick Tutorial</h3>
+      {/* Tutorial Card */}
+      <div className="bg-gradient-to-r from-sky-500/10 to-violet-500/10 border border-sky-500/30 rounded-xl p-6 text-center mb-8">
+        <h3 className="text-lg font-semibold text-white mb-2">🎓 Guided Tour</h3>
         <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
-          Run a demo experiment in one click with simulated AI responses — results appear instantly.
-          Real experiments use an LLM for optimization, where each round waits for the AI to analyze
-          results and propose an improved policy (typically 10–40 seconds per optimization).
+          Walk through a real completed experiment in 5 minutes. See how two AI agents independently invented
+          payment strategies, evolved decision trees, and reduced costs by 60% — with no prior knowledge of payment systems.
         </p>
         <button
           onClick={() => {
-            onGameLaunch({
-              scenario_id: '2bank_12tick',
-              use_llm: true,
-              simulated_ai: true,
-              rounds: 5,
-              num_eval_samples: 1,
-              optimization_interval: 1,
-              constraint_preset: 'full',
-            }, true);
+            localStorage.removeItem('simcash_tour_done');
+            navigate('/experiment/9af6fa02?tour=1');
           }}
-          className="px-8 py-4 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold text-lg text-white hover:from-violet-400 hover:to-pink-400 transition-all shadow-lg shadow-violet-500/25 cursor-pointer"
+          className="px-8 py-4 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-bold text-lg text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/25 cursor-pointer"
         >
-          ▶ Launch Tutorial
+          ▶ Start Tutorial
         </button>
-        <p className="text-xs text-slate-500 mt-3">2 Banks · Simulated AI · 5 rounds · No API cost</p>
+        <p className="text-xs text-slate-500 mt-3">Real experiment · 25 interactive steps · No setup needed</p>
       </div>
 
       {isGuest && (

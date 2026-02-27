@@ -12,7 +12,7 @@ import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
 import { PolicyViewerModal } from '../components/PolicyViewerModal';
 import { useTour } from '../hooks/useTour';
-import { TourOverlay, TourCompletionNote } from '../components/TourOverlay';
+import { TourOverlay, ActTransition, TourCompletionCard } from '../components/TourOverlay';
 import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
 import { PromptExplorer } from '../components/PromptExplorer';
 import type { WSMessage } from '../hooks/useGameWebSocket';
@@ -272,7 +272,7 @@ export function GameView() {
 
   const gameState = wsState ?? initialState;
 
-  const tour = useTour(gameState?.days?.length ?? 0, autoRunning);
+  const tour = useTour();
 
   // Sync state up to parent — use ref to avoid dependency on onUpdate
   const onUpdateRef = useRef(onUpdate);
@@ -403,7 +403,7 @@ export function GameView() {
             <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400 text-xs font-medium">STALLED ⚠️</span>
           )}
           {gameState.use_llm && (
-            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium">
+            <span className="px-2 py-1 rounded bg-violet-500/20 text-violet-400 text-xs font-medium" data-tour="model-badge">
               🧠 {gameState.optimization_model ? gameState.optimization_model.split(':').pop() : 'glm-4.7-maas'}
             </span>
           )}
@@ -571,7 +571,9 @@ export function GameView() {
       </div>
 
       {/* Activity Feed */}
-      <ActivityFeed events={actLog.events} />
+      <div data-tour="activity-feed">
+        <ActivityFeed events={actLog.events} />
+      </div>
 
       {/* Fatal experiment error banner */}
       {experimentError && (
@@ -645,7 +647,7 @@ export function GameView() {
         const lastTotal = lastDay.total_cost ?? 0;
         const reduction = firstTotal > 0 ? ((firstTotal - lastTotal) / firstTotal * 100) : 0;
         return (
-          <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5">
+          <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-5" data-tour="completion-summary">
             <h3 className="text-lg font-semibold text-green-400 mb-3">Experiment Complete — {gameState.rounds} Rounds</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
@@ -730,7 +732,7 @@ export function GameView() {
                 {gameState.days.map((d, i) => (
                   <button
                     key={i}
-                    onClick={() => setSelectedDay(i)}
+                    onClick={() => { setSelectedDay(i); tour.notifyInteraction('day-selected', i); }}
                     title={d.optimized ? `Day ${i + 1} — optimized` : `Day ${i + 1}`}
                     className={`w-8 h-8 rounded text-xs font-mono transition-all relative ${
                       selectedDay === i || (selectedDay === null && i === gameState.days.length - 1)
@@ -1074,6 +1076,8 @@ export function GameView() {
                       result={latest}
                       colorIdx={i}
                       constraintPreset={gameState.constraint_preset}
+                      onModalOpened={() => tour.notifyInteraction('modal-opened')}
+                      onModalClosed={() => tour.notifyInteraction('modal-closed')}
                     />
                   );
                 })}
@@ -1083,7 +1087,7 @@ export function GameView() {
 
           {/* Policy history (all iterations) */}
           {gameState.reasoning_history && gameState.agent_ids.some(aid => (gameState.reasoning_history[aid] ?? []).length > 0) && (
-            <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} constraintPreset={gameState.constraint_preset} />
+            <PolicyHistoryPanel agentIds={gameState.agent_ids} reasoningHistory={gameState.reasoning_history} fractionHistory={gameState.fraction_history} constraintPreset={gameState.constraint_preset} onPillClicked={() => tour.notifyInteraction('pill-clicked')} onModalOpened={() => tour.notifyInteraction('modal-opened')} onModalClosed={() => tour.notifyInteraction('modal-closed')} />
           )}
 
           {/* Policies for selected day */}
@@ -1151,7 +1155,7 @@ export function GameView() {
 
       {/* Prompt Explorer */}
       {gameState.use_llm && gameState.days.length > 0 && (
-        <PromptExplorerSection gameId={gameId} agentIds={gameState.agent_ids} />
+        <PromptExplorerSection gameId={gameId} agentIds={gameState.agent_ids} onExpanded={() => tour.notifyInteraction('section-expanded')} />
       )}
 
       {/* Notes panel */}
@@ -1176,19 +1180,24 @@ export function GameView() {
       </div>
 
       {/* Tour overlay */}
-      {tour.state.active && tour.currentStep && (
+      {tour.state.active && tour.currentStep && !tour.state.showActTransition && (
         <TourOverlay
           step={tour.state.step}
           currentStep={tour.currentStep}
-          waitingForRound={tour.state.waitingForRound}
-          waitingForAuto={tour.state.waitingForAuto}
+          waitingForInteraction={tour.state.waitingForInteraction}
           onNext={tour.next}
           onBack={tour.back}
           onSkip={tour.skip}
         />
       )}
+      {tour.state.showActTransition !== null && (
+        <ActTransition
+          actNumber={tour.state.showActTransition}
+          onDismiss={tour.dismissActTransition}
+        />
+      )}
       {tour.state.showCompletion && (
-        <TourCompletionNote onDismiss={tour.dismissCompletion} />
+        <TourCompletionCard onDismiss={() => { tour.dismissCompletion(); nav('/'); }} />
       )}
     </div>
   );
@@ -1312,11 +1321,13 @@ function EventSummary({ day, gameId }: { day: { day: number; events: Record<stri
 
 // ── Shared reasoning card for a single agent result ─────────────────
 
-function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
+function AgentReasoningCard({ aid, result, colorIdx, constraintPreset, onModalOpened, onModalClosed }: {
   aid: string;
   result: GameOptimizationResult;
   colorIdx: number;
   constraintPreset?: string;
+  onModalOpened?: () => void;
+  onModalClosed?: () => void;
 }) {
   const [policyModal, setPolicyModal] = useState<{ policy: import('../types').PolicyJson; rejected?: boolean; rejectionReason?: string; bootstrap?: import('../types').BootstrapResult } | null>(null);
   const bs = result.bootstrap;
@@ -1358,7 +1369,7 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
 
       {/* Bootstrap stats — clean horizontal layout */}
       {bs && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono mb-2" style={{ color: 'var(--text-muted)' }}>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono mb-2" style={{ color: 'var(--text-muted)' }} data-tour="bootstrap-stats">
           <span>Δ {(bs.delta_sum ?? 0).toLocaleString()}<InfoTip text="Cost change (negative = improvement)" /></span>
           <span>CV {(bs.cv ?? 0).toFixed(2)}<InfoTip text="Coefficient of variation — lower = more reliable" /></span>
           <span>CI [{(bs.ci_lower ?? 0).toLocaleString()}, {(bs.ci_upper ?? 0).toLocaleString()}]<InfoTip text="95% confidence interval" /></span>
@@ -1402,9 +1413,7 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
       <div className="flex flex-wrap gap-2 mt-2">
         {(result.accepted ? result.new_policy : result.old_policy) && (
           <button
-            onClick={() => setPolicyModal({
-              policy: (result.accepted ? result.new_policy : result.old_policy)!,
-            })}
+            onClick={() => { setPolicyModal({ policy: (result.accepted ? result.new_policy : result.old_policy)! }); onModalOpened?.(); }}
             className="text-[11px] px-2 py-1 rounded"
             style={{ background: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', cursor: 'pointer' }}
           >
@@ -1413,14 +1422,10 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
         )}
         {!result.accepted && (result.rejected_policy || result.new_policy) && (
           <button
-            onClick={() => setPolicyModal({
-              policy: (result.rejected_policy || result.new_policy)!,
-              rejected: true,
-              rejectionReason: result.rejection_reason,
-              bootstrap: result.bootstrap,
-            })}
+            onClick={() => { setPolicyModal({ policy: (result.rejected_policy || result.new_policy)!, rejected: true, rejectionReason: result.rejection_reason, bootstrap: result.bootstrap }); onModalOpened?.(); }}
             className="text-[11px] px-2 py-1 rounded"
             style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer' }}
+            data-tour="rejected-policy-btn"
           >
             🚫 View Rejected Policy
           </button>
@@ -1430,7 +1435,7 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
       {policyModal && (
         <PolicyViewerModal
           policy={policyModal.policy}
-          onClose={() => setPolicyModal(null)}
+          onClose={() => { setPolicyModal(null); onModalClosed?.(); }}
           title={`${aid} — ${policyModal.rejected ? 'Rejected' : 'Active'} Policy`}
           rejected={policyModal.rejected}
           rejectionReason={policyModal.rejectionReason}
@@ -1441,11 +1446,14 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset }: {
   );
 }
 
-function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, constraintPreset }: {
+function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, constraintPreset, onPillClicked, onModalOpened, onModalClosed }: {
   agentIds: string[];
   reasoningHistory: Record<string, GameOptimizationResult[]>;
   fractionHistory: Record<string, number[]>;
   constraintPreset?: string;
+  onPillClicked?: () => void;
+  onModalOpened?: () => void;
+  onModalClosed?: () => void;
 }) {
   const [selectedAgent, setSelectedAgent] = useState(agentIds[0] ?? '');
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
@@ -1455,7 +1463,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
   const selected = selectedRound !== null ? history[selectedRound] : null;
 
   return (
-    <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
+    <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)' }} data-tour="policy-history">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>📊 Policy History</h3>
         <div className="flex items-center gap-1 flex-wrap">
@@ -1482,7 +1490,7 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
           return (
             <button
               key={i}
-              onClick={() => setSelectedRound(isSelected ? null : i)}
+              onClick={() => { setSelectedRound(isSelected ? null : i); if (!isSelected && onPillClicked) onPillClicked(); }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono transition-all"
               style={{
                 background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-inset)',
@@ -1532,6 +1540,8 @@ function PolicyHistoryPanel({ agentIds, reasoningHistory, fractionHistory, const
           result={selected}
           colorIdx={agentIds.indexOf(selectedAgent)}
           constraintPreset={constraintPreset}
+          onModalOpened={onModalOpened}
+          onModalClosed={onModalClosed}
         />
       )}
 
@@ -1789,12 +1799,12 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   );
 }
 
-function PromptExplorerSection({ gameId, agentIds }: { gameId: string; agentIds: string[] }) {
+function PromptExplorerSection({ gameId, agentIds, onExpanded }: { gameId: string; agentIds: string[]; onExpanded?: () => void }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700">
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700" data-tour="prompt-explorer">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => { const next = !isOpen; setIsOpen(next); if (next && onExpanded) onExpanded(); }}
         className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-300 hover:text-white transition-colors"
       >
         <span>🔍 Prompt Explorer</span>

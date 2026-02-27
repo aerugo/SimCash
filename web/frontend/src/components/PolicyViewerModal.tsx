@@ -40,6 +40,7 @@ export function PolicyViewerModal({ policy, onClose, title, rejected, rejectionR
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        data-tour="policy-modal"
         style={{
           background: 'var(--bg-card)', border: '1px solid var(--border-color)',
           borderRadius: '12px', maxWidth: '800px', width: '100%',
