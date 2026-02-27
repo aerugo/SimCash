@@ -165,7 +165,7 @@ export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, 
     return (
       <div
         className="fixed inset-0 z-[10001] flex items-center justify-center animate-fade-in"
-        style={{ backgroundColor: 'rgba(2, 6, 24, 0.95)' }}
+        style={{ backgroundColor: 'rgb(2, 6, 24)' }}
       >
         <div className="max-w-xl px-8 text-center space-y-6">
           {/* Act label */}
