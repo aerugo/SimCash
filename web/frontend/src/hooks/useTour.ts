@@ -35,10 +35,16 @@ export const TOUR_STEPS: TourStep[] = [
     content: 'Banks in real-time payment systems face a coordination dilemma: **holding liquidity is expensive, but delaying payments risks gridlock.** SimCash asks: can AI agents learn to navigate this tradeoff — and will they find equilibrium?',
   },
   {
+    id: 'the-approach',
+    act: 1,
+    target: 'top-bar',
+    content: 'Letting an AI make every payment decision in real time is a non-starter — **you can\'t audit a neural network forward pass, and you can\'t guarantee consistency.** What if instead, the AI optimizes a structured decision tree once per day, and the system executes those rules deterministically?',
+  },
+  {
     id: 'the-experiment',
     act: 1,
     target: 'top-bar',
-    content: 'You\'re looking at a completed experiment. Two AI agents each built a **decision-tree policy** — not free-form decisions, but auditable rules — and refined it over 10 rounds by analyzing their own results. Let\'s see what they learned.',
+    content: 'That\'s what you\'re looking at. Two AI agents each refined a **decision-tree policy** over 10 rounds — auditable rules, not black-box decisions — by analyzing their own daily results. Let\'s see what they learned.',
   },
   {
     id: 'the-players',
