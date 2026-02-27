@@ -25,6 +25,25 @@ export function HomeView() {
         </p>
       </div>
 
+      {/* Tutorial Card */}
+      <div className="bg-gradient-to-r from-sky-500/10 to-violet-500/10 border border-sky-500/30 rounded-xl p-6 text-center mb-8">
+        <h3 className="text-lg font-semibold text-white mb-2">🎓 Guided Tour</h3>
+        <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
+          Walk through a real completed experiment in 5 minutes. See how two AI agents independently optimized
+          payment strategies, evolved decision trees, and reduced costs by 60%.
+        </p>
+        <button
+          onClick={() => {
+            localStorage.removeItem('simcash_tour_done');
+            navigate('/experiment/9af6fa02?tour=1');
+          }}
+          className="px-8 py-4 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-bold text-lg text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/25 cursor-pointer"
+        >
+          ▶ Start Tutorial
+        </button>
+        <p className="text-xs text-slate-500 mt-3">Real experiment · 24 interactive steps · No setup needed</p>
+      </div>
+
       {/* Why SimCash — Research Motivations */}
       <div className="mb-8 space-y-4 max-w-3xl mx-auto text-sm" style={{ color: 'var(--text-secondary)' }}>
         <h3 className="text-lg font-semibold text-center" style={{ color: 'var(--text-primary)' }}>Why SimCash?</h3>
@@ -143,25 +162,6 @@ export function HomeView() {
           <h3 className="font-semibold text-slate-100 group-hover:text-emerald-300 transition-colors mb-1">Documentation</h3>
           <p className="text-xs text-slate-400">Learn about RTGS, LSM, game theory, and the SimCash engine</p>
         </Link>
-      </div>
-
-      {/* Tutorial Card */}
-      <div className="bg-gradient-to-r from-sky-500/10 to-violet-500/10 border border-sky-500/30 rounded-xl p-6 text-center mb-8">
-        <h3 className="text-lg font-semibold text-white mb-2">🎓 Guided Tour</h3>
-        <p className="text-sm text-slate-300 max-w-lg mx-auto mb-4">
-          Walk through a real completed experiment in 5 minutes. See how two AI agents independently invented
-          payment strategies, evolved decision trees, and reduced costs by 60% — with no prior knowledge of payment systems.
-        </p>
-        <button
-          onClick={() => {
-            localStorage.removeItem('simcash_tour_done');
-            navigate('/experiment/9af6fa02?tour=1');
-          }}
-          className="px-8 py-4 rounded-xl bg-gradient-to-r from-sky-500 to-violet-500 font-bold text-lg text-white hover:from-sky-400 hover:to-violet-400 transition-all shadow-lg shadow-sky-500/25 cursor-pointer"
-        >
-          ▶ Start Tutorial
-        </button>
-        <p className="text-xs text-slate-500 mt-3">Real experiment · 24 interactive steps · No setup needed</p>
       </div>
 
       {isGuest && (
