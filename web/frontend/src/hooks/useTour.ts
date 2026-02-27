@@ -156,7 +156,6 @@ export const TOUR_STEPS: TourStep[] = [
     act: 4,
     target: 'prompt-explorer',
     content: 'Expand **🔍 Prompt Explorer** to see the exact prompt the AI received. Each colored block is a section — system instructions, cost data, scenario rules, policy constraints. The token bar shows how the prompt budget is spent.',
-    interaction: { type: 'expand', target: 'prompt-explorer' },
   },
   {
     id: 'tick-replay',
