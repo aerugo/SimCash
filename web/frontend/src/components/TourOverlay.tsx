@@ -307,10 +307,10 @@ export function ActTransition({ actNumber, onDismiss }: ActTransitionProps) {
       style={{ backgroundColor: 'rgba(2, 6, 24, 0.95)' }}
       onClick={onDismiss}
     >
-      <div className="text-center space-y-3">
-        <div className="text-xs text-sky-400 font-medium tracking-widest uppercase">Act {actNumber}</div>
-        <div className="text-2xl font-semibold text-white">{actName}</div>
-        <div className="text-sm text-slate-400 italic">{text}</div>
+      <div className="text-center space-y-4 px-8">
+        <div className="text-sm text-white/40 font-semibold tracking-[0.35em] uppercase">Act {actNumber}</div>
+        <div className="text-5xl font-bold text-white tracking-tight">{actName}</div>
+        <div className="text-lg text-white/60 italic font-light">{text}</div>
       </div>
     </div>
   );
