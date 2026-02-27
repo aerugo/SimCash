@@ -11,7 +11,7 @@ import { InfoTip } from '../components/Tooltip';
 import { PaymentTraceView } from '../components/PaymentTraceView';
 import { useGameContext } from '../GameContext';
 import { PolicyViewerModal } from '../components/PolicyViewerModal';
-import { useTour } from '../hooks/useTour';
+import { useTour, TOUR_STEPS } from '../hooks/useTour';
 import { TourOverlay, ActTransition, TourCompletionCard } from '../components/TourOverlay';
 import { ActivityFeed, useActivityLog } from '../components/ActivityFeed';
 import { PromptExplorer } from '../components/PromptExplorer';
@@ -277,10 +277,14 @@ export function GameView() {
   const tour = useTour();
 
   // Auto-close any open modals when tour step changes
+  // (but NOT when the new step expects the user to close a modal)
   const prevTourStepRef = useRef(tour.state.step);
   useEffect(() => {
     if (tour.state.active && tour.state.step !== prevTourStepRef.current) {
-      window.dispatchEvent(new Event('tour-close-modals'));
+      const newStep = TOUR_STEPS[tour.state.step];
+      if (newStep?.interaction?.type !== 'close-modal') {
+        window.dispatchEvent(new Event('tour-close-modals'));
+      }
     }
     prevTourStepRef.current = tour.state.step;
   }, [tour.state.active, tour.state.step]);
