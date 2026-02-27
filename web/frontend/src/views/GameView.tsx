@@ -245,8 +245,10 @@ export function GameView() {
     prevConnStatus.current = connectionStatus;
     if (connectionStatus === 'connected' && prev === 'reconnecting') {
       actLog.push('connection', '🔄 Reconnected to server', 'success');
-    } else if (connectionStatus === 'disconnected' && !wsState?.is_complete) {
+    } else if (connectionStatus === 'disconnected' && !wsState?.is_complete && !initialState?.is_complete) {
       actLog.push('connection', '🔴 Connection lost — experiment paused', 'error');
+    } else if (connectionStatus === 'disconnected' && (wsState?.is_complete || initialState?.is_complete)) {
+      actLog.push('connection', '✅ Experiment complete', 'info');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionStatus]);
@@ -273,6 +275,15 @@ export function GameView() {
   const gameState = wsState ?? initialState;
 
   const tour = useTour();
+
+  // Auto-close any open modals when tour step changes
+  const prevTourStepRef = useRef(tour.state.step);
+  useEffect(() => {
+    if (tour.state.active && tour.state.step !== prevTourStepRef.current) {
+      window.dispatchEvent(new Event('tour-close-modals'));
+    }
+    prevTourStepRef.current = tour.state.step;
+  }, [tour.state.active, tour.state.step]);
 
   // Sync state up to parent — use ref to avoid dependency on onUpdate
   const onUpdateRef = useRef(onUpdate);
@@ -570,10 +581,12 @@ export function GameView() {
         </div>}
       </div>
 
-      {/* Activity Feed */}
-      <div data-tour="activity-feed">
-        <ActivityFeed events={actLog.events} />
-      </div>
+      {/* Activity Feed — hide during tour (except when spotlighted) to avoid misleading messages */}
+      {(!tour.state.active || tour.currentStep?.target === 'activity-feed') && (
+        <div data-tour="activity-feed">
+          <ActivityFeed events={actLog.events} />
+        </div>
+      )}
 
       {/* Fatal experiment error banner */}
       {experimentError && (
@@ -1330,6 +1343,14 @@ function AgentReasoningCard({ aid, result, colorIdx, constraintPreset, onModalOp
   onModalClosed?: () => void;
 }) {
   const [policyModal, setPolicyModal] = useState<{ policy: import('../types').PolicyJson; rejected?: boolean; rejectionReason?: string; bootstrap?: import('../types').BootstrapResult } | null>(null);
+
+  // Auto-close modal when tour step changes
+  useEffect(() => {
+    const handler = () => { setPolicyModal(null); };
+    window.addEventListener('tour-close-modals', handler);
+    return () => window.removeEventListener('tour-close-modals', handler);
+  }, []);
+
   const bs = result.bootstrap;
   return (
     <div className="rounded-lg p-4 border-l-3"
