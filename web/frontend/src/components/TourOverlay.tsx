@@ -94,7 +94,7 @@ const ACT_NAMES: Record<number, string> = {
 };
 
 export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, onBack, onSkip }: TourOverlayProps) {
-  const allowClickThrough = waitingForInteraction;
+  // SVG overlay is always pointer-events:none so users can hover/click spotlighted elements
   const [rect, setRect] = useState<Rect | null>(null);
   const [visible, setVisible] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -173,7 +173,7 @@ export function TourOverlay({ step, currentStep, waitingForInteraction, onNext, 
     <>
       {/* Backdrop with cutout */}
       <div className="fixed inset-0 z-[9998]" style={{ pointerEvents: 'none' }}>
-        <svg width="100%" height="100%" style={{ position: 'fixed', inset: 0, pointerEvents: allowClickThrough ? 'none' : 'auto' }}>
+        <svg width="100%" height="100%" style={{ position: 'fixed', inset: 0, pointerEvents: 'none' }}>
           <defs>
             <mask id="tour-mask">
               <rect width="100%" height="100%" fill="white" />
