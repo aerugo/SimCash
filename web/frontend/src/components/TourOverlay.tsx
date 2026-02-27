@@ -303,7 +303,8 @@ export function ActTransition({ actNumber, onDismiss }: ActTransitionProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[10001] flex items-center justify-center bg-slate-950/80 cursor-pointer animate-fade-in"
+      className="fixed inset-0 z-[10001] flex items-center justify-center cursor-pointer animate-fade-in"
+      style={{ backgroundColor: 'rgba(2, 6, 24, 0.85)' }}
       onClick={onDismiss}
     >
       <div className="text-center space-y-3">
@@ -319,7 +320,7 @@ export function ActTransition({ actNumber, onDismiss }: ActTransitionProps) {
 
 export function TourCompletionCard({ onDismiss }: { onDismiss: () => void }) {
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/60 animate-fade-in">
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center animate-fade-in" style={{ backgroundColor: 'rgba(2, 6, 24, 0.7)' }}>
       <div className="bg-slate-900 border border-sky-500/30 rounded-xl shadow-2xl shadow-sky-500/10 p-6 max-w-md mx-4">
         <h3 className="text-lg font-semibold text-white text-center mb-4">You've seen the full lifecycle.</h3>
         <div className="space-y-3 text-sm text-slate-300 mb-6">

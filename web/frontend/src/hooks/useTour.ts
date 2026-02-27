@@ -105,7 +105,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'from-nothing-to-strategy',
     act: 3,
-    target: 'policy-display',
+    target: 'policy-history',
     content: 'On Day 1, both trees were a single node: "Release everything." By Day 4, BANK_A checks **urgency OR overdue status** first, then checks if it has enough liquidity, and **Holds** if not. Click **🔍 View Policy** on BANK_A to see the full tree.',
     interaction: { type: 'open-modal' },
   },
@@ -126,7 +126,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'convergence-divergence',
     act: 3,
-    target: 'policy-display',
+    target: 'policy-history',
     content: 'BANK_B arrived at a **4-deep tree** — it added a balance conservation layer that BANK_A didn\'t. Same problem, same starting point, but the AIs invented **different strategies** that both work. BANK_A checks overdue status; BANK_B checks balance thresholds. Neither can see the other\'s approach.',
   },
 
