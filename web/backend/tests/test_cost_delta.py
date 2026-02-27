@@ -290,3 +290,101 @@ class TestSimulateDayIntegration:
             assert day.day_per_agent_costs == day.per_agent_costs
             assert day.day_costs == day.costs
             game.commit_day(day)
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Intra-scenario (multi-day) integration — the real bug path
+# ---------------------------------------------------------------------------
+
+class TestIntraScenarioIntegration:
+    """Multi-day scenario with every_scenario_day must produce correct costs.
+
+    This is the exact code path that caused Stefan's negative costs:
+    - num_days > 1 in scenario YAML
+    - optimization_schedule = every_scenario_day
+    - Persistent Orchestrator across scenario days
+    - Engine resets cost accumulators at each day boundary
+    - _compute_cost_deltas (now removed) subtracted independent per-day values
+    """
+
+    def _make_multi_day_game(self, num_scenario_days: int = 3,
+                              total_days: int = 3) -> Game:
+        """Create a game with a multi-day scenario."""
+        from app.scenario_pack import generate_scenario
+        scenario = generate_scenario(num_agents=2, ticks_per_day=2,
+                                     deadline_range=[1, 2], liquidity_bps=500)
+        scenario["simulation"]["num_days"] = num_scenario_days
+        game = Game(
+            game_id="test-intra",
+            raw_yaml=scenario,
+            total_days=total_days,
+            optimization_schedule="every_scenario_day",
+        )
+        return game
+
+    def test_intra_scenario_costs_non_negative(self):
+        """All costs must be non-negative across a multi-day scenario."""
+        game = self._make_multi_day_game(num_scenario_days=3, total_days=3)
+
+        for _ in range(3):
+            day = game.simulate_day()
+            assert day.day_total_cost >= 0, (
+                f"Day {day.day_num}: day_total_cost={day.day_total_cost} is negative!"
+            )
+            for aid, cost in day.day_per_agent_costs.items():
+                assert cost >= 0, (
+                    f"Day {day.day_num}, {aid}: day_per_agent_costs={cost} is negative!"
+                )
+            for aid, breakdown in day.day_costs.items():
+                for k, v in breakdown.items():
+                    assert v >= 0, (
+                        f"Day {day.day_num}, {aid}.{k}={v} is negative!"
+                    )
+            game.commit_day(day)
+
+    def test_intra_scenario_day_fields_equal_raw(self):
+        """day_* fields must equal raw fields even in intra-scenario mode."""
+        game = self._make_multi_day_game(num_scenario_days=3, total_days=3)
+
+        for _ in range(3):
+            day = game.simulate_day()
+            assert day.day_total_cost == day.total_cost, (
+                f"Day {day.day_num}: day_total_cost={day.day_total_cost} != "
+                f"total_cost={day.total_cost}"
+            )
+            assert day.day_per_agent_costs == day.per_agent_costs
+            assert day.day_costs == day.costs
+            game.commit_day(day)
+
+    def test_intra_scenario_cost_history_non_negative(self):
+        """cost_history must be non-negative for multi-day scenarios."""
+        game = self._make_multi_day_game(num_scenario_days=3, total_days=3)
+
+        for _ in range(3):
+            day = game.simulate_day()
+            game.commit_day(day)
+
+        state = game.get_state()
+        for aid, history in state["cost_history"].items():
+            for day_idx, cost in enumerate(history):
+                assert cost >= 0, (
+                    f"{aid} day {day_idx}: cost_history={cost} is negative!"
+                )
+
+    def test_intra_scenario_api_output_non_negative(self):
+        """to_summary_dict costs must be non-negative in intra-scenario mode."""
+        game = self._make_multi_day_game(num_scenario_days=3, total_days=3)
+
+        for _ in range(3):
+            day = game.simulate_day()
+            summary = day.to_summary_dict()
+            assert summary["total_cost"] >= 0, (
+                f"Day {day.day_num}: summary total_cost={summary['total_cost']}"
+            )
+            for aid, breakdown in summary["costs"].items():
+                for k, v in breakdown.items():
+                    if isinstance(v, (int, float)):
+                        assert v >= 0, (
+                            f"Day {day.day_num} {aid}.{k}={v} in summary is negative!"
+                        )
+            game.commit_day(day)
