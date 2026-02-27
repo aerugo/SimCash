@@ -49,7 +49,7 @@ User arrives at `/experiment/9af6fa02`. Completed experiment. We're exploring, n
 **Beat 1 · "Welcome"**
 *Target: top-bar · Type: tooltip*
 
-> This is a completed experiment. Two AI agents played a **10-round payment game** and taught themselves strategy from scratch. Let's see what they learned.
+> This is a completed experiment. Two AI agents played a **10-round payment game** and optimized their strategy over 10 rounds. Let's see what they learned.
 
 ---
 
@@ -163,7 +163,7 @@ Shift from disaster to learning. The trees evolve, fractions converge.
 *Target: PolicyViewerModal*
 *Type: tooltip on modal*
 
-> This is the tree the AI built from scratch. **Three conditions, three possible actions.** It learned to prioritize urgent payments, check available funds, and hold back when liquidity is tight — all without being taught any payment system concepts. Close when you're done exploring.
+> This is the tree the AI evolved through optimization. **Three conditions, three possible actions.** It learned to prioritize urgent payments, check available funds, and hold back when liquidity is tight — all by reasoning about its own results. Close when you're done exploring.
 
 *Interaction: Wait for modal close.*
 

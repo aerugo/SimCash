@@ -32,7 +32,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'welcome',
     act: 1,
     target: 'top-bar',
-    content: 'This is a completed experiment. Two AI agents played a **10-round payment game** and taught themselves strategy from scratch. Let\'s see what they learned.',
+    content: 'This is a completed experiment. Two AI agents played a **10-round payment game** and optimized their strategy over 10 rounds. Let\'s see what they learned.',
   },
   {
     id: 'the-players',
@@ -113,7 +113,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'the-decision-tree',
     act: 3,
     target: 'policy-modal',
-    content: 'This is the tree the AI built from scratch. **Three conditions, three possible actions.** It learned to prioritize urgent payments, check available funds, and hold back when liquidity is tight — all without being taught any payment system concepts. Close when you\'re done exploring.',
+    content: 'This is the tree the AI evolved through optimization. **Three conditions, three possible actions.** It learned to prioritize urgent payments, check available funds, and hold back when liquidity is tight — all by reasoning about its own results. Close when you\'re done exploring.',
     interaction: { type: 'close-modal' },
   },
   {
