@@ -304,7 +304,7 @@ export function ActTransition({ actNumber, onDismiss }: ActTransitionProps) {
   return (
     <div
       className="fixed inset-0 z-[10001] flex items-center justify-center cursor-pointer animate-fade-in"
-      style={{ backgroundColor: 'rgba(2, 6, 24, 0.85)' }}
+      style={{ backgroundColor: 'rgba(2, 6, 24, 0.95)' }}
       onClick={onDismiss}
     >
       <div className="text-center space-y-3">
