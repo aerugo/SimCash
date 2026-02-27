@@ -1172,7 +1172,7 @@ export function GameView() {
 
       {/* Prompt Explorer */}
       {gameState.use_llm && gameState.days.length > 0 && (
-        <PromptExplorerSection gameId={gameId} agentIds={gameState.agent_ids} onExpanded={() => tour.notifyInteraction('section-expanded')} />
+        <PromptExplorerSection gameId={gameId} agentIds={gameState.agent_ids} onExpanded={() => tour.notifyInteraction('section-expanded')} tourWaiting={tour.currentStep?.id === 'under-the-hood' && tour.state.waitingForInteraction} />
       )}
 
       {/* Notes panel */}
@@ -1824,8 +1824,12 @@ function MiniBalanceChart({ balanceHistory, agentIds }: {
   );
 }
 
-function PromptExplorerSection({ gameId, agentIds, onExpanded }: { gameId: string; agentIds: string[]; onExpanded?: () => void }) {
+function PromptExplorerSection({ gameId, agentIds, onExpanded, tourWaiting }: { gameId: string; agentIds: string[]; onExpanded?: () => void; tourWaiting?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  // If already expanded when tour arrives at this step, auto-satisfy
+  useEffect(() => {
+    if (tourWaiting && isOpen && onExpanded) onExpanded();
+  }, [tourWaiting]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700" data-tour="prompt-explorer">
       <button
