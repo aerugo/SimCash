@@ -246,16 +246,39 @@ export function DocsView() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* Mobile nav */}
+      {/* Mobile nav — grouped with optgroup for papers */}
       <div className="md:hidden mb-4">
         <select
           value={activeId}
           onChange={e => { setActiveId(e.target.value); navigate(`/docs/${e.target.value}`); }}
           className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200"
         >
-          {pages.map(p => (
-            <option key={p.id} value={p.id}>{p.icon} {p.title}</option>
-          ))}
+          {groupedPages.map(g => {
+            if (g.items.length === 0) return null;
+            if (g.key === 'paper') {
+              // Group papers by paper slug
+              const paperGroups: Record<string, { title: string; items: DocPage[] }> = {};
+              for (const item of g.items) {
+                const key = item.paper || 'other';
+                if (!paperGroups[key]) paperGroups[key] = { title: item.paper_title || key, items: [] };
+                paperGroups[key].items.push(item);
+              }
+              return Object.entries(paperGroups).map(([pKey, pg]) => (
+                <optgroup key={pKey} label={`📑 ${pg.title}`}>
+                  {pg.items.map(item => (
+                    <option key={item.id} value={item.id}>{item.icon} {item.title}</option>
+                  ))}
+                </optgroup>
+              ));
+            }
+            return (
+              <optgroup key={g.key} label={g.label}>
+                {g.items.map(item => (
+                  <option key={item.id} value={item.id}>{item.icon} {item.title}</option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
       </div>
 
