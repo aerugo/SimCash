@@ -1,0 +1,3155 @@
+{
+  "generated": "2026-02-28",
+  "total_experiments": 130,
+  "simple_scenarios": {
+    "2b_3t": {
+      "scenario": "2b_3t",
+      "banks": 2,
+      "baseline_cost": 99900,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 15671,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 13660,
+              "sr": 1.0,
+              "id": "eaf07a54"
+            },
+            {
+              "run": "r2",
+              "cost": 18213,
+              "sr": 1.0,
+              "id": "62023a9c"
+            },
+            {
+              "run": "r3",
+              "cost": 15140,
+              "sr": 1.0,
+              "id": "8bbca064"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 36491,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 75886,
+              "sr": 1.0,
+              "id": "4206630b"
+            },
+            {
+              "run": "r2",
+              "cost": 17090,
+              "sr": 1.0,
+              "id": "98cee358"
+            },
+            {
+              "run": "r3",
+              "cost": 16497,
+              "sr": 1.0,
+              "id": "cbf39377"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 60013,
+          "avg_sr": 0.6362,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 100909,
+              "sr": 0.3529,
+              "id": "b9042cb0"
+            },
+            {
+              "run": "r2",
+              "cost": 65618,
+              "sr": 0.5556,
+              "id": "1f0b3de6"
+            },
+            {
+              "run": "r3",
+              "cost": 13513,
+              "sr": 1.0,
+              "id": "d53b0bb5"
+            }
+          ]
+        }
+      }
+    },
+    "3b_6t": {
+      "scenario": "3b_6t",
+      "banks": 3,
+      "baseline_cost": 74700,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 35942,
+          "avg_sr": 0.9612,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 18017,
+              "sr": 1.0,
+              "id": "be9df7e0"
+            },
+            {
+              "run": "r2",
+              "cost": 18017,
+              "sr": 1.0,
+              "id": "a38f96de"
+            },
+            {
+              "run": "r3",
+              "cost": 71792,
+              "sr": 0.8837,
+              "id": "3f2f8515"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 18759,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 19678,
+              "sr": 1.0,
+              "id": "5f3e5661"
+            },
+            {
+              "run": "r2",
+              "cost": 16929,
+              "sr": 1.0,
+              "id": "95372913"
+            },
+            {
+              "run": "r3",
+              "cost": 19670,
+              "sr": 1.0,
+              "id": "59133371"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 19960,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 19631,
+              "sr": 1.0,
+              "id": "e28f8c05"
+            },
+            {
+              "run": "r2",
+              "cost": 19631,
+              "sr": 1.0,
+              "id": "a438ae19"
+            },
+            {
+              "run": "r3",
+              "cost": 20618,
+              "sr": 1.0,
+              "id": "e240fb7d"
+            }
+          ]
+        }
+      }
+    },
+    "4b_8t": {
+      "scenario": "4b_8t",
+      "banks": 4,
+      "baseline_cost": 132800,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 43785,
+          "avg_sr": 0.9736,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 59123,
+              "sr": 0.9524,
+              "id": "1c3114b7"
+            },
+            {
+              "run": "r2",
+              "cost": 38543,
+              "sr": 0.9683,
+              "id": "65e2a56e"
+            },
+            {
+              "run": "r3",
+              "cost": 33689,
+              "sr": 1.0,
+              "id": "17391de1"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 56233,
+          "avg_sr": 0.9577,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 41233,
+              "sr": 0.9683,
+              "id": "760cdc06"
+            },
+            {
+              "run": "r2",
+              "cost": 45952,
+              "sr": 0.9841,
+              "id": "9e94be0c"
+            },
+            {
+              "run": "r3",
+              "cost": 81514,
+              "sr": 0.9206,
+              "id": "200dfb32"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 37206,
+          "avg_sr": 0.9788,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 40178,
+              "sr": 0.9683,
+              "id": "b74c5f0d"
+            },
+            {
+              "run": "r2",
+              "cost": 35720,
+              "sr": 0.9841,
+              "id": "ffe5ebcd"
+            },
+            {
+              "run": "r3",
+              "cost": 35720,
+              "sr": 0.9841,
+              "id": "d58d1a6a"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "stress_scenarios": {
+    "2b_stress": {
+      "scenario": "2b_stress",
+      "banks": 2,
+      "baseline_cost": 99600,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 121290,
+          "avg_sr": 0.86,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 164585,
+              "sr": 0.82,
+              "id": "55d8de6f"
+            },
+            {
+              "run": "r2",
+              "cost": 167035,
+              "sr": 0.82,
+              "id": "73461842"
+            },
+            {
+              "run": "r3",
+              "cost": 32249,
+              "sr": 0.94,
+              "id": "b3995a2f"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 108155,
+          "avg_sr": 0.86,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 68086,
+              "sr": 0.9,
+              "id": "fd2b74ad"
+            },
+            {
+              "run": "r2",
+              "cost": 69837,
+              "sr": 0.86,
+              "id": "7da0d68e"
+            },
+            {
+              "run": "r3",
+              "cost": 186543,
+              "sr": 0.82,
+              "id": "ef9dbacb"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 176786,
+          "avg_sr": 0.8333,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 194897,
+              "sr": 0.84,
+              "id": "b1fe6b96"
+            },
+            {
+              "run": "r2",
+              "cost": 140565,
+              "sr": 0.82,
+              "id": "12b795dc"
+            },
+            {
+              "run": "r3",
+              "cost": 194897,
+              "sr": 0.84,
+              "id": "628ff51e"
+            }
+          ]
+        }
+      }
+    },
+    "liquidity_squeeze": {
+      "scenario": "liquidity_squeeze",
+      "banks": 2,
+      "baseline_cost": 72000,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 21749,
+          "avg_sr": 1.0,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 20635,
+              "sr": 1.0,
+              "id": "6406580a"
+            },
+            {
+              "run": "r3",
+              "cost": 22863,
+              "sr": 1.0,
+              "id": "248e336d"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 14506,
+          "avg_sr": 1.0,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 15705,
+              "sr": 1.0,
+              "id": "bdf0fa24"
+            },
+            {
+              "run": "r3",
+              "cost": 13306,
+              "sr": 1.0,
+              "id": "af979444"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 16817,
+          "avg_sr": 1.0,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 16174,
+              "sr": 1.0,
+              "id": "5ba7ddab"
+            },
+            {
+              "run": "r3",
+              "cost": 17460,
+              "sr": 1.0,
+              "id": "7c557b1d"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "special_scenarios": {
+    "lynx_day": {
+      "scenario": "lynx_day",
+      "banks": 4,
+      "baseline_cost": 3,
+      "baseline_sr": 1.0,
+      "num_days": 1,
+      "models": {
+        "flash": {
+          "avg_cost": 3,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "3245ee30"
+            },
+            {
+              "run": "r2",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "19b88106"
+            },
+            {
+              "run": "r3",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "27c63568"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 3,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "73672186"
+            },
+            {
+              "run": "r2",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "46da91ae"
+            },
+            {
+              "run": "r3",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "0e8044b7"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 3,
+          "avg_sr": 1.0,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "6571ce38"
+            },
+            {
+              "run": "r2",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "47adfb62"
+            },
+            {
+              "run": "r3",
+              "cost": 3,
+              "sr": 1.0,
+              "id": "873c7fa4"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "complex_scenarios": {
+    "periodic_shocks": {
+      "scenario": "periodic_shocks",
+      "banks": 5,
+      "baseline_cost": 611354137,
+      "baseline_sr": 0.8619,
+      "num_days": 25,
+      "models": {
+        "flash": {
+          "avg_cost": 737345996,
+          "avg_sr": 0.7964,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 800565920,
+              "sr": 0.8022,
+              "id": "ea0794a3"
+            },
+            {
+              "run": "r3",
+              "cost": 674126072,
+              "sr": 0.7907,
+              "id": "e68d887d"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 755856468,
+          "avg_sr": 0.7978,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 782415219,
+              "sr": 0.7939,
+              "id": "0496e8bc"
+            },
+            {
+              "run": "r3",
+              "cost": 729297717,
+              "sr": 0.8017,
+              "id": "f7f91666"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 650435290,
+          "avg_sr": 0.7816,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 664537592,
+              "sr": 0.7808,
+              "id": "c3092a1e"
+            },
+            {
+              "run": "r3",
+              "cost": 636332987,
+              "sr": 0.7824,
+              "id": "f0eb80e9"
+            }
+          ]
+        }
+      }
+    },
+    "large_network": {
+      "scenario": "large_network",
+      "banks": 5,
+      "baseline_cost": 1733987707,
+      "baseline_sr": 0.7373,
+      "num_days": 25,
+      "models": {
+        "flash": {
+          "avg_cost": 2031556611,
+          "avg_sr": 0.7036,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 2030507059,
+              "sr": 0.6979,
+              "id": "298704f4"
+            },
+            {
+              "run": "r2",
+              "cost": 2081259566,
+              "sr": 0.7063,
+              "id": "92040487"
+            },
+            {
+              "run": "r3",
+              "cost": 1982903209,
+              "sr": 0.7066,
+              "id": "a1521a92"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 1484509048,
+          "avg_sr": 0.6951,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 2093933246,
+              "sr": 0.6799,
+              "id": "6f6f3afb"
+            },
+            {
+              "run": "r2",
+              "cost": 2156858072,
+              "sr": 0.6942,
+              "id": "d8aba24e"
+            },
+            {
+              "run": "r3",
+              "cost": 202735827,
+              "sr": 0.7113,
+              "id": "c084839a"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 1153162573,
+          "avg_sr": 0.8106,
+          "n": 2,
+          "runs": [
+            {
+              "run": "r2",
+              "cost": 182875980,
+              "sr": 0.9288,
+              "id": "bb6ea1d2"
+            },
+            {
+              "run": "r3",
+              "cost": 2123449166,
+              "sr": 0.6925,
+              "id": "daafc265"
+            }
+          ]
+        }
+      }
+    },
+    "lehman_month": {
+      "scenario": "lehman_month",
+      "banks": 6,
+      "baseline_cost": 2063529647,
+      "baseline_sr": 0.7912,
+      "num_days": 25,
+      "models": {
+        "flash": {
+          "avg_cost": 2354193298,
+          "avg_sr": 0.7414,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 2344311418,
+              "sr": 0.7336,
+              "id": "79785ad6"
+            },
+            {
+              "run": "r2",
+              "cost": 2316881469,
+              "sr": 0.7501,
+              "id": "9f5ebd66"
+            },
+            {
+              "run": "r3",
+              "cost": 2401387007,
+              "sr": 0.7406,
+              "id": "ff26b685"
+            }
+          ]
+        },
+        "pro": {
+          "avg_cost": 2546636952,
+          "avg_sr": 0.7198,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 2543118517,
+              "sr": 0.7223,
+              "id": "9f279e14"
+            },
+            {
+              "run": "r2",
+              "cost": 2527968660,
+              "sr": 0.7119,
+              "id": "ce84d3e7"
+            },
+            {
+              "run": "r3",
+              "cost": 2568823680,
+              "sr": 0.7251,
+              "id": "a54b3f8a"
+            }
+          ]
+        },
+        "glm": {
+          "avg_cost": 1768160485,
+          "avg_sr": 0.7209,
+          "n": 3,
+          "runs": [
+            {
+              "run": "r1",
+              "cost": 2498377186,
+              "sr": 0.7317,
+              "id": "161d71d5"
+            },
+            {
+              "run": "r2",
+              "cost": 2554521005,
+              "sr": 0.7209,
+              "id": "95361864"
+            },
+            {
+              "run": "r3",
+              "cost": 251583264,
+              "sr": 0.71,
+              "id": "45e8aa95"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "castro_exp2": {
+    "baseline_cost": 99600,
+    "baseline_sr": 1.0,
+    "conditions": {
+      "c1-info": {
+        "flash": {
+          "avg_cost": 55381,
+          "avg_sr": 0.8733,
+          "n": 3
+        },
+        "glm": {
+          "avg_cost": 70872,
+          "avg_sr": 0.7987,
+          "n": 3
+        },
+        "pro": {
+          "avg_cost": 57265,
+          "avg_sr": 0.8667,
+          "n": 3
+        }
+      },
+      "c2-floor": {
+        "flash": {
+          "avg_cost": 43735,
+          "avg_sr": 0.9667,
+          "n": 3
+        },
+        "glm": {
+          "avg_cost": 61504,
+          "avg_sr": 0.7713,
+          "n": 3
+        },
+        "pro": {
+          "avg_cost": 44505,
+          "avg_sr": 0.8867,
+          "n": 3
+        }
+      },
+      "c3-guidance": {
+        "flash": {
+          "avg_cost": 39436,
+          "avg_sr": 0.98,
+          "n": 3
+        },
+        "glm": {
+          "avg_cost": 69025,
+          "avg_sr": 0.7884,
+          "n": 3
+        },
+        "pro": {
+          "avg_cost": 68327,
+          "avg_sr": 0.8333,
+          "n": 3
+        }
+      },
+      "c4-comp": {
+        "flash": {
+          "avg_cost": 50766,
+          "avg_sr": 0.87,
+          "n": 2
+        },
+        "glm": {
+          "avg_cost": 72182,
+          "avg_sr": 0.7428,
+          "n": 2
+        },
+        "pro": {
+          "avg_cost": 88300,
+          "avg_sr": 0.88,
+          "n": 2
+        }
+      },
+      "c4-composition": {
+        "flash": {
+          "avg_cost": 37995,
+          "avg_sr": 1.0,
+          "n": 1
+        },
+        "glm": {
+          "avg_cost": 73541,
+          "avg_sr": 0.6977,
+          "n": 1
+        },
+        "pro": {
+          "avg_cost": 63984,
+          "avg_sr": 0.82,
+          "n": 1
+        }
+      },
+      "retry-canary": {
+        "flash": {
+          "avg_cost": 36187,
+          "avg_sr": 0.94,
+          "n": 1
+        }
+      },
+      "v0.1": {
+        "flash": {
+          "avg_cost": 51423,
+          "avg_sr": 0.88,
+          "n": 3
+        },
+        "glm": {
+          "avg_cost": 70870,
+          "avg_sr": 0.7921,
+          "n": 3
+        },
+        "pro": {
+          "avg_cost": 94268,
+          "avg_sr": 0.82,
+          "n": 3
+        }
+      }
+    }
+  },
+  "threshold_data": [
+    {
+      "scenario": "2b_3t",
+      "banks": 2,
+      "model": "flash",
+      "baseline_cost": 99900,
+      "opt_cost": 15671,
+      "baseline_sr": 1.0,
+      "opt_sr": 1.0,
+      "cost_delta_pct": -84.3,
+      "sr_delta": 0.0
+    },
+    {
+      "scenario": "2b_3t",
+      "banks": 2,
+      "model": "pro",
+      "baseline_cost": 99900,
+      "opt_cost": 36491,
+      "baseline_sr": 1.0,
+      "opt_sr": 1.0,
+      "cost_delta_pct": -63.5,
+      "sr_delta": 0.0
+    },
+    {
+      "scenario": "2b_3t",
+      "banks": 2,
+      "model": "glm",
+      "baseline_cost": 99900,
+      "opt_cost": 60013,
+      "baseline_sr": 1.0,
+      "opt_sr": 0.6362,
+      "cost_delta_pct": -39.9,
+      "sr_delta": -0.3638
+    },
+    {
+      "scenario": "3b_6t",
+      "banks": 3,
+      "model": "flash",
+      "baseline_cost": 74700,
+      "opt_cost": 35942,
+      "baseline_sr": 1.0,
+      "opt_sr": 0.9612,
+      "cost_delta_pct": -51.9,
+      "sr_delta": -0.0388
+    },
+    {
+      "scenario": "3b_6t",
+      "banks": 3,
+      "model": "pro",
+      "baseline_cost": 74700,
+      "opt_cost": 18759,
+      "baseline_sr": 1.0,
+      "opt_sr": 1.0,
+      "cost_delta_pct": -74.9,
+      "sr_delta": 0.0
+    },
+    {
+      "scenario": "3b_6t",
+      "banks": 3,
+      "model": "glm",
+      "baseline_cost": 74700,
+      "opt_cost": 19960,
+      "baseline_sr": 1.0,
+      "opt_sr": 1.0,
+      "cost_delta_pct": -73.3,
+      "sr_delta": 0.0
+    },
+    {
+      "scenario": "4b_8t",
+      "banks": 4,
+      "model": "flash",
+      "baseline_cost": 132800,
+      "opt_cost": 43785,
+      "baseline_sr": 1.0,
+      "opt_sr": 0.9736,
+      "cost_delta_pct": -67.0,
+      "sr_delta": -0.0264
+    },
+    {
+      "scenario": "4b_8t",
+      "banks": 4,
+      "model": "pro",
+      "baseline_cost": 132800,
+      "opt_cost": 56233,
+      "baseline_sr": 1.0,
+      "opt_sr": 0.9577,
+      "cost_delta_pct": -57.7,
+      "sr_delta": -0.0423
+    },
+    {
+      "scenario": "4b_8t",
+      "banks": 4,
+      "model": "glm",
+      "baseline_cost": 132800,
+      "opt_cost": 37206,
+      "baseline_sr": 1.0,
+      "opt_sr": 0.9788,
+      "cost_delta_pct": -72.0,
+      "sr_delta": -0.0212
+    },
+    {
+      "scenario": "periodic_shocks",
+      "banks": 5,
+      "model": "flash",
+      "baseline_cost": 611354137,
+      "opt_cost": 737345996,
+      "baseline_sr": 0.8619,
+      "opt_sr": 0.7964,
+      "cost_delta_pct": 20.6,
+      "sr_delta": -0.0655
+    },
+    {
+      "scenario": "periodic_shocks",
+      "banks": 5,
+      "model": "pro",
+      "baseline_cost": 611354137,
+      "opt_cost": 755856468,
+      "baseline_sr": 0.8619,
+      "opt_sr": 0.7978,
+      "cost_delta_pct": 23.6,
+      "sr_delta": -0.0641
+    },
+    {
+      "scenario": "periodic_shocks",
+      "banks": 5,
+      "model": "glm",
+      "baseline_cost": 611354137,
+      "opt_cost": 650435290,
+      "baseline_sr": 0.8619,
+      "opt_sr": 0.7816,
+      "cost_delta_pct": 6.4,
+      "sr_delta": -0.0803
+    },
+    {
+      "scenario": "large_network",
+      "banks": 5,
+      "model": "flash",
+      "baseline_cost": 1733987707,
+      "opt_cost": 2031556611,
+      "baseline_sr": 0.7373,
+      "opt_sr": 0.7036,
+      "cost_delta_pct": 17.2,
+      "sr_delta": -0.0337
+    },
+    {
+      "scenario": "large_network",
+      "banks": 5,
+      "model": "pro",
+      "baseline_cost": 1733987707,
+      "opt_cost": 1484509048,
+      "baseline_sr": 0.7373,
+      "opt_sr": 0.6951,
+      "cost_delta_pct": -14.4,
+      "sr_delta": -0.0422
+    },
+    {
+      "scenario": "large_network",
+      "banks": 5,
+      "model": "glm",
+      "baseline_cost": 1733987707,
+      "opt_cost": 1153162573,
+      "baseline_sr": 0.7373,
+      "opt_sr": 0.8106,
+      "cost_delta_pct": -33.5,
+      "sr_delta": 0.0733
+    },
+    {
+      "scenario": "lehman_month",
+      "banks": 6,
+      "model": "flash",
+      "baseline_cost": 2063529647,
+      "opt_cost": 2354193298,
+      "baseline_sr": 0.7912,
+      "opt_sr": 0.7414,
+      "cost_delta_pct": 14.1,
+      "sr_delta": -0.0498
+    },
+    {
+      "scenario": "lehman_month",
+      "banks": 6,
+      "model": "pro",
+      "baseline_cost": 2063529647,
+      "opt_cost": 2546636952,
+      "baseline_sr": 0.7912,
+      "opt_sr": 0.7198,
+      "cost_delta_pct": 23.4,
+      "sr_delta": -0.0714
+    },
+    {
+      "scenario": "lehman_month",
+      "banks": 6,
+      "model": "glm",
+      "baseline_cost": 2063529647,
+      "opt_cost": 1768160485,
+      "baseline_sr": 0.7912,
+      "opt_sr": 0.7209,
+      "cost_delta_pct": -14.3,
+      "sr_delta": -0.0703
+    }
+  ],
+  "model_leaderboard": {
+    "flash": {
+      "cost_wins": 5,
+      "sr_wins": 3,
+      "both_wins": 2,
+      "total": 7
+    },
+    "pro": {
+      "cost_wins": 5,
+      "sr_wins": 4,
+      "both_wins": 3,
+      "total": 7
+    },
+    "glm": {
+      "cost_wins": 5,
+      "sr_wins": 3,
+      "both_wins": 2,
+      "total": 7
+    }
+  },
+  "bank_counts": {
+    "2b_3t": 2,
+    "3b_6t": 3,
+    "4b_8t": 4,
+    "2b_stress": 2,
+    "liquidity_squeeze": 2,
+    "castro_exp2": 2,
+    "lynx_day": 4,
+    "periodic_shocks": 5,
+    "large_network": 5,
+    "lehman_month": 6
+  },
+  "all_experiments": [
+    {
+      "filename": "2b_3t_-_baseline.json",
+      "scenario": "2b_3t",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "5c59f15f",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 99900,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 99900,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "2b_3t_-_flash.json",
+      "scenario": "2b_3t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "eaf07a54",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 13660,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 334989,
+      "mean_all_days_sr": 0.9778
+    },
+    {
+      "filename": "2b_3t_-_flash_(r2).json",
+      "scenario": "2b_3t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "62023a9c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 18213,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 336932,
+      "mean_all_days_sr": 0.9354
+    },
+    {
+      "filename": "2b_3t_-_flash_(r3).json",
+      "scenario": "2b_3t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "8bbca064",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 15140,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 452388,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "2b_3t_-_glm.json",
+      "scenario": "2b_3t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "b9042cb0",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 100909,
+      "settlement_rate": 0.3529,
+      "sum_all_days_cost": 960502,
+      "mean_all_days_sr": 0.6484
+    },
+    {
+      "filename": "2b_3t_-_glm_(r2).json",
+      "scenario": "2b_3t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "1f0b3de6",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 65618,
+      "settlement_rate": 0.5556,
+      "sum_all_days_cost": 815717,
+      "mean_all_days_sr": 0.713
+    },
+    {
+      "filename": "2b_3t_-_glm_(r3).json",
+      "scenario": "2b_3t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "d53b0bb5",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 13513,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 347639,
+      "mean_all_days_sr": 0.9196
+    },
+    {
+      "filename": "2b_3t_-_pro.json",
+      "scenario": "2b_3t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "4206630b",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 75886,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 621296,
+      "mean_all_days_sr": 0.7671
+    },
+    {
+      "filename": "2b_3t_-_pro_(r2).json",
+      "scenario": "2b_3t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "98cee358",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 17090,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 257568,
+      "mean_all_days_sr": 0.9327
+    },
+    {
+      "filename": "2b_3t_-_pro_(r3).json",
+      "scenario": "2b_3t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "cbf39377",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 16497,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 319911,
+      "mean_all_days_sr": 0.8863
+    },
+    {
+      "filename": "2b_stress_-_baseline.json",
+      "scenario": "2b_stress",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "a36fe08d",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 99600,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 99600,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "2b_stress_-_flash.json",
+      "scenario": "2b_stress",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "55d8de6f",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 164585,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 844613,
+      "mean_all_days_sr": 0.9702
+    },
+    {
+      "filename": "2b_stress_-_flash_(r2).json",
+      "scenario": "2b_stress",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "73461842",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 167035,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 1124301,
+      "mean_all_days_sr": 0.9671
+    },
+    {
+      "filename": "2b_stress_-_flash_(r3).json",
+      "scenario": "2b_stress",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "b3995a2f",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 32249,
+      "settlement_rate": 0.94,
+      "sum_all_days_cost": 574246,
+      "mean_all_days_sr": 0.9901
+    },
+    {
+      "filename": "2b_stress_-_glm.json",
+      "scenario": "2b_stress",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "b1fe6b96",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 194897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 984229,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "2b_stress_-_glm_(r2).json",
+      "scenario": "2b_stress",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "12b795dc",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 140565,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 976374,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "2b_stress_-_glm_(r3).json",
+      "scenario": "2b_stress",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "628ff51e",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 194897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 1021832,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "2b_stress_-_pro.json",
+      "scenario": "2b_stress",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "fd2b74ad",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 68086,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 672897,
+      "mean_all_days_sr": 0.9835
+    },
+    {
+      "filename": "2b_stress_-_pro_(r2).json",
+      "scenario": "2b_stress",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "7da0d68e",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 69837,
+      "settlement_rate": 0.86,
+      "sum_all_days_cost": 1910974,
+      "mean_all_days_sr": 0.9711
+    },
+    {
+      "filename": "2b_stress_-_pro_(r3).json",
+      "scenario": "2b_stress",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "ef9dbacb",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 186543,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 1052429,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "3b_6t_-_baseline.json",
+      "scenario": "3b_6t",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "c2994509",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 74700,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 74700,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "3b_6t_-_flash.json",
+      "scenario": "3b_6t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "be9df7e0",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 18017,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 289001,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_flash_(r2).json",
+      "scenario": "3b_6t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "a38f96de",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 18017,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 311921,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_flash_(r3).json",
+      "scenario": "3b_6t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "3f2f8515",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 71792,
+      "settlement_rate": 0.8837,
+      "sum_all_days_cost": 496849,
+      "mean_all_days_sr": 0.9786
+    },
+    {
+      "filename": "3b_6t_-_glm.json",
+      "scenario": "3b_6t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "e28f8c05",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 19631,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 279147,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_glm_(r2).json",
+      "scenario": "3b_6t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "a438ae19",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 19631,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 249151,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_glm_(r3).json",
+      "scenario": "3b_6t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "e240fb7d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 20618,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 272650,
+      "mean_all_days_sr": 0.9829
+    },
+    {
+      "filename": "3b_6t_-_pro.json",
+      "scenario": "3b_6t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "5f3e5661",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 19678,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 249150,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_pro_(r2).json",
+      "scenario": "3b_6t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "95372913",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 16929,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 256202,
+      "mean_all_days_sr": 0.9914
+    },
+    {
+      "filename": "3b_6t_-_pro_(r3).json",
+      "scenario": "3b_6t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "59133371",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 19670,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 297618,
+      "mean_all_days_sr": 0.9658
+    },
+    {
+      "filename": "4b_8t_-_baseline.json",
+      "scenario": "4b_8t",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "73e5990a",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 132800,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 132800,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "4b_8t_-_flash.json",
+      "scenario": "4b_8t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "1c3114b7",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 59123,
+      "settlement_rate": 0.9524,
+      "sum_all_days_cost": 818803,
+      "mean_all_days_sr": 0.9903
+    },
+    {
+      "filename": "4b_8t_-_flash_(r2).json",
+      "scenario": "4b_8t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "65e2a56e",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 38543,
+      "settlement_rate": 0.9683,
+      "sum_all_days_cost": 826253,
+      "mean_all_days_sr": 0.9823
+    },
+    {
+      "filename": "4b_8t_-_flash_(r3).json",
+      "scenario": "4b_8t",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "17391de1",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 33689,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 610590,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "4b_8t_-_glm.json",
+      "scenario": "4b_8t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "b74c5f0d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 40178,
+      "settlement_rate": 0.9683,
+      "sum_all_days_cost": 726598,
+      "mean_all_days_sr": 0.9791
+    },
+    {
+      "filename": "4b_8t_-_glm_(r2).json",
+      "scenario": "4b_8t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "ffe5ebcd",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 35720,
+      "settlement_rate": 0.9841,
+      "sum_all_days_cost": 642164,
+      "mean_all_days_sr": 0.9807
+    },
+    {
+      "filename": "4b_8t_-_glm_(r3).json",
+      "scenario": "4b_8t",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "d58d1a6a",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 35720,
+      "settlement_rate": 0.9841,
+      "sum_all_days_cost": 501103,
+      "mean_all_days_sr": 0.9844
+    },
+    {
+      "filename": "4b_8t_-_pro.json",
+      "scenario": "4b_8t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "760cdc06",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 41233,
+      "settlement_rate": 0.9683,
+      "sum_all_days_cost": 833196,
+      "mean_all_days_sr": 0.9848
+    },
+    {
+      "filename": "4b_8t_-_pro_(r2).json",
+      "scenario": "4b_8t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "9e94be0c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 45952,
+      "settlement_rate": 0.9841,
+      "sum_all_days_cost": 1298775,
+      "mean_all_days_sr": 0.9648
+    },
+    {
+      "filename": "4b_8t_-_pro_(r3).json",
+      "scenario": "4b_8t",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "200dfb32",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 81514,
+      "settlement_rate": 0.9206,
+      "sum_all_days_cost": 822354,
+      "mean_all_days_sr": 0.9593
+    },
+    {
+      "filename": "castro_exp2_-_baseline.json",
+      "scenario": "castro_exp2",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "17bdd52c",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 99600,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 99600,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "castro_exp2_-_flash.json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "4b01f402",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 39393,
+      "settlement_rate": 0.92,
+      "sum_all_days_cost": 560804,
+      "mean_all_days_sr": 0.9869
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c1-info).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c1-info",
+      "run": "r1",
+      "experiment_id": "956c8c95",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 52610,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 538676,
+      "mean_all_days_sr": 0.9835
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c1-info_r2).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c1-info",
+      "run": "r2",
+      "experiment_id": "a11d95d4",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 46784,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 623315,
+      "mean_all_days_sr": 0.99
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c1-info_r3).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c1-info",
+      "run": "r3",
+      "experiment_id": "40684679",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 66750,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 900085,
+      "mean_all_days_sr": 0.9692
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c2-floor).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c2-floor",
+      "run": "r1",
+      "experiment_id": "12f2f32b",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 43863,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 991697,
+      "mean_all_days_sr": 0.9853
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c2-floor_r2).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c2-floor",
+      "run": "r2",
+      "experiment_id": "a88868ac",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 51735,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 655144,
+      "mean_all_days_sr": 0.9974
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c2-floor_r3).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c2-floor",
+      "run": "r3",
+      "experiment_id": "31fe4d63",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 35606,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 451248,
+      "mean_all_days_sr": 0.99
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c2-floor_retry-canary).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "retry-canary",
+      "run": "r1",
+      "experiment_id": "71707fd1",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 36187,
+      "settlement_rate": 0.94,
+      "sum_all_days_cost": 762599,
+      "mean_all_days_sr": 0.9812
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c3-guidance).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c3-guidance",
+      "run": "r1",
+      "experiment_id": "b71eba21",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 38066,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 967485,
+      "mean_all_days_sr": 0.9779
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c3-guidance_r2).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c3-guidance",
+      "run": "r2",
+      "experiment_id": "c193d19c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 33587,
+      "settlement_rate": 0.94,
+      "sum_all_days_cost": 475200,
+      "mean_all_days_sr": 0.994
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c3-guidance_r3).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c3-guidance",
+      "run": "r3",
+      "experiment_id": "ad1beaaa",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 46655,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 612284,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c4-comp_r2).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c4-comp",
+      "run": "r2",
+      "experiment_id": "9039b61c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 67354,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 530692,
+      "mean_all_days_sr": 0.9801
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c4-comp_r3).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c4-comp",
+      "run": "r3",
+      "experiment_id": "3054c041",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 34179,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 589606,
+      "mean_all_days_sr": 0.99
+    },
+    {
+      "filename": "castro_exp2_-_flash_(c4-composition).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "c4-composition",
+      "run": "r1",
+      "experiment_id": "02f3c81e",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 37995,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 718684,
+      "mean_all_days_sr": 0.9887
+    },
+    {
+      "filename": "castro_exp2_-_flash_(r2).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "0a51534d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 65976,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 508804,
+      "mean_all_days_sr": 0.9781
+    },
+    {
+      "filename": "castro_exp2_-_flash_(r3).json",
+      "scenario": "castro_exp2",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "1ef8c68d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 48899,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 551464,
+      "mean_all_days_sr": 0.9874
+    },
+    {
+      "filename": "castro_exp2_-_glm.json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "9caf5c9a",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70889,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 549159,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c1-info).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c1-info",
+      "run": "r1",
+      "experiment_id": "bed58722",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70823,
+      "settlement_rate": 0.7162,
+      "sum_all_days_cost": 553189,
+      "mean_all_days_sr": 0.9329
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c1-info_r2).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c1-info",
+      "run": "r2",
+      "experiment_id": "27727cce",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 549167,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c1-info_r3).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c1-info",
+      "run": "r3",
+      "experiment_id": "eeeef415",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 549167,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c2-floor).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c2-floor",
+      "run": "r1",
+      "experiment_id": "9b22fd81",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 42800,
+      "settlement_rate": 0.7778,
+      "sum_all_days_cost": 1076485,
+      "mean_all_days_sr": 0.8761
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c2-floor_r2).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c2-floor",
+      "run": "r2",
+      "experiment_id": "4cb7a172",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70889,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 549185,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c2-floor_r3).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c2-floor",
+      "run": "r3",
+      "experiment_id": "c8d02c22",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70823,
+      "settlement_rate": 0.7162,
+      "sum_all_days_cost": 553189,
+      "mean_all_days_sr": 0.9329
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c3-guidance).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c3-guidance",
+      "run": "r1",
+      "experiment_id": "1c231272",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 68712,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 547570,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c3-guidance_r2).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c3-guidance",
+      "run": "r2",
+      "experiment_id": "6fe57db3",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 549167,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c3-guidance_r3).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c3-guidance",
+      "run": "r3",
+      "experiment_id": "ce2c6f41",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 67467,
+      "settlement_rate": 0.7051,
+      "sum_all_days_cost": 549663,
+      "mean_all_days_sr": 0.9121
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c4-comp_r2).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c4-comp",
+      "run": "r2",
+      "experiment_id": "fb59f8c7",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 73467,
+      "settlement_rate": 0.6455,
+      "sum_all_days_cost": 579826,
+      "mean_all_days_sr": 0.8752
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c4-comp_r3).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c4-comp",
+      "run": "r3",
+      "experiment_id": "0456053a",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 549167,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_glm_(c4-composition).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "c4-composition",
+      "run": "r1",
+      "experiment_id": "e3b943df",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 73541,
+      "settlement_rate": 0.6977,
+      "sum_all_days_cost": 576942,
+      "mean_all_days_sr": 0.8842
+    },
+    {
+      "filename": "castro_exp2_-_glm_(r2).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "0089e7a2",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70823,
+      "settlement_rate": 0.7162,
+      "sum_all_days_cost": 564251,
+      "mean_all_days_sr": 0.9329
+    },
+    {
+      "filename": "castro_exp2_-_glm_(r3).json",
+      "scenario": "castro_exp2",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "d76909ce",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 560229,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_pro.json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "cb000a9e",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 108910,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 1163247,
+      "mean_all_days_sr": 0.956
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c1-info).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c1-info",
+      "run": "r1",
+      "experiment_id": "64cff625",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 70897,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 560229,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c1-info_r2).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c1-info",
+      "run": "r2",
+      "experiment_id": "fdff3c28",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 33116,
+      "settlement_rate": 0.92,
+      "sum_all_days_cost": 419385,
+      "mean_all_days_sr": 0.9894
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c1-info_r3).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c1-info",
+      "run": "r3",
+      "experiment_id": "233946f6",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 67781,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 548411,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c2-floor).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c2-floor",
+      "run": "r1",
+      "experiment_id": "351bffb8",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 60474,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 839432,
+      "mean_all_days_sr": 0.9601
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c2-floor_r2).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c2-floor",
+      "run": "r2",
+      "experiment_id": "9af6fa02",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 39028,
+      "settlement_rate": 0.9,
+      "sum_all_days_cost": 787837,
+      "mean_all_days_sr": 0.9681
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c2-floor_r3).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c2-floor",
+      "run": "r3",
+      "experiment_id": "0d3393b9",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 34014,
+      "settlement_rate": 0.94,
+      "sum_all_days_cost": 506472,
+      "mean_all_days_sr": 0.9875
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c3-guidance).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c3-guidance",
+      "run": "r1",
+      "experiment_id": "495d9495",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 67781,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 548411,
+      "mean_all_days_sr": 0.9775
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c3-guidance_r2).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c3-guidance",
+      "run": "r2",
+      "experiment_id": "7bc7ef1c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 68487,
+      "settlement_rate": 0.84,
+      "sum_all_days_cost": 498545,
+      "mean_all_days_sr": 0.9801
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c3-guidance_r3).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c3-guidance",
+      "run": "r3",
+      "experiment_id": "4ce0829c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 68712,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 547570,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c4-comp_r2).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c4-comp",
+      "run": "r2",
+      "experiment_id": "3ccc425c",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 50917,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 921348,
+      "mean_all_days_sr": 0.9793
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c4-comp_r3).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c4-comp",
+      "run": "r3",
+      "experiment_id": "7cb4d495",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 125683,
+      "settlement_rate": 0.76,
+      "sum_all_days_cost": 978076,
+      "mean_all_days_sr": 0.9551
+    },
+    {
+      "filename": "castro_exp2_-_pro_(c4-composition).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "c4-composition",
+      "run": "r1",
+      "experiment_id": "d21b94e7",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 63984,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 543242,
+      "mean_all_days_sr": 0.9755
+    },
+    {
+      "filename": "castro_exp2_-_pro_(r2).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "79f3e5de",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 68765,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 754626,
+      "mean_all_days_sr": 0.9633
+    },
+    {
+      "filename": "castro_exp2_-_pro_(r3).json",
+      "scenario": "castro_exp2",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "66c90ab5",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 105130,
+      "settlement_rate": 0.82,
+      "sum_all_days_cost": 1117449,
+      "mean_all_days_sr": 0.956
+    },
+    {
+      "filename": "large_network_-_baseline.json",
+      "scenario": "large_network",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "524fc873",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 1733987707,
+      "settlement_rate": 0.7373,
+      "sum_all_days_cost": 1733987707,
+      "mean_all_days_sr": 0.7373
+    },
+    {
+      "filename": "large_network_-_flash.json",
+      "scenario": "large_network",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "298704f4",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2030507059,
+      "settlement_rate": 0.6979,
+      "sum_all_days_cost": 2030507059,
+      "mean_all_days_sr": 0.6979
+    },
+    {
+      "filename": "large_network_-_flash_(r2).json",
+      "scenario": "large_network",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "92040487",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2081259566,
+      "settlement_rate": 0.7063,
+      "sum_all_days_cost": 2081259566,
+      "mean_all_days_sr": 0.7063
+    },
+    {
+      "filename": "large_network_-_flash_(r3).json",
+      "scenario": "large_network",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "a1521a92",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 1982903209,
+      "settlement_rate": 0.7066,
+      "sum_all_days_cost": 1982903209,
+      "mean_all_days_sr": 0.7066
+    },
+    {
+      "filename": "large_network_-_glm_(r2).json",
+      "scenario": "large_network",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "bb6ea1d2",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 182875980,
+      "settlement_rate": 0.9288,
+      "sum_all_days_cost": 182875980,
+      "mean_all_days_sr": 0.9288
+    },
+    {
+      "filename": "large_network_-_glm_(r3).json",
+      "scenario": "large_network",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "daafc265",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2123449166,
+      "settlement_rate": 0.6925,
+      "sum_all_days_cost": 2123449166,
+      "mean_all_days_sr": 0.6925
+    },
+    {
+      "filename": "large_network_-_pro.json",
+      "scenario": "large_network",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "6f6f3afb",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2093933246,
+      "settlement_rate": 0.6799,
+      "sum_all_days_cost": 2093933246,
+      "mean_all_days_sr": 0.6799
+    },
+    {
+      "filename": "large_network_-_pro_(r2).json",
+      "scenario": "large_network",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "d8aba24e",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2156858072,
+      "settlement_rate": 0.6942,
+      "sum_all_days_cost": 2156858072,
+      "mean_all_days_sr": 0.6942
+    },
+    {
+      "filename": "large_network_-_pro_(r3).json",
+      "scenario": "large_network",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "c084839a",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 202735827,
+      "settlement_rate": 0.7113,
+      "sum_all_days_cost": 202735827,
+      "mean_all_days_sr": 0.7113
+    },
+    {
+      "filename": "lehman_month_-_baseline.json",
+      "scenario": "lehman_month",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "b140728c",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2063529647,
+      "settlement_rate": 0.7912,
+      "sum_all_days_cost": 2063529647,
+      "mean_all_days_sr": 0.7912
+    },
+    {
+      "filename": "lehman_month_-_flash.json",
+      "scenario": "lehman_month",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "79785ad6",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2344311418,
+      "settlement_rate": 0.7336,
+      "sum_all_days_cost": 2344311418,
+      "mean_all_days_sr": 0.7336
+    },
+    {
+      "filename": "lehman_month_-_flash_(r2).json",
+      "scenario": "lehman_month",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "9f5ebd66",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2316881469,
+      "settlement_rate": 0.7501,
+      "sum_all_days_cost": 2316881469,
+      "mean_all_days_sr": 0.7501
+    },
+    {
+      "filename": "lehman_month_-_flash_(r3).json",
+      "scenario": "lehman_month",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "ff26b685",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2401387007,
+      "settlement_rate": 0.7406,
+      "sum_all_days_cost": 2401387007,
+      "mean_all_days_sr": 0.7406
+    },
+    {
+      "filename": "lehman_month_-_glm.json",
+      "scenario": "lehman_month",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "161d71d5",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2498377186,
+      "settlement_rate": 0.7317,
+      "sum_all_days_cost": 2498377186,
+      "mean_all_days_sr": 0.7317
+    },
+    {
+      "filename": "lehman_month_-_glm_(r2).json",
+      "scenario": "lehman_month",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "95361864",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2554521005,
+      "settlement_rate": 0.7209,
+      "sum_all_days_cost": 2554521005,
+      "mean_all_days_sr": 0.7209
+    },
+    {
+      "filename": "lehman_month_-_glm_(r3).json",
+      "scenario": "lehman_month",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "45e8aa95",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 251583264,
+      "settlement_rate": 0.71,
+      "sum_all_days_cost": 251583264,
+      "mean_all_days_sr": 0.71
+    },
+    {
+      "filename": "lehman_month_-_pro.json",
+      "scenario": "lehman_month",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "9f279e14",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2543118517,
+      "settlement_rate": 0.7223,
+      "sum_all_days_cost": 2543118517,
+      "mean_all_days_sr": 0.7223
+    },
+    {
+      "filename": "lehman_month_-_pro_(r2).json",
+      "scenario": "lehman_month",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "ce84d3e7",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2527968660,
+      "settlement_rate": 0.7119,
+      "sum_all_days_cost": 2527968660,
+      "mean_all_days_sr": 0.7119
+    },
+    {
+      "filename": "lehman_month_-_pro_(r3).json",
+      "scenario": "lehman_month",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "a54b3f8a",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 2568823680,
+      "settlement_rate": 0.7251,
+      "sum_all_days_cost": 2568823680,
+      "mean_all_days_sr": 0.7251
+    },
+    {
+      "filename": "liquidity_squeeze_-_baseline.json",
+      "scenario": "liquidity_squeeze",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "8a46d6e0",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 72000,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 72000,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "liquidity_squeeze_-_flash_(r2).json",
+      "scenario": "liquidity_squeeze",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "6406580a",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 20635,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 358927,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "liquidity_squeeze_-_flash_(r3).json",
+      "scenario": "liquidity_squeeze",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "248e336d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 22863,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 314560,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "liquidity_squeeze_-_glm_(r2).json",
+      "scenario": "liquidity_squeeze",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "5ba7ddab",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 16174,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 214636,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "liquidity_squeeze_-_glm_(r3).json",
+      "scenario": "liquidity_squeeze",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "7c557b1d",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 17460,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 261297,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "liquidity_squeeze_-_pro_(r2).json",
+      "scenario": "liquidity_squeeze",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "bdf0fa24",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 15705,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 206634,
+      "mean_all_days_sr": 0.999
+    },
+    {
+      "filename": "liquidity_squeeze_-_pro_(r3).json",
+      "scenario": "liquidity_squeeze",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "af979444",
+      "status": "complete",
+      "num_days": 10,
+      "num_rounds": 10,
+      "is_multiround": true,
+      "total_cost": 13306,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 208593,
+      "mean_all_days_sr": 0.999
+    },
+    {
+      "filename": "lynx_day_-_baseline.json",
+      "scenario": "lynx_day",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "9eaf71b4",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_flash.json",
+      "scenario": "lynx_day",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "3245ee30",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_flash_(r2).json",
+      "scenario": "lynx_day",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "19b88106",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_flash_(r3).json",
+      "scenario": "lynx_day",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "27c63568",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_glm.json",
+      "scenario": "lynx_day",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "6571ce38",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_glm_(r2).json",
+      "scenario": "lynx_day",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "47adfb62",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_glm_(r3).json",
+      "scenario": "lynx_day",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "873c7fa4",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_pro.json",
+      "scenario": "lynx_day",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r1",
+      "experiment_id": "73672186",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_pro_(r2).json",
+      "scenario": "lynx_day",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "46da91ae",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "lynx_day_-_pro_(r3).json",
+      "scenario": "lynx_day",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "0e8044b7",
+      "status": "complete",
+      "num_days": 1,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 3,
+      "settlement_rate": 1.0,
+      "sum_all_days_cost": 3,
+      "mean_all_days_sr": 1.0
+    },
+    {
+      "filename": "periodic_shocks_-_baseline.json",
+      "scenario": "periodic_shocks",
+      "model": "baseline",
+      "condition": "baseline",
+      "run": "r1",
+      "experiment_id": "747025f3",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 611354137,
+      "settlement_rate": 0.8619,
+      "sum_all_days_cost": 611354137,
+      "mean_all_days_sr": 0.8619
+    },
+    {
+      "filename": "periodic_shocks_-_flash_(r2).json",
+      "scenario": "periodic_shocks",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "ea0794a3",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 800565920,
+      "settlement_rate": 0.8022,
+      "sum_all_days_cost": 800565920,
+      "mean_all_days_sr": 0.8022
+    },
+    {
+      "filename": "periodic_shocks_-_flash_(r3).json",
+      "scenario": "periodic_shocks",
+      "model": "flash",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "e68d887d",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 674126072,
+      "settlement_rate": 0.7907,
+      "sum_all_days_cost": 674126072,
+      "mean_all_days_sr": 0.7907
+    },
+    {
+      "filename": "periodic_shocks_-_glm_(r2).json",
+      "scenario": "periodic_shocks",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "c3092a1e",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 664537592,
+      "settlement_rate": 0.7808,
+      "sum_all_days_cost": 664537592,
+      "mean_all_days_sr": 0.7808
+    },
+    {
+      "filename": "periodic_shocks_-_glm_(r3).json",
+      "scenario": "periodic_shocks",
+      "model": "glm",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "f0eb80e9",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 636332987,
+      "settlement_rate": 0.7824,
+      "sum_all_days_cost": 636332987,
+      "mean_all_days_sr": 0.7824
+    },
+    {
+      "filename": "periodic_shocks_-_pro_(r2).json",
+      "scenario": "periodic_shocks",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r2",
+      "experiment_id": "0496e8bc",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 782415219,
+      "settlement_rate": 0.7939,
+      "sum_all_days_cost": 782415219,
+      "mean_all_days_sr": 0.7939
+    },
+    {
+      "filename": "periodic_shocks_-_pro_(r3).json",
+      "scenario": "periodic_shocks",
+      "model": "pro",
+      "condition": "v0.1",
+      "run": "r3",
+      "experiment_id": "f7f91666",
+      "status": "complete",
+      "num_days": 25,
+      "num_rounds": 1,
+      "is_multiround": false,
+      "total_cost": 729297717,
+      "settlement_rate": 0.8017,
+      "sum_all_days_cost": 729297717,
+      "mean_all_days_sr": 0.8017
+    }
+  ]
+}

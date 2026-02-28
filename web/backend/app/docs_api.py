@@ -25,6 +25,8 @@ DOC_PAGES: list[dict[str, Any]] = [
     {"id": "papers/simcash/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 1},
     {"id": "papers/simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 2},
     {"id": "papers/simcash/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 3},
+    # Research
+    {"id": "showcase", "title": "Experiment Showcase", "icon": "🔬", "category": "research", "order": 0},
     # Advanced
     {"id": "scenarios", "title": "Scenario System", "icon": "🎬", "category": "advanced", "order": 0},
     {"id": "policies", "title": "Policy Decision Trees", "icon": "🌳", "category": "advanced", "order": 1},

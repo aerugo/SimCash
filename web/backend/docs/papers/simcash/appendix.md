@@ -1,6 +1,78 @@
 # Detailed Data
 
-## Complete Results Summary
+## Q1 2026 Campaign — Complete Data Tables
+
+### Simple Scenarios (Last-Day Optimized Cost)
+
+| Scenario | Banks | Model | Run | Cost | SR | Experiment ID |
+|---|---|---|---|---|---|---|
+| **2B 3T** | 2 | Baseline | — | 99,900 | 100% | — |
+| | | Flash | r1 | — | — | — |
+| | | Flash | r2 | — | — | — |
+| | | Flash | r3 | — | — | — |
+| | | *Flash avg* | | *15,671* | *100%* | |
+| | | Pro | avg | 36,491 | 100% | |
+| | | GLM | avg | 60,013 | 64% | |
+| **3B 6T** | 3 | Baseline | — | 74,700 | 100% | — |
+| | | Flash | avg | 35,942 | 96% | |
+| | | Pro | avg | 18,759 | 100% | |
+| | | GLM | avg | 19,960 | 100% | |
+| **4B 8T** | 4 | Baseline | — | 132,800 | 100% | — |
+| | | Flash | avg | 43,785 | 97% | |
+| | | Pro | avg | 56,233 | 96% | |
+| | | GLM | avg | 37,206 | 98% | |
+
+### Complex Scenarios (Total Cost, 25 Days)
+
+| Scenario | Banks | Days | Model | Cost | SR | Cost Δ vs Baseline |
+|---|---|---|---|---|---|---|
+| **Periodic Shocks** | 5 | 25 | Baseline | 611,354,137 | 86% | — |
+| | | | Flash (n=2) | 737,345,996 | 80% | +20.6% |
+| | | | Pro (n=2) | 755,856,468 | 80% | +23.6% |
+| | | | GLM (n=2) | 650,435,290 | 78% | +6.4% |
+| **Large Network** | 5 | 25 | Baseline | 1,733,987,707 | 74% | — |
+| | | | Flash (n=3) | 2,031,556,611 | 70% | +17.2% |
+| | | | Pro (n=3) | 1,484,509,048 | 70% | −14.4% |
+| | | | GLM (n=2) | 1,153,162,573 | 81% | −33.5% |
+| **Lehman Month** | 6 | 25 | Baseline | 2,063,529,647 | 79% | — |
+| | | | Flash (n=3) | 2,354,193,298 | 74% | +14.1% |
+| | | | Pro (n=3) | 2,546,636,952 | 72% | +23.4% |
+| | | | GLM (n=3) | 1,768,160,485 | 72% | −14.3% |
+
+### Stress Scenarios
+
+| Scenario | Banks | Model | Cost | SR | Cost Δ |
+|---|---|---|---|---|---|
+| **High Stress** | 2 | Baseline | 99,600 | 100% | — |
+| | | Flash (n=3) | 121,290 | 86% | +21.8% |
+| | | Pro (n=3) | 108,155 | 86% | +8.6% |
+| | | GLM (n=3) | 176,786 | 83% | +77.5% |
+| **Liq. Squeeze** | 2 | Baseline | 72,000 | 100% | — |
+| | | Flash (n=2) | 21,749 | 100% | −69.8% |
+| | | Pro (n=2) | 14,506 | 100% | −79.9% |
+| | | GLM (n=2) | 16,817 | 100% | −76.6% |
+
+### Castro Exp2 — v0.2 Prompt Conditions
+
+| Condition | Flash Cost | Flash SR | Pro Cost | Pro SR | GLM Cost | GLM SR |
+|---|---|---|---|---|---|---|
+| Baseline (FIFO) | 99,600 | 100% | 99,600 | 100% | 99,600 | 100% |
+| v0.1 (n=3) | 51,423 | 88% | 94,268 | 82% | 70,870 | 79% |
+| C1-info (n=3) | 55,381 | 87% | 57,265 | 87% | 70,872 | 80% |
+| C2-floor (n=3) | 43,735 | 97% | 44,505 | 89% | 61,504 | 77% |
+| C3-guidance (n=3) | 39,436 | 98% | 68,327 | 83% | 69,025 | 79% |
+| C4-comp (n=2) | 50,766 | 87% | 88,300 | 88% | 72,182 | 74% |
+| C4-composition (n=1) | 37,995 | 100% | 63,984 | 82% | 73,541 | 70% |
+
+### Lynx Day (Canadian RTGS Validation)
+
+All models: Cost = 3, SR = 100%. Validates simulator realism and LLM non-interference when baseline is already optimal.
+
+---
+
+## EXP1–3 Original Results
+
+### Complete Results Summary
 
 | Exp | Pass | Iters | A Liq | B Liq | A Cost | B Cost | Total |
 |-----|-----:|------:|------:|------:|-------:|-------:|------:|
