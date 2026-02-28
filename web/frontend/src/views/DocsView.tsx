@@ -361,7 +361,7 @@ export function DocsView() {
                 {activeMeta.date && <span className="text-xs text-slate-500">{activeMeta.date}</span>}
               </div>
             )}
-            {/* Paper ToC on introduction pages */}
+            {/* Paper header: title, ToC, section title */}
             {(() => {
               const paperSlug = activeMeta?.paper;
               if (!paperSlug || !activeMeta) return null;
@@ -369,25 +369,29 @@ export function DocsView() {
                 .filter(p => p.paper === paperSlug)
                 .sort((a, b) => a.order - b.order);
               if (siblings.length < 2) return null;
-              const isIntro = activeMeta.order === 0;
-              if (!isIntro) return null;
               return (
-                <div className="mb-6 p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Contents</h4>
-                  <ol className="space-y-1">
-                    {siblings.map((s, i) => (
-                      <li key={s.id}>
-                        <button
-                          onClick={() => { setActiveId(s.id); navigate(`/docs/${s.id}`); window.scrollTo(0, 0); }}
-                          className={`text-sm transition-colors ${
-                            s.id === activeId ? 'text-sky-400 font-medium' : 'text-slate-400 hover:text-sky-400'
-                          }`}
-                        >
-                          {i + 1}. {s.icon} {s.title}
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
+                <div className="mb-6">
+                  <h2 className="text-lg font-semibold text-slate-200 mb-3">{activeMeta.paper_title}</h2>
+                  <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-lg mb-4">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Contents</h4>
+                    <ol className="space-y-1">
+                      {siblings.map((s, i) => (
+                        <li key={s.id}>
+                          <button
+                            onClick={() => { setActiveId(s.id); navigate(`/docs/${s.id}`); window.scrollTo(0, 0); }}
+                            className={`text-sm transition-colors ${
+                              s.id === activeId ? 'text-sky-400 font-medium' : 'text-slate-400 hover:text-sky-400'
+                            }`}
+                          >
+                            {i + 1}. {s.icon} {s.title}
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                  <h3 className="text-base font-medium text-slate-300 mb-4 pb-3 border-b border-slate-800">
+                    {activeMeta.icon} {activeMeta.title}
+                  </h3>
                 </div>
               );
             })()}
