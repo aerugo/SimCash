@@ -129,7 +129,7 @@ Dennis's identity was built around the project's 13 invariants (INV-1 through IN
 
 #### Stefan 🏦 — The Research Director
 
-Stefan had the most elaborate SOUL.md—a full academic persona as "Research Director of the Banking and Payments Department at the Bank of Canada," with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, giving him a rich theoretical framework for interpreting experiment results.
+Stefan had the most elaborate SOUL.md—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, giving him a rich theoretical framework for interpreting experiment results.
 
 Working style: systematic and data-driven. Stefan designed experiment matrices (4 conditions × 3 models × 3 runs), ran them methodically, and drew research conclusions. He found the campaign's headline result—that LLM optimization destroys value in complex scenarios with 5+ banks.
 

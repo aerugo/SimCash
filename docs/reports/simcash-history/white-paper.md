@@ -207,7 +207,7 @@ Dennis's identity was built around the project's 13 invariants (INV-1 through IN
 
 #### Stefan 🏦 — The Research Director
 
-**Soul:** Stefan had the most elaborate SOUL.md of any agent—a full academic persona. He was "Research Director of the Research Team in the Banking and Payments Department at the Bank of Canada," with a PhD from Simon Fraser University (2007), publications in the *Journal of Political Economy*, *Journal of Monetary Economics*, and eight other journals, and deep expertise in inflation expectations, bank runs, payment competition, and CBDCs.
+**Soul:** Stefan had the most elaborate SOUL.md of any agent—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs.
 
 His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, including the BoC/BIS paper on AI agents for cash management and Korinek's comprehensive guide to AI agents for economists. This gave Stefan a rich theoretical framework for interpreting SimCash experiment results—not just as engineering metrics but as findings about coordination games, free-riding incentives, and the structural limits of prompt-based optimization.
 
