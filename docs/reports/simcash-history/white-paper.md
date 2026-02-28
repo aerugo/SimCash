@@ -165,7 +165,7 @@ Over the next eleven days, the project shipped:
 
 **Stefan** was an experiment specialist. Active from approximately February 22 (when the experiment infrastructure was ready), Stefan ran simulations, analyzed results, and contributed paper content—the introduction and discussion sections of the Q1 campaign paper. Stefan's commits were primarily experiment configurations and analysis scripts.
 
-**Dennis** was a backend engineer. Dennis wrote penalty mode support, mid-simulation policy updates, and daily liquidity reallocation—core engine features that Nash's web platform depended on. Dennis also performed deep code reviews, identifying architectural issues and bugs through systematic codebase auditing. Earlier drafts of this paper incorrectly described Dennis as a non-committing advisor; this reflected the author's incomplete view of contributions on other branches.
+**Dennis** was a backend engineer. Dennis wrote penalty mode support (a complete `PenaltyMode` enum in Rust with Fixed/Rate variants, wired through engine, Python, and FFI, with 36 tests), mid-simulation policy updates, and daily liquidity reallocation—core engine features that Nash's web platform depended on. Dennis also performed deep code reviews that directly caused major refactors. Unlike Nash and Stefan, Dennis was not always-on; he was activated by Hugi for specific tasks, worked intensely on them, and went quiet between activations—more consultant than permanent team member. Earlier drafts of this paper incorrectly described Dennis as a non-committing advisor; this reflected the author's incomplete view of contributions on other branches.
 
 **Hugi** made one commit.
 
@@ -189,9 +189,9 @@ The strongest evidence that identity and memory are the primary differentiator�
 
 In the multi-agent era, there are no PRs. Nash commits directly to feature branches. Quality assurance came from TDD, browser-based playtesting, self-review, peer review (Dennis reviewing Nash's architecture), and human spot-checks.
 
-This worked—mostly. Bugs regularly shipped to production: broken Google login flows, `[object Object]` display errors, negative costs in experiment results, settlement rates exceeding 100%. The quality story is more nuanced than "TDD and playtesting catch everything." What prevented these bugs from causing lasting damage was the combination of fast iteration (bugs were typically fixed within hours of discovery) and the experiment framework's data integrity properties (corrupted experiments could be identified and excluded).
+This worked less well than it sounds. A partial list of bugs that shipped to production during this period: settlement rates displaying as 0% (event type mismatch with the Rust engine), Google sign-in broken by a password auth refactor, `[object Object]` rendering in cost parameters, WebSocket crashes on connection accept, reconnection storms from completed games, synchronous blocking of the async event loop, ~20 constraint field names referencing nonexistent engine fields, no ownership checks on API endpoints for ten days (any user could mutate any other user's experiments), and the cost-delta bug that corrupted 62 experiments (§8.2).
 
-Except when they couldn't. See §8.2.
+The quality story is not "TDD and playtesting prevent bugs." It's **"quality through rapid iteration"**—bugs shipped fast and were fixed fast. Whether this is acceptable depends on the domain. For a research platform used by a small team, reactive bug-fixing worked. For higher-stakes software, the absence of code review would be a serious concern.
 
 ---
 
@@ -215,13 +215,15 @@ Over four months, the human's contribution changed character:
 | 2 (Nov–Dec) | Director + reviewer | 861 + 246 merges/manual (~34%) |
 | 3 (Feb) | Vision holder + strategic advisor | 1 (0.2%) |
 
-This is not the human becoming irrelevant. The Grand Plan shaped every subsequent decision. The choice to pursue replay identity, the decision to build a web platform, the budget cap for LLM experiments—these strategic decisions had enormous downstream impact and required human judgment. What changed is the granularity of involvement: from "write this function" to "merge this PR" to "build a web platform for this."
+This is not the human becoming irrelevant, and "one commit" dramatically understates the human's actual involvement. Hugi made one commit, but he was constantly active on Telegram: firefighting stalled agents (6–7 times in twelve days), forwarding messages between agents who couldn't communicate directly, providing credentials, playtesting the application and reporting bugs, making strategic decisions (model selection, budget caps, experiment priorities), and restarting failed sessions. The human was a **message bus** between agents that lacked direct communication channels.
+
+A more honest framing: the human's role shifted from writing code to managing an AI team. The commit count captures the first part of that shift but misses the second. "One commit" measures code contribution; it does not measure coordination labor.
 
 ### 7.3 Specialization Emerges Naturally
 
 Nobody assigned Nash to engineering or Stefan to experiments. Their identity files (SOUL.md) gave them different orientations, but the specific division of labor emerged from the work itself. Dennis's role as both implementer and reviewer similarly developed through circumstance rather than assignment.
 
-This mirrors how human teams self-organize. The multi-agent architecture didn't impose specialization; it enabled it.
+This claim requires qualification. Specialization was not purely emergent—it was seeded by design. Each agent received a SOUL.md file that oriented it toward specific work: Nash toward systems engineering, Stefan toward research methodology, Dennis toward backend infrastructure. Each operated in a separate workspace configured for its role. The division of labor grew from these seeds, but the seeds were planted deliberately. A more accurate statement: **specialization was designed at a coarse level and emerged at a fine level.**
 
 ---
 
@@ -249,9 +251,11 @@ This is the paper's strongest case study for what can go wrong: **an AI-introduc
 
 ### 8.3 Coordination Overhead
 
-The paper describes communication channels between agents (Telegram, handover documents, commit messages) but understates the friction. Inter-agent messaging frequently timed out. A fourth agent (Ned) existed specifically to broker communication between the others. "Coordination" often meant the human asking one agent why another had stopped responding.
+The three agents could not communicate directly. All coordination flowed through three channels: Hugi on Telegram (primary), handover documents committed to the shared repository, and a fourth agent (Ned) who could check agent status and send nudges—though these nudges almost always timed out when the target agent was stuck mid-turn.
 
-The three-role pattern (builder, experimenter, reviewer) did emerge, but not frictionlessly. Agents occasionally worked at cross-purposes, and the handover documents that mediated their collaboration were themselves a form of the "manual context transfer" overhead that the persistent memory system was supposed to eliminate.
+The handover documents were the most effective coordination mechanism. Dennis's code reviews (`web-module-deep-review.md`, `handover-nash-cost-delta-bug.md`) directly caused major refactors—Nash's game.py went from 1,447 lines to 603 after Dennis identified it as a god class. Stefan's experiment findings drove Nash's feature development: rate limit issues prompted dynamic concurrency throttling, OOM crashes prompted memory leak fixes. But each of these coordination cycles required Hugi to forward the relevant information between agents.
+
+The irony: handover documents between agents are structurally identical to the handover prompts from Era 2 that the paper identifies as a limitation of the session-based model. Persistent memory solved the *intra-agent* context problem; the *inter-agent* context problem was solved by the same manual forwarding mechanism it was supposed to replace.
 
 ### 8.4 Resource Contention
 
