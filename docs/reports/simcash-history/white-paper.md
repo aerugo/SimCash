@@ -207,7 +207,7 @@ Dennis's identity was built around the project's 13 invariants (INV-1 through IN
 
 #### Stefan 🏦 — The Research Director
 
-**Soul:** Stefan had the most elaborate SOUL.md of any agent—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three foundational papers: [Bédard-Pagé et al. (2025)](https://www.bis.org/publ/work1310.htm) on AI cash management in RTGS systems, [Castro et al. (2023)](https://www.bankofcanada.ca/2023/11/staff-working-paper-2023-55/) on strategic payment timing, and [Korinek (2025)](https://www.nber.org/papers/w33521) on AI agent capabilities in economics.
+**Soul:** Stefan had the most elaborate SOUL.md of any agent—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three foundational papers: [Aldasoro & Desai (2025)](https://www.bis.org/publ/work1310.htm) on AI cash management in RTGS systems, [Castro et al. (2023)](https://www.bankofcanada.ca/2023/11/staff-working-paper-2023-55/) on strategic payment timing, and [Korinek (2025)](https://www.nber.org/papers/w33521) on AI agent capabilities in economics.
 
 His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, including the BoC/BIS paper on AI agents for cash management and Korinek's comprehensive guide to AI agents for economists. This gave Stefan a rich theoretical framework for interpreting SimCash experiment results—not just as engineering metrics but as findings about coordination games, free-riding incentives, and the structural limits of prompt-based optimization.
 
