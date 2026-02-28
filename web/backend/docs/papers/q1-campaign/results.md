@@ -34,6 +34,8 @@ In scenarios with 5+ banks and 25-day runs, **all models increase costs**:
 | `large_network` | 182.9M | 192.6M | 202.0M | **+5.3%** | **+10.5%** |
 | `lehman_month` | 199.1M | 233.4M | 252.5M | **+17.2%** | **+26.8%** |
 
+<!-- CHART: complex-cost-delta -->
+
 <!-- CHART: settlement-degradation -->
 
 Settlement rates also degrade:

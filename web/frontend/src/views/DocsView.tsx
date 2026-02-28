@@ -9,6 +9,7 @@ import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 
 import { API_ORIGIN } from '../api';
+import { CostComparisonChart, ComplexCostDeltaChart, SettlementDegradationChart } from '../components/PaperChart';
 const API_BASE = `${API_ORIGIN}/api`;
 
 interface DocPage {
@@ -40,8 +41,31 @@ const GROUPS: NavGroup[] = [
   { key: 'reference', label: 'Reference' },
 ];
 
+// Chart registry — maps chart IDs to React components
+const CHART_COMPONENTS: Record<string, React.FC> = {
+  'cost-comparison': CostComparisonChart,
+  'complex-cost-delta': ComplexCostDeltaChart,
+  'settlement-degradation': SettlementDegradationChart,
+};
+
+// Replace <!-- CHART: xxx --> comments with renderable divs
+function preprocessCharts(md: string): string {
+  return md.replace(
+    /<!--\s*CHART:\s*(\S+)\s*-->/g,
+    '<div data-chart="$1"></div>'
+  );
+}
+
 // Custom markdown components for dark theme styling
 const markdownComponents: Components = {
+  div: ({ node, children, ...props }) => {
+    const chartId = (props as Record<string, unknown>)['data-chart'] as string | undefined;
+    if (chartId && CHART_COMPONENTS[chartId]) {
+      const ChartComponent = CHART_COMPONENTS[chartId];
+      return <div className="my-6"><ChartComponent /></div>;
+    }
+    return <div {...props}>{children}</div>;
+  },
   h1: ({ children }) => (
     <h1 className="text-2xl font-bold text-slate-100 mb-1">{children}</h1>
   ),
@@ -316,7 +340,7 @@ export function DocsView() {
             )}
             <div className="prose prose-invert prose-sm max-w-none space-y-0">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
-                {content}
+                {preprocessCharts(content)}
               </ReactMarkdown>
             </div>
           </div>
