@@ -23,15 +23,15 @@ DOC_PAGES: list[dict[str, Any]] = [
     {"id": "policy-optimization", "title": "AI Policy Optimization", "icon": "🤖", "category": "guide", "order": 3},
     {"id": "architecture", "title": "Technical Architecture", "icon": "🏗️", "category": "guide", "order": 4},
     # Papers — nested: papers/<paper-slug>/<section>
-    {"id": "papers/simcash/introduction", "title": "Introduction & Methods", "icon": "📄", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 0},
-    {"id": "papers/simcash/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 1},
-    {"id": "papers/simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 2},
-    {"id": "papers/simcash/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "simcash", "paper_title": "SimCash: LLM-Optimized Payment Coordination", "order": 3},
+    {"id": "papers/simcash/introduction", "title": "Introduction & Methods", "icon": "📄", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 0},
+    {"id": "papers/simcash/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 1},
+    {"id": "papers/simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 2},
+    {"id": "papers/simcash/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 3},
     # Q1 2026 Campaign Paper
-    {"id": "papers/q1-campaign/introduction", "title": "Introduction & Setup", "icon": "📄", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026: The Complexity Threshold", "order": 0},
-    {"id": "papers/q1-campaign/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026: The Complexity Threshold", "order": 1},
-    {"id": "papers/q1-campaign/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026: The Complexity Threshold", "order": 2},
-    {"id": "papers/q1-campaign/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026: The Complexity Threshold", "order": 3},
+    {"id": "papers/q1-campaign/introduction", "title": "Introduction & Setup", "icon": "📄", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 0},
+    {"id": "papers/q1-campaign/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 1},
+    {"id": "papers/q1-campaign/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 2},
+    {"id": "papers/q1-campaign/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 3},
     # Research
     {"id": "showcase", "title": "Experiment Showcase", "icon": "🔬", "category": "research", "order": 0},
     # Advanced
