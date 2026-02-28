@@ -92,7 +92,7 @@ export function CostComparisonChart() {
           <XAxis dataKey="scenario" tick={{ fill: '#94a3b8', fontSize: 12 }} />
           <YAxis tickFormatter={formatCost} tick={{ fill: '#94a3b8', fontSize: 12 }} />
           <Tooltip
-            formatter={(v: number, name: string) => [formatCost(v), MODEL_LABELS[name] || name]}
+            formatter={(v: number | undefined, name: string) => [formatCost(v ?? 0), MODEL_LABELS[name] || name]}
             contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
             labelStyle={{ color: '#e2e8f0' }}
           />
@@ -128,7 +128,7 @@ export function ComplexCostDeltaChart() {
             tick={{ fill: '#94a3b8', fontSize: 12 }}
           />
           <Tooltip
-            formatter={(v: number, name: string) => [`${v > 0 ? '+' : ''}${v}%`, MODEL_LABELS[name] || name]}
+            formatter={(v: number | undefined, name: string) => [`${(v ?? 0) > 0 ? '+' : ''}${v ?? 0}%`, MODEL_LABELS[name] || name]}
             contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
             labelStyle={{ color: '#e2e8f0' }}
           />
@@ -173,7 +173,7 @@ export function SettlementDegradationChart() {
             tick={{ fill: '#94a3b8', fontSize: 12 }}
           />
           <Tooltip
-            formatter={(v: number, name: string) => [`${v.toFixed(1)}%`, name === 'sr' ? 'Flash (optimized)' : `Baseline (${baselineSR}%)`]}
+            formatter={(v: number | undefined, name: string) => [`${(v ?? 0).toFixed(1)}%`, name === 'sr' ? 'Flash (optimized)' : `Baseline (${baselineSR}%)`]}
             contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
             labelStyle={{ color: '#e2e8f0' }}
             labelFormatter={(v) => `Day ${v}`}
