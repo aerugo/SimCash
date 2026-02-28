@@ -495,6 +495,7 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
                             day.optimization_failed = True
                         if game.optimization_schedule == "every_scenario_day":
                             game._inject_policies_into_orch()
+                    game.touch_activity()
                     _save_game_checkpoint(game)
                     exp_status = "stalled" if game.stalled else ("complete" if game.is_complete else "running")
                     # Update index with progress
@@ -560,6 +561,43 @@ async def stop_experiment(experiment_id: str, uid: str = Depends(get_api_or_fire
         task.cancel()
         return {"status": "stopped"}
     return {"status": "not_running"}
+
+
+@router.patch("/experiments/{experiment_id}")
+async def patch_experiment(experiment_id: str, body: dict, uid: str = Depends(get_api_or_firebase_user)):
+    """Admin: patch experiment fields (total_days, status). Use to truncate/complete experiments."""
+    from .main import game_manager, _try_load_game, _save_game_checkpoint, game_storage
+    game = game_manager.get(experiment_id)
+    if not game:
+        game = _try_load_game(experiment_id, uid)
+    if not game:
+        owner_uid = game_storage.lookup_experiment_owner(experiment_id)
+        if owner_uid:
+            game = _try_load_game(experiment_id, owner_uid)
+    if not game:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
+    patched = []
+    if "total_days" in body:
+        game.total_days = int(body["total_days"])
+        patched.append(f"total_days={game.total_days}")
+    if "trim_to_day" in body:
+        target = int(body["trim_to_day"])
+        if target < len(game.days):
+            game.days = game.days[:target]
+            patched.append(f"trimmed_to_day={target}")
+
+    _save_game_checkpoint(game)
+    status = "complete" if game.is_complete else "running"
+    return {
+        "status": status,
+        "patched": patched,
+        "current_day": game.current_day,
+        "total_days": game.total_days,
+        "current_round": game.current_round,
+        "max_rounds": game.max_rounds,
+        "is_complete": game.is_complete,
+    }
 
 
 @router.delete("/experiments/{experiment_id}")
