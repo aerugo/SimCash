@@ -35,13 +35,13 @@ Each value is the mean of 3 independent runs. Cost = total system liquidity cost
 | 2B 3T | 2 | 1 | 99,900 | 100% | 15,671 (**−84%**) | 100% | 36,491 (−63%) | 100% |
 | 3B 6T | 3 | 1 | 74,700 | 100% | 35,942 (**−52%**) | 96% | 18,759 (−75%) | 100% |
 | 4B 8T | 4 | 1 | 132,800 | 100% | 43,785 (**−67%**) | 97% | 56,233 (−58%) | 96% |
-| Periodic Shocks | 5 | 25 | 611M | 86% | 737M (**+21%**) | 80% | 756M (+24%) | 80% |
-| Large Network | 5 | 25 | 1,734M | 74% | 2,032M (**+17%**) | 70% | 1,485M (−14%) | 70% |
-| Lehman Month | 6 | 25 | 2,064M | 79% | 2,354M (**+14%**) | 74% | 2,547M (+23%) | 72% |
+| Periodic Shocks | 5 | 25 | 611M | 77% | 737M (**+21%**) | 70% | 756M (+24%) | 69% |
+| Large Network | 5 | 25 | 1,734M | 59% | 2,032M (**+17%**) | 57% | 1,485M (−14%) | 59% |
+| Lehman Month | 6 | 25 | 2,064M | 69% | 2,354M (**+14%**) | 60% | 2,547M (+23%) | 58% |
 
 **The pattern is stark:**
 - **≤4 banks:** 52–84% cost reduction, settlement rates stay ≥96%
-- **5+ banks (Flash):** 14–21% cost *increase*, settlement drops 5–7 percentage points
+- **5+ banks (Flash):** 14–21% cost *increase*, settlement drops 7–12 percentage points
 - **5+ banks (Pro):** Even worse — 23–24% cost increase on Periodic Shocks and Lehman Month
 
 This is not a cost-settlement trade-off. It is **pure value destruction** — a computational tragedy of the commons where individually rational optimization produces collectively irrational outcomes.
@@ -162,7 +162,7 @@ Across all simple + stress scenarios (7 scenarios, v0.1 condition):
 - Surprisingly competitive on cost (best on 4B 8T at 37k)
 - Weakest settlement rates across the board
 - Resistant to prompt engineering interventions
-- Outperforms Flash and Pro on Large Network and Lehman Month complex scenarios
+- GLM results on complex scenarios excluded due to pre-bugfix data (cost-delta bug)
 
 ### The Smart Free-Rider Effect
 
@@ -170,9 +170,9 @@ On complex scenarios, Pro consistently produces worse outcomes than Flash:
 
 | Complex Scenario | Flash Cost Δ | Pro Cost Δ | Flash SR | Pro SR |
 |---|---|---|---|---|
-| Periodic Shocks | +21% | **+24%** | 80% | 80% |
-| Large Network | +17% | −14% | 70% | 70% |
-| Lehman Month | +14% | **+23%** | 74% | **72%** |
+| Periodic Shocks | +21% | **+24%** | 70% | 69% |
+| Large Network | +17% | −14% | 57% | 59% |
+| Lehman Month | +14% | **+23%** | 60% | **58%** |
 
 Better reasoning capability enables more effective individual optimization — which, in the multi-agent setting, translates to more effective free-riding and worse collective outcomes. This is Finding #3: the **Smart Free-Rider Effect**.
 
@@ -184,6 +184,6 @@ Better reasoning capability enables more effective individual optimization — w
 - Simple scenarios: 10 rounds of optimization, last-day cost compared to 1-day baseline
 - Complex scenarios: 25 days, 1 round, total cost summed across all days
 - All results from clean post-bugfix runs (experiment ≥ #00168)
-- Settlement rate = settled payments / total payments (system-wide per day, averaged for multi-day)
+- Settlement rate = cumulative settled / cumulative arrived (for multi-day scenarios, using last day's running totals)
 - Cost = total system liquidity holding cost (lower is better)
 - Baseline = FIFO queue processing, no LLM optimization

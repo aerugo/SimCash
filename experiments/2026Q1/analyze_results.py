@@ -77,9 +77,14 @@ def load_experiment(filepath: str):
         cost = last_day['total_cost']
         sr = last_day.get('settlement', {}).get('system', {}).get('rate', 0)
     else:
+        # Complex multi-day: use cumulative SR (total_settled / total_arrived)
+        # The settled/total fields are already running cumulative totals per day,
+        # so we use the last day's values. This is the standard in payments literature.
         cost = sum(d.get('total_cost', 0) for d in days)
-        srs = [d.get('settlement', {}).get('system', {}).get('rate', 0) for d in days]
-        sr = statistics.mean(srs) if srs else 0
+        last_settlement = days[-1].get('settlement', {}).get('system', {})
+        total_settled = last_settlement.get('settled', 0)
+        total_arrived = last_settlement.get('total', 0)
+        sr = total_settled / total_arrived if total_arrived > 0 else 0
 
     return {
         'experiment_id': data.get('experiment_id', ''),
@@ -91,9 +96,10 @@ def load_experiment(filepath: str):
         'settlement_rate': round(sr, 4),
         # Also store all-day totals for reference
         'sum_all_days_cost': sum(d.get('total_cost', 0) for d in days),
-        'mean_all_days_sr': round(statistics.mean(
-            d.get('settlement', {}).get('system', {}).get('rate', 0) for d in days
-        ), 4),
+        'cumulative_sr': round(
+            days[-1].get('settlement', {}).get('system', {}).get('settled', 0) /
+            max(days[-1].get('settlement', {}).get('system', {}).get('total', 0), 1),
+            4) if days else 0,
     }
 
 
@@ -111,6 +117,12 @@ def main():
             print(f"SKIP: {fname}")
             continue
         scenario, model, condition, run = parsed
+        # EXCLUSION: GLM results for complex scenarios are pre-bugfix (cost-delta bug)
+        # and were never re-run. They must not be included in analysis. (2026-02-28)
+        if model in ('glm',) and scenario in COMPLEX_SCENARIOS:
+            print(f"SKIP (GLM+complex pre-bugfix): {fname}")
+            continue
+
         metrics = load_experiment(fp)
         if not metrics:
             print(f"SKIP (no days): {fname}")

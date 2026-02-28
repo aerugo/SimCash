@@ -1,6 +1,6 @@
 {
   "generated": "2026-02-28",
-  "total_experiments": 130,
+  "total_experiments": 123,
   "simple_scenarios": {
     "2b_3t": {
       "scenario": "2b_3t",
@@ -498,63 +498,44 @@
       "scenario": "periodic_shocks",
       "banks": 5,
       "baseline_cost": 611354137,
-      "baseline_sr": 0.8619,
+      "baseline_sr": 0.7664,
       "num_days": 25,
       "models": {
         "flash": {
           "avg_cost": 737345996,
-          "avg_sr": 0.7964,
+          "avg_sr": 0.6962,
           "n": 2,
           "runs": [
             {
               "run": "r2",
               "cost": 800565920,
-              "sr": 0.8022,
+              "sr": 0.7159,
               "id": "ea0794a3"
             },
             {
               "run": "r3",
               "cost": 674126072,
-              "sr": 0.7907,
+              "sr": 0.6765,
               "id": "e68d887d"
             }
           ]
         },
         "pro": {
           "avg_cost": 755856468,
-          "avg_sr": 0.7978,
+          "avg_sr": 0.6918,
           "n": 2,
           "runs": [
             {
               "run": "r2",
               "cost": 782415219,
-              "sr": 0.7939,
+              "sr": 0.686,
               "id": "0496e8bc"
             },
             {
               "run": "r3",
               "cost": 729297717,
-              "sr": 0.8017,
+              "sr": 0.6975,
               "id": "f7f91666"
-            }
-          ]
-        },
-        "glm": {
-          "avg_cost": 650435290,
-          "avg_sr": 0.7816,
-          "n": 2,
-          "runs": [
-            {
-              "run": "r2",
-              "cost": 664537592,
-              "sr": 0.7808,
-              "id": "c3092a1e"
-            },
-            {
-              "run": "r3",
-              "cost": 636332987,
-              "sr": 0.7824,
-              "id": "f0eb80e9"
             }
           ]
         }
@@ -564,75 +545,56 @@
       "scenario": "large_network",
       "banks": 5,
       "baseline_cost": 1733987707,
-      "baseline_sr": 0.7373,
+      "baseline_sr": 0.5879,
       "num_days": 25,
       "models": {
         "flash": {
           "avg_cost": 2031556611,
-          "avg_sr": 0.7036,
+          "avg_sr": 0.5667,
           "n": 3,
           "runs": [
             {
               "run": "r1",
               "cost": 2030507059,
-              "sr": 0.6979,
+              "sr": 0.5644,
               "id": "298704f4"
             },
             {
               "run": "r2",
               "cost": 2081259566,
-              "sr": 0.7063,
+              "sr": 0.569,
               "id": "92040487"
             },
             {
               "run": "r3",
               "cost": 1982903209,
-              "sr": 0.7066,
+              "sr": 0.5668,
               "id": "a1521a92"
             }
           ]
         },
         "pro": {
           "avg_cost": 1484509048,
-          "avg_sr": 0.6951,
+          "avg_sr": 0.5931,
           "n": 3,
           "runs": [
             {
               "run": "r1",
               "cost": 2093933246,
-              "sr": 0.6799,
+              "sr": 0.5565,
               "id": "6f6f3afb"
             },
             {
               "run": "r2",
               "cost": 2156858072,
-              "sr": 0.6942,
+              "sr": 0.5662,
               "id": "d8aba24e"
             },
             {
               "run": "r3",
               "cost": 202735827,
-              "sr": 0.7113,
+              "sr": 0.6565,
               "id": "c084839a"
-            }
-          ]
-        },
-        "glm": {
-          "avg_cost": 1153162573,
-          "avg_sr": 0.8106,
-          "n": 2,
-          "runs": [
-            {
-              "run": "r2",
-              "cost": 182875980,
-              "sr": 0.9288,
-              "id": "bb6ea1d2"
-            },
-            {
-              "run": "r3",
-              "cost": 2123449166,
-              "sr": 0.6925,
-              "id": "daafc265"
             }
           ]
         }
@@ -642,81 +604,56 @@
       "scenario": "lehman_month",
       "banks": 6,
       "baseline_cost": 2063529647,
-      "baseline_sr": 0.7912,
+      "baseline_sr": 0.6867,
       "num_days": 25,
       "models": {
         "flash": {
           "avg_cost": 2354193298,
-          "avg_sr": 0.7414,
+          "avg_sr": 0.5962,
           "n": 3,
           "runs": [
             {
               "run": "r1",
               "cost": 2344311418,
-              "sr": 0.7336,
+              "sr": 0.5856,
               "id": "79785ad6"
             },
             {
               "run": "r2",
               "cost": 2316881469,
-              "sr": 0.7501,
+              "sr": 0.6157,
               "id": "9f5ebd66"
             },
             {
               "run": "r3",
               "cost": 2401387007,
-              "sr": 0.7406,
+              "sr": 0.5872,
               "id": "ff26b685"
             }
           ]
         },
         "pro": {
           "avg_cost": 2546636952,
-          "avg_sr": 0.7198,
+          "avg_sr": 0.5751,
           "n": 3,
           "runs": [
             {
               "run": "r1",
               "cost": 2543118517,
-              "sr": 0.7223,
+              "sr": 0.5715,
               "id": "9f279e14"
             },
             {
               "run": "r2",
               "cost": 2527968660,
-              "sr": 0.7119,
+              "sr": 0.5731,
               "id": "ce84d3e7"
             },
             {
               "run": "r3",
               "cost": 2568823680,
-              "sr": 0.7251,
+              "sr": 0.5806,
               "id": "a54b3f8a"
-            }
-          ]
-        },
-        "glm": {
-          "avg_cost": 1768160485,
-          "avg_sr": 0.7209,
-          "n": 3,
-          "runs": [
-            {
-              "run": "r1",
-              "cost": 2498377186,
-              "sr": 0.7317,
-              "id": "161d71d5"
-            },
-            {
-              "run": "r2",
-              "cost": 2554521005,
-              "sr": 0.7209,
-              "id": "95361864"
-            },
-            {
-              "run": "r3",
-              "cost": 251583264,
-              "sr": 0.71,
-              "id": "45e8aa95"
             }
           ]
         }
@@ -944,10 +881,10 @@
       "model": "flash",
       "baseline_cost": 611354137,
       "opt_cost": 737345996,
-      "baseline_sr": 0.8619,
-      "opt_sr": 0.7964,
+      "baseline_sr": 0.7664,
+      "opt_sr": 0.6962,
       "cost_delta_pct": 20.6,
-      "sr_delta": -0.0655
+      "sr_delta": -0.0702
     },
     {
       "scenario": "periodic_shocks",
@@ -955,21 +892,10 @@
       "model": "pro",
       "baseline_cost": 611354137,
       "opt_cost": 755856468,
-      "baseline_sr": 0.8619,
-      "opt_sr": 0.7978,
+      "baseline_sr": 0.7664,
+      "opt_sr": 0.6918,
       "cost_delta_pct": 23.6,
-      "sr_delta": -0.0641
-    },
-    {
-      "scenario": "periodic_shocks",
-      "banks": 5,
-      "model": "glm",
-      "baseline_cost": 611354137,
-      "opt_cost": 650435290,
-      "baseline_sr": 0.8619,
-      "opt_sr": 0.7816,
-      "cost_delta_pct": 6.4,
-      "sr_delta": -0.0803
+      "sr_delta": -0.0746
     },
     {
       "scenario": "large_network",
@@ -977,10 +903,10 @@
       "model": "flash",
       "baseline_cost": 1733987707,
       "opt_cost": 2031556611,
-      "baseline_sr": 0.7373,
-      "opt_sr": 0.7036,
+      "baseline_sr": 0.5879,
+      "opt_sr": 0.5667,
       "cost_delta_pct": 17.2,
-      "sr_delta": -0.0337
+      "sr_delta": -0.0212
     },
     {
       "scenario": "large_network",
@@ -988,21 +914,10 @@
       "model": "pro",
       "baseline_cost": 1733987707,
       "opt_cost": 1484509048,
-      "baseline_sr": 0.7373,
-      "opt_sr": 0.6951,
+      "baseline_sr": 0.5879,
+      "opt_sr": 0.5931,
       "cost_delta_pct": -14.4,
-      "sr_delta": -0.0422
-    },
-    {
-      "scenario": "large_network",
-      "banks": 5,
-      "model": "glm",
-      "baseline_cost": 1733987707,
-      "opt_cost": 1153162573,
-      "baseline_sr": 0.7373,
-      "opt_sr": 0.8106,
-      "cost_delta_pct": -33.5,
-      "sr_delta": 0.0733
+      "sr_delta": 0.0052
     },
     {
       "scenario": "lehman_month",
@@ -1010,10 +925,10 @@
       "model": "flash",
       "baseline_cost": 2063529647,
       "opt_cost": 2354193298,
-      "baseline_sr": 0.7912,
-      "opt_sr": 0.7414,
+      "baseline_sr": 0.6867,
+      "opt_sr": 0.5962,
       "cost_delta_pct": 14.1,
-      "sr_delta": -0.0498
+      "sr_delta": -0.0905
     },
     {
       "scenario": "lehman_month",
@@ -1021,21 +936,10 @@
       "model": "pro",
       "baseline_cost": 2063529647,
       "opt_cost": 2546636952,
-      "baseline_sr": 0.7912,
-      "opt_sr": 0.7198,
+      "baseline_sr": 0.6867,
+      "opt_sr": 0.5751,
       "cost_delta_pct": 23.4,
-      "sr_delta": -0.0714
-    },
-    {
-      "scenario": "lehman_month",
-      "banks": 6,
-      "model": "glm",
-      "baseline_cost": 2063529647,
-      "opt_cost": 1768160485,
-      "baseline_sr": 0.7912,
-      "opt_sr": 0.7209,
-      "cost_delta_pct": -14.3,
-      "sr_delta": -0.0703
+      "sr_delta": -0.1116
     }
   ],
   "model_leaderboard": {
@@ -1085,7 +989,7 @@
       "total_cost": 99900,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 99900,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_flash.json",
@@ -1101,7 +1005,7 @@
       "total_cost": 13660,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 334989,
-      "mean_all_days_sr": 0.9778
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_flash_(r2).json",
@@ -1117,7 +1021,7 @@
       "total_cost": 18213,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 336932,
-      "mean_all_days_sr": 0.9354
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_flash_(r3).json",
@@ -1133,7 +1037,7 @@
       "total_cost": 15140,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 452388,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_glm.json",
@@ -1149,7 +1053,7 @@
       "total_cost": 100909,
       "settlement_rate": 0.3529,
       "sum_all_days_cost": 960502,
-      "mean_all_days_sr": 0.6484
+      "cumulative_sr": 0.3529
     },
     {
       "filename": "2b_3t_-_glm_(r2).json",
@@ -1165,7 +1069,7 @@
       "total_cost": 65618,
       "settlement_rate": 0.5556,
       "sum_all_days_cost": 815717,
-      "mean_all_days_sr": 0.713
+      "cumulative_sr": 0.5556
     },
     {
       "filename": "2b_3t_-_glm_(r3).json",
@@ -1181,7 +1085,7 @@
       "total_cost": 13513,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 347639,
-      "mean_all_days_sr": 0.9196
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_pro.json",
@@ -1197,7 +1101,7 @@
       "total_cost": 75886,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 621296,
-      "mean_all_days_sr": 0.7671
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_pro_(r2).json",
@@ -1213,7 +1117,7 @@
       "total_cost": 17090,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 257568,
-      "mean_all_days_sr": 0.9327
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_3t_-_pro_(r3).json",
@@ -1229,7 +1133,7 @@
       "total_cost": 16497,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 319911,
-      "mean_all_days_sr": 0.8863
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_stress_-_baseline.json",
@@ -1245,7 +1149,7 @@
       "total_cost": 99600,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 99600,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "2b_stress_-_flash.json",
@@ -1261,7 +1165,7 @@
       "total_cost": 164585,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 844613,
-      "mean_all_days_sr": 0.9702
+      "cumulative_sr": 0.82
     },
     {
       "filename": "2b_stress_-_flash_(r2).json",
@@ -1277,7 +1181,7 @@
       "total_cost": 167035,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 1124301,
-      "mean_all_days_sr": 0.9671
+      "cumulative_sr": 0.82
     },
     {
       "filename": "2b_stress_-_flash_(r3).json",
@@ -1293,7 +1197,7 @@
       "total_cost": 32249,
       "settlement_rate": 0.94,
       "sum_all_days_cost": 574246,
-      "mean_all_days_sr": 0.9901
+      "cumulative_sr": 0.94
     },
     {
       "filename": "2b_stress_-_glm.json",
@@ -1309,7 +1213,7 @@
       "total_cost": 194897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 984229,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "2b_stress_-_glm_(r2).json",
@@ -1325,7 +1229,7 @@
       "total_cost": 140565,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 976374,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "2b_stress_-_glm_(r3).json",
@@ -1341,7 +1245,7 @@
       "total_cost": 194897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 1021832,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "2b_stress_-_pro.json",
@@ -1357,7 +1261,7 @@
       "total_cost": 68086,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 672897,
-      "mean_all_days_sr": 0.9835
+      "cumulative_sr": 0.9
     },
     {
       "filename": "2b_stress_-_pro_(r2).json",
@@ -1373,7 +1277,7 @@
       "total_cost": 69837,
       "settlement_rate": 0.86,
       "sum_all_days_cost": 1910974,
-      "mean_all_days_sr": 0.9711
+      "cumulative_sr": 0.86
     },
     {
       "filename": "2b_stress_-_pro_(r3).json",
@@ -1389,7 +1293,7 @@
       "total_cost": 186543,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 1052429,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "3b_6t_-_baseline.json",
@@ -1405,7 +1309,7 @@
       "total_cost": 74700,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 74700,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_flash.json",
@@ -1421,7 +1325,7 @@
       "total_cost": 18017,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 289001,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_flash_(r2).json",
@@ -1437,7 +1341,7 @@
       "total_cost": 18017,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 311921,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_flash_(r3).json",
@@ -1453,7 +1357,7 @@
       "total_cost": 71792,
       "settlement_rate": 0.8837,
       "sum_all_days_cost": 496849,
-      "mean_all_days_sr": 0.9786
+      "cumulative_sr": 0.8837
     },
     {
       "filename": "3b_6t_-_glm.json",
@@ -1469,7 +1373,7 @@
       "total_cost": 19631,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 279147,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_glm_(r2).json",
@@ -1485,7 +1389,7 @@
       "total_cost": 19631,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 249151,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_glm_(r3).json",
@@ -1501,7 +1405,7 @@
       "total_cost": 20618,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 272650,
-      "mean_all_days_sr": 0.9829
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_pro.json",
@@ -1517,7 +1421,7 @@
       "total_cost": 19678,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 249150,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_pro_(r2).json",
@@ -1533,7 +1437,7 @@
       "total_cost": 16929,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 256202,
-      "mean_all_days_sr": 0.9914
+      "cumulative_sr": 1.0
     },
     {
       "filename": "3b_6t_-_pro_(r3).json",
@@ -1549,7 +1453,7 @@
       "total_cost": 19670,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 297618,
-      "mean_all_days_sr": 0.9658
+      "cumulative_sr": 1.0
     },
     {
       "filename": "4b_8t_-_baseline.json",
@@ -1565,7 +1469,7 @@
       "total_cost": 132800,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 132800,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "4b_8t_-_flash.json",
@@ -1581,7 +1485,7 @@
       "total_cost": 59123,
       "settlement_rate": 0.9524,
       "sum_all_days_cost": 818803,
-      "mean_all_days_sr": 0.9903
+      "cumulative_sr": 0.9524
     },
     {
       "filename": "4b_8t_-_flash_(r2).json",
@@ -1597,7 +1501,7 @@
       "total_cost": 38543,
       "settlement_rate": 0.9683,
       "sum_all_days_cost": 826253,
-      "mean_all_days_sr": 0.9823
+      "cumulative_sr": 0.9683
     },
     {
       "filename": "4b_8t_-_flash_(r3).json",
@@ -1613,7 +1517,7 @@
       "total_cost": 33689,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 610590,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "4b_8t_-_glm.json",
@@ -1629,7 +1533,7 @@
       "total_cost": 40178,
       "settlement_rate": 0.9683,
       "sum_all_days_cost": 726598,
-      "mean_all_days_sr": 0.9791
+      "cumulative_sr": 0.9683
     },
     {
       "filename": "4b_8t_-_glm_(r2).json",
@@ -1645,7 +1549,7 @@
       "total_cost": 35720,
       "settlement_rate": 0.9841,
       "sum_all_days_cost": 642164,
-      "mean_all_days_sr": 0.9807
+      "cumulative_sr": 0.9841
     },
     {
       "filename": "4b_8t_-_glm_(r3).json",
@@ -1661,7 +1565,7 @@
       "total_cost": 35720,
       "settlement_rate": 0.9841,
       "sum_all_days_cost": 501103,
-      "mean_all_days_sr": 0.9844
+      "cumulative_sr": 0.9841
     },
     {
       "filename": "4b_8t_-_pro.json",
@@ -1677,7 +1581,7 @@
       "total_cost": 41233,
       "settlement_rate": 0.9683,
       "sum_all_days_cost": 833196,
-      "mean_all_days_sr": 0.9848
+      "cumulative_sr": 0.9683
     },
     {
       "filename": "4b_8t_-_pro_(r2).json",
@@ -1693,7 +1597,7 @@
       "total_cost": 45952,
       "settlement_rate": 0.9841,
       "sum_all_days_cost": 1298775,
-      "mean_all_days_sr": 0.9648
+      "cumulative_sr": 0.9841
     },
     {
       "filename": "4b_8t_-_pro_(r3).json",
@@ -1709,7 +1613,7 @@
       "total_cost": 81514,
       "settlement_rate": 0.9206,
       "sum_all_days_cost": 822354,
-      "mean_all_days_sr": 0.9593
+      "cumulative_sr": 0.9206
     },
     {
       "filename": "castro_exp2_-_baseline.json",
@@ -1725,7 +1629,7 @@
       "total_cost": 99600,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 99600,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash.json",
@@ -1741,7 +1645,7 @@
       "total_cost": 39393,
       "settlement_rate": 0.92,
       "sum_all_days_cost": 560804,
-      "mean_all_days_sr": 0.9869
+      "cumulative_sr": 0.92
     },
     {
       "filename": "castro_exp2_-_flash_(c1-info).json",
@@ -1757,7 +1661,7 @@
       "total_cost": 52610,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 538676,
-      "mean_all_days_sr": 0.9835
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_flash_(c1-info_r2).json",
@@ -1773,7 +1677,7 @@
       "total_cost": 46784,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 623315,
-      "mean_all_days_sr": 0.99
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_flash_(c1-info_r3).json",
@@ -1789,7 +1693,7 @@
       "total_cost": 66750,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 900085,
-      "mean_all_days_sr": 0.9692
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_flash_(c2-floor).json",
@@ -1805,7 +1709,7 @@
       "total_cost": 43863,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 991697,
-      "mean_all_days_sr": 0.9853
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash_(c2-floor_r2).json",
@@ -1821,7 +1725,7 @@
       "total_cost": 51735,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 655144,
-      "mean_all_days_sr": 0.9974
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash_(c2-floor_r3).json",
@@ -1837,7 +1741,7 @@
       "total_cost": 35606,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 451248,
-      "mean_all_days_sr": 0.99
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_flash_(c2-floor_retry-canary).json",
@@ -1853,7 +1757,7 @@
       "total_cost": 36187,
       "settlement_rate": 0.94,
       "sum_all_days_cost": 762599,
-      "mean_all_days_sr": 0.9812
+      "cumulative_sr": 0.94
     },
     {
       "filename": "castro_exp2_-_flash_(c3-guidance).json",
@@ -1869,7 +1773,7 @@
       "total_cost": 38066,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 967485,
-      "mean_all_days_sr": 0.9779
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash_(c3-guidance_r2).json",
@@ -1885,7 +1789,7 @@
       "total_cost": 33587,
       "settlement_rate": 0.94,
       "sum_all_days_cost": 475200,
-      "mean_all_days_sr": 0.994
+      "cumulative_sr": 0.94
     },
     {
       "filename": "castro_exp2_-_flash_(c3-guidance_r3).json",
@@ -1901,7 +1805,7 @@
       "total_cost": 46655,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 612284,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash_(c4-comp_r2).json",
@@ -1917,7 +1821,7 @@
       "total_cost": 67354,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 530692,
-      "mean_all_days_sr": 0.9801
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_flash_(c4-comp_r3).json",
@@ -1933,7 +1837,7 @@
       "total_cost": 34179,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 589606,
-      "mean_all_days_sr": 0.99
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_flash_(c4-composition).json",
@@ -1949,7 +1853,7 @@
       "total_cost": 37995,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 718684,
-      "mean_all_days_sr": 0.9887
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_flash_(r2).json",
@@ -1965,7 +1869,7 @@
       "total_cost": 65976,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 508804,
-      "mean_all_days_sr": 0.9781
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_flash_(r3).json",
@@ -1981,7 +1885,7 @@
       "total_cost": 48899,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 551464,
-      "mean_all_days_sr": 0.9874
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_glm.json",
@@ -1997,7 +1901,7 @@
       "total_cost": 70889,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 549159,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_glm_(c1-info).json",
@@ -2013,7 +1917,7 @@
       "total_cost": 70823,
       "settlement_rate": 0.7162,
       "sum_all_days_cost": 553189,
-      "mean_all_days_sr": 0.9329
+      "cumulative_sr": 0.7162
     },
     {
       "filename": "castro_exp2_-_glm_(c1-info_r2).json",
@@ -2029,7 +1933,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 549167,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_glm_(c1-info_r3).json",
@@ -2045,7 +1949,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 549167,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_glm_(c2-floor).json",
@@ -2061,7 +1965,7 @@
       "total_cost": 42800,
       "settlement_rate": 0.7778,
       "sum_all_days_cost": 1076485,
-      "mean_all_days_sr": 0.8761
+      "cumulative_sr": 0.7778
     },
     {
       "filename": "castro_exp2_-_glm_(c2-floor_r2).json",
@@ -2077,7 +1981,7 @@
       "total_cost": 70889,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 549185,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_glm_(c2-floor_r3).json",
@@ -2093,7 +1997,7 @@
       "total_cost": 70823,
       "settlement_rate": 0.7162,
       "sum_all_days_cost": 553189,
-      "mean_all_days_sr": 0.9329
+      "cumulative_sr": 0.7162
     },
     {
       "filename": "castro_exp2_-_glm_(c3-guidance).json",
@@ -2109,7 +2013,7 @@
       "total_cost": 68712,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 547570,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_glm_(c3-guidance_r2).json",
@@ -2125,7 +2029,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 549167,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_glm_(c3-guidance_r3).json",
@@ -2141,7 +2045,7 @@
       "total_cost": 67467,
       "settlement_rate": 0.7051,
       "sum_all_days_cost": 549663,
-      "mean_all_days_sr": 0.9121
+      "cumulative_sr": 0.7051
     },
     {
       "filename": "castro_exp2_-_glm_(c4-comp_r2).json",
@@ -2157,7 +2061,7 @@
       "total_cost": 73467,
       "settlement_rate": 0.6455,
       "sum_all_days_cost": 579826,
-      "mean_all_days_sr": 0.8752
+      "cumulative_sr": 0.6455
     },
     {
       "filename": "castro_exp2_-_glm_(c4-comp_r3).json",
@@ -2173,7 +2077,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 549167,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_glm_(c4-composition).json",
@@ -2189,7 +2093,7 @@
       "total_cost": 73541,
       "settlement_rate": 0.6977,
       "sum_all_days_cost": 576942,
-      "mean_all_days_sr": 0.8842
+      "cumulative_sr": 0.6977
     },
     {
       "filename": "castro_exp2_-_glm_(r2).json",
@@ -2205,7 +2109,7 @@
       "total_cost": 70823,
       "settlement_rate": 0.7162,
       "sum_all_days_cost": 564251,
-      "mean_all_days_sr": 0.9329
+      "cumulative_sr": 0.7162
     },
     {
       "filename": "castro_exp2_-_glm_(r3).json",
@@ -2221,7 +2125,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 560229,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_pro.json",
@@ -2237,7 +2141,7 @@
       "total_cost": 108910,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 1163247,
-      "mean_all_days_sr": 0.956
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_pro_(c1-info).json",
@@ -2253,7 +2157,7 @@
       "total_cost": 70897,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 560229,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_pro_(c1-info_r2).json",
@@ -2269,7 +2173,7 @@
       "total_cost": 33116,
       "settlement_rate": 0.92,
       "sum_all_days_cost": 419385,
-      "mean_all_days_sr": 0.9894
+      "cumulative_sr": 0.92
     },
     {
       "filename": "castro_exp2_-_pro_(c1-info_r3).json",
@@ -2285,7 +2189,7 @@
       "total_cost": 67781,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 548411,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_pro_(c2-floor).json",
@@ -2301,7 +2205,7 @@
       "total_cost": 60474,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 839432,
-      "mean_all_days_sr": 0.9601
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_pro_(c2-floor_r2).json",
@@ -2317,7 +2221,7 @@
       "total_cost": 39028,
       "settlement_rate": 0.9,
       "sum_all_days_cost": 787837,
-      "mean_all_days_sr": 0.9681
+      "cumulative_sr": 0.9
     },
     {
       "filename": "castro_exp2_-_pro_(c2-floor_r3).json",
@@ -2333,7 +2237,7 @@
       "total_cost": 34014,
       "settlement_rate": 0.94,
       "sum_all_days_cost": 506472,
-      "mean_all_days_sr": 0.9875
+      "cumulative_sr": 0.94
     },
     {
       "filename": "castro_exp2_-_pro_(c3-guidance).json",
@@ -2349,7 +2253,7 @@
       "total_cost": 67781,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 548411,
-      "mean_all_days_sr": 0.9775
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_pro_(c3-guidance_r2).json",
@@ -2365,7 +2269,7 @@
       "total_cost": 68487,
       "settlement_rate": 0.84,
       "sum_all_days_cost": 498545,
-      "mean_all_days_sr": 0.9801
+      "cumulative_sr": 0.84
     },
     {
       "filename": "castro_exp2_-_pro_(c3-guidance_r3).json",
@@ -2381,7 +2285,7 @@
       "total_cost": 68712,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 547570,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_pro_(c4-comp_r2).json",
@@ -2397,7 +2301,7 @@
       "total_cost": 50917,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 921348,
-      "mean_all_days_sr": 0.9793
+      "cumulative_sr": 1.0
     },
     {
       "filename": "castro_exp2_-_pro_(c4-comp_r3).json",
@@ -2413,7 +2317,7 @@
       "total_cost": 125683,
       "settlement_rate": 0.76,
       "sum_all_days_cost": 978076,
-      "mean_all_days_sr": 0.9551
+      "cumulative_sr": 0.76
     },
     {
       "filename": "castro_exp2_-_pro_(c4-composition).json",
@@ -2429,7 +2333,7 @@
       "total_cost": 63984,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 543242,
-      "mean_all_days_sr": 0.9755
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_pro_(r2).json",
@@ -2445,7 +2349,7 @@
       "total_cost": 68765,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 754626,
-      "mean_all_days_sr": 0.9633
+      "cumulative_sr": 0.82
     },
     {
       "filename": "castro_exp2_-_pro_(r3).json",
@@ -2461,7 +2365,7 @@
       "total_cost": 105130,
       "settlement_rate": 0.82,
       "sum_all_days_cost": 1117449,
-      "mean_all_days_sr": 0.956
+      "cumulative_sr": 0.82
     },
     {
       "filename": "large_network_-_baseline.json",
@@ -2475,9 +2379,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 1733987707,
-      "settlement_rate": 0.7373,
+      "settlement_rate": 0.5879,
       "sum_all_days_cost": 1733987707,
-      "mean_all_days_sr": 0.7373
+      "cumulative_sr": 0.5879
     },
     {
       "filename": "large_network_-_flash.json",
@@ -2491,9 +2395,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2030507059,
-      "settlement_rate": 0.6979,
+      "settlement_rate": 0.5644,
       "sum_all_days_cost": 2030507059,
-      "mean_all_days_sr": 0.6979
+      "cumulative_sr": 0.5644
     },
     {
       "filename": "large_network_-_flash_(r2).json",
@@ -2507,9 +2411,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2081259566,
-      "settlement_rate": 0.7063,
+      "settlement_rate": 0.569,
       "sum_all_days_cost": 2081259566,
-      "mean_all_days_sr": 0.7063
+      "cumulative_sr": 0.569
     },
     {
       "filename": "large_network_-_flash_(r3).json",
@@ -2523,41 +2427,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 1982903209,
-      "settlement_rate": 0.7066,
+      "settlement_rate": 0.5668,
       "sum_all_days_cost": 1982903209,
-      "mean_all_days_sr": 0.7066
-    },
-    {
-      "filename": "large_network_-_glm_(r2).json",
-      "scenario": "large_network",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r2",
-      "experiment_id": "bb6ea1d2",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 182875980,
-      "settlement_rate": 0.9288,
-      "sum_all_days_cost": 182875980,
-      "mean_all_days_sr": 0.9288
-    },
-    {
-      "filename": "large_network_-_glm_(r3).json",
-      "scenario": "large_network",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r3",
-      "experiment_id": "daafc265",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 2123449166,
-      "settlement_rate": 0.6925,
-      "sum_all_days_cost": 2123449166,
-      "mean_all_days_sr": 0.6925
+      "cumulative_sr": 0.5668
     },
     {
       "filename": "large_network_-_pro.json",
@@ -2571,9 +2443,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2093933246,
-      "settlement_rate": 0.6799,
+      "settlement_rate": 0.5565,
       "sum_all_days_cost": 2093933246,
-      "mean_all_days_sr": 0.6799
+      "cumulative_sr": 0.5565
     },
     {
       "filename": "large_network_-_pro_(r2).json",
@@ -2587,9 +2459,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2156858072,
-      "settlement_rate": 0.6942,
+      "settlement_rate": 0.5662,
       "sum_all_days_cost": 2156858072,
-      "mean_all_days_sr": 0.6942
+      "cumulative_sr": 0.5662
     },
     {
       "filename": "large_network_-_pro_(r3).json",
@@ -2603,9 +2475,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 202735827,
-      "settlement_rate": 0.7113,
+      "settlement_rate": 0.6565,
       "sum_all_days_cost": 202735827,
-      "mean_all_days_sr": 0.7113
+      "cumulative_sr": 0.6565
     },
     {
       "filename": "lehman_month_-_baseline.json",
@@ -2619,9 +2491,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2063529647,
-      "settlement_rate": 0.7912,
+      "settlement_rate": 0.6867,
       "sum_all_days_cost": 2063529647,
-      "mean_all_days_sr": 0.7912
+      "cumulative_sr": 0.6867
     },
     {
       "filename": "lehman_month_-_flash.json",
@@ -2635,9 +2507,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2344311418,
-      "settlement_rate": 0.7336,
+      "settlement_rate": 0.5856,
       "sum_all_days_cost": 2344311418,
-      "mean_all_days_sr": 0.7336
+      "cumulative_sr": 0.5856
     },
     {
       "filename": "lehman_month_-_flash_(r2).json",
@@ -2651,9 +2523,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2316881469,
-      "settlement_rate": 0.7501,
+      "settlement_rate": 0.6157,
       "sum_all_days_cost": 2316881469,
-      "mean_all_days_sr": 0.7501
+      "cumulative_sr": 0.6157
     },
     {
       "filename": "lehman_month_-_flash_(r3).json",
@@ -2667,57 +2539,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2401387007,
-      "settlement_rate": 0.7406,
+      "settlement_rate": 0.5872,
       "sum_all_days_cost": 2401387007,
-      "mean_all_days_sr": 0.7406
-    },
-    {
-      "filename": "lehman_month_-_glm.json",
-      "scenario": "lehman_month",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r1",
-      "experiment_id": "161d71d5",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 2498377186,
-      "settlement_rate": 0.7317,
-      "sum_all_days_cost": 2498377186,
-      "mean_all_days_sr": 0.7317
-    },
-    {
-      "filename": "lehman_month_-_glm_(r2).json",
-      "scenario": "lehman_month",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r2",
-      "experiment_id": "95361864",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 2554521005,
-      "settlement_rate": 0.7209,
-      "sum_all_days_cost": 2554521005,
-      "mean_all_days_sr": 0.7209
-    },
-    {
-      "filename": "lehman_month_-_glm_(r3).json",
-      "scenario": "lehman_month",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r3",
-      "experiment_id": "45e8aa95",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 251583264,
-      "settlement_rate": 0.71,
-      "sum_all_days_cost": 251583264,
-      "mean_all_days_sr": 0.71
+      "cumulative_sr": 0.5872
     },
     {
       "filename": "lehman_month_-_pro.json",
@@ -2731,9 +2555,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2543118517,
-      "settlement_rate": 0.7223,
+      "settlement_rate": 0.5715,
       "sum_all_days_cost": 2543118517,
-      "mean_all_days_sr": 0.7223
+      "cumulative_sr": 0.5715
     },
     {
       "filename": "lehman_month_-_pro_(r2).json",
@@ -2747,9 +2571,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2527968660,
-      "settlement_rate": 0.7119,
+      "settlement_rate": 0.5731,
       "sum_all_days_cost": 2527968660,
-      "mean_all_days_sr": 0.7119
+      "cumulative_sr": 0.5731
     },
     {
       "filename": "lehman_month_-_pro_(r3).json",
@@ -2763,9 +2587,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 2568823680,
-      "settlement_rate": 0.7251,
+      "settlement_rate": 0.5806,
       "sum_all_days_cost": 2568823680,
-      "mean_all_days_sr": 0.7251
+      "cumulative_sr": 0.5806
     },
     {
       "filename": "liquidity_squeeze_-_baseline.json",
@@ -2781,7 +2605,7 @@
       "total_cost": 72000,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 72000,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_flash_(r2).json",
@@ -2797,7 +2621,7 @@
       "total_cost": 20635,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 358927,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_flash_(r3).json",
@@ -2813,7 +2637,7 @@
       "total_cost": 22863,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 314560,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_glm_(r2).json",
@@ -2829,7 +2653,7 @@
       "total_cost": 16174,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 214636,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_glm_(r3).json",
@@ -2845,7 +2669,7 @@
       "total_cost": 17460,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 261297,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_pro_(r2).json",
@@ -2861,7 +2685,7 @@
       "total_cost": 15705,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 206634,
-      "mean_all_days_sr": 0.999
+      "cumulative_sr": 1.0
     },
     {
       "filename": "liquidity_squeeze_-_pro_(r3).json",
@@ -2877,7 +2701,7 @@
       "total_cost": 13306,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 208593,
-      "mean_all_days_sr": 0.999
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_baseline.json",
@@ -2893,7 +2717,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_flash.json",
@@ -2909,7 +2733,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_flash_(r2).json",
@@ -2925,7 +2749,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_flash_(r3).json",
@@ -2941,7 +2765,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_glm.json",
@@ -2957,7 +2781,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_glm_(r2).json",
@@ -2973,7 +2797,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_glm_(r3).json",
@@ -2989,7 +2813,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_pro.json",
@@ -3005,7 +2829,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_pro_(r2).json",
@@ -3021,7 +2845,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "lynx_day_-_pro_(r3).json",
@@ -3037,7 +2861,7 @@
       "total_cost": 3,
       "settlement_rate": 1.0,
       "sum_all_days_cost": 3,
-      "mean_all_days_sr": 1.0
+      "cumulative_sr": 1.0
     },
     {
       "filename": "periodic_shocks_-_baseline.json",
@@ -3051,9 +2875,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 611354137,
-      "settlement_rate": 0.8619,
+      "settlement_rate": 0.7664,
       "sum_all_days_cost": 611354137,
-      "mean_all_days_sr": 0.8619
+      "cumulative_sr": 0.7664
     },
     {
       "filename": "periodic_shocks_-_flash_(r2).json",
@@ -3067,9 +2891,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 800565920,
-      "settlement_rate": 0.8022,
+      "settlement_rate": 0.7159,
       "sum_all_days_cost": 800565920,
-      "mean_all_days_sr": 0.8022
+      "cumulative_sr": 0.7159
     },
     {
       "filename": "periodic_shocks_-_flash_(r3).json",
@@ -3083,41 +2907,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 674126072,
-      "settlement_rate": 0.7907,
+      "settlement_rate": 0.6765,
       "sum_all_days_cost": 674126072,
-      "mean_all_days_sr": 0.7907
-    },
-    {
-      "filename": "periodic_shocks_-_glm_(r2).json",
-      "scenario": "periodic_shocks",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r2",
-      "experiment_id": "c3092a1e",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 664537592,
-      "settlement_rate": 0.7808,
-      "sum_all_days_cost": 664537592,
-      "mean_all_days_sr": 0.7808
-    },
-    {
-      "filename": "periodic_shocks_-_glm_(r3).json",
-      "scenario": "periodic_shocks",
-      "model": "glm",
-      "condition": "v0.1",
-      "run": "r3",
-      "experiment_id": "f0eb80e9",
-      "status": "complete",
-      "num_days": 25,
-      "num_rounds": 1,
-      "is_multiround": false,
-      "total_cost": 636332987,
-      "settlement_rate": 0.7824,
-      "sum_all_days_cost": 636332987,
-      "mean_all_days_sr": 0.7824
+      "cumulative_sr": 0.6765
     },
     {
       "filename": "periodic_shocks_-_pro_(r2).json",
@@ -3131,9 +2923,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 782415219,
-      "settlement_rate": 0.7939,
+      "settlement_rate": 0.686,
       "sum_all_days_cost": 782415219,
-      "mean_all_days_sr": 0.7939
+      "cumulative_sr": 0.686
     },
     {
       "filename": "periodic_shocks_-_pro_(r3).json",
@@ -3147,9 +2939,9 @@
       "num_rounds": 1,
       "is_multiround": false,
       "total_cost": 729297717,
-      "settlement_rate": 0.8017,
+      "settlement_rate": 0.6975,
       "sum_all_days_cost": 729297717,
-      "mean_all_days_sr": 0.8017
+      "cumulative_sr": 0.6975
     }
   ]
 }

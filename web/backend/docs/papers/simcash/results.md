@@ -342,9 +342,9 @@ LLM optimization delivers 40–84% cost reduction on simple scenarios (2–4 ban
 | 2B 3T | 2 | 99,900 / 100% | 15,671 / 100% | **−84%** |
 | 3B 6T | 3 | 74,700 / 100% | 35,942 / 96% | **−52%** |
 | 4B 8T | 4 | 132,800 / 100% | 43,785 / 97% | **−67%** |
-| Periodic Shocks | 5 | 611M / 86% | 737M / 80% | **+21%** |
-| Large Network | 5 | 1,734M / 74% | 2,032M / 70% | **+17%** |
-| Lehman Month | 6 | 2,064M / 79% | 2,354M / 74% | **+14%** |
+| Periodic Shocks | 5 | 611M / 77% | 737M / 70% | **+21%** |
+| Large Network | 5 | 1,734M / 59% | 2,032M / 57% | **+17%** |
+| Lehman Month | 6 | 2,064M / 69% | 2,354M / 60% | **+14%** |
 
 The threshold lies between 4 and 5 banks. Below it, individual optimization is compatible with collective welfare. Above it, agents' liquidity-hoarding strategies create cascading settlement failures — a computational tragedy of the commons.
 
@@ -354,8 +354,8 @@ More capable models produce *worse* collective outcomes on complex scenarios. Pr
 
 | Complex Scenario | Flash Cost Δ | Pro Cost Δ | Flash SR | Pro SR |
 |---|---|---|---|---|
-| Periodic Shocks | +21% | +24% | 80% | 80% |
-| Lehman Month | +14% | +23% | 74% | 72% |
+| Periodic Shocks | +21% | +24% | 70% | 69% |
+| Lehman Month | +14% | +23% | 60% | 58% |
 
 ### Finding 3: Constraints Beat Information
 
@@ -397,4 +397,4 @@ Under stress, even 2-bank optimization fails (cost increases). But liquidity squ
 |---|---|---|---|
 | **Gemini Flash** | Best cost reduction (up to 84%) | Least harmful (+14–21% cost) | Champion |
 | **Gemini Pro** | Strong but inconsistent | Most harmful (+23–24% cost) | Paradoxical |
-| **GLM-4-Flash** | Competitive on cost, weak SR | Surprisingly best on some complex | Wild card |
+| **GLM-4-Flash** | Competitive on cost, weak SR | Excluded (pre-bugfix data) | Wild card |
