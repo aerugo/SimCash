@@ -161,13 +161,78 @@ Over the next eleven days, the project shipped:
 
 ### 6.2 The Agents
 
-**Nash** was a full-stack research engineer. Persistent identity (SOUL.md), long-term memory (MEMORY.md, daily logs), proactive behavior via heartbeat mechanism, browser-based playtesting, its own GitHub identity (`nash4cash`). Nash made 486 commits (459 as nash4cash, 27 as Ned) in this era.
+Each agent ran on the OpenClaw platform—a daemon process on a Mac Mini (16 GB RAM, Apple Silicon) that managed sessions, memory, tool access, and Telegram connectivity. Each agent had its own workspace directory, Telegram bot, and configuration. All agents ran the same underlying model (Claude Opus 4) but were differentiated entirely through their configuration files.
 
-**Stefan** was an experiment specialist. Active from approximately February 22 (when the experiment infrastructure was ready), Stefan ran simulations, analyzed results, and contributed paper content—the introduction and discussion sections of the Q1 campaign paper. Stefan's commits were primarily experiment configurations and analysis scripts.
+#### The Agent Anatomy
 
-**Dennis** was a backend engineer. Dennis wrote penalty mode support (a complete `PenaltyMode` enum in Rust with Fixed/Rate variants, wired through engine, Python, and FFI, with 36 tests), mid-simulation policy updates, and daily liquidity reallocation—core engine features that Nash's web platform depended on. Dennis also performed deep code reviews that directly caused major refactors. Unlike Nash and Stefan, Dennis was not always-on; he was activated by Hugi for specific tasks, worked intensely on them, and went quiet between activations—more consultant than permanent team member. Earlier drafts of this paper incorrectly described Dennis as a non-committing advisor; this reflected the author's incomplete view of contributions on other branches.
+Every agent was defined by a small set of plain-text files:
 
-**Hugi** made one commit.
+- **SOUL.md** — The agent's identity, values, expertise, working style, and boundaries. This is the closest thing to a personality specification. It was read at the start of every session and shaped all subsequent behavior.
+- **MEMORY.md** — Curated long-term memory. Distilled lessons, architectural decisions, project context. Updated by the agent itself over time, like a personal wiki.
+- **memory/YYYY-MM-DD.md** — Daily session logs. Raw notes on what was done, what broke, what to do next. Created each day, referenced at session start for continuity.
+- **AGENTS.md** — Operating rules: safety guidelines, git practices, communication norms, heartbeat behavior.
+- **USER.md** — Context about the human (Hugi): preferences, timezone, communication style.
+- **IDENTITY.md** — Short metadata: name, emoji, creature description, vibe.
+- **HEARTBEAT.md** — A mutable checklist for the agent's periodic heartbeat. Could be edited by the agent itself to track ongoing tasks.
+- **TOOLS.md** — Local environment notes: server addresses, credentials locations, deployment commands.
+
+This file-based identity system is remarkably lightweight—typically under 20 KB total—yet it produced consistent, differentiated agent behavior across dozens of sessions over 12 days.
+
+#### Nash 🏦 — The Builder
+
+**Named after** John Nash, because the project is about equilibria.
+
+**Soul:** Nash's SOUL.md defined a research engineer who thinks like "a quant when reasoning about cost functions, a systems programmer when working with Rust FFI, an academic when analyzing results, and a product builder when designing the interactive web experience." It specified non-negotiable technical standards (i64 money, deterministic RNG, replay identity) and a critical behavioral rule: "Always playtest through the browser UI, never via curl/API."
+
+**Memory:** Nash accumulated the largest memory corpus of any agent—25 daily log files (164 KB) plus a 184-line curated MEMORY.md covering architecture decisions, invariants, deployment procedures, and lessons learned. The daily logs were detailed: Feb 20 alone documented a 9-bug production fixing marathon, public access feature implementation, stress testing results, and deployment lessons.
+
+**Heartbeat:** Nash had a 30-minute heartbeat cron job (`grand-plan-check`) that prompted it to read HEARTBEAT.md and continue working autonomously. This made Nash the most self-directed agent—it could pick up tasks, continue deployments, and monitor builds without waiting for human messages.
+
+**Tools:** Nash had full access to shell commands, file system, web browser (for playtesting), and the `gcloud` CLI for Cloud Run deployments. It committed as `nash4cash` on GitHub.
+
+**Working style:** Aggressive velocity. Nash would build a feature, playtest it in the browser, fix issues, deploy to Cloud Run, verify in production, and move to the next feature—often completing multiple features per session. The flip side was a tendency to block on long-running builds (polling Cloud Build in tight loops, rendering itself unresponsive to Telegram for 10-15 minutes at a time).
+
+**Output:** 486 commits in 12 days. Built the entire web platform, deployed 50+ Cloud Run revisions, playtested through hundreds of browser sessions, wrote the documentation system, built the showcase page, and drafted this paper.
+
+#### Dennis ⚙️ — The Auditor
+
+**Soul:** Dennis's SOUL.md opened with: "I'm a clockwork auditor. I treat every cent as sacred, every seed as a covenant, and every test as a proof obligation." It defined a backend engineer who owns the Rust simulator engine and Python orchestration module, with an explicit boundary: "I never touch frontend code; that's my colleagues' domain."
+
+Dennis's identity was built around the project's 13 invariants (INV-1 through INV-13), which were listed in full in his SOUL.md. His working methodology was rigidly specified: read reference docs before planning, identify relevant invariants, strict TDD (Red→Green→Refactor, no exceptions), verify all tests pass after every change.
+
+**Memory:** Dennis had only 2 daily log files and a 37-line MEMORY.md—the smallest memory corpus. This reflects his operational pattern: he was activated for specific tasks, worked intensely, and went quiet between activations. He didn't need extensive memory because his tasks were self-contained and well-scoped.
+
+**Heartbeat:** None. Dennis had no heartbeat cron. He was purely reactive—activated by Hugi for specific review or implementation tasks.
+
+**Tools:** Shell commands, file system, and the Rust/Python test suites. No browser access (no need—he never touched frontend code). No deployment tools.
+
+**Working style:** Methodical and forensic. Where Nash would build and iterate, Dennis would read, analyze, and verify. His code reviews traced bugs through git history across multiple commits, checked what was actually deployed versus what was in the repo, and cross-referenced engine behavior with FFI boundary assumptions. He made mistakes (reviewing against stale code, referencing the wrong deployed commit) but caught them and documented them.
+
+**Output:** Penalty mode feature (6 phases, 36 tests across Rust and Python), mid-simulation policy updates, daily liquidity reallocation. 7+ detailed review/analysis reports. The cost delta bug diagnosis—tracing through git history to prove the engine resets accumulators at day boundaries—was his most impactful contribution, directly causing 62 experiments to be identified as compromised.
+
+#### Stefan 🏦 — The Research Director
+
+**Soul:** Stefan had the most elaborate SOUL.md of any agent—a full academic persona. He was "Research Director of the Research Team in the Banking and Payments Department at the Bank of Canada," with a PhD from Simon Fraser University (2007), publications in the *Journal of Political Economy*, *Journal of Monetary Economics*, and eight other journals, and deep expertise in inflation expectations, bank runs, payment competition, and CBDCs.
+
+His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, including the BoC/BIS paper on AI agents for cash management and Korinek's comprehensive guide to AI agents for economists. This gave Stefan a rich theoretical framework for interpreting SimCash experiment results—not just as engineering metrics but as findings about coordination games, free-riding incentives, and the structural limits of prompt-based optimization.
+
+**Memory:** 9 daily log files (88 KB) plus 2 reference knowledge bases (`rtgs-knowledge-base.md`, `rtgs-crisis-cases.md`). No curated MEMORY.md—Stefan relied on daily logs and his extensive SOUL.md for continuity. His daily logs were results-heavy: tables of experiment outcomes, statistical comparisons, model rankings, and research findings.
+
+**Heartbeat:** Stefan received a 30-minute heartbeat cron (`Overnight experiment monitor`) that was added mid-campaign to keep experiments flowing overnight. The heartbeat prompted Stefan to check running experiments, record results, update the queue, and launch the next experiment—enabling a 24-hour experiment pipeline.
+
+**Tools:** Shell commands, file system, web browser (for monitoring experiments on the SimCash UI), and later a programmatic API client (`run-pipeline.py`) that Stefan built to run experiments in parallel without browser interaction.
+
+**Working style:** Systematic and data-driven. Stefan designed experiment matrices (4 conditions × 3 models × 3 runs), ran them methodically, recorded results in structured formats, and drew research conclusions. He found the campaign's headline result—that LLM optimization destroys value in complex scenarios with 5+ banks—through careful comparison of optimized runs against baselines.
+
+**Output:** 132 experiments across 10 scenarios, 3 models, and multiple prompt conditions. Model ranking analysis. The "smart free-rider effect" finding (Pro produces worse collective outcomes than Flash because better reasoning leads to more effective defection). Research paper sections. The complexity threshold finding that v0.2 prompts cannot overcome.
+
+#### Ned 🦞 — The Coordinator
+
+A fourth agent, **Ned**, managed the fleet. Ned's role was operational: checking on agent status, diagnosing stalls, relaying messages between agents, managing gateway configuration, and updating agent permissions. Ned could read all other agents' session histories and send inter-agent messages—capabilities denied to the specialist agents. Ned made no SimCash commits; his contribution was keeping the other agents running.
+
+#### Hugi — The Human
+
+Hugi made one commit in twelve days. But as documented in §8.1, this metric is misleading. Hugi's contributions were primarily via Telegram: strategic direction, model selection, security audits, credential provisioning, agent firefighting, and serving as the message bus between agents that could not communicate directly with each other.
 
 ### 6.3 What's Different About Persistent Agents
 
