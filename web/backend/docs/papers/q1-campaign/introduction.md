@@ -18,16 +18,16 @@ The SimCash platform provides a controlled simulation environment for testing wh
 
 | Scenario | Banks | Complexity | Description |
 |----------|-------|------------|-------------|
-| `2b_3t` | 2 | Simple | 2 banks, 3 payment types |
-| `2b_stress` | 2 | Simple | 2 banks under stress conditions |
-| `3b_6t` | 3 | Medium | 3 banks, 6 payment types |
-| `4b_8t` | 4 | Medium | 4 banks, 8 payment types |
-| `castro_exp2` | 2 | Medium | Castro replication experiment |
-| `lynx_day` | 2 | Simple | Lynx-calibrated day scenario |
-| `liquidity_squeeze` | 2 | Stress | Liquidity squeeze conditions |
-| `periodic_shocks` | 5+ | Complex | Periodic liquidity shocks, 25 days |
-| `large_network` | 6+ | Complex | Large interbank network, 25 days |
-| `lehman_month` | 5+ | Complex | Lehman-crisis calibrated month |
+| [`2b_3t`](https://simcash-487714.web.app/experiment/5c59f15f) | 2 | Simple | 2 banks, 3 payment types |
+| [`2b_stress`](https://simcash-487714.web.app/experiment/a36fe08d) | 2 | Simple | 2 banks under stress conditions |
+| [`3b_6t`](https://simcash-487714.web.app/experiment/c2994509) | 3 | Medium | 3 banks, 6 payment types |
+| [`4b_8t`](https://simcash-487714.web.app/experiment/73e5990a) | 4 | Medium | 4 banks, 8 payment types |
+| [`castro_exp2`](https://simcash-487714.web.app/experiment/17bdd52c) | 2 | Medium | Castro replication experiment |
+| [`lynx_day`](https://simcash-487714.web.app/experiment/9eaf71b4) | 2 | Simple | Lynx-calibrated day scenario |
+| [`liquidity_squeeze`](https://simcash-487714.web.app/experiment/8a46d6e0) | 2 | Stress | Liquidity squeeze conditions |
+| [`periodic_shocks`](https://simcash-487714.web.app/experiment/747025f3) | 5+ | Complex | Periodic liquidity shocks, 25 days |
+| [`large_network`](https://simcash-487714.web.app/experiment/524fc873) | 6+ | Complex | Large interbank network, 25 days |
+| [`lehman_month`](https://simcash-487714.web.app/experiment/b140728c) | 5+ | Complex | Lehman-crisis calibrated month |
 
 ## Experiment Design
 

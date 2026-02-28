@@ -42,27 +42,45 @@ def compute_stats(data: dict) -> dict:
     if not days:
         return {}
 
-    total_settled = sum(d.get("total_settled", 0) for d in days)
-    total_arrived = sum(d.get("total_arrivals", 0) for d in days)
-    cumulative_sr = total_settled / total_arrived if total_arrived > 0 else 0
-
     last_day = days[-1]
-    # Cumulative total cost is on the last day (running sum)
-    final_total_cost = last_day.get("total_cost", 0)
-    # Average daily cost
+
+    # Detect if stats are cumulative (complex scenarios) or per-day (simple).
+    # Complex scenarios have monotonically increasing total_arrivals.
+    is_cumulative = len(days) > 1 and all(
+        days[i].get("total_arrivals", 0) >= days[i-1].get("total_arrivals", 0)
+        for i in range(1, len(days))
+    )
+
+    if is_cumulative:
+        # Complex: arrivals/settled are running totals → last day has the totals
+        # Cost is per-day → sum for total system cost over the period
+        total_settled = last_day.get("total_settled", 0)
+        total_arrived = last_day.get("total_arrivals", 0)
+        final_total_cost = sum(d.get("total_cost", 0) for d in days)
+    else:
+        # Simple: each day is an independent optimization run
+        # Last day = converged policy performance
+        total_settled = last_day.get("total_settled", 0)
+        total_arrived = last_day.get("total_arrivals", 0)
+        final_total_cost = last_day.get("total_cost", 0)
+
+    cumulative_sr = total_settled / total_arrived if total_arrived > 0 else 0
     avg_daily_cost = final_total_cost / len(days) if days else 0
 
     # Per-day settlement rates for chart
     daily_sr = []
     for d in days:
-        day_arrived = d.get("total_arrivals", 0)
-        day_settled = d.get("total_settled", 0)
-        # Cumulative up to this day
-        cum_settled = sum(dd.get("total_settled", 0) for dd in days[:d["day"] + 1]) if "day" in d else day_settled
-        cum_arrived = sum(dd.get("total_arrivals", 0) for dd in days[:d["day"] + 1]) if "day" in d else day_arrived
+        if is_cumulative:
+            # Complex: total_settled/total_arrivals are running totals
+            cum_settled = d.get("total_settled", 0)
+            cum_arrived = d.get("total_arrivals", 0)
+        else:
+            # Simple: per-day values, compute running total manually
+            idx = d.get("day", len(daily_sr))
+            cum_settled = sum(dd.get("total_settled", 0) for dd in days[:idx+1])
+            cum_arrived = sum(dd.get("total_arrivals", 0) for dd in days[:idx+1])
         daily_sr.append({
             "day": d.get("day", len(daily_sr)),
-            "daily_rate": day_settled / day_arrived if day_arrived > 0 else 1.0,
             "cumulative_rate": cum_settled / cum_arrived if cum_arrived > 0 else 1.0,
             "daily_cost": d.get("total_cost", 0),
         })
