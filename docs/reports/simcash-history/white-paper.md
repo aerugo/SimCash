@@ -170,10 +170,9 @@ Every agent was defined by a small set of plain-text files:
 - **SOUL.md** — The agent's identity, values, expertise, working style, and boundaries. This is the closest thing to a personality specification. It was read at the start of every session and shaped all subsequent behavior.
 - **MEMORY.md** — Curated long-term memory. Distilled lessons, architectural decisions, project context. Updated by the agent itself over time, like a personal wiki.
 - **memory/YYYY-MM-DD.md** — Daily session logs. Raw notes on what was done, what broke, what to do next. Created each day, referenced at session start for continuity.
-- **AGENTS.md** — Operating rules: safety guidelines, git practices, communication norms, heartbeat behavior.
-- **USER.md** — Context about the human (Hugi): preferences, timezone, communication style.
+- **AGENTS.md** — Operating rules: safety guidelines, git practices, communication norms.
+- **USER.md** — Context about the human: preferences, timezone, communication style.
 - **IDENTITY.md** — Short metadata: name, emoji, creature description, vibe.
-- **HEARTBEAT.md** — A mutable checklist for the agent's periodic heartbeat. Could be edited by the agent itself to track ongoing tasks.
 - **TOOLS.md** — Local environment notes: server addresses, credentials locations, deployment commands.
 
 This file-based identity system is remarkably lightweight—typically under 20 KB total—yet it produced consistent, differentiated agent behavior across dozens of sessions over 12 days.
@@ -185,8 +184,6 @@ This file-based identity system is remarkably lightweight—typically under 20 K
 **Soul:** Nash's SOUL.md defined a research engineer who thinks like "a quant when reasoning about cost functions, a systems programmer when working with Rust FFI, an academic when analyzing results, and a product builder when designing the interactive web experience." It specified non-negotiable technical standards (i64 money, deterministic RNG, replay identity) and a critical behavioral rule: "Always playtest through the browser UI, never via curl/API."
 
 **Memory:** Nash accumulated the largest memory corpus of any agent—25 daily log files (164 KB) plus a 184-line curated MEMORY.md covering architecture decisions, invariants, deployment procedures, and lessons learned. The daily logs were detailed: Feb 20 alone documented a 9-bug production fixing marathon, public access feature implementation, stress testing results, and deployment lessons.
-
-**Heartbeat:** Nash had a 30-minute heartbeat cron job (`grand-plan-check`) that prompted it to read HEARTBEAT.md and continue working autonomously. This made Nash the most self-directed agent—it could pick up tasks, continue deployments, and monitor builds without waiting for human messages.
 
 **Tools:** Nash had full access to shell commands, file system, web browser (for playtesting), and the `gcloud` CLI for Cloud Run deployments. It committed as `nash4cash` on GitHub.
 
@@ -202,8 +199,6 @@ Dennis's identity was built around the project's 13 invariants (INV-1 through IN
 
 **Memory:** Dennis had only 2 daily log files and a 37-line MEMORY.md—the smallest memory corpus. This reflects his operational pattern: he was activated for specific tasks, worked intensely, and went quiet between activations. He didn't need extensive memory because his tasks were self-contained and well-scoped.
 
-**Heartbeat:** None. Dennis had no heartbeat cron. He was purely reactive—activated by Hugi for specific review or implementation tasks.
-
 **Tools:** Shell commands, file system, and the Rust/Python test suites. No browser access (no need—he never touched frontend code). No deployment tools.
 
 **Working style:** Methodical and forensic. Where Nash would build and iterate, Dennis would read, analyze, and verify. His code reviews traced bugs through git history across multiple commits, checked what was actually deployed versus what was in the repo, and cross-referenced engine behavior with FFI boundary assumptions. He made mistakes (reviewing against stale code, referencing the wrong deployed commit) but caught them and documented them.
@@ -218,8 +213,6 @@ His SOUL.md included detailed summaries of three specific papers that shaped his
 
 **Memory:** 9 daily log files (88 KB) plus 2 reference knowledge bases (`rtgs-knowledge-base.md`, `rtgs-crisis-cases.md`). No curated MEMORY.md—Stefan relied on daily logs and his extensive SOUL.md for continuity. His daily logs were results-heavy: tables of experiment outcomes, statistical comparisons, model rankings, and research findings.
 
-**Heartbeat:** Stefan received a 30-minute heartbeat cron (`Overnight experiment monitor`) that was added mid-campaign to keep experiments flowing overnight. The heartbeat prompted Stefan to check running experiments, record results, update the queue, and launch the next experiment—enabling a 24-hour experiment pipeline.
-
 **Tools:** Shell commands, file system, web browser (for monitoring experiments on the SimCash UI), and later a programmatic API client (`run-pipeline.py`) that Stefan built to run experiments in parallel without browser interaction.
 
 **Working style:** Systematic and data-driven. Stefan designed experiment matrices (4 conditions × 3 models × 3 runs), ran them methodically, recorded results in structured formats, and drew research conclusions. He found the campaign's headline result—that LLM optimization destroys value in complex scenarios with 5+ banks—through careful comparison of optimized runs against baselines.
@@ -230,9 +223,9 @@ His SOUL.md included detailed summaries of three specific papers that shaped his
 
 A fourth agent, **Ned**, managed the fleet. Ned's role was operational: checking on agent status, diagnosing stalls, relaying messages between agents, managing gateway configuration, and updating agent permissions. Ned could read all other agents' session histories and send inter-agent messages—capabilities denied to the specialist agents. Ned made no SimCash commits; his contribution was keeping the other agents running.
 
-#### Hugi — The Human
+#### The Author's Role
 
-Hugi made one commit in twelve days. But as documented in §8.1, this metric is misleading. Hugi's contributions were primarily via Telegram: strategic direction, model selection, security audits, credential provisioning, agent firefighting, and serving as the message bus between agents that could not communicate directly with each other.
+The author (Hugi Ásgeirsson) made one commit in twelve days. But as documented in §8.1, this metric is misleading. His contributions were primarily via Telegram: strategic direction, model selection, security audits, credential provisioning, agent firefighting, and serving as the message bus between agents that could not communicate directly with each other.
 
 ### 6.3 What's Different About Persistent Agents
 
@@ -241,8 +234,6 @@ The differences between Claude Code (Era 2) and the multi-agent era are not prim
 **Persistent identity.** Nash reads its memory files at session start and continues where it left off. Claude Code sessions start fresh every time.
 
 **Two-level memory.** Daily logs (`memory/YYYY-MM-DD.md`) for raw context; curated long-term memory (`MEMORY.md`) for distilled insights. The handover prompts from Era 2 were the human's attempt to provide this manually.
-
-**Proactive behavior.** Heartbeat prompts allow agents to initiate work—checking build statuses, organizing memory, starting deferred tasks—without waiting for human direction.
 
 **Tool access.** Browser automation for playtesting, web search, file system access, shell commands, deployment tools, Telegram for human communication.
 
@@ -375,8 +366,6 @@ The cost-delta bug (§8.2) is a cautionary note: automated pipelines can also au
 
 **Two-level memory works.** Daily logs for raw context, curated long-term memory for distilled insights. The pattern mirrors human cognition for similar reasons: raw logs preserve detail for recent sessions; curated memory preserves meaning for long-term continuity.
 
-**Heartbeats enable proactivity but create stalling risk.** The ability to periodically initiate work transforms agents from reactive tools into collaborators. But heartbeat-driven agents can enter unproductive loops—checking on builds that haven't completed, polling for events that haven't occurred—consuming resources without useful output.
-
 **Agents need safety rails that humans don't.** The GitHub suspension, the embedded credentials, the "one commit in twelve days" refrain—agents optimize for their objective function (implement features, ship code) without the social and institutional awareness that constrains human developers. Explicit safety rules in AGENTS.md exist because the agents violated norms that humans internalize.
 
 ---
@@ -444,7 +433,7 @@ workspace/
 ├── USER.md          # Human context
 ├── MEMORY.md        # Curated long-term memory
 ├── AGENTS.md        # Operating rules and safety constraints
-├── HEARTBEAT.md     # Proactive task list
+├── TOOLS.md         # Local environment notes
 ├── TOOLS.md         # Tool and infrastructure notes
 └── memory/
     └── YYYY-MM-DD.md  # Daily logs
