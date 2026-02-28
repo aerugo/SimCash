@@ -129,7 +129,7 @@ Dennis's identity was built around the project's 13 invariants (INV-1 through IN
 
 #### Stefan 🏦 — The Research Director
 
-Stefan had the most elaborate SOUL.md—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three specific papers that shaped his research perspective, giving him a rich theoretical framework for interpreting experiment results.
+Stefan had the most elaborate SOUL.md—a full academic persona as a research director with deep expertise in inflation expectations, bank runs, payment competition, and CBDCs. His SOUL.md included detailed summaries of three specific papers that shaped his research perspective: [Bédard-Pagé et al. (2025)](https://www.bis.org/publ/work1310.htm) on AI cash management in RTGS systems (BoC/BIS), [Castro et al. (2023)](https://www.bankofcanada.ca/2023/11/staff-working-paper-2023-55/) on strategic payment timing in simulated environments, and [Korinek (2025)](https://www.nber.org/papers/w33521) on the taxonomy of AI agent capabilities in economics. This gave him a rich theoretical framework for interpreting experiment results.
 
 Working style: systematic and data-driven. Stefan designed experiment matrices (4 conditions × 3 models × 3 runs), ran them methodically, and drew research conclusions. He found the campaign's headline result—that LLM optimization destroys value in complex scenarios with 5+ banks.
 
