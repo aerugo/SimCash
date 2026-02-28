@@ -174,6 +174,12 @@ const markdownComponents: Components = {
   ),
 };
 
+function sectionAnchor(id: string): string {
+  // papers/building-simcash/results -> section-results
+  const parts = id.split('/');
+  return `section-${parts[parts.length - 1]}`;
+}
+
 export function DocsView() {
   const params = useParams<{ '*': string }>();
   const slug = params['*'] || undefined;
@@ -185,6 +191,7 @@ export function DocsView() {
   const [loading, setLoading] = useState(true);
   const [loadingContent, setLoadingContent] = useState(false);
   const cache = useRef<Record<string, DocContent>>({});
+  const [paperSections, setPaperSections] = useState<DocContent[]>([]);
 
   // Sync URL slug to activeId
   useEffect(() => {
@@ -204,32 +211,69 @@ export function DocsView() {
       .catch(() => setLoading(false));
   }, []);
 
+  // Fetch a single doc page (with caching)
+  const fetchOne = useCallback(async (id: string): Promise<DocContent> => {
+    if (cache.current[id]) return cache.current[id];
+    const r = await fetch(`${API_BASE}/docs/${id}`);
+    const data: DocContent = await r.json();
+    cache.current[id] = data;
+    return data;
+  }, []);
+
   // Fetch content when active page changes
-  const fetchContent = useCallback((id: string) => {
-    if (cache.current[id]) {
-      const cached = cache.current[id];
-      setContent(cached.content);
-      setActiveMeta(cached);
-      return;
-    }
-    setLoadingContent(true);
-    fetch(`${API_BASE}/docs/${id}`)
-      .then(r => r.json())
-      .then((data: DocContent) => {
-        cache.current[id] = data;
-        setContent(data.content);
+  useEffect(() => {
+    if (!activeId || pages.length === 0) return;
+    const page = pages.find(p => p.id === activeId);
+    if (!page) {
+      // Non-paper or not found: simple fetch
+      setLoadingContent(true);
+      fetchOne(activeId).then(data => {
         setActiveMeta(data);
+        setContent(data.content);
+        setPaperSections([]);
         setLoadingContent(false);
-      })
-      .catch(() => {
+      }).catch(() => {
         setContent('# Error\n\nFailed to load documentation.');
         setLoadingContent(false);
       });
-  }, []);
+      return;
+    }
 
-  useEffect(() => {
-    if (activeId) fetchContent(activeId);
-  }, [activeId, fetchContent]);
+    // For paper pages, fetch ALL sibling sections
+    if (page.paper) {
+      const siblings = pages
+        .filter(p => p.paper === page.paper)
+        .sort((a, b) => a.order - b.order);
+      setLoadingContent(true);
+      Promise.all(siblings.map(s => fetchOne(s.id))).then(sections => {
+        setActiveMeta(sections[0]); // Use first section as meta (for paper_title)
+        setContent(''); // Not used for papers
+        setPaperSections(sections);
+        setLoadingContent(false);
+        // If URL points to a specific section, scroll to it
+        const anchor = sectionAnchor(page.id);
+        setTimeout(() => {
+          const el = document.getElementById(anchor);
+          if (el && page.order > 0) el.scrollIntoView({ behavior: 'smooth' });
+          else window.scrollTo(0, 0);
+        }, 50);
+      }).catch(() => {
+        setContent('# Error\n\nFailed to load documentation.');
+        setLoadingContent(false);
+      });
+    } else {
+      setLoadingContent(true);
+      fetchOne(activeId).then(data => {
+        setActiveMeta(data);
+        setContent(data.content);
+        setPaperSections([]);
+        setLoadingContent(false);
+      }).catch(() => {
+        setContent('# Error\n\nFailed to load documentation.');
+        setLoadingContent(false);
+      });
+    }
+  }, [activeId, pages, fetchOne]);
 
   const groupedPages = GROUPS.map(g => ({
     ...g,
@@ -305,10 +349,23 @@ export function DocsView() {
                         {pg.items.map(item => (
                           <button
                             key={item.id}
-                            onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); window.scrollTo(0, 0); }}
+                            onClick={() => {
+                              // For paper sections, navigate to intro and scroll to anchor
+                              const introPage = pg.items[0];
+                              if (activeId !== introPage.id) {
+                                setActiveId(introPage.id);
+                                navigate(`/docs/${introPage.id}`);
+                              }
+                              setTimeout(() => {
+                                const el = document.getElementById(sectionAnchor(item.id));
+                                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                              }, 100);
+                            }}
                             className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors pl-5 ${
-                              activeId === item.id
-                                ? 'bg-sky-500/10 text-sky-400'
+                              activeMeta?.paper === item.paper
+                                ? (item.id === activeId || (paperSections.length > 0 && paperSections[0]?.paper === item.paper)
+                                  ? 'text-slate-200 hover:bg-slate-800/50'
+                                  : 'text-slate-200 hover:bg-slate-800/50')
                                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                             }`}
                           >
@@ -361,80 +418,51 @@ export function DocsView() {
                 {activeMeta.date && <span className="text-xs text-slate-500">{activeMeta.date}</span>}
               </div>
             )}
-            {/* Paper header: title, ToC, section title */}
-            {(() => {
-              const paperSlug = activeMeta?.paper;
-              if (!paperSlug || !activeMeta) return null;
-              const siblings = pages
-                .filter(p => p.paper === paperSlug)
-                .sort((a, b) => a.order - b.order);
-              if (siblings.length < 2) return null;
-              return (
-                <div className="mb-6">
-                  <h2 className="text-lg font-semibold text-slate-200 mb-3">{activeMeta.paper_title}</h2>
-                  <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-lg mb-4">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Contents</h4>
-                    <ol className="space-y-1">
-                      {siblings.map((s, i) => (
-                        <li key={s.id}>
-                          <button
-                            onClick={() => { setActiveId(s.id); navigate(`/docs/${s.id}`); window.scrollTo(0, 0); }}
-                            className={`text-sm transition-colors ${
-                              s.id === activeId ? 'text-sky-400 font-medium' : 'text-slate-400 hover:text-sky-400'
-                            }`}
-                          >
-                            {i + 1}. {s.icon} {s.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
+            {/* Paper: render all sections on one page */}
+            {paperSections.length > 0 ? (
+              <div>
+                {/* Paper title */}
+                <h2 className="text-xl font-semibold text-slate-200 mb-4">{activeMeta?.paper_title}</h2>
+                {/* ToC with anchor links */}
+                <div className="p-4 bg-slate-800/50 border border-slate-700 rounded-lg mb-8">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Contents</h4>
+                  <ol className="space-y-1">
+                    {paperSections.map((s, i) => (
+                      <li key={s.id}>
+                        <a
+                          href={`#${sectionAnchor(s.id)}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const el = document.getElementById(sectionAnchor(s.id));
+                            if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="text-sm text-slate-400 hover:text-sky-400 transition-colors"
+                        >
+                          {i + 1}. {s.icon} {s.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+                {/* All sections rendered sequentially */}
+                {paperSections.map((section, i) => (
+                  <div key={section.id} id={sectionAnchor(section.id)} className={i > 0 ? 'mt-16 pt-8 border-t border-slate-700' : ''}>
+                    <div className="prose prose-invert prose-sm max-w-none space-y-0">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
+                        {preprocessCharts(section.content)}
+                      </ReactMarkdown>
+                    </div>
                   </div>
-                  <h3 className="text-base font-medium text-slate-300 mb-4 pb-3 border-b border-slate-800">
-                    {activeMeta.icon} {activeMeta.title}
-                  </h3>
-                </div>
-              );
-            })()}
-            <div className="prose prose-invert prose-sm max-w-none space-y-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
-                {preprocessCharts(content)}
-              </ReactMarkdown>
-            </div>
-            {/* Paper prev/next navigation */}
-            {(() => {
-              const paperSlug = activeMeta?.paper;
-              if (!paperSlug) return null;
-              const siblings = pages
-                .filter(p => p.paper === paperSlug)
-                .sort((a, b) => a.order - b.order);
-              const idx = siblings.findIndex(s => s.id === activeId);
-              if (idx < 0) return null;
-              const prev = idx > 0 ? siblings[idx - 1] : null;
-              const next = idx < siblings.length - 1 ? siblings[idx + 1] : null;
-              if (!prev && !next) return null;
-              return (
-                <div className="flex justify-between items-center mt-10 pt-6 border-t border-slate-800">
-                  {prev ? (
-                    <button
-                      onClick={() => { setActiveId(prev.id); navigate(`/docs/${prev.id}`); window.scrollTo(0, 0); }}
-                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
-                    >
-                      <span>←</span>
-                      <span>{prev.icon} {prev.title}</span>
-                    </button>
-                  ) : <div />}
-                  {next ? (
-                    <button
-                      onClick={() => { setActiveId(next.id); navigate(`/docs/${next.id}`); window.scrollTo(0, 0); }}
-                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
-                    >
-                      <span>{next.icon} {next.title}</span>
-                      <span>→</span>
-                    </button>
-                  ) : <div />}
-                </div>
-              );
-            })()}
+                ))}
+              </div>
+            ) : (
+              /* Non-paper page: render single content */
+              <div className="prose prose-invert prose-sm max-w-none space-y-0">
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
+                  {preprocessCharts(content)}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
         )}
       </article>
