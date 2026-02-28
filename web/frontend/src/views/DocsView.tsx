@@ -361,11 +361,76 @@ export function DocsView() {
                 {activeMeta.date && <span className="text-xs text-slate-500">{activeMeta.date}</span>}
               </div>
             )}
+            {/* Paper ToC on introduction pages */}
+            {(() => {
+              const paperSlug = activeMeta?.paper;
+              if (!paperSlug || !activeMeta) return null;
+              const siblings = pages
+                .filter(p => p.paper === paperSlug)
+                .sort((a, b) => a.order - b.order);
+              if (siblings.length < 2) return null;
+              const isIntro = activeMeta.order === 0;
+              if (!isIntro) return null;
+              return (
+                <div className="mb-6 p-4 bg-slate-800/50 border border-slate-700 rounded-lg">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Contents</h4>
+                  <ol className="space-y-1">
+                    {siblings.map((s, i) => (
+                      <li key={s.id}>
+                        <button
+                          onClick={() => { setActiveId(s.id); navigate(`/docs/${s.id}`); window.scrollTo(0, 0); }}
+                          className={`text-sm transition-colors ${
+                            s.id === activeId ? 'text-sky-400 font-medium' : 'text-slate-400 hover:text-sky-400'
+                          }`}
+                        >
+                          {i + 1}. {s.icon} {s.title}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              );
+            })()}
             <div className="prose prose-invert prose-sm max-w-none space-y-0">
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
                 {preprocessCharts(content)}
               </ReactMarkdown>
             </div>
+            {/* Paper prev/next navigation */}
+            {(() => {
+              const paperSlug = activeMeta?.paper;
+              if (!paperSlug) return null;
+              const siblings = pages
+                .filter(p => p.paper === paperSlug)
+                .sort((a, b) => a.order - b.order);
+              const idx = siblings.findIndex(s => s.id === activeId);
+              if (idx < 0) return null;
+              const prev = idx > 0 ? siblings[idx - 1] : null;
+              const next = idx < siblings.length - 1 ? siblings[idx + 1] : null;
+              if (!prev && !next) return null;
+              return (
+                <div className="flex justify-between items-center mt-10 pt-6 border-t border-slate-800">
+                  {prev ? (
+                    <button
+                      onClick={() => { setActiveId(prev.id); navigate(`/docs/${prev.id}`); window.scrollTo(0, 0); }}
+                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+                    >
+                      <span>←</span>
+                      <span>{prev.icon} {prev.title}</span>
+                    </button>
+                  ) : <div />}
+                  {next ? (
+                    <button
+                      onClick={() => { setActiveId(next.id); navigate(`/docs/${next.id}`); window.scrollTo(0, 0); }}
+                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-sky-400 transition-colors"
+                    >
+                      <span>{next.icon} {next.title}</span>
+                      <span>→</span>
+                    </button>
+                  ) : <div />}
+                </div>
+              );
+            })()}
           </div>
         )}
       </article>
