@@ -70,13 +70,13 @@ const markdownComponents: Components = {
     <h1 className="text-2xl font-bold text-slate-100 mb-1">{children}</h1>
   ),
   h2: ({ children }) => (
-    <h2 className="text-lg font-semibold text-slate-200 mt-8 mb-3">{children}</h2>
+    <h2 className="text-xl font-semibold text-slate-200 mt-10 mb-4">{children}</h2>
   ),
   h3: ({ children }) => (
-    <h3 className="text-base font-medium text-slate-300 mt-6 mb-2">{children}</h3>
+    <h3 className="text-lg font-medium text-slate-200 mt-8 mb-3">{children}</h3>
   ),
   h4: ({ children }) => (
-    <h4 className="text-sm font-medium text-slate-300 mt-4 mb-2">{children}</h4>
+    <h4 className="text-base font-medium text-slate-300 mt-6 mb-2">{children}</h4>
   ),
   p: ({ children }) => {
     return <p className="text-slate-300 leading-relaxed mb-4">{children}</p>;
