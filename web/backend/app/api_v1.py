@@ -21,6 +21,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["api-v1"])
 
 
+def _check_owner_or_admin(experiment_id: str, uid: str) -> None:
+    """Raise 403 if uid is neither the experiment owner nor a platform admin."""
+    from .main import game_manager, game_storage
+    from .admin import user_manager
+
+    # Check in-memory game first
+    game = game_manager.get(experiment_id)
+    if game:
+        owner = getattr(game, '_uid', '')
+        if owner and owner == uid:
+            return
+    # Check registry
+    owner_uid = game_storage.lookup_experiment_owner(experiment_id)
+    if owner_uid and owner_uid == uid:
+        return
+    # Check admin
+    if user_manager.is_admin_uid(uid):
+        return
+    raise HTTPException(status_code=403, detail="Not the owner of this experiment")
+
+
 # ---- Request/Response models ----
 
 class CreateKeyRequest(BaseModel):
@@ -426,6 +447,7 @@ async def get_experiment_results(experiment_id: str, uid: str | None = Depends(g
 @router.post("/experiments/{experiment_id}/step")
 async def step_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
     """Run next day of experiment."""
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_manager, _try_load_game, _save_game_checkpoint, get_game_lock
     game = game_manager.get(experiment_id)
     if not game:
@@ -460,6 +482,7 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
     Returns immediately with status "running". Poll GET /experiments/{id}
     to track progress. The experiment auto-saves after each day.
     """
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_manager, game_auto_tasks, _try_load_game, _save_game_checkpoint, get_game_lock, game_storage
     game = game_manager.get(experiment_id)
     if not game:
@@ -538,6 +561,7 @@ async def auto_run_experiment(experiment_id: str, uid: str = Depends(get_api_or_
 @router.post("/experiments/{experiment_id}/resume")
 async def resume_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
     """Resume a stalled experiment."""
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_manager, _try_load_game, _save_game_checkpoint
     game = game_manager.get(experiment_id)
     if not game:
@@ -555,6 +579,7 @@ async def resume_experiment(experiment_id: str, uid: str = Depends(get_api_or_fi
 @router.post("/experiments/{experiment_id}/stop")
 async def stop_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
     """Stop/cancel an auto-running experiment."""
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_auto_tasks
     task = game_auto_tasks.get(experiment_id)
     if task and not task.done():
@@ -566,6 +591,7 @@ async def stop_experiment(experiment_id: str, uid: str = Depends(get_api_or_fire
 @router.patch("/experiments/{experiment_id}")
 async def patch_experiment(experiment_id: str, body: dict, uid: str = Depends(get_api_or_firebase_user)):
     """Admin: patch experiment fields (total_days, status). Use to truncate/complete experiments."""
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_manager, _try_load_game, _save_game_checkpoint, game_storage
     game = game_manager.get(experiment_id)
     if not game:
@@ -603,6 +629,7 @@ async def patch_experiment(experiment_id: str, body: dict, uid: str = Depends(ge
 @router.delete("/experiments/{experiment_id}")
 async def delete_experiment(experiment_id: str, uid: str = Depends(get_api_or_firebase_user)):
     """Delete an experiment."""
+    _check_owner_or_admin(experiment_id, uid)
     from .main import game_manager, game_storage
     if experiment_id in game_manager:
         del game_manager[experiment_id]

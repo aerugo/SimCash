@@ -47,6 +47,19 @@ class UserManager:
         doc = db.collection("admins").document(email).get()
         return doc.exists
 
+    def is_admin_uid(self, uid: str) -> bool:
+        """Check if a UID belongs to an admin (resolves UID → email via Firebase Auth)."""
+        if config.is_auth_disabled():
+            return True
+        try:
+            from firebase_admin import auth as fb_auth  # type: ignore[import-untyped]
+            user = fb_auth.get_user(uid)
+            if user.email:
+                return self.is_admin(user.email)
+        except Exception:
+            pass
+        return False
+
     # ----- write helpers -----
 
     def invite_user(self, email: str, invited_by: str) -> None:

@@ -206,6 +206,21 @@ from .prompt_blocks import PromptProfile
 saved_prompt_profiles: dict[str, PromptProfile] = {}
 
 
+def _check_game_owner(game: Game, uid: str) -> None:
+    """Raise 403 if uid doesn't own this game (skip check for guests and auth-disabled)."""
+    if not uid or uid.startswith("guest-"):
+        return  # Guests can only access games they created in their session
+    owner = getattr(game, '_uid', '')
+    if not owner or owner.startswith("guest-"):
+        return  # Game has no owner or is a guest game
+    if owner == uid:
+        return
+    from .admin import user_manager
+    if user_manager.is_admin_uid(uid):
+        return
+    raise HTTPException(status_code=403, detail="Not the owner of this game")
+
+
 def _save_game_checkpoint(game: Game):
     """Save game checkpoint (non-blocking for async context). Skips guests."""
     uid = getattr(game, '_uid', 'dev-user')
@@ -996,6 +1011,7 @@ async def step_game(game_id: str, uid: str = Depends(get_effective_optional_user
     game = game_manager.get(game_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
+    _check_game_owner(game, uid)
     if game.is_complete:
         raise HTTPException(status_code=400, detail="Game is complete")
     if game.stalled:
@@ -1042,6 +1058,7 @@ async def auto_run_game(game_id: str, uid: str = Depends(get_effective_optional_
     game = game_manager.get(game_id)
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
+    _check_game_owner(game, uid)
 
     async with get_game_lock(game_id):
         loop = asyncio.get_event_loop()
@@ -1080,6 +1097,9 @@ def download_game(game_id: str, uid: str = Depends(get_effective_optional_user))
 @app.delete("/api/games/{game_id}")
 def delete_game(game_id: str, uid: str = Depends(get_effective_optional_user)):
     """Delete a game."""
+    game = game_manager.get(game_id)
+    if game:
+        _check_game_owner(game, uid)
     if game_id in game_manager:
         game_manager.remove(game_id)
     game_storage.delete_game(uid, game_id)
@@ -1117,6 +1137,14 @@ async def game_ws(websocket: WebSocket, game_id: str):
         game = _try_load_game(game_id, uid)
     if not game:
         await websocket.send_json({"type": "error", "message": "Game not found"})
+        await websocket.close()
+        return
+
+    # Ownership check (allow guests to access their own games)
+    try:
+        _check_game_owner(game, uid)
+    except HTTPException:
+        await websocket.send_json({"type": "error", "message": "Not the owner of this game"})
         await websocket.close()
         return
 
