@@ -77,3 +77,4 @@ integration_test_results/
 # Web backend local storage
 web/backend/data/
 web/frontend/.vite/
+!experiments/2026Q1/results/pipeline.log
