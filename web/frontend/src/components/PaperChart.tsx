@@ -1,86 +1,142 @@
-import React from 'react';
+/**
+ * PaperChart — recharts-based charts for Q1 2026 campaign paper.
+ * Fetches data from /api/docs/chart-data/{chartId} endpoint.
+ */
+import { useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  LineChart, Line, ResponsiveContainer,
+  LineChart, Line, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { API_ORIGIN } from '../api';
 
-// Hardcoded from actual experiment data (r1 runs) — will be replaced by API later
+const API_BASE = `${API_ORIGIN}/api`;
 
-const costComparisonData = [
-  { scenario: '2b_3t', baseline: 99900, flash: 13660, pro: 75886 },
-  { scenario: '3b_6t', baseline: 74700, flash: 18017, pro: 19678 },
-  { scenario: '4b_8t', baseline: 132800, flash: 59123, pro: 41233 },
-  { scenario: 'castro', baseline: 99600, flash: 39393, pro: 108910 },
-  { scenario: 'large_net', baseline: 182875980, flash: 192578912, pro: 202038573 },
-  { scenario: 'lehman', baseline: 199111725, flash: 233402769, pro: 252529888 },
-];
-
-// Simple scenarios only (costs in thousands)
-const simpleCostData = costComparisonData.slice(0, 4).map(d => ({
-  scenario: d.scenario,
-  Baseline: Math.round(d.baseline / 1000),
-  Flash: Math.round(d.flash / 1000),
-  Pro: Math.round(d.pro / 1000),
-}));
-
-// Complex scenarios (costs in millions)
-const complexCostData = costComparisonData.slice(4).map(d => ({
-  scenario: d.scenario,
-  Baseline: Math.round(d.baseline / 1_000_000),
-  Flash: Math.round(d.flash / 1_000_000),
-  Pro: Math.round(d.pro / 1_000_000),
-}));
-
-// Settlement rate degradation over days — lehman_month (25 days)
-// Hardcoded from actual daily SR data
-const settlementDegradationData = [
-  { day: 1, baseline: 0.73, flash: 0.68, pro: 0.65 },
-  { day: 5, baseline: 0.73, flash: 0.67, pro: 0.64 },
-  { day: 10, baseline: 0.73, flash: 0.67, pro: 0.66 },
-  { day: 15, baseline: 0.73, flash: 0.66, pro: 0.65 },
-  { day: 20, baseline: 0.73, flash: 0.67, pro: 0.66 },
-  { day: 25, baseline: 0.73, flash: 0.67, pro: 0.66 },
-].map(d => ({
-  day: d.day,
-  Baseline: Math.round(d.baseline * 100),
-  Flash: Math.round(d.flash * 100),
-  Pro: Math.round(d.pro * 100),
-}));
-
-const COLORS = {
-  Baseline: '#8884d8',
-  Flash: '#82ca9d',
-  Pro: '#ff7300',
+const COLORS: Record<string, string> = {
+  baseline: '#94a3b8',
+  flash: '#3b82f6',
+  pro: '#ef4444',
+  glm: '#f59e0b',
 };
 
-export function CostComparisonChart() {
+const MODEL_LABELS: Record<string, string> = {
+  baseline: 'Baseline (FIFO)',
+  flash: 'Flash',
+  pro: 'Pro',
+  glm: 'GLM',
+};
+
+const formatCost = (v: number) => {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+  return `${v}`;
+};
+
+interface ChartData {
+  type: string;
+  data: Record<string, unknown>[];
+  keys?: string[];
+  baseline_sr?: number;
+  label?: string;
+}
+
+function useChartData(chartId: string) {
+  const [data, setData] = useState<ChartData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/docs/chart-data/${chartId}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then(d => { setData(d); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, [chartId]);
+
+  return { data, loading, error };
+}
+
+function ChartLoading() {
   return (
-    <div style={{ width: '100%' }}>
-      <h3>Simple Scenarios: Cost Comparison (thousands)</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={simpleCostData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="scenario" />
-          <YAxis label={{ value: 'Cost (K)', angle: -90, position: 'insideLeft' }} />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="Baseline" fill={COLORS.Baseline} />
-          <Bar dataKey="Flash" fill={COLORS.Flash} />
-          <Bar dataKey="Pro" fill={COLORS.Pro} />
+    <div className="flex items-center justify-center h-64 text-slate-500 text-sm">
+      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-400 mr-3" />
+      Loading chart data...
+    </div>
+  );
+}
+
+function ChartError({ msg }: { msg: string }) {
+  return (
+    <div className="flex items-center justify-center h-32 text-red-400 text-sm border border-red-500/20 rounded-lg bg-red-500/5">
+      Failed to load chart: {msg}
+    </div>
+  );
+}
+
+export function CostComparisonChart() {
+  const { data, loading, error } = useChartData('cost-comparison');
+  if (loading) return <ChartLoading />;
+  if (error || !data) return <ChartError msg={error || 'No data'} />;
+
+  const keys = data.keys || ['baseline', 'flash', 'pro'];
+
+  return (
+    <div style={{ width: '100%', marginBottom: 32 }}>
+      <h4 className="text-center text-sm font-medium text-slate-300 mb-2">
+        Simple Scenarios: Final Cost by Model (lower = better)
+      </h4>
+      <ResponsiveContainer width="100%" height={320}>
+        <BarChart data={data.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <XAxis dataKey="scenario" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+          <YAxis tickFormatter={formatCost} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+          <Tooltip
+            formatter={(v: number, name: string) => [formatCost(v), MODEL_LABELS[name] || name]}
+            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+            labelStyle={{ color: '#e2e8f0' }}
+          />
+          <Legend formatter={(v: string) => MODEL_LABELS[v] || v} />
+          {keys.map(k => (
+            <Bar key={k} dataKey={k} fill={COLORS[k] || '#6b7280'} radius={[2, 2, 0, 0]} />
+          ))}
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
 
-      <h3 style={{ marginTop: 32 }}>Complex Scenarios: Cost Comparison (millions)</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={complexCostData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="scenario" />
-          <YAxis label={{ value: 'Cost (M)', angle: -90, position: 'insideLeft' }} />
-          <Tooltip />
-          <Legend />
-          <Bar dataKey="Baseline" fill={COLORS.Baseline} />
-          <Bar dataKey="Flash" fill={COLORS.Flash} />
-          <Bar dataKey="Pro" fill={COLORS.Pro} />
+export function ComplexCostDeltaChart() {
+  const { data, loading, error } = useChartData('complex-cost-delta');
+  if (loading) return <ChartLoading />;
+  if (error || !data) return <ChartError msg={error || 'No data'} />;
+
+  const keys = data.keys || ['flash', 'pro'];
+
+  return (
+    <div style={{ width: '100%', marginBottom: 32 }}>
+      <h4 className="text-center text-sm font-medium text-slate-300 mb-2">
+        Complex Scenarios: Cost Change vs Baseline (positive = LLM worse)
+      </h4>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <XAxis dataKey="scenario" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+          <YAxis
+            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}%`}
+            domain={['auto', 'auto']}
+            tick={{ fill: '#94a3b8', fontSize: 12 }}
+          />
+          <Tooltip
+            formatter={(v: number, name: string) => [`${v > 0 ? '+' : ''}${v}%`, MODEL_LABELS[name] || name]}
+            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+            labelStyle={{ color: '#e2e8f0' }}
+          />
+          <Legend formatter={(v: string) => MODEL_LABELS[v] || v} />
+          <ReferenceLine y={0} stroke="#475569" strokeDasharray="3 3" />
+          {keys.map(k => (
+            <Bar key={k} dataKey={k} fill={COLORS[k] || '#6b7280'} radius={[2, 2, 0, 0]} />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -88,34 +144,45 @@ export function CostComparisonChart() {
 }
 
 export function SettlementDegradationChart() {
+  const { data, loading, error } = useChartData('settlement-degradation');
+  if (loading) return <ChartLoading />;
+  if (error || !data) return <ChartError msg={error || 'No data'} />;
+
+  const baselineSR = data.baseline_sr || 77;
+  const chartData = (data.data as { day: number; sr: number }[]).map(d => ({
+    ...d,
+    baseline: baselineSR,
+  }));
+
   return (
-    <div style={{ width: '100%' }}>
-      <h3>Settlement Rate Over Time — Lehman Month</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={settlementDegradationData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="day" label={{ value: 'Day', position: 'insideBottom', offset: -5 }} />
-          <YAxis
-            domain={[50, 100]}
-            label={{ value: 'Settlement Rate (%)', angle: -90, position: 'insideLeft' }}
+    <div style={{ width: '100%', marginBottom: 32 }}>
+      <h4 className="text-center text-sm font-medium text-slate-300 mb-2">
+        {data.label || 'Cumulative Settlement Rate Over Time'}
+      </h4>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <XAxis
+            dataKey="day"
+            tick={{ fill: '#94a3b8', fontSize: 12 }}
+            label={{ value: 'Day', position: 'insideBottom', offset: -15, fill: '#94a3b8' }}
           />
-          <Tooltip />
-          <Legend />
-          <Line type="monotone" dataKey="Baseline" stroke={COLORS.Baseline} strokeWidth={2} />
-          <Line type="monotone" dataKey="Flash" stroke={COLORS.Flash} strokeWidth={2} />
-          <Line type="monotone" dataKey="Pro" stroke={COLORS.Pro} strokeWidth={2} />
+          <YAxis
+            domain={[60, 105]}
+            tickFormatter={(v: number) => `${v}%`}
+            tick={{ fill: '#94a3b8', fontSize: 12 }}
+          />
+          <Tooltip
+            formatter={(v: number, name: string) => [`${v.toFixed(1)}%`, name === 'sr' ? 'Flash (optimized)' : `Baseline (${baselineSR}%)`]}
+            contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+            labelStyle={{ color: '#e2e8f0' }}
+            labelFormatter={(v) => `Day ${v}`}
+          />
+          <Legend formatter={(v: string) => v === 'sr' ? 'Flash (optimized)' : `Baseline (${baselineSR}%)`} />
+          <Line type="monotone" dataKey="sr" stroke={COLORS.flash} strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="baseline" stroke={COLORS.baseline} strokeWidth={2} strokeDasharray="5 5" dot={false} />
         </LineChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-export default function PaperChart() {
-  return (
-    <div style={{ padding: 24 }}>
-      <CostComparisonChart />
-      <div style={{ marginTop: 48 }} />
-      <SettlementDegradationChart />
     </div>
   );
 }

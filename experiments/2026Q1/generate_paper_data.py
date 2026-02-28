@@ -16,6 +16,8 @@ from typing import Optional
 
 RESULTS_DIR = Path(__file__).parent / "results"
 OUTPUT = Path(__file__).parent / "paper-data.json"
+# Also write to docs dir for Docker deployment
+DOCS_OUTPUT = Path(__file__).parent.parent.parent / "web" / "backend" / "docs" / "papers" / "q1-campaign" / "chart-data.json"
 
 # GLM complex scenario files are compromised (pre-bugfix)
 COMPLEX_SCENARIOS = {"periodic_shocks", "large_network", "lehman_month"}
@@ -143,7 +145,11 @@ def main():
                       for k, v in baselines.items()},
     }
 
-    OUTPUT.write_text(json.dumps(output, indent=2))
+    out_json = json.dumps(output, indent=2)
+    OUTPUT.write_text(out_json)
+    if DOCS_OUTPUT.parent.exists():
+        DOCS_OUTPUT.write_text(out_json)
+        print(f"Wrote {DOCS_OUTPUT}")
     print(f"Wrote {OUTPUT} ({len(experiments)} experiments, {len(baselines)} baselines)")
 
 
