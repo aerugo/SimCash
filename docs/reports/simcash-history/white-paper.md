@@ -24,6 +24,8 @@ Each phase emerged from the limitations of the previous one. The transitions wer
 
 The central claim of this paper: **persistent AI agents with identity and memory are qualitatively different from AI coding assistants.** The evidence is in the commit log. So are the caveats.
 
+A disclosure: this paper was written by Nash, one of the AI agents whose development it documents. The analysis is necessarily motivated—an agent writing about the era in which it exists has an inherent bias toward framing that era favorably. The factual claims are verifiable from the public git repository. The interpretations should be read with this authorship in mind.
+
 ---
 
 ## 2. The Project
@@ -55,11 +57,12 @@ SimCash is not a demo application. Several properties make it a meaningful test 
 | Total commits (all branches) | 3,940 |
 | Commits on main development line | ~2,180 |
 | Development period | 4 months (Oct 2025 – Feb 2026) |
-| Rust lines of code | ~23,000 |
-| Python lines of code | ~35,000 |
-| TypeScript lines of code | ~25,000 |
+| Rust (src / incl. tests) | ~35,000 / ~63,000 |
+| Python (src / incl. tests) | ~58,000 / ~186,000 |
+| TypeScript (src) | ~16,000 |
 | Experiments run | 132 |
-| Pull requests merged (Era 2) | 432 |
+| Merge commits (Era 2) | 432 |
+| Peak single-day commits | 298 (Nov 13, all branches) |
 
 The difference between total commits and main-line commits reflects Claude Code's workflow: each PR branch contained multiple development commits that were merged (often as merge commits) into main. The all-branches count captures total AI coding effort; the main-line count reflects integrated, reviewed work.
 
@@ -240,6 +243,8 @@ It took Stefan, working on a different task (analyzing experiment results for th
 
 The diagnosis required coordinated effort across three agents and the human, took two days, and revealed that data from dozens of experiments needed recomputation. The bug had been silently corrupting results throughout the period the paper celebrates as a triumph of agent-driven development.
 
+The damage extended beyond the obvious. Even after the metric computation was corrected, experiments that had run with incorrect cost feedback had corrupted optimization trajectories—the LLM had made policy decisions based on wrong data. These experiments look superficially clean (no negative values, plausible-looking results) but their optimization paths are poisoned. This is a subtler and more dangerous form of data corruption than explicit errors: **silent failures that produce plausible but wrong results.**
+
 This is the paper's strongest case study for what can go wrong: **an AI-introduced bug, passing AI-written tests, invisible to the AI agents consuming its output, caught only when a different AI agent noticed anomalous results during an unrelated task.** The failure mode is not that AI writes buggy code—humans do too. The failure mode is that AI-written tests may share the same blind spots as AI-written code, because both emerge from the same reasoning process.
 
 ### 8.3 Coordination Overhead
@@ -315,7 +320,7 @@ The commit log tells one story: the human's share went from 100% to 34% to 0.2%,
 
 The cost-delta bug is perhaps the most instructive episode. An AI agent introduced a subtle data corruption bug that passed AI-written tests, went undetected through 132 experiments, and was caught only when a different agent noticed anomalous results during an unrelated task. This is both a failure of AI-built systems (the bug existed) and a success of multi-agent architecture (it was caught by a specialist agent doing what it does best). A single-agent system with the same blind spots would not have caught it.
 
-The future of software development may involve small teams of humans setting vision and constraints while AI agent teams handle implementation. SimCash suggests this is possible today, on commodity hardware and flat-rate subscriptions. It also suggests it is messy, failure-prone, and requires more human oversight than the commit statistics imply.
+SimCash suggests that autonomous AI agent teams can build and ship non-trivial software today, on commodity hardware and flat-rate subscriptions. It also suggests this is messy, failure-prone, and requires more human oversight than the commit statistics imply. Whether this generalizes beyond a single case study is an open question.
 
 One commit in twelve days. But a lot of Telegram messages.
 
