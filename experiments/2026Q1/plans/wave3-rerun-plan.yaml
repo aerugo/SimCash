@@ -1,0 +1,385 @@
+experiments:
+- name: "Periodic Shocks \u2014 Flash (v0.1 rerun r1)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Periodic Shocks \u2014 Flash (v0.1 rerun r2)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Periodic Shocks \u2014 Flash (v0.1 rerun r3)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Large Network \u2014 Flash (v0.1 rerun r1)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Large Network \u2014 Flash (v0.1 rerun r2)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Large Network \u2014 Flash (v0.1 rerun r3)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+- name: "Large Network \u2014 Pro (v0.1 rerun r1)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Large Network \u2014 Pro (v0.1 rerun r2)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Large Network \u2014 Pro (v0.1 rerun r3)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Lehman Month \u2014 Flash (v0.1 rerun r1)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+- name: "Lehman Month \u2014 Flash (v0.1 rerun r2)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+- name: "Lehman Month \u2014 Flash (v0.1 rerun r3)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+- name: "Lehman Month \u2014 Pro (v0.1 rerun r1)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+  exclusive: true
+- name: "Lehman Month \u2014 Pro (v0.1 rerun r2)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+  exclusive: true
+- name: "Lehman Month \u2014 Pro (v0.1 rerun r3)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  status: pending
+  exclusive: true
+- name: "Periodic Shocks \u2014 Pro (v0.1 rerun r1)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Periodic Shocks \u2014 Pro (v0.1 rerun r2)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Periodic Shocks \u2014 Pro (v0.1 rerun r3)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  status: pending
+  exclusive: true
+- name: "Periodic Shocks \u2014 Flash (C4-full rerun r1)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Periodic Shocks \u2014 Flash (C4-full rerun r2)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Periodic Shocks \u2014 Flash (C4-full rerun r3)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Large Network \u2014 Flash (C4-full r1)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Large Network \u2014 Flash (C4-full r2)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Large Network \u2014 Flash (C4-full r3)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-flash
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Large Network \u2014 Pro (C4-full r1)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Large Network \u2014 Pro (C4-full r2)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Large Network \u2014 Pro (C4-full r3)"
+  scenario: large_network
+  scenario_id: b7257977
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Lehman Month \u2014 Flash (C4-full r1)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Lehman Month \u2014 Flash (C4-full r2)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Lehman Month \u2014 Flash (C4-full r3)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-flash
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  wave: B
+- name: "Lehman Month \u2014 Pro (C4-full r1)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Lehman Month \u2014 Pro (C4-full r2)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Lehman Month \u2014 Pro (C4-full r3)"
+  scenario: lehman_month
+  scenario_id: 504c65d9
+  model: google-vertex:gemini-2.5-pro
+  rounds: 10
+  eval_samples: 50
+  starting_fraction: 0.5
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Periodic Shocks \u2014 Pro (C4-full rerun r1)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Periodic Shocks \u2014 Pro (C4-full rerun r2)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B
+- name: "Periodic Shocks \u2014 Pro (C4-full rerun r3)"
+  scenario: periodic_shocks
+  scenario_id: 3250dc0f
+  model: google-vertex:gemini-2.5-pro
+  rounds: 1
+  eval_samples: 50
+  starting_fraction: 0.5
+  optimize_when: between_each_day
+  v0_2_condition: C4-full
+  max_policy_proposals: 2
+  status: pending
+  exclusive: true
+  wave: B

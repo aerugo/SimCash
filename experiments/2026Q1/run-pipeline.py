@@ -217,12 +217,19 @@ def resume_experiment(exp, plan, idx):
         days = results.get("days", [])
         if days:
             last_day = days[-1]
-            costs = last_day.get("costs", {})
-            total_cost = sum(c.get("total", 0) for c in costs.values())
+            # Sum costs across ALL days (each day is independent, not cumulative)
+            total_cost = 0
+            for day in days:
+                day_costs = day.get("costs", {})
+                total_cost += sum(c.get("total", 0) for c in day_costs.values())
             settlement = last_day.get("settlement", {}).get("system", {}).get("rate")
             exp["final_cost"] = total_cost
             exp["settlement_rate"] = settlement
             exp["result_file"] = result_file
+            # Verify no negative costs (bug check for rev 00168+)
+            neg_days = [d["day"] for d in days if d.get("total_cost", 0) < 0]
+            if neg_days:
+                log(f"⚠️ WARNING: Negative costs on days {neg_days} for {name}")
 
         exp["status"] = "complete"
         exp["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -281,17 +288,23 @@ def run_single_experiment(exp, plan, idx):
             with open(result_file, "w") as f:
                 json.dump(results, f)
 
-            # Extract summary from last day
+            # Extract summary — sum costs across ALL days
             days = results.get("days", [])
             if days:
                 last_day = days[-1]
-                costs = last_day.get("costs", {})
-                total_cost = sum(c.get("total", 0) for c in costs.values())
+                total_cost = 0
+                for day in days:
+                    day_costs = day.get("costs", {})
+                    total_cost += sum(c.get("total", 0) for c in day_costs.values())
                 settlement = last_day.get("settlement", {}).get("system", {}).get("rate")
 
                 exp["final_cost"] = total_cost
                 exp["settlement_rate"] = settlement
                 exp["result_file"] = result_file
+                # Verify no negative costs
+                neg_days = [d["day"] for d in days if d.get("total_cost", 0) < 0]
+                if neg_days:
+                    log(f"⚠️ WARNING: Negative costs on days {neg_days} for {name}")
 
             exp["status"] = "complete"
             exp["completed_at"] = datetime.now(timezone.utc).isoformat()
