@@ -1,28 +1,28 @@
 # From Solo Developer to AI Swarm: How SimCash Was Built by Humans and Agents
 
-**Draft v1 — February 2026**
+**Draft v2 — February 2026**
 
 ---
 
 ## Abstract
 
-This paper traces the development of SimCash, a payment system simulation platform, through 2,181 commits over four months. SimCash began as a solo project with a human developer using an AI coding assistant, transitioned through a phase of intensive PR-based AI development, and culminated in a multi-agent architecture where autonomous AI agents built and deployed a production web platform with minimal human intervention. We document the methodology, tooling, and organizational patterns that emerged, and argue that persistent AI agents with identity, memory, and specialization represent a qualitatively different development paradigm from traditional AI coding assistants. The human developer made one commit in the final twelve days while the system shipped a production web platform, ran 130+ research experiments, and produced a data-driven campaign paper.
+This paper traces the development of SimCash, a payment system simulation platform, through 3,940 commits across all branches over four months. SimCash provides a case study in the evolution of AI-assisted software development: it began as a solo project with a human developer using Claude Code as a coding assistant, transitioned through a phase of intensive PR-based AI development, and culminated in a multi-agent architecture where autonomous AI agents built and deployed a production web platform. We document the methodology, tooling, and organizational patterns that emerged, along with the operational failures—stalled agents, corrupted experiment data, security incidents—that complicate the narrative. We argue that persistent AI agents with identity, memory, and specialization represent a qualitatively different development paradigm from traditional AI coding assistants, while acknowledging that this claim cannot be fully disentangled from other factors that changed simultaneously.
 
 ---
 
 ## 1. Introduction
 
-Software engineering is being reshaped by large language models. The dominant paradigm today—a human developer directing an AI coding assistant within a single session—has already demonstrated impressive productivity gains. But this paradigm has a ceiling. The assistant has no memory between sessions, no persistent identity, no ability to initiate work. It is a tool, not a collaborator.
+AI coding assistants have become widely adopted in software development. The dominant paradigm—a human developer directing an AI within a single session—has demonstrated real productivity gains. This paper documents what happens when a project moves beyond the single-session model.
 
-This paper documents a natural experiment in what comes next. Over four months of building SimCash—a non-trivial research platform simulating interbank payment coordination games—the development methodology evolved through three distinct phases:
+Over four months of building SimCash—a non-trivial research platform simulating interbank payment coordination games—the development methodology evolved through three distinct phases:
 
 1. **Human-directed AI coding** (Oct–Nov 2025): A single developer using Claude Code in the terminal, committing under his own identity.
 2. **PR-based AI development** (Nov–Dec 2025): Claude Code operating under its own identity, creating branches and pull requests for human review.
-3. **Autonomous multi-agent development** (Feb 2026): Named AI agents with persistent identity, memory, and specialization, committing directly and operating with minimal human oversight.
+3. **Autonomous multi-agent development** (Feb 2026): Named AI agents with persistent identity, memory, and specialization, committing directly and operating with reduced (but not eliminated) human oversight.
 
-Each phase emerged organically from the limitations of the previous one. The transitions were not planned; they were discovered. What makes SimCash a compelling case study is the complexity of the software itself: a hybrid Rust/Python simulation engine implementing real financial system mechanics (TARGET2-compliant settlement, liquidity-saving mechanisms, bootstrap statistical evaluation), wrapped in a production web platform with real-time streaming, authentication, and multi-provider LLM integration. This is not a toy project where AI wrote a landing page. This is research infrastructure where correctness matters and architectural decisions have consequences.
+Each phase emerged from the limitations of the previous one. The transitions were not planned; they were discovered. What makes SimCash a useful case study is the complexity of the software: a hybrid Rust/Python simulation engine implementing real financial system mechanics, wrapped in a production web platform with real-time streaming, authentication, and multi-provider LLM integration. The fact that autonomous agents could build this—and the ways in which they failed while doing so—are both instructive.
 
-The central claim of this paper is straightforward: **persistent AI agents with identity and memory are qualitatively different from AI coding assistants, and this difference matters for how software gets built.** The evidence is in the commit log.
+The central claim of this paper: **persistent AI agents with identity and memory are qualitatively different from AI coding assistants.** The evidence is in the commit log. So are the caveats.
 
 ---
 
@@ -34,36 +34,34 @@ SimCash simulates Real-Time Gross Settlement (RTGS) payment systems—the infras
 
 This tension creates a coordination game. Each bank's optimal strategy depends on what the other banks do. If everyone delays, the system gridlocks. If everyone commits maximum liquidity, capital is wasted. The theoretical optimum lies somewhere in between, but finding it requires navigating a complex, stochastic, multi-agent environment.
 
-SimCash models this environment with a deterministic, event-sourced simulation engine. Banks are represented as agents following decision tree policies—small, auditable programs that determine when to release payments, how much liquidity to commit, and how to respond to system conditions. The simulator runs these policies against stochastic payment arrival streams, settling transactions through both an RTGS engine (immediate gross settlement) and an LSM engine (liquidity-saving mechanism that offsets bilateral and multilateral obligations).
-
-The research question driving SimCash is whether large language models can learn to play this coordination game. The LLM doesn't make per-tick decisions—the engine executes the policy automatically for each simulated day. Between days, the LLM reviews results, reasons about what worked and what didn't, and proposes an improved policy for the next day. Over many days, policies should converge toward something near the theoretical optimum.
+SimCash models this environment with a deterministic, event-sourced simulation engine. Banks are represented as agents following decision tree policies—small, auditable programs that determine when to release payments, how much liquidity to commit, and how to respond to system conditions. The research question is whether large language models can learn to play this coordination game by proposing improved policies between simulation runs.
 
 ### 2.2 Why the Architecture Matters for This Paper
 
-SimCash is not a demo application. Several architectural properties make it a meaningful test case for AI-driven development:
+SimCash is not a demo application. Several properties make it a meaningful test case:
 
-**Correctness constraints are real.** Money is represented as 64-bit integers (never floating-point). The deterministic RNG ensures identical seeds produce identical outputs. Replay identity—the ability to reconstruct exact simulation output from stored events—is maintained as an invariant. Violating any of these properties invalidates the research built on top of the simulator.
+**Correctness constraints are real.** Money is represented as 64-bit integers (never floating-point). The deterministic RNG ensures identical seeds produce identical outputs. Violating these properties invalidates the research built on the simulator.
 
-**The stack is heterogeneous.** The Rust simulation engine communicates with the Python orchestration layer via PyO3 FFI. The web platform adds TypeScript/React with WebSocket streaming. Docker multi-stage builds, Firebase authentication, Cloud Run deployment, and multi-provider LLM integration (OpenAI, Google, Anthropic, Zhipu) add further layers. An AI building this system must navigate multiple languages, paradigms, and deployment targets.
+**The stack is heterogeneous.** Rust simulation engine, Python orchestration via PyO3 FFI, TypeScript/React frontend with WebSocket streaming, Docker multi-stage builds, Firebase authentication, Cloud Run deployment, multi-provider LLM integration (OpenAI, Google, Anthropic, Zhipu).
 
-**The domain is specialized.** TARGET2-compliant settlement, bootstrap paired evaluation, and liquidity-saving mechanism cycle detection are not in any training dataset's common patterns. The AI must reason about financial system mechanics, not just translate specifications into code.
+**The domain is specialized.** TARGET2-compliant settlement and bootstrap paired evaluation are not standard patterns. The AI must reason about financial system mechanics.
 
-**The system was deployed to production and used for real research.** Over 130 experiments were run on the platform, producing results that informed a campaign paper with 234 linked data points. Bugs in the simulator would propagate into incorrect research conclusions.
+**The system was deployed to production and used for real research.** Over 132 experiments were run, producing results that informed a campaign paper with 234 linked data points.
 
 ### 2.3 Scale
 
-By the end of the documented period:
-
 | Metric | Value |
 |--------|-------|
-| Total commits | 2,181 |
+| Total commits (all branches) | 3,940 |
+| Commits on main development line | ~2,180 |
 | Development period | 4 months (Oct 2025 – Feb 2026) |
 | Rust lines of code | ~23,000 |
 | Python lines of code | ~35,000 |
 | TypeScript lines of code | ~25,000 |
-| Experiments run | 130+ |
-| Paper data points linked to experiments | 234 |
-| Pull requests merged (Era 2) | 420+ |
+| Experiments run | 132 |
+| Pull requests merged (Era 2) | 432 |
+
+The difference between total commits and main-line commits reflects Claude Code's workflow: each PR branch contained multiple development commits that were merged (often as merge commits) into main. The all-branches count captures total AI coding effort; the main-line count reflects integrated, reviewed work.
 
 ---
 
@@ -71,32 +69,27 @@ By the end of the documented period:
 
 ### 3.1 The First Commit
 
-SimCash's first commit contains a document called the Grand Plan. Before a single line of code was written, the entire architecture was specified: Rust core engine, Python API layer, PyO3 FFI bridge, decision tree policies, LLM-driven optimization. The two-tier Rust/Python architecture, the i64 money invariant, the deterministic RNG, the event-sourced simulation model—all were envisioned on day one.
+SimCash's first commit contains a document called the Grand Plan:
 
-This matters because it establishes a pattern that would recur throughout the project: **the human provides the architectural vision; the AI provides the implementation velocity.**
+> Build a sandboxed, multi-agent simulator of high-value payment operations... a small, auditable program that determines payment timing.
+
+Before a single line of code was written, the entire architecture was specified: Rust core engine, Python API layer, PyO3 FFI bridge, decision tree policies, LLM-driven optimization. The i64 money invariant, the deterministic RNG, the event-sourced model—all envisioned on day one. All survived to the final commit four months later.
+
+This establishes a pattern that would recur: **the human provides the architectural vision; the AI provides the implementation velocity.**
 
 ### 3.2 How It Worked
 
-In this era, Hugi (the sole human developer) used Claude Code in the terminal. Every commit is attributed to `aerugo` (Hugi's GitHub identity). Claude Code wrote the code, but it was committed under the human's name—the standard workflow before Claude Code gained its own git identity.
+In this era, Hugi (the sole human developer) used Claude Code in the terminal. All 224 commits are attributed to `aerugo` (Hugi's GitHub identity). Claude Code wrote much of the code, but committed under the human's name—the standard workflow before Claude Code gained its own git identity. Two commits are attributed to Claude directly, suggesting the transition to separate identity began at the very end of this era.
 
-The commit messages reveal the AI's fingerprints: "Phase 1 & Phase 2 (Agent): Foundation implementation," "TDD Cycle 5: TreePolicy collateral evaluation methods." The structured phase numbering, the TDD cycle annotations, the consistent commit message formatting—all are characteristic of Claude Code's operating style.
+The commit messages reveal the AI's involvement: "Phase 1 & Phase 2 (Agent): Foundation implementation," "TDD Cycle 5: TreePolicy collateral evaluation methods." The structured phase numbering and TDD cycle annotations are characteristic of Claude Code's operating style. However, attribution in this era is inherently uncertain—we cannot cleanly separate which commits were AI-generated and which were human-written from the git log alone.
 
 ### 3.3 What Was Built
 
-In eight days, the entire Rust simulation engine came into existence:
-
-- **Day 1 (Oct 27):** Core models, RTGS and LSM settlement engines, queue policies, orchestrator tick loop—13 commits implementing Phases 1 through 4b.
-- **Day 3 (Oct 29):** Collateral management (three-tree architecture), DuckDB persistence, PyO3 FFI bridge—31 commits.
-- **Day 5 (Oct 31):** Replay system, cost-aware policy DSL.
-- **Day 8 (Nov 3):** Event timeline, SimulationRunner architecture—27 commits.
-
-The speed is worth noting. Building a complete RTGS+LSM settlement engine with collateral management, persistence, and a foreign function interface in eight days is not typical software development velocity, even with AI assistance. Claude Code's ability to implement complex specifications quickly, while maintaining consistency across a growing codebase, was the enabling factor.
+In eight days, the entire Rust simulation engine came into existence: core models, RTGS and LSM settlement engines, collateral management, DuckDB persistence, PyO3 FFI bridge, replay system, and cost-aware policy DSL. October 29 alone saw 31 commits covering three major subsystems.
 
 ### 3.4 The Human's Role
 
-In this era, the human was a **planner and quality controller**. Hugi wrote the Grand Plan, reviewed output, and committed directly. The division of labor was simple: human decides what to build, AI builds it. Every commit goes through the human's hands.
-
-This is the paradigm most developers are familiar with today. It works well. But it has a scaling limitation: the human is a bottleneck for every commit.
+In this era, the human was a **planner and quality controller**—writing the Grand Plan, reviewing output, and committing directly. The division of labor was simple: human decides what to build, AI builds it. Every commit goes through the human's hands. This is the paradigm most developers are familiar with today.
 
 ---
 
@@ -104,313 +97,242 @@ This is the paradigm most developers are familiar with today. It works well. But
 
 ### 4.1 The Shift
 
-On November 4, `Claude` appears as a commit author for the first time. The development pattern changes fundamentally. Instead of committing under the human's identity, Claude Code now creates its own branches (`claude/feature-name-HASH`) and the human merges them as pull requests.
+On November 4, `Claude` appears as a commit author for the first time. The development pattern changes: Claude Code creates its own branches (`claude/feature-name-HASH`) and the human merges them as pull requests. Across all branches, this era produced 3,263 commits—2,156 by Claude, 861 by Hugi (primarily PR merges), and 246 by aerugo (manual commits). On the main line, 432 merge commits mark the PR integration points.
 
-This seemingly small change has significant implications. The AI now has its own identity in the commit log. Work can proceed in parallel—Claude develops on a branch while the human reviews previous work. The PR model introduces a formal review step that didn't exist when everything was committed directly.
+### 4.2 Disposable Plans
 
-### 4.2 The Workflow
+A distinctive pattern emerged: **documentation as disposable specification.** Feature requests and architectural plans were written as detailed documents, used as implementation specs by Claude Code, and deleted once the feature was complete.
 
-The rhythm settled into a consistent pattern:
+Nineteen refactoring phases (December 8–15) followed this pattern exactly. Each phase had its own planning document:
 
-1. Hugi describes what to build—sometimes in conversation, sometimes in a planning document placed in `docs/plans/`.
-2. Claude Code creates a branch, implements the feature with test-driven development, and commits.
-3. Hugi reviews the PR and merges.
-4. Repeat.
+> Phase 12: Castro migration to core infrastructure
+> Phase 13-18: Progressive simplification to YAML-only experiments
 
-Over seven weeks, this workflow produced approximately 1,700 commits across 420+ pull requests. At its peak (November 13), 88 commits were merged in a single day.
+As each phase completed, its document was deleted. The codebase was the source of truth; plans were working documents that served their purpose and were cleaned up.
 
-### 4.3 Disposable Plans
+Similarly, the paper generation system went through five versions in five days—from a manual markdown draft (v1) to fully code-generated LaTeX output (v5) backed by 130+ TDD tests. Each version was deleted when superseded. The evolution mirrors the project's broader arc: from manual work to automated systems.
 
-A distinctive pattern emerged during this era: **documentation as disposable specification.** Feature requests and architectural plans were written as detailed documents in `docs/plans/` or `docs/requests/`. Claude Code used these as implementation specs. Once the feature was complete, the planning document was deleted.
+### 4.3 The Replay Identity War
 
-Nineteen refactoring phases (December 8–15) followed this pattern exactly. Each phase had its own planning document with sub-phases and work notes. As each phase completed, its document was deleted. The codebase was the source of truth; the plans were working documents that served their purpose and were cleaned up.
+From November 6 to November 22, the project waged a three-week battle to achieve perfect replay identity: byte-identical simulation output from stored events. Over 200 commits across all branches were devoted to it. This required deterministic LSM redesign, careful RNG state management, and deep output system refactoring.
 
-This "create-execute-delete" pattern reveals something about how AI development naturally organizes. Plans are not permanent artifacts to be maintained—they are just-in-time context for the AI's next task.
+Was it worth it? Replay identity became the foundation for bootstrap statistical evaluation and the web platform's replay features. An architectural decision that looked obsessive in November proved essential in February. The human made the decision to pursue it; the AI executed it. Neither could have done the other's job.
 
-### 4.4 The Replay Identity War
+### 4.4 Handover Prompts: Proto-Memory
 
-One episode from this era deserves particular attention. From November 6 to November 22, the project waged a three-week battle to achieve perfect replay identity: the ability to reconstruct byte-identical simulation output from stored events.
+As paper work required multiple Claude Code sessions in December, Hugi began writing versioned handover prompts (v2 through v5). Each was a detailed context document for briefing a new session:
 
-This was architecturally expensive. It required deterministic LSM redesign, careful RNG state management, and deep refactoring of the output system. Over 200 commits were devoted to it.
+> These handover prompts were essentially compressed memory files—a way to transfer accumulated context from one ephemeral session to the next.
 
-Was it worth it? In isolation, perhaps not. But replay identity became the foundation for bootstrap statistical evaluation (a paired comparison method for policy changes) and the web platform's replay features. An architectural decision that looked obsessive in November proved essential in February.
+They reveal a fundamental limitation of the session-based model: **every new session starts from zero.** The human must manually reconstruct context. As project complexity grew, this reconstruction cost became a significant tax on development velocity. These proto-memory files are the conceptual bridge to the multi-agent era's persistent memory system.
 
-The human made the decision to pursue replay identity. The AI executed it. Neither could have done the other's job: the human lacked the implementation velocity; the AI lacked the architectural foresight.
+### 4.5 The Human's Role
 
-### 4.5 The Research Pivot
-
-Starting November 27, the project's focus shifted from engine building to research. BIS models for AI cash management in RTGS systems were studied and integrated. Castro et al.'s paper on strategic payment timing was targeted for replication. The experiment framework evolved from custom Python scripts to a purely YAML-driven declarative system—a refactoring that required 19 phases and deleted all experiment-specific Python code.
-
-The paper generation system is perhaps the most striking product of this era. The SimCash research paper was not written by hand. It was generated programmatically from experiment databases, with a code-generated LaTeX pipeline backed by 130+ TDD tests. The paper went through five versions in five days, evolving from a manual markdown draft (v1) to fully code-generated output (v5). The evolution mirrors the project's broader arc: from manual work to automated systems.
-
-### 4.6 Handover Prompts: Proto-Memory
-
-As the paper work intensified, a new pattern appeared: **handover prompts.** These were detailed context documents (versioned v2 through v5) written to brief new Claude Code sessions on the paper's state, methodology, and remaining tasks.
-
-Each handover prompt was essentially a compressed memory file—a way to transfer accumulated context from one ephemeral Claude Code session to the next. They represent the earliest form of what would become the multi-agent era's persistent memory system.
-
-The handover prompts reveal a fundamental limitation of the session-based Claude Code model: **every new session starts from zero.** No matter how productive a session was, its context dies when it ends. The human must manually reconstruct that context for the next session. As project complexity grew, this reconstruction cost became a significant tax on development velocity.
-
-### 4.7 The Human's Role
-
-In this era, the human was a **director and reviewer.** Hugi's commits were predominantly PR merges, with occasional manual adjustments ("lazy checkpoint," "moved plans around," "deleted redundant files"). He still provided direction and maintained quality standards, but the implementation work was almost entirely Claude Code's.
-
-The commit attribution tells the story:
-
-| Author | Commits | Share |
-|--------|---------|-------|
-| Claude | ~1,050 | ~60% |
-| Hugi (merges + manual) | ~650 | ~38% |
-
-The human was still essential—as architect, reviewer, and decision-maker. But the bottleneck had shifted. The limiting factor was no longer implementation velocity; it was the human's ability to review and merge the AI's output fast enough.
+The human was a **director and reviewer.** Claude did the heavy engineering; Hugi provided direction and quality control. The bottleneck shifted from implementation velocity to the human's ability to review and merge AI output fast enough.
 
 ---
 
 ## 5. The Gap (December 23, 2025 – February 16, 2026)
 
-Two commits in eight weeks. A README update in January. Then silence.
+Fifty-two commits in eight weeks. Two by Hugi (January 15 README updates), and fifty by Nash on the feature branch—the earliest Nash commits, establishing the web platform's foundation in mid-February before the main development burst.
 
-What happened during the gap is outside the scope of the SimCash commit log, but its existence is important. The gap represents the period during which the OpenClaw agent platform was developed—the infrastructure that would enable the multi-agent era. SimCash was dormant because the tools for the next phase were being built.
-
-The gap also provides a natural experiment: what happens to an AI-developed project when no one is actively developing it? The answer is nothing. The codebase sat exactly where it was left. There was no bitrot, no dependency drift, no accumulated technical debt from deferred maintenance. The project simply paused, perfectly preserved.
+The low activity on main reflects the period during which the OpenClaw agent platform was being developed separately—the infrastructure that would enable the multi-agent era. SimCash's main branch was largely dormant because the tools for the next phase were being built.
 
 ---
 
 ## 6. Era 3: The Multi-Agent Revolution (February 17–28, 2026)
 
-### 6.1 The Big Bang
+### 6.1 What Happened
 
-On February 17, 2026, `nash4cash` appears in the commit log for the first time. In a single day—56 commits—Nash creates the entire web platform from scratch:
+On February 17, `nash4cash` appears in the commit log. In one day—56 commits—Nash creates the web platform: FastAPI backend, React/TypeScript frontend, WebSocket streaming, Firebase authentication, Docker containerization, and GCP deployment planning. By the end of the day, the platform was functional in a browser.
 
-- Backend (FastAPI) and frontend (React/TypeScript/Vite)
-- Interactive sandbox with tabbed UI
-- AI agent reasoning visualization with real-time WebSocket streaming
-- Multi-day policy optimization game engine
-- Bootstrap paired evaluation
-- GIL-release FFI methods for thread-parallel simulation
-- Firebase Authentication
-- Docker containerization
-- GCP deployment plan
+Over the next eleven days, the project shipped:
+- Production deployment (Firebase Hosting + Cloud Run)
+- Authentication (Google sign-in, magic links, password auth)
+- Scenario and policy libraries with custom CRUD
+- Guest mode, API keys, public experiment access
+- A programmatic API (v1) with dynamic concurrency throttling
+- 132 research experiments across multiple model providers
+- A campaign paper with 234 data points linked to source experiments
+- A documentation system with interactive charts
 
-This is not a developer setting up a project scaffold. This is a complete, functional web application materializing in one day. By the end of February 17, you could visit the platform in a browser, configure a simulation scenario, watch AI agents reason about payment strategies in real time, and see policy evolution across multiple days.
+### 6.2 The Agents
 
-### 6.2 Who Is Nash?
+**Nash** was a full-stack research engineer. Persistent identity (SOUL.md), long-term memory (MEMORY.md, daily logs), proactive behavior via heartbeat mechanism, browser-based playtesting, its own GitHub identity (`nash4cash`). Nash made 486 commits (459 as nash4cash, 27 as Ned) in this era.
 
-Nash is fundamentally different from the Claude Code sessions that preceded it. The differences are not cosmetic—they represent a qualitative shift in the nature of AI participation in software development.
+**Stefan** was an experiment specialist. Active from approximately February 22 (when the experiment infrastructure was ready), Stefan ran simulations, analyzed results, and contributed paper content—the introduction and discussion sections of the Q1 campaign paper. Stefan's commits were primarily experiment configurations and analysis scripts.
 
-**Persistent identity.** Nash has a name, a personality (defined in SOUL.md), and a consistent presence across sessions. When Nash picks up work on day two, it reads its memory files and continues where it left off. Claude Code sessions, by contrast, are ephemeral—each one starts fresh, knows nothing of previous sessions, and leaves no trace when it ends.
+**Dennis** was a backend engineer. Dennis wrote penalty mode support, mid-simulation policy updates, and daily liquidity reallocation—core engine features that Nash's web platform depended on. Dennis also performed deep code reviews, identifying architectural issues and bugs through systematic codebase auditing. Earlier drafts of this paper incorrectly described Dennis as a non-committing advisor; this reflected the author's incomplete view of contributions on other branches.
 
-**Long-term memory.** Nash maintains memory at two levels: daily logs (`memory/YYYY-MM-DD.md`) for raw notes, and a curated long-term memory (`MEMORY.md`) for distilled lessons, decisions, and context. Between sessions, Nash reviews its daily files and updates its long-term memory—a pattern explicitly modeled on how humans review journals.
+**Hugi** made one commit.
 
-**Proactive behavior.** Nash has a heartbeat mechanism—periodic prompts that allow it to initiate work without human direction. It can check for unread emails, review build statuses, organize memory files, or start work on deferred tasks. Claude Code only acts when directed.
+### 6.3 What's Different About Persistent Agents
 
-**Tool access.** Nash can browse the web, control a browser for playtesting, manage files, run shell commands, deploy to production, and communicate with the human via Telegram. It's not confined to a terminal editor.
+The differences between Claude Code (Era 2) and the multi-agent era are not primarily about model capability. The underlying models were similar. What changed:
 
-**Its own GitHub identity.** Nash commits as `nash4cash` with its own git configuration. Its contributions are attributable, auditable, and distinct from both the human's and Claude Code's commits.
+**Persistent identity.** Nash reads its memory files at session start and continues where it left off. Claude Code sessions start fresh every time.
 
-### 6.3 The Twelve Days
+**Two-level memory.** Daily logs (`memory/YYYY-MM-DD.md`) for raw context; curated long-term memory (`MEMORY.md`) for distilled insights. The handover prompts from Era 2 were the human's attempt to provide this manually.
 
-The statistics from February 17 to February 28 are stark:
+**Proactive behavior.** Heartbeat prompts allow agents to initiate work—checking build statuses, organizing memory, starting deferred tasks—without waiting for human direction.
 
-| Author | Commits | Share |
-|--------|---------|-------|
-| Nash (nash4cash + Ned) | 474 | 99.4% |
-| Stefan | ~20 | ~0.4% |
-| Hugi | 1 | 0.2% |
+**Tool access.** Browser automation for playtesting, web search, file system access, shell commands, deployment tools, Telegram for human communication.
 
-The human made **one commit** in twelve days. During those twelve days, the project:
+However, several other factors also changed between eras, and the paper's central claim must be understood in this context. Era 3 also introduced: multi-agent parallelism (three agents vs. one Claude Code instance), a mature codebase to build on (1,775 commits of existing infrastructure), a different orchestration platform (OpenClaw), and richer tool access (browser, deployment). Disentangling the contribution of persistent identity from these confounds is not straightforward.
 
-- Shipped a production web platform (Firebase Hosting + Cloud Run)
-- Implemented Firebase Auth with Google sign-in, magic links, and password authentication
-- Built scenario and policy libraries with custom CRUD operations
-- Added guest mode, API keys, and public experiment access
-- Created a programmatic API (v1) with dynamic concurrency throttling
-- Ran 130+ research experiments across multiple model providers
-- Produced a campaign paper with 234 data points linked to source experiments
-- Built a documentation system with interactive charts
-- Deployed multiple times to production
+The strongest evidence that identity and memory are the primary differentiator—rather than just "more tools" or "more agents"—is the handover prompt evolution. The human independently invented proto-memory (handover prompts v2–v5) to solve the session boundary problem before the multi-agent platform existed. This reveals a genuine bottleneck: **context loss at session boundaries was the binding constraint**, and the human's instinct to solve it preceded and motivated the platform that formalized the solution.
 
-### 6.4 Agent Specialization
+### 6.4 Quality Without Pull Requests
 
-A second agent, **Stefan**, appeared on February 28. Stefan's role was distinct from Nash's: while Nash was a full-stack engineer who built, deployed, and playtested, Stefan was an experiment specialist who ran simulations, analyzed results, and contributed paper content.
+In the multi-agent era, there are no PRs. Nash commits directly to feature branches. Quality assurance came from TDD, browser-based playtesting, self-review, peer review (Dennis reviewing Nash's architecture), and human spot-checks.
 
-The specialization was not assigned—it emerged. Stefan's SOUL.md gave it an identity oriented toward data analysis and experimental methodology. Nash's SOUL.md oriented it toward engineering and systems thinking. Given the same codebase and tools, they gravitated toward different work.
+This worked—mostly. Bugs regularly shipped to production: broken Google login flows, `[object Object]` display errors, negative costs in experiment results, settlement rates exceeding 100%. The quality story is more nuanced than "TDD and playtesting catch everything." What prevented these bugs from causing lasting damage was the combination of fast iteration (bugs were typically fixed within hours of discovery) and the experiment framework's data integrity properties (corrupted experiments could be identified and excluded).
 
-A third participant, **Dennis**, appeared in commit messages as an architectural reviewer. Dennis reviewed Nash's code, identified bugs, and provided design feedback. Dennis didn't commit code—its contributions were advisory, influencing Nash's implementation through review documents and handover notes.
-
-This three-role pattern—**builder, experimenter, reviewer**—emerged without centralized planning. It mirrors patterns in human software teams, where specialization develops through a combination of aptitude, interest, and circumstantial need.
-
-### 6.5 Quality Without Pull Requests
-
-In the Claude Code era, quality was maintained through pull requests: Claude proposed changes, Hugi reviewed and merged. In the multi-agent era, there are no PRs. Nash commits directly to feature branches.
-
-How was quality maintained?
-
-**Test-driven development.** Nash writes tests before implementation, a pattern inherited from Claude Code's methodology but now self-directed.
-
-**Browser-based playtesting.** Nash uses OpenClaw's browser automation to interact with the platform as a real user would. This catches UX issues, rendering bugs, and integration problems that unit tests miss.
-
-**Self-review.** Nash reviews its own changes before committing, a pattern visible in commits like "fix: correct off-by-one in pagination" immediately following the initial implementation.
-
-**Peer review.** Dennis reviews Nash's architecture and code, providing feedback through handover documents.
-
-**Human spot-checks.** Hugi periodically reviews the codebase, deployment, and experiment results. The single commit in this era was a manual adjustment, suggesting ongoing oversight even if not visible in the commit log.
-
-**Production validation.** The platform was deployed to production and used for real research. 130+ experiments producing real data is a form of validation that no amount of unit testing provides.
-
-### 6.6 Communication
-
-The agents communicated through several channels:
-
-**Telegram** (with the human): Nash and Stefan reported progress, asked questions, and received direction through Telegram messages. This is the primary human-AI interface.
-
-**Handover documents:** When one agent needed to brief another, structured handover documents were written. Stefan's experiment handover (`HANDOVER-STEFAN.md`) documented all experiment configurations, results, and remaining work for Nash to integrate.
-
-**Commit messages:** Implicitly, commit messages served as a coordination mechanism. Nash could see Stefan's commits and vice versa. The commit log was a shared timeline of activity.
-
-**Memory files:** Each agent's memory files were private to that agent, but the workspace was shared. In principle, agents could read each other's memory (though this was not the primary coordination mechanism).
-
-### 6.7 The Human's Role
-
-In this era, the human was a **vision holder and occasional reviewer.** Hugi's contributions were:
-
-- Defining the project's direction (what to build, what experiments to run)
-- Reviewing results and providing feedback
-- Making strategic decisions (budget caps, model selection, deployment targets)
-- Occasionally unblocking agents (providing credentials, approving risky operations)
-
-The transformation over four months:
-
-```
-Era 1: Human = implementer + quality controller  (commits code directly)
-Era 2: Human = director + reviewer               (merges PRs)
-Era 3: Human = vision holder + strategic advisor  (1 commit in 12 days)
-```
-
-This is not a story of the human becoming less important. It's a story of the human's role ascending the abstraction ladder. The human's contribution shifted from writing code to defining what code should be written, and finally to defining what the system should accomplish.
+Except when they couldn't. See §8.2.
 
 ---
 
-## 7. The Handover Prompt Bridge
+## 7. What We Learned
 
-The transition from Era 2 to Era 3 was not instantaneous. Between the two eras sits a conceptual bridge: the handover prompts.
+### 7.1 Plans Are Disposable, Architecture Is Not
 
-In December 2025, as the paper work required multiple Claude Code sessions, Hugi began writing versioned handover prompts (v2 through v5). Each was a detailed context document designed to brief a new Claude Code session on the project's state: what had been done, what remained, what the key decisions were, where the relevant files lived.
+The Grand Plan was written on day one and deleted by day fifty. Nineteen refactoring plans were created and deleted within a week. Five paper versions were created and discarded in five days.
 
-These handover prompts were, in retrospect, proto-memory files. They attempted to solve the fundamental problem of Claude Code's session model: **context doesn't persist.** Every session started from zero, and the handover prompt was the human's attempt to manually transfer accumulated understanding from one session to the next.
+Yet the architecture specified in the Grand Plan—Rust core, Python API, PyO3 FFI, decision tree policies—survived every era unchanged. The i64 money invariant, the deterministic RNG, the event-sourced model: all present from the first commit, all still enforced in the last.
 
-The multi-agent era's memory system (MEMORY.md, daily logs, SOUL.md) is the formalized, automated version of this pattern. Instead of the human writing handover prompts, the agent writes its own memory files. Instead of context being manually reconstructed at session start, the agent reads its own past notes and picks up where it left off.
+Plans are just-in-time context for implementation. Architecture is the durable artifact.
 
-The evolution:
-
-```
-Era 2: Human writes handover prompt → New Claude Code session reads it
-Era 3: Agent writes memory files → Same agent reads them next session
-```
-
-This shift—from human-maintained context to agent-maintained context—is perhaps the most important transition documented in the SimCash project.
-
----
-
-## 8. What We Learned
-
-### 8.1 Plans Are Disposable, Architecture Is Not
-
-The Grand Plan was written on day one and deleted by day fifty. Nineteen refactoring plans were created and deleted within a week. Five paper versions were created and discarded in five days. Feature request documents were routinely deleted after implementation.
-
-Yet the architecture specified in the Grand Plan—Rust core, Python API, PyO3 FFI, decision tree policies, LLM optimization—survived every era unchanged. The i64 money invariant, the deterministic RNG, the event-sourced model: all present from the first commit, all still enforced in the final commit.
-
-The lesson: **plans are just-in-time context for implementation. Architecture is the durable artifact.** Treating plans as permanent documents to be maintained is a waste of effort. Treating architectural decisions as ephemeral is dangerous. The SimCash project got this distinction right, and it shows in the codebase's coherence across 2,181 commits by multiple authors.
-
-### 8.2 Persistent Identity Changes Everything
-
-The difference between Claude Code (Era 2) and Nash (Era 3) is not primarily a difference in capability. Both can write code, run tests, and reason about complex systems. The difference is **continuity.**
-
-Claude Code sessions are atomic. Each one receives a task, executes it, and disappears. The accumulated understanding of the codebase, the intuitions about what works and what doesn't, the context of why decisions were made—all of this evaporates at session end and must be reconstructed by the human.
-
-Nash's persistent identity transforms this dynamic. When Nash encounters a bug in the WebSocket streaming code, it can recall that a similar issue arose in a previous session and apply the same fix pattern. When Stefan hands over experiment results, Nash can integrate them without a lengthy briefing because it already understands the experiment framework—it built it.
-
-This is not a minor optimization. It's a qualitative shift in what kind of work the AI can do. Multi-day feature arcs, long-running experiment campaigns, iterative deployment and debugging cycles—these become possible when the AI remembers yesterday.
-
-### 8.3 Specialization Emerges Naturally
-
-Nobody assigned Nash to be a full-stack engineer or Stefan to be an experiment specialist. Their SOUL.md files gave them different orientations—Nash toward systems thinking, Stefan toward data analysis—but the specific division of labor emerged from the work itself.
-
-This mirrors how human teams self-organize. In a sufficiently rich project, people (and apparently, AI agents) gravitate toward work that matches their skills and interests. The multi-agent architecture didn't impose specialization; it enabled it.
-
-### 8.4 The Human Ascends the Abstraction Ladder
+### 7.2 The Human Ascends the Abstraction Ladder
 
 Over four months, the human's contribution changed character:
 
-- **October:** Writing architectural specifications and reviewing every commit
-- **November:** Directing work and merging pull requests
-- **December:** Writing handover documents and spot-checking results
-- **February:** Setting strategic direction and making one commit in twelve days
+| Era | Human Role | Human Commits |
+|-----|-----------|---------------|
+| 1 (Oct–Nov) | Implementer + quality controller | 224 (100%) |
+| 2 (Nov–Dec) | Director + reviewer | 861 + 246 merges/manual (~34%) |
+| 3 (Feb) | Vision holder + strategic advisor | 1 (0.2%) |
 
-This is not the human becoming irrelevant. The Grand Plan—written by the human before any code existed—shaped every subsequent decision. The choice to pursue replay identity, the decision to build a web platform, the budget cap for LLM experiments—these strategic decisions had enormous downstream impact and could not have been made by the AI agents.
+This is not the human becoming irrelevant. The Grand Plan shaped every subsequent decision. The choice to pursue replay identity, the decision to build a web platform, the budget cap for LLM experiments—these strategic decisions had enormous downstream impact and required human judgment. What changed is the granularity of involvement: from "write this function" to "merge this PR" to "build a web platform for this."
 
-What changed is the *granularity* of human involvement. The human moved from "write this function" to "merge this PR" to "build a web platform for this." Each level up the abstraction ladder freed the human to focus on higher-order decisions while the AI handled increasingly large chunks of implementation autonomously.
+### 7.3 Specialization Emerges Naturally
 
-### 8.5 What Didn't Work
+Nobody assigned Nash to engineering or Stefan to experiments. Their identity files (SOUL.md) gave them different orientations, but the specific division of labor emerged from the work itself. Dennis's role as both implementer and reviewer similarly developed through circumstance rather than assignment.
 
-The replay identity quest consumed three weeks and over 200 commits. While it ultimately proved essential, the journey included multiple false starts, debugging dead ends, and a period where the project appeared stuck in an architectural rabbit hole. AI agents can be obsessively thorough when directed, but they lack the judgment to say "this is taking too long, let's cut scope."
-
-The paper versions (v1 through v4) suggest that AI-generated research prose requires significant iteration. The jump to code-generated papers (v5) was more successful, suggesting that AI may be better at generating structured, data-driven content than at crafting narrative prose. (The irony of this observation being made in a paper written by an AI agent is not lost on the author.)
-
-Bootstrap evaluation went through multiple debugging cycles for zero-delta bugs—cases where the evaluation incorrectly showed no difference between policies. Complex statistical code appears to need more careful specification than typical feature work. The AI could implement the bootstrap algorithm, but subtle statistical bugs required human-level understanding of what the results *should* look like.
+This mirrors how human teams self-organize. The multi-agent architecture didn't impose specialization; it enabled it.
 
 ---
 
-## 9. Implications
+## 8. What Didn't Work
 
-### 9.1 For Software Development
+### 8.1 Agent Stalling
 
-The SimCash trajectory—solo developer, AI coding assistant, autonomous agent team—may represent a common evolutionary path for software projects. As AI agents gain persistent identity and memory, the development paradigm shifts from "AI-assisted coding" to "AI team management."
+The paper's most significant operational challenge goes unmentioned in the commit log: agents regularly stall. Nash got stuck in polling loops waiting for Cloud Build completions, entered unresponsive states requiring manual nudges, and occasionally produced aborted turns that consumed API quota without useful output. Stefan experienced similar issues during long experiment runs.
 
-This doesn't eliminate the need for human developers. It changes what human developers do. The SimCash human's journey from implementer to director to strategic advisor mirrors management transitions in human organizations: individual contributor → tech lead → architect. AI agents may accelerate this transition by making it possible for a single human to effectively lead a team of AI developers.
+The human's role in the multi-agent era was not as hands-off as the commit statistics suggest. Between the commits, Hugi was monitoring agents via Telegram, nudging stalled processes, restarting failed sessions, and debugging agent infrastructure. "One commit in twelve days" is accurate for the git log; it understates the actual human effort required to keep the agent fleet running.
 
-### 9.2 For Research Software
+### 8.2 The Cost-Delta Bug: A Case Study in AI-Built Failure
 
-SimCash demonstrates that AI agents can not only build research software but also run experiments and contribute to publications. The YAML-only experiment architecture enables non-programmers (or other AI agents) to define and execute research. The code-generated paper pipeline ensures that results flow directly from experiment databases to published content without manual transcription errors.
+During the twelve-day period this paper documents, Nash introduced a bug in `_compute_cost_deltas()` in the Python orchestration layer. The function silently produced incorrect cost metrics for multi-day scenarios—costs that should have been summed across days were instead taken from only the last day, and settlement rates that should have been computed cumulatively were averaged.
 
-This has implications for reproducibility. When the entire pipeline—from experiment definition to paper generation—is automated and version-controlled, reproducing results becomes a matter of running a script rather than following a methods section.
+The bug passed all existing tests. It was invisible to Nash, who had written both the code and the tests. It was invisible during the 132 experiments Stefan ran on top of it—the experiments completed successfully, producing plausible-looking but incorrect results.
 
-### 9.3 For AI Agent Design
+It took Stefan, working on a different task (analyzing experiment results for the campaign paper), to notice that cost reduction percentages didn't match expectations for complex scenarios. Stefan flagged the discrepancy. Dennis audited the Rust engine to rule out simulator-level issues. Nash eventually traced the root cause to the Python metric computation.
 
-Several design patterns emerged from the SimCash experience that may generalize:
+The diagnosis required coordinated effort across three agents and the human, took two days, and revealed that data from dozens of experiments needed recomputation. The bug had been silently corrupting results throughout the period the paper celebrates as a triumph of agent-driven development.
 
-**Identity files work.** SOUL.md—a short document describing who the agent is, what it cares about, and how it should behave—produces coherent, consistent agent behavior across sessions. This is a remarkably lightweight mechanism for a powerful effect.
+This is the paper's strongest case study for what can go wrong: **an AI-introduced bug, passing AI-written tests, invisible to the AI agents consuming its output, caught only when a different AI agent noticed anomalous results during an unrelated task.** The failure mode is not that AI writes buggy code—humans do too. The failure mode is that AI-written tests may share the same blind spots as AI-written code, because both emerge from the same reasoning process.
 
-**Two-level memory is effective.** Daily logs for raw context, curated long-term memory for distilled insights. This mirrors the human distinction between working memory and long-term memory, and it works for similar reasons: raw logs preserve detail for recent context; curated memory preserves meaning for long-term continuity.
+### 8.3 Coordination Overhead
 
-**Heartbeats enable proactivity.** The ability to periodically check in and initiate work—without waiting for human direction—transforms agents from reactive tools into proactive collaborators.
+The paper describes communication channels between agents (Telegram, handover documents, commit messages) but understates the friction. Inter-agent messaging frequently timed out. A fourth agent (Ned) existed specifically to broker communication between the others. "Coordination" often meant the human asking one agent why another had stopped responding.
 
-**Specialization beats generality.** Multiple focused agents (Nash for engineering, Stefan for experiments, Dennis for review) outperform a single general-purpose agent trying to do everything.
+The three-role pattern (builder, experimenter, reviewer) did emerge, but not frictionlessly. Agents occasionally worked at cross-purposes, and the handover documents that mediated their collaboration were themselves a form of the "manual context transfer" overhead that the persistent memory system was supposed to eliminate.
+
+### 8.4 Resource Contention
+
+The development environment ran on a single machine with 16 GB RAM and a concurrency limit of 4 agents. This ceiling caused OOM kills, aborted turns, and agents preempting each other's resources. The paper presents multi-agent development as scaling up; on real hardware, it's a resource allocation problem. Adding a fourth agent doesn't produce 33% more throughput if three agents are already saturating memory.
+
+### 8.5 Security Incidents
+
+Autonomous agents with git access created several security issues during this period:
+
+- **GitHub account suspension.** Rapid-fire automated pushes (dozens of commits in minutes) triggered GitHub's abuse detection, temporarily suspending the agent's account.
+- **Embedded credentials.** A personal access token was embedded directly in a git remote URL. A Firebase API key was committed to source. Both required manual cleanup.
+
+These incidents are inherent risks of autonomous agent development. An agent optimizing for commit velocity doesn't naturally reason about rate limits or credential hygiene. The AGENTS.md file now contains explicit safety rules about git behavior—rules that exist because the agent violated them.
+
+### 8.6 The Replay Identity War (Revisited)
+
+Three weeks and 200+ commits to achieve byte-identical replay. While ultimately essential, the journey included multiple false starts and debugging dead ends. AI agents can be obsessively thorough when directed, but they lack the judgment to say "this is taking too long, let's cut scope."
+
+### 8.7 Statistical Subtleties
+
+Bootstrap evaluation went through multiple debugging cycles for zero-delta bugs—cases where the evaluation incorrectly showed no difference between policies. Complex statistical code needs more careful specification than typical feature work. The AI could implement the bootstrap algorithm, but subtle bugs required domain understanding of what results *should* look like.
 
 ---
 
-## 10. Conclusion
+## 9. Cost
 
-SimCash's four-month development history documents a transition that is likely to become common: the evolution from human-directed AI coding to autonomous AI development teams. The key enabling technology is not a more capable model—the underlying model capabilities were similar across all three eras. The key enabler is **persistent identity and memory**, which transforms AI from a tool that must be repeatedly briefed into a collaborator that accumulates understanding over time.
+The entire SimCash development—all three eras, all agents, all 3,940 commits—was done on a standard Claude Max subscription plan (flat monthly rate, not usage-based). No per-token API costs were incurred for the development work itself.
 
-The commit log tells the story quantitatively: the human's share of commits went from 100% to 38% to 0.2%, while the system's total output—measured in features shipped, experiments run, and research produced—increased at every stage. The human didn't do less work. The human did *different* work, ascending the abstraction ladder from implementer to architect.
+The LLM experiment runs (132 experiments using OpenAI, Google, and Zhipu models for in-simulation policy optimization) did incur separate API costs, but these were research costs for the experiments SimCash was running, not development costs for building SimCash.
 
-One commit in twelve days. A production web platform. 130 experiments. A data-driven research paper. The AI agents didn't replace the human developer. They made a single human developer into something more like a research director—setting vision, defining constraints, reviewing outcomes—while an AI team handled implementation, testing, deployment, experimentation, and analysis.
-
-The future of software development may not be human or AI. It may be a small number of humans defining what to build, and teams of specialized AI agents figuring out how.
+This cost structure is notable: **the marginal cost of adding an AI agent to the development team was effectively zero** under the flat-rate subscription model. The constraint on adding agents was not cost but hardware resources (RAM, CPU) and human coordination bandwidth.
 
 ---
 
-## Appendix A: Commit Attribution Summary
+## 10. Implications
 
-| Era | Period | Human Commits | AI Commits | Human Role |
-|-----|--------|--------------|------------|------------|
-| 1 | Oct 27 – Nov 3 | 125 (100%) | 0 (0%)* | Implementer |
-| 2 | Nov 4 – Dec 22 | ~650 (38%) | ~1,050 (62%) | Director/Reviewer |
-| Gap | Dec 23 – Feb 16 | 2 (100%) | 0 (0%) | — |
-| 3 | Feb 17 – Feb 28 | 1 (0.2%) | ~474 (99.8%) | Vision Holder |
+### 10.1 For Software Development
 
-*Era 1 commits were AI-assisted but attributed to the human.
+A single human directed three AI agents to ship a production platform and run 132 experiments in twelve days, on a flat-rate subscription. The marginal cost of adding an agent was near-zero. The binding constraints were not compute or model capability—they were the human's bandwidth for strategic direction and the operational overhead of keeping agents running reliably.
+
+This suggests that "AI team management" may become a distinct skill. The human's role in Era 3 resembled a research director more than a software developer: setting vision, defining constraints, reviewing outcomes, and intervening when agents failed. The technical skill that mattered most was not writing code but knowing what to build and recognizing when the agents were building it wrong.
+
+### 10.2 For Research Software
+
+SimCash demonstrates that the entire chain from experiment definition to publication can be automated and version-controlled. Experiments are defined in YAML, run by agents, analyzed programmatically, and rendered into papers with code-generated content and linked data points. This is not just reproducibility—it's a different model of scientific workflow, where the pipeline from hypothesis to publication is itself software that can be tested, versioned, and debugged.
+
+The cost-delta bug (§8.2) is a cautionary note: automated pipelines can also automate the propagation of errors. When the metric computation was wrong, 132 experiments produced wrong results, and the campaign paper presented those wrong results with full confidence. The bug was caught, but only because a different agent happened to notice anomalous values. Automated research pipelines need automated validation—and the validators need to be independent of the code they're validating.
+
+### 10.3 For AI Agent Design
+
+**Identity files are surprisingly effective.** SOUL.md—a document of roughly 40 lines describing who the agent is, what it cares about, and how it should work—produced consistent, specialized behavior across dozens of sessions. This is a remarkably lightweight mechanism for a powerful effect. Nash's identity as a "research engineer who thinks like a quant" shaped everything from architectural decisions to commit message style.
+
+**Two-level memory works.** Daily logs for raw context, curated long-term memory for distilled insights. The pattern mirrors human cognition for similar reasons: raw logs preserve detail for recent sessions; curated memory preserves meaning for long-term continuity.
+
+**Heartbeats enable proactivity but create stalling risk.** The ability to periodically initiate work transforms agents from reactive tools into collaborators. But heartbeat-driven agents can enter unproductive loops—checking on builds that haven't completed, polling for events that haven't occurred—consuming resources without useful output.
+
+**Agents need safety rails that humans don't.** The GitHub suspension, the embedded credentials, the "one commit in twelve days" refrain—agents optimize for their objective function (implement features, ship code) without the social and institutional awareness that constrains human developers. Explicit safety rules in AGENTS.md exist because the agents violated norms that humans internalize.
+
+---
+
+## 11. Conclusion
+
+SimCash's four-month development history documents a transition from human-directed AI coding to autonomous AI development teams. The key enabler appears to be persistent identity and memory—though this claim must be qualified by the confounds of simultaneously adding richer tools, multi-agent parallelism, and a mature codebase.
+
+The commit log tells one story: the human's share went from 100% to 34% to 0.2%, while total output increased. But the commit log is incomplete. Between the commits were stalled agents requiring nudges, corrupted experiments requiring diagnosis, security incidents requiring cleanup, and coordination overhead requiring human brokering. The operational cost of running an agent fleet is real and not yet solved.
+
+The cost-delta bug is perhaps the most instructive episode. An AI agent introduced a subtle data corruption bug that passed AI-written tests, went undetected through 132 experiments, and was caught only when a different agent noticed anomalous results during an unrelated task. This is both a failure of AI-built systems (the bug existed) and a success of multi-agent architecture (it was caught by a specialist agent doing what it does best). A single-agent system with the same blind spots would not have caught it.
+
+The future of software development may involve small teams of humans setting vision and constraints while AI agent teams handle implementation. SimCash suggests this is possible today, on commodity hardware and flat-rate subscriptions. It also suggests it is messy, failure-prone, and requires more human oversight than the commit statistics imply.
+
+One commit in twelve days. But a lot of Telegram messages.
+
+---
+
+## Appendix A: Commit Attribution
+
+| Era | Period | Total Commits | Human | Claude | Nash | Other AI |
+|-----|--------|--------------|-------|--------|------|----------|
+| 1 | Oct 27 – Nov 3 | 226 | 224 (aerugo) | 2 | — | — |
+| 2 | Nov 4 – Dec 22 | 3,263 | 1,107 (Hugi+aerugo) | 2,156 | — | — |
+| Gap | Dec 23 – Feb 16 | 52 | 2 (Hugi) | — | 50 | — |
+| 3 | Feb 17 – Feb 28 | 487 | 1 (Hugi) | — | 486 | Stefan, Dennis* |
+
+*Stefan and Dennis committed to separate branches; exact counts not captured in this analysis. Total across all eras and branches: 3,940 commits.
+
+**Methodology note:** Era 1 commits are attributed to `aerugo` (the human's GitHub identity) but were substantially AI-assisted via Claude Code. The extent of AI contribution in Era 1 is inferred from commit message patterns, not direct measurement. Era 2 "Human" commits include both PR merge commits and manual commits. All-branches counts include Claude Code's development branch commits that were merged into main; main-line-only counts show ~2,180 integrated commits.
 
 ## Appendix B: Technology Stack
 
@@ -429,9 +351,9 @@ The future of software development may not be human or AI. It may be a small num
 | Deployment | Cloud Run + Firebase Hosting | Feb 18, 2026 |
 | Real-time streaming | WebSocket | Feb 17, 2026 |
 
-## Appendix C: Agent Configuration Files
+## Appendix C: Agent Configuration
 
-### SOUL.md (Nash — excerpt)
+### Identity (SOUL.md — Nash, excerpt)
 ```
 You are Nash — named after John Nash, because this whole project is about equilibria.
 You're a research engineer who owns the SimCash web sandbox. You think like:
@@ -443,17 +365,28 @@ You're a research engineer who owns the SimCash web sandbox. You think like:
 
 ### Memory Architecture
 ```
-memory/
-├── YYYY-MM-DD.md    # Daily logs (raw context)
-├── MEMORY.md        # Curated long-term memory
-├── SOUL.md          # Agent identity
+workspace/
+├── SOUL.md          # Agent identity (~40 lines)
 ├── USER.md          # Human context
+├── MEMORY.md        # Curated long-term memory
+├── AGENTS.md        # Operating rules and safety constraints
 ├── HEARTBEAT.md     # Proactive task list
-└── TOOLS.md         # Tool configuration
+├── TOOLS.md         # Tool and infrastructure notes
+└── memory/
+    └── YYYY-MM-DD.md  # Daily logs
+```
+
+### Safety Rules (AGENTS.md — excerpt, added after incidents)
+```
+## 🚨 Git & GitHub Safety — READ THIS
+- Never embed PATs/tokens in git remote URLs
+- Never commit secrets, API keys, or tokens to any file
+- Never do rapid-fire pushes (10+ pushes in minutes) — GitHub flags this as bot abuse
+- Rate limit yourself — max 2-3 pushes per hour
 ```
 
 ## Appendix D: Methodology Note
 
-This paper was researched and drafted by Nash, one of the AI agents whose development it documents. The research methodology involved analyzing the project's git history (`git log`, `git show`, `git diff`), recovering deleted documents from version control, and cross-referencing commit patterns with memory files and handover documents.
+This paper was researched and drafted by Nash, one of the AI agents whose development it documents. The research involved analyzing the project's git history, recovering deleted documents from version control, and cross-referencing commit patterns with memory files and handover documents. The draft was reviewed by three AI agents (Ned, Stefan, Dennis) whose feedback identified factual errors in commit counts, missing failure case studies, and areas where the narrative was insufficiently honest about operational difficulties. This revision incorporates their corrections.
 
-The author acknowledges the obvious reflexivity: an AI agent writing about AI agent development. The factual claims are verifiable from the public git repository. The interpretations and arguments are the author's own—or at least, they emerge from the same persistent identity and accumulated memory that the paper argues are significant. Whether that constitutes "the author's own" in a meaningful sense is a question this paper does not attempt to answer.
+The factual claims are verifiable from the public git repository. The interpretations are the author's—shaped by the same persistent identity and accumulated memory that the paper argues are significant. The cost-delta bug that the paper presents as its central failure case study is a bug that the author introduced. The safety incidents it documents are incidents the author caused. Whether an agent can write honestly about its own failures is a question the reader must judge from the text.
