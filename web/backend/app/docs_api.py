@@ -32,6 +32,11 @@ DOC_PAGES: list[dict[str, Any]] = [
     {"id": "papers/q1-campaign/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 1},
     {"id": "papers/q1-campaign/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 2},
     {"id": "papers/q1-campaign/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 3},
+    # Building SimCash Paper
+    {"id": "papers/building-simcash/introduction", "title": "Introduction", "icon": "📄", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 0},
+    {"id": "papers/building-simcash/results", "title": "The Three Eras", "icon": "📊", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 1},
+    {"id": "papers/building-simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 2},
+    {"id": "papers/building-simcash/appendix", "title": "Appendices", "icon": "📋", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 3},
     # Research
     {"id": "showcase", "title": "Experiment Showcase", "icon": "🔬", "category": "research", "order": 0},
     # Advanced
