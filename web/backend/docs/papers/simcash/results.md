@@ -309,7 +309,7 @@ coordination failures that game theory predicts for non-communicating optimizers
 
 ---
 
-## Cross-Experiment Patterns (EXP1–3)
+## Cross-Experiment Patterns
 
 Four key observations emerge:
 
@@ -326,75 +326,3 @@ Four key observations emerge:
    near-symmetric allocations (5.7%–8.5% range) without the severe
    coordination failures of deterministic scenarios. Uncertainty prevents the confident
    aggressive moves that trigger traps.
-
----
-
-## Q1 2026 Campaign — Large-Scale Evaluation
-
-The Q1 2026 experiment campaign extended EXP1–3's findings with 130 experiments across 10 scenarios, 3 LLM models (Gemini Flash 2.0, Gemini Pro, GLM-4-Flash), and 5 prompt conditions. The results are organized around six core findings.
-
-### Finding 1: Complexity Threshold
-
-LLM optimization delivers 40–84% cost reduction on simple scenarios (2–4 banks) but produces *simultaneously higher costs and lower settlement* on complex scenarios (5+ banks).
-
-| Scenario | Banks | Baseline Cost / SR | Flash Cost / SR | Cost Δ |
-|---|---|---|---|---|
-| 2B 3T | 2 | 99,900 / 100% | 15,671 / 100% | **−84%** |
-| 3B 6T | 3 | 74,700 / 100% | 35,942 / 96% | **−52%** |
-| 4B 8T | 4 | 132,800 / 100% | 43,785 / 97% | **−67%** |
-| Periodic Shocks | 5 | 611M / 77% | 737M / 70% | **+21%** |
-| Large Network | 5 | 1,734M / 59% | 2,032M / 57% | **+17%** |
-| Lehman Month | 6 | 2,064M / 69% | 2,354M / 60% | **+14%** |
-
-The threshold lies between 4 and 5 banks. Below it, individual optimization is compatible with collective welfare. Above it, agents' liquidity-hoarding strategies create cascading settlement failures — a computational tragedy of the commons.
-
-### Finding 2: Smart Free-Rider Effect
-
-More capable models produce *worse* collective outcomes on complex scenarios. Pro (stronger reasoning) enables more effective individual optimization, which translates to more effective free-riding:
-
-| Complex Scenario | Flash Cost Δ | Pro Cost Δ | Flash SR | Pro SR |
-|---|---|---|---|---|
-| Periodic Shocks | +21% | +24% | 70% | 69% |
-| Lehman Month | +14% | +23% | 60% | 58% |
-
-### Finding 3: Constraints Beat Information
-
-In the Castro Exp2 deep dive (83 experiments, v0.2 prompt conditions), settlement floor constraints (C2) were far more effective than providing information (C1):
-
-| Condition | Flash Cost | Flash SR | Description |
-|---|---|---|---|
-| v0.1 (baseline) | 51,423 | 88% | No special prompts |
-| C1-info | 55,381 | 87% | Settlement rate information |
-| C2-floor | 43,735 | **97%** | Min 80% settlement constraint |
-| C3-guidance | **39,436** | **98%** | Strategy tool descriptions |
-
-Information alone (C1) had negligible effect. Constraints (C2) produced the largest settlement improvement. This mirrors mechanism design theory: incentive-compatible constraints outperform information disclosure.
-
-### Finding 4: Strategy Poverty
-
-LLMs use only a fraction of available policy actions. Bank trees are universally `NoAction`. The agents are parameter tuners (adjusting `initial_liquidity_fraction`) rather than strategy architects — they don't explore the rich decision tree space available to them.
-
-### Finding 5: Model Selection > Prompt Engineering
-
-The gap between Flash and GLM under identical prompts (~20 pp in settlement rate) far exceeds the gap between any two prompt conditions for the same model (~10 pp). Investing in model capability yields higher returns than prompt engineering.
-
-### Finding 6: v0.2 Cannot Break the Threshold
-
-Full prompt toolkit (C4-composition) applied to complex scenarios yields results indistinguishable from v0.1. The coordination failure is structural — better prompts cannot solve a multi-agent incentive problem.
-
-### Stress Scenario Results
-
-| Scenario | Banks | Baseline Cost / SR | Best Model | Best Cost / SR |
-|---|---|---|---|---|
-| High Stress | 2 | 99,600 / 100% | Pro | 108,155 / 86% |
-| Liquidity Squeeze | 2 | 72,000 / 100% | Pro | **14,506 / 100%** |
-
-Under stress, even 2-bank optimization fails (cost increases). But liquidity squeeze — where the optimization problem is clear — produces the campaign's best result: 80% cost reduction with perfect settlement.
-
-### Model Leaderboard
-
-| Model | Simple Scenario Performance | Complex Scenario Performance | Overall |
-|---|---|---|---|
-| **Gemini Flash** | Best cost reduction (up to 84%) | Least harmful (+14–21% cost) | Champion |
-| **Gemini Pro** | Strong but inconsistent | Most harmful (+23–24% cost) | Paradoxical |
-| **GLM-4-Flash** | Competitive on cost, weak SR | Excluded (pre-bugfix data) | Wild card |
