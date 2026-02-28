@@ -305,7 +305,7 @@ export function DocsView() {
                         {pg.items.map(item => (
                           <button
                             key={item.id}
-                            onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
+                            onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); window.scrollTo(0, 0); }}
                             className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors pl-5 ${
                               activeId === item.id
                                 ? 'bg-sky-500/10 text-sky-400'
@@ -329,7 +329,7 @@ export function DocsView() {
                   {g.items.map(item => (
                     <button
                       key={item.id}
-                      onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); }}
+                      onClick={() => { setActiveId(item.id); navigate(`/docs/${item.id}`); window.scrollTo(0, 0); }}
                       className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors ${
                         activeId === item.id
                           ? 'bg-sky-500/10 text-sky-400'
