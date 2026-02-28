@@ -329,7 +329,7 @@ export function DocsView() {
       <div className="flex gap-6">
       {/* Sidebar */}
       <nav className="w-56 shrink-0 hidden md:block">
-        <div className="sticky top-24 space-y-5">
+        <div className="sticky top-24 space-y-5 max-h-[calc(100vh-7rem)] overflow-y-auto pb-8">
           {groupedPages.map(g => {
             // For paper category, group by paper slug
             if (g.key === 'paper' && g.items.length > 0) {
