@@ -446,7 +446,7 @@ export function DocsView() {
                 </div>
                 {/* All sections rendered sequentially */}
                 {paperSections.map((section, i) => (
-                  <div key={section.id} id={sectionAnchor(section.id)} className={i > 0 ? 'mt-16 pt-8 border-t border-slate-700' : ''}>
+                  <div key={section.id} id={sectionAnchor(section.id)} className={i > 0 ? 'mt-16 pt-8 border-t border-slate-700' : ''} style={{ scrollMarginTop: '6rem' }}>
                     <div className="prose prose-invert prose-sm max-w-none space-y-0">
                       <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex, rehypeRaw]} components={markdownComponents}>
                         {preprocessCharts(section.content)}
