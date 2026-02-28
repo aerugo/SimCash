@@ -33,6 +33,7 @@ interface NavGroup {
 
 const GROUPS: NavGroup[] = [
   { key: 'guide', label: 'Guides' },
+  { key: 'research', label: 'Research' },
   { key: 'paper', label: 'Research Papers' },
   { key: 'advanced', label: 'Advanced Topics' },
   { key: 'blog', label: 'Blog Posts' },
