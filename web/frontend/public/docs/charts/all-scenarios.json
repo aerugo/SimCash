@@ -1,0 +1,597 @@
+{
+  "type": "table",
+  "data": [
+    {
+      "scenario": "2B 3T",
+      "model": "baseline",
+      "cost": 99900,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "2B 3T",
+      "model": "flash",
+      "cost": 13660,
+      "sr": 100.0,
+      "cost_delta_pct": -86.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "2B 3T",
+      "model": "glm",
+      "cost": 100909,
+      "sr": 35.3,
+      "cost_delta_pct": 1.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "2B 3T",
+      "model": "pro",
+      "cost": 75886,
+      "sr": 100.0,
+      "cost_delta_pct": -24.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "2b_stress",
+      "model": "baseline",
+      "cost": 99600,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "2b_stress",
+      "model": "flash",
+      "cost": 164585,
+      "sr": 82.0,
+      "cost_delta_pct": 65.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "2b_stress",
+      "model": "glm",
+      "cost": 194897,
+      "sr": 84.0,
+      "cost_delta_pct": 95.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "2b_stress",
+      "model": "pro",
+      "cost": 68086,
+      "sr": 90.0,
+      "cost_delta_pct": -31.6,
+      "num_days": 10
+    },
+    {
+      "scenario": "3B 6T",
+      "model": "baseline",
+      "cost": 74700,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "3B 6T",
+      "model": "flash",
+      "cost": 18017,
+      "sr": 100.0,
+      "cost_delta_pct": -75.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "3B 6T",
+      "model": "glm",
+      "cost": 19631,
+      "sr": 100.0,
+      "cost_delta_pct": -73.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "3B 6T",
+      "model": "pro",
+      "cost": 19678,
+      "sr": 100.0,
+      "cost_delta_pct": -73.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "4B 8T",
+      "model": "baseline",
+      "cost": 132800,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "4B 8T",
+      "model": "flash",
+      "cost": 59123,
+      "sr": 95.2,
+      "cost_delta_pct": -55.5,
+      "num_days": 10
+    },
+    {
+      "scenario": "4B 8T",
+      "model": "glm",
+      "cost": 40178,
+      "sr": 96.8,
+      "cost_delta_pct": -69.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "4B 8T",
+      "model": "pro",
+      "cost": 41233,
+      "sr": 96.8,
+      "cost_delta_pct": -69.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "baseline",
+      "cost": 99600,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash",
+      "cost": 39393,
+      "sr": 92.0,
+      "cost_delta_pct": -60.4,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c1-info)",
+      "cost": 52610,
+      "sr": 90.0,
+      "cost_delta_pct": -47.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c1-info_r2)",
+      "cost": 46784,
+      "sr": 90.0,
+      "cost_delta_pct": -53.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c1-info_r3)",
+      "cost": 66750,
+      "sr": 82.0,
+      "cost_delta_pct": -33.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c2-floor)",
+      "cost": 43863,
+      "sr": 100.0,
+      "cost_delta_pct": -56.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c2-floor_r2)",
+      "cost": 51735,
+      "sr": 100.0,
+      "cost_delta_pct": -48.1,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c2-floor_r3)",
+      "cost": 35606,
+      "sr": 90.0,
+      "cost_delta_pct": -64.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c2-floor_retry-canary)",
+      "cost": 36187,
+      "sr": 94.0,
+      "cost_delta_pct": -63.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c3-guidance)",
+      "cost": 38066,
+      "sr": 100.0,
+      "cost_delta_pct": -61.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c3-guidance_r2)",
+      "cost": 33587,
+      "sr": 94.0,
+      "cost_delta_pct": -66.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c3-guidance_r3)",
+      "cost": 46655,
+      "sr": 100.0,
+      "cost_delta_pct": -53.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c4-comp_r2)",
+      "cost": 67354,
+      "sr": 84.0,
+      "cost_delta_pct": -32.4,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c4-comp_r3)",
+      "cost": 34179,
+      "sr": 90.0,
+      "cost_delta_pct": -65.7,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "flash_(c4-composition)",
+      "cost": 37995,
+      "sr": 100.0,
+      "cost_delta_pct": -61.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm",
+      "cost": 70889,
+      "sr": 82.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c1-info)",
+      "cost": 70823,
+      "sr": 71.6,
+      "cost_delta_pct": -28.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c1-info_r2)",
+      "cost": 70897,
+      "sr": 84.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c1-info_r3)",
+      "cost": 70897,
+      "sr": 84.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c2-floor)",
+      "cost": 42800,
+      "sr": 77.8,
+      "cost_delta_pct": -57.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c2-floor_r2)",
+      "cost": 70889,
+      "sr": 82.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c2-floor_r3)",
+      "cost": 70823,
+      "sr": 71.6,
+      "cost_delta_pct": -28.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c3-guidance)",
+      "cost": 68712,
+      "sr": 82.0,
+      "cost_delta_pct": -31.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c3-guidance_r2)",
+      "cost": 70897,
+      "sr": 84.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c3-guidance_r3)",
+      "cost": 67467,
+      "sr": 70.5,
+      "cost_delta_pct": -32.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c4-comp_r2)",
+      "cost": 73467,
+      "sr": 64.5,
+      "cost_delta_pct": -26.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c4-comp_r3)",
+      "cost": 70897,
+      "sr": 84.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "glm_(c4-composition)",
+      "cost": 73541,
+      "sr": 69.8,
+      "cost_delta_pct": -26.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro",
+      "cost": 108910,
+      "sr": 82.0,
+      "cost_delta_pct": 9.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c1-info)",
+      "cost": 70897,
+      "sr": 84.0,
+      "cost_delta_pct": -28.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c1-info_r2)",
+      "cost": 33116,
+      "sr": 92.0,
+      "cost_delta_pct": -66.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c1-info_r3)",
+      "cost": 67781,
+      "sr": 84.0,
+      "cost_delta_pct": -31.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c2-floor)",
+      "cost": 60474,
+      "sr": 82.0,
+      "cost_delta_pct": -39.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c2-floor_r2)",
+      "cost": 39028,
+      "sr": 90.0,
+      "cost_delta_pct": -60.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c2-floor_r3)",
+      "cost": 34014,
+      "sr": 94.0,
+      "cost_delta_pct": -65.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c3-guidance)",
+      "cost": 67781,
+      "sr": 84.0,
+      "cost_delta_pct": -31.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c3-guidance_r2)",
+      "cost": 68487,
+      "sr": 84.0,
+      "cost_delta_pct": -31.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c3-guidance_r3)",
+      "cost": 68712,
+      "sr": 82.0,
+      "cost_delta_pct": -31.0,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c4-comp_r2)",
+      "cost": 50917,
+      "sr": 100.0,
+      "cost_delta_pct": -48.9,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c4-comp_r3)",
+      "cost": 125683,
+      "sr": 76.0,
+      "cost_delta_pct": 26.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "Castro Exp2",
+      "model": "pro_(c4-composition)",
+      "cost": 63984,
+      "sr": 82.0,
+      "cost_delta_pct": -35.8,
+      "num_days": 10
+    },
+    {
+      "scenario": "Large Network",
+      "model": "baseline",
+      "cost": 1733987707,
+      "sr": 58.8,
+      "cost_delta_pct": 0,
+      "num_days": 25
+    },
+    {
+      "scenario": "Large Network",
+      "model": "flash",
+      "cost": 2030507059,
+      "sr": 56.4,
+      "cost_delta_pct": 17.1,
+      "num_days": 25
+    },
+    {
+      "scenario": "Large Network",
+      "model": "pro",
+      "cost": 2093933246,
+      "sr": 55.6,
+      "cost_delta_pct": 20.8,
+      "num_days": 25
+    },
+    {
+      "scenario": "Lehman Month",
+      "model": "baseline",
+      "cost": 2063529647,
+      "sr": 68.7,
+      "cost_delta_pct": 0,
+      "num_days": 25
+    },
+    {
+      "scenario": "Lehman Month",
+      "model": "flash",
+      "cost": 2344311418,
+      "sr": 58.6,
+      "cost_delta_pct": 13.6,
+      "num_days": 25
+    },
+    {
+      "scenario": "Lehman Month",
+      "model": "pro",
+      "cost": 2543118517,
+      "sr": 57.1,
+      "cost_delta_pct": 23.2,
+      "num_days": 25
+    },
+    {
+      "scenario": "liquidity_squeeze",
+      "model": "baseline",
+      "cost": 72000,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "liquidity_squeeze",
+      "model": "flash",
+      "cost": 20635,
+      "sr": 100.0,
+      "cost_delta_pct": -71.3,
+      "num_days": 10
+    },
+    {
+      "scenario": "liquidity_squeeze",
+      "model": "glm",
+      "cost": 16174,
+      "sr": 100.0,
+      "cost_delta_pct": -77.5,
+      "num_days": 10
+    },
+    {
+      "scenario": "liquidity_squeeze",
+      "model": "pro",
+      "cost": 15705,
+      "sr": 100.0,
+      "cost_delta_pct": -78.2,
+      "num_days": 10
+    },
+    {
+      "scenario": "lynx_day",
+      "model": "baseline",
+      "cost": 3,
+      "sr": 100.0,
+      "cost_delta_pct": 0,
+      "num_days": 1
+    },
+    {
+      "scenario": "lynx_day",
+      "model": "flash",
+      "cost": 3,
+      "sr": 100.0,
+      "cost_delta_pct": 0.0,
+      "num_days": 1
+    },
+    {
+      "scenario": "lynx_day",
+      "model": "glm",
+      "cost": 3,
+      "sr": 100.0,
+      "cost_delta_pct": 0.0,
+      "num_days": 1
+    },
+    {
+      "scenario": "lynx_day",
+      "model": "pro",
+      "cost": 3,
+      "sr": 100.0,
+      "cost_delta_pct": 0.0,
+      "num_days": 1
+    },
+    {
+      "scenario": "Periodic Shocks",
+      "model": "baseline",
+      "cost": 611354137,
+      "sr": 76.6,
+      "cost_delta_pct": 0,
+      "num_days": 25
+    },
+    {
+      "scenario": "Periodic Shocks",
+      "model": "flash",
+      "cost": 800565920,
+      "sr": 71.6,
+      "cost_delta_pct": 30.9,
+      "num_days": 25
+    },
+    {
+      "scenario": "Periodic Shocks",
+      "model": "pro",
+      "cost": 782415219,
+      "sr": 68.6,
+      "cost_delta_pct": 28.0,
+      "num_days": 25
+    }
+  ]
+}

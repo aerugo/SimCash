@@ -1,0 +1,24 @@
+{
+  "type": "bar",
+  "data": [
+    {
+      "scenario": "Periodic Shocks",
+      "flash": 30.9,
+      "pro": 28.0
+    },
+    {
+      "scenario": "Large Network",
+      "flash": 17.1,
+      "pro": 20.8
+    },
+    {
+      "scenario": "Lehman Month",
+      "flash": 13.6,
+      "pro": 23.2
+    }
+  ],
+  "keys": [
+    "flash",
+    "pro"
+  ]
+}

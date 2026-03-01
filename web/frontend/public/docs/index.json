@@ -1,0 +1,203 @@
+{
+  "pages": [
+    {
+      "id": "overview",
+      "title": "Overview",
+      "icon": "\ud83d\udcd6",
+      "category": "guide",
+      "order": 0
+    },
+    {
+      "id": "how-it-works",
+      "title": "How the Simulator Works",
+      "icon": "\u2699\ufe0f",
+      "category": "guide",
+      "order": 1
+    },
+    {
+      "id": "cost-model",
+      "title": "The Cost Model",
+      "icon": "\ud83d\udcb0",
+      "category": "guide",
+      "order": 2
+    },
+    {
+      "id": "policy-optimization",
+      "title": "AI Policy Optimization",
+      "icon": "\ud83e\udd16",
+      "category": "guide",
+      "order": 3
+    },
+    {
+      "id": "architecture",
+      "title": "Technical Architecture",
+      "icon": "\ud83c\udfd7\ufe0f",
+      "category": "guide",
+      "order": 4
+    },
+    {
+      "id": "papers/simcash/introduction",
+      "title": "Introduction & Methods",
+      "icon": "\ud83d\udcc4",
+      "category": "paper",
+      "paper": "simcash",
+      "paper_title": "SimCash Part I: Proof of Concept",
+      "order": 0
+    },
+    {
+      "id": "papers/simcash/results",
+      "title": "Results",
+      "icon": "\ud83d\udcca",
+      "category": "paper",
+      "paper": "simcash",
+      "paper_title": "SimCash Part I: Proof of Concept",
+      "order": 1
+    },
+    {
+      "id": "papers/simcash/discussion",
+      "title": "Discussion & Conclusion",
+      "icon": "\ud83d\udcac",
+      "category": "paper",
+      "paper": "simcash",
+      "paper_title": "SimCash Part I: Proof of Concept",
+      "order": 2
+    },
+    {
+      "id": "papers/simcash/appendix",
+      "title": "Detailed Data",
+      "icon": "\ud83d\udccb",
+      "category": "paper",
+      "paper": "simcash",
+      "paper_title": "SimCash Part I: Proof of Concept",
+      "order": 3
+    },
+    {
+      "id": "papers/q1-campaign/introduction",
+      "title": "Introduction & Setup",
+      "icon": "\ud83d\udcc4",
+      "category": "paper",
+      "paper": "q1-campaign",
+      "paper_title": "Q1 2026 Experiment Campaign",
+      "order": 0
+    },
+    {
+      "id": "papers/q1-campaign/results",
+      "title": "Results",
+      "icon": "\ud83d\udcca",
+      "category": "paper",
+      "paper": "q1-campaign",
+      "paper_title": "Q1 2026 Experiment Campaign",
+      "order": 1
+    },
+    {
+      "id": "papers/q1-campaign/discussion",
+      "title": "Discussion & Conclusion",
+      "icon": "\ud83d\udcac",
+      "category": "paper",
+      "paper": "q1-campaign",
+      "paper_title": "Q1 2026 Experiment Campaign",
+      "order": 2
+    },
+    {
+      "id": "papers/q1-campaign/appendix",
+      "title": "Detailed Data",
+      "icon": "\ud83d\udccb",
+      "category": "paper",
+      "paper": "q1-campaign",
+      "paper_title": "Q1 2026 Experiment Campaign",
+      "order": 3
+    },
+    {
+      "id": "papers/building-simcash/introduction",
+      "title": "Introduction",
+      "icon": "\ud83d\udcc4",
+      "category": "paper",
+      "paper": "building-simcash",
+      "paper_title": "Building SimCash: Agentic AI Development",
+      "order": 0
+    },
+    {
+      "id": "papers/building-simcash/results",
+      "title": "The Three Eras",
+      "icon": "\ud83d\udcca",
+      "category": "paper",
+      "paper": "building-simcash",
+      "paper_title": "Building SimCash: Agentic AI Development",
+      "order": 1
+    },
+    {
+      "id": "papers/building-simcash/discussion",
+      "title": "Discussion & Conclusion",
+      "icon": "\ud83d\udcac",
+      "category": "paper",
+      "paper": "building-simcash",
+      "paper_title": "Building SimCash: Agentic AI Development",
+      "order": 2
+    },
+    {
+      "id": "papers/building-simcash/appendix",
+      "title": "Appendices",
+      "icon": "\ud83d\udccb",
+      "category": "paper",
+      "paper": "building-simcash",
+      "paper_title": "Building SimCash: Agentic AI Development",
+      "order": 3
+    },
+    {
+      "id": "showcase",
+      "title": "Experiment Showcase",
+      "icon": "\ud83d\udd2c",
+      "category": "research",
+      "order": 0
+    },
+    {
+      "id": "scenarios",
+      "title": "Scenario System",
+      "icon": "\ud83c\udfac",
+      "category": "advanced",
+      "order": 0
+    },
+    {
+      "id": "policies",
+      "title": "Policy Decision Trees",
+      "icon": "\ud83c\udf33",
+      "category": "advanced",
+      "order": 1
+    },
+    {
+      "id": "policy-tree-spec",
+      "title": "Policy Tree Specification",
+      "icon": "\ud83d\udccb",
+      "category": "advanced",
+      "order": 2
+    },
+    {
+      "id": "llm-optimization",
+      "title": "LLM Optimization Deep Dive",
+      "icon": "\ud83e\udde0",
+      "category": "advanced",
+      "order": 3
+    },
+    {
+      "id": "schema-reference",
+      "title": "Schema Reference",
+      "icon": "\ud83d\udcd0",
+      "category": "reference",
+      "order": 0
+    },
+    {
+      "id": "api-reference",
+      "title": "API Reference",
+      "icon": "\ud83d\udd0c",
+      "category": "reference",
+      "order": 1
+    },
+    {
+      "id": "references",
+      "title": "References & Reading",
+      "icon": "\ud83d\udcda",
+      "category": "reference",
+      "order": 2
+    }
+  ]
+}

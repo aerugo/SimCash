@@ -8,9 +8,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import 'katex/dist/katex.min.css';
 
-import { API_ORIGIN } from '../api';
 import { CostComparisonChart, ComplexCostDeltaChart, SettlementDegradationChart } from '../components/PaperChart';
-const API_BASE = `${API_ORIGIN}/api`;
 
 interface DocPage {
   id: string;
@@ -157,7 +155,8 @@ const markdownComponents: Components = {
     <hr className="border-slate-700 my-6" />
   ),
   img: ({ src, alt }) => {
-    const resolvedSrc = src?.startsWith('/api/') ? `${API_ORIGIN}${src}` : src;
+    // Images are now served statically from /docs/images/
+    const resolvedSrc = src?.startsWith('/api/docs/images/') ? src.replace('/api/docs/images/', '/docs/images/') : src;
     return (
       <img src={resolvedSrc} alt={alt || ''} className="max-w-full rounded-lg my-4 border border-slate-700" loading="lazy" />
     );
@@ -202,7 +201,7 @@ export function DocsView() {
 
   // Fetch page list on mount
   useEffect(() => {
-    fetch(`${API_BASE}/docs`)
+    fetch('/docs/index.json')
       .then(r => r.json())
       .then(data => {
         setPages(data.pages);
@@ -214,11 +213,24 @@ export function DocsView() {
   // Fetch a single doc page (with caching)
   const fetchOne = useCallback(async (id: string): Promise<DocContent> => {
     if (cache.current[id]) return cache.current[id];
-    const r = await fetch(`${API_BASE}/docs/${id}`);
-    const data: DocContent = await r.json();
+    // Fetch raw markdown and combine with metadata from the page index
+    const r = await fetch(`/docs/${id}.md`);
+    if (!r.ok) throw new Error(`Failed to fetch /docs/${id}.md: ${r.status}`);
+    const mdContent = await r.text();
+    const meta = pages.find(p => p.id === id);
+    const data: DocContent = {
+      id,
+      title: meta?.title || id,
+      icon: meta?.icon || '',
+      category: meta?.category || '',
+      order: meta?.order || 0,
+      paper: meta?.paper,
+      paper_title: meta?.paper_title,
+      content: mdContent,
+    };
     cache.current[id] = data;
     return data;
-  }, []);
+  }, [pages]);
 
   // Fetch content when active page changes
   useEffect(() => {

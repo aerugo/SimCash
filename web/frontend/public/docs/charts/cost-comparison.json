@@ -1,0 +1,75 @@
+{
+  "type": "bar",
+  "data": [
+    {
+      "scenario": "2B 3T",
+      "baseline": 99900,
+      "flash": 13660,
+      "glm": 100909,
+      "pro": 75886
+    },
+    {
+      "scenario": "3B 6T",
+      "baseline": 74700,
+      "flash": 18017,
+      "glm": 19631,
+      "pro": 19678
+    },
+    {
+      "scenario": "4B 8T",
+      "baseline": 132800,
+      "flash": 59123,
+      "glm": 40178,
+      "pro": 41233
+    },
+    {
+      "scenario": "Castro Exp2",
+      "baseline": 99600,
+      "flash": 39393,
+      "flash_(c1-info)": 52610,
+      "flash_(c1-info_r2)": 46784,
+      "flash_(c1-info_r3)": 66750,
+      "flash_(c2-floor)": 43863,
+      "flash_(c2-floor_r2)": 51735,
+      "flash_(c2-floor_r3)": 35606,
+      "flash_(c2-floor_retry-canary)": 36187,
+      "flash_(c3-guidance)": 38066,
+      "flash_(c3-guidance_r2)": 33587,
+      "flash_(c3-guidance_r3)": 46655,
+      "flash_(c4-comp_r2)": 67354,
+      "flash_(c4-comp_r3)": 34179,
+      "flash_(c4-composition)": 37995,
+      "glm": 70889,
+      "glm_(c1-info)": 70823,
+      "glm_(c1-info_r2)": 70897,
+      "glm_(c1-info_r3)": 70897,
+      "glm_(c2-floor)": 42800,
+      "glm_(c2-floor_r2)": 70889,
+      "glm_(c2-floor_r3)": 70823,
+      "glm_(c3-guidance)": 68712,
+      "glm_(c3-guidance_r2)": 70897,
+      "glm_(c3-guidance_r3)": 67467,
+      "glm_(c4-comp_r2)": 73467,
+      "glm_(c4-comp_r3)": 70897,
+      "glm_(c4-composition)": 73541,
+      "pro": 108910,
+      "pro_(c1-info)": 70897,
+      "pro_(c1-info_r2)": 33116,
+      "pro_(c1-info_r3)": 67781,
+      "pro_(c2-floor)": 60474,
+      "pro_(c2-floor_r2)": 39028,
+      "pro_(c2-floor_r3)": 34014,
+      "pro_(c3-guidance)": 67781,
+      "pro_(c3-guidance_r2)": 68487,
+      "pro_(c3-guidance_r3)": 68712,
+      "pro_(c4-comp_r2)": 50917,
+      "pro_(c4-comp_r3)": 125683,
+      "pro_(c4-composition)": 63984
+    }
+  ],
+  "keys": [
+    "baseline",
+    "flash",
+    "pro"
+  ]
+}

@@ -7,9 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
-import { API_ORIGIN } from '../api';
-
-const API_BASE = `${API_ORIGIN}/api`;
+// Chart data is now served as static JSON from /docs/charts/
 
 const COLORS: Record<string, string> = {
   baseline: '#94a3b8',
@@ -45,7 +43,7 @@ function useChartData(chartId: string) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/docs/chart-data/${chartId}`)
+    fetch(`/docs/charts/${chartId}.json`)
       .then(r => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
