@@ -28,10 +28,10 @@ DOC_PAGES: list[dict[str, Any]] = [
     {"id": "papers/simcash/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 2},
     {"id": "papers/simcash/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "simcash", "paper_title": "SimCash Part I: Proof of Concept", "order": 3},
     # Q1 2026 Campaign Paper
-    {"id": "papers/q1-campaign/introduction", "title": "Introduction & Setup", "icon": "📄", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 0},
-    {"id": "papers/q1-campaign/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 1},
-    {"id": "papers/q1-campaign/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 2},
-    {"id": "papers/q1-campaign/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "q1-campaign", "paper_title": "SimCash Part II: The Complexity Threshold", "order": 3},
+    {"id": "papers/q1-campaign/introduction", "title": "Introduction & Setup", "icon": "📄", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026 Experiment Campaign", "order": 0},
+    {"id": "papers/q1-campaign/results", "title": "Results", "icon": "📊", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026 Experiment Campaign", "order": 1},
+    {"id": "papers/q1-campaign/discussion", "title": "Discussion & Conclusion", "icon": "💬", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026 Experiment Campaign", "order": 2},
+    {"id": "papers/q1-campaign/appendix", "title": "Detailed Data", "icon": "📋", "category": "paper", "paper": "q1-campaign", "paper_title": "Q1 2026 Experiment Campaign", "order": 3},
     # Building SimCash Paper
     {"id": "papers/building-simcash/introduction", "title": "Introduction", "icon": "📄", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 0},
     {"id": "papers/building-simcash/results", "title": "The Three Eras", "icon": "📊", "category": "paper", "paper": "building-simcash", "paper_title": "Building SimCash: Agentic AI Development", "order": 1},

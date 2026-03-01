@@ -1,8 +1,8 @@
 # Experiment Showcase: 2026 Q1 Campaign
 
-> **130 experiments. 3 LLM models. 10 scenarios. One headline finding.**
+> **130 experiments. 3 LLM models. 10 scenarios.**
 >
-> This page presents the complete results from Stefan's Q1 2026 experiment campaign — the most comprehensive evaluation of LLM-optimized payment strategies in simulated RTGS environments to date.
+> This page presents the complete results from the Q1 2026 experiment campaign — an exploratory survey of LLM-optimized payment strategies across diverse RTGS scenarios in SimCash.
 
 ---
 
@@ -26,9 +26,9 @@ Each value is the mean of 3 independent runs. Cost = total system liquidity cost
 
 ---
 
-## 2. The Threshold — Where Optimization Breaks Down
+## 2. Multi-Day Scenarios — Different Outcomes
 
-**This is the headline finding.** As system complexity increases beyond ~4 banks, LLM optimization flips from helpful to harmful — producing *simultaneously* higher costs AND lower settlement rates than simple FIFO queuing.
+In multi-day scenarios, LLM optimization produced higher costs and lower settlement rates than the FIFO baseline. These scenarios differ from the simple ones in many dimensions simultaneously (days, optimization method, bank heterogeneity, LSM, cost structure, liquidity pools, scenario events, baseline difficulty), so we present this as an observation, not a causal claim about bank count.
 
 | Scenario | Banks | Days | Baseline Cost | Baseline SR | Flash Cost (Δ%) | Flash SR | Pro Cost (Δ%) | Pro SR |
 |---|---|---|---|---|---|---|---|---|
@@ -39,18 +39,16 @@ Each value is the mean of 3 independent runs. Cost = total system liquidity cost
 | [Large Network](https://simcash-487714.web.app/experiment/524fc873) | 5 | 25 | [1,734M](https://simcash-487714.web.app/experiment/524fc873) | [59%](https://simcash-487714.web.app/experiment/524fc873) | [2,032M (**+17%**)](https://simcash-487714.web.app/experiment/298704f4) | [57%](https://simcash-487714.web.app/experiment/298704f4) | [1,485M (−14%)](https://simcash-487714.web.app/experiment/6f6f3afb) | [59%](https://simcash-487714.web.app/experiment/6f6f3afb) |
 | [Lehman Month](https://simcash-487714.web.app/experiment/b140728c) | 6 | 25 | [2,064M](https://simcash-487714.web.app/experiment/b140728c) | [69%](https://simcash-487714.web.app/experiment/b140728c) | [2,354M (**+14%**)](https://simcash-487714.web.app/experiment/79785ad6) | [60%](https://simcash-487714.web.app/experiment/79785ad6) | [2,547M (+23%)](https://simcash-487714.web.app/experiment/9f279e14) | [58%](https://simcash-487714.web.app/experiment/9f279e14) |
 
-**The pattern is stark:**
-- **≤4 banks:** 52–84% cost reduction, settlement rates stay ≥96%
-- **5+ banks (Flash):** 14–21% cost *increase*, settlement drops 7–12 percentage points
-- **5+ banks (Pro):** Even worse — 23–24% cost increase on Periodic Shocks and Lehman Month
+**Observed pattern:**
+- **Single-day scenarios:** 52–84% cost reduction, settlement rates stay ≥96%
+- **Multi-day scenarios (Flash):** 14–21% cost *increase*, settlement drops 7–12 percentage points
+- **Multi-day scenarios (Pro):** 23–24% cost increase on Periodic Shocks and Lehman Month
 
-This is not a cost-settlement trade-off. It is **pure value destruction** — a computational tragedy of the commons where individually rational optimization produces collectively irrational outcomes.
+Note: Periodic Shocks has 4 banks — the same count as 4b_8t, where LLM optimization works well. The difference is not bank count alone but the combination of multi-day dynamics, heterogeneous banks, different cost structures, and other factors. See the [Discussion](papers/q1-campaign/discussion) for a full confound analysis.
 
-### Why It Happens
+### What We Observed
 
-Each bank's LLM independently optimizes its own liquidity fraction to minimize its own cost. In small networks, these strategies are mostly compatible. In larger networks, aggressive liquidity hoarding by multiple agents creates cascading settlement failures, gridlock, and higher costs for everyone — including the hoarding agents themselves.
-
-The `is_better_than()` objective function compares total cost without adequately penalizing settlement degradation, enabling a "free-rider" dynamic where agents learn to hold liquidity at the expense of system throughput.
+Over 25 days of between-day optimization, LLM agents progressively reduce their liquidity fractions toward zero — a "ratchet effect" where each day's cost-reducing policy change is locked in before cumulative system-wide consequences become visible. The `is_better_than()` function compares cost only, which may contribute to this dynamic.
 
 ---
 
@@ -153,9 +151,9 @@ Across all simple + stress scenarios (7 scenarios, v0.1 condition):
 - Most responsive to prompt engineering (C2/C3 conditions)
 - Highest settlement maintenance under constraints
 
-**Gemini Pro** — The sophisticated free-rider
-- Strong cost optimization but paradoxically *worse* on complex scenarios
-- Better reasoning → more effective liquidity hoarding → worse collective outcome
+**Gemini Pro** — The paradox
+- Strong cost optimization but generally *worse* system-wide outcomes than Flash
+- On multi-day scenarios, Pro produced higher costs than Flash in 2 of 3 cases
 - Best on Liquidity Squeeze (80% cost reduction)
 
 **GLM-4-Flash** — The wild card
@@ -164,17 +162,17 @@ Across all simple + stress scenarios (7 scenarios, v0.1 condition):
 - Resistant to prompt engineering interventions
 - GLM results on complex scenarios excluded due to pre-bugfix data (cost-delta bug)
 
-### The Smart Free-Rider Effect
+### Flash vs Pro on Multi-Day Scenarios
 
-On complex scenarios, Pro consistently produces worse outcomes than Flash:
+On multi-day scenarios, Pro generally produced worse system-wide outcomes than Flash:
 
-| Complex Scenario | Flash Cost Δ | Pro Cost Δ | Flash SR | Pro SR |
+| Multi-Day Scenario | Flash Cost Δ | Pro Cost Δ | Flash SR | Pro SR |
 |---|---|---|---|---|
 | Periodic Shocks | [+21%](https://simcash-487714.web.app/experiment/ea0794a3) | [**+24%**](https://simcash-487714.web.app/experiment/0496e8bc) | [70%](https://simcash-487714.web.app/experiment/ea0794a3) | [69%](https://simcash-487714.web.app/experiment/0496e8bc) |
 | Large Network | [+17%](https://simcash-487714.web.app/experiment/298704f4) | [−14%](https://simcash-487714.web.app/experiment/6f6f3afb) | [57%](https://simcash-487714.web.app/experiment/298704f4) | [59%](https://simcash-487714.web.app/experiment/6f6f3afb) |
 | Lehman Month | [+14%](https://simcash-487714.web.app/experiment/79785ad6) | [**+23%**](https://simcash-487714.web.app/experiment/9f279e14) | [60%](https://simcash-487714.web.app/experiment/79785ad6) | [**58%**](https://simcash-487714.web.app/experiment/9f279e14) |
 
-Better reasoning capability enables more effective individual optimization — which, in the multi-agent setting, translates to more effective free-riding and worse collective outcomes. This is Finding #3: the **Smart Free-Rider Effect**.
+This pattern — a more capable model producing worse collective outcomes — is an interesting observation that warrants controlled investigation. See the [Discussion](papers/q1-campaign/discussion) for proposed experiments.
 
 ---
 
