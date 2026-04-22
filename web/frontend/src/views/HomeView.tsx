@@ -97,21 +97,21 @@ export function HomeView() {
         </div>
 
         <div>
-          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Open-weight models for regulated environments</h4>
+          <h4 className="font-medium mb-1" style={{ color: 'var(--text-primary)' }}>Multi-model AI for regulated environments</h4>
           <p>
-            SimCash currently runs on{' '}
-            <a href="https://bigmodel.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
-              GLM-4.7
-            </a>, an open-weight model served via Google Vertex AI. This is a deliberate choice.
-            In any realistic future where AI agents operate within payment systems, those agents will almost
-            certainly run on-premise — inside tightly regulated institutions that cannot route sensitive
-            transaction data through third-party APIs. By demonstrating that an open-weight model already
-            achieves strong results on this coordination task, SimCash provides evidence that the capability
-            threshold for agentic cash management is within reach of models that banks and central banks
-            can deploy on their own infrastructure, under their own governance frameworks. The reasoning
-            capabilities needed to analyse payment flows, identify cost drivers, and propose structural
-            policy improvements do not require the largest proprietary frontier models — they require a
-            model that is good enough, auditable, and deployable where the data lives.
+            SimCash runs primarily on{' '}
+            <a href="https://deepmind.google/technologies/gemini/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-accent)' }}>
+              Gemini 2.5 Pro & Lite
+            </a>, served via Google Vertex AI. This is a deliberate choice.
+            Our experiments revealed a surprising result: Gemini 2.5 Lite — the smaller, faster model —
+            outperformed the larger Pro variant in many scenarios. This suggests the capability threshold
+            for agentic cash management is not simply a function of model size. In a realistic future
+            where AI agents operate within payment systems, those agents will almost certainly run
+            on-premise — inside tightly regulated institutions that cannot route sensitive transaction data
+            through third-party APIs. The fact that a lightweight model already matches or exceeds larger
+            alternatives on this task is encouraging for deployability, but our results also show that
+            model choice matters: not all architectures handle the strategic reasoning these coordination
+            games demand.
           </p>
         </div>
       </div>
